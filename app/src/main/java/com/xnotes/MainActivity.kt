@@ -475,6 +475,11 @@ private fun EditorScreen(
                 .onSuccess { bytes ->
                     if (bytes != null) {
                         editor.noteCreationCoverImageBytes = bytes
+                        val root = editor.browseRoot
+                        val name = displayNameOf(resolver, uri)
+                        scope.launch(kotlinx.coroutines.Dispatchers.IO) {
+                            com.xnotes.platform.CustomAssetFolders.storeImage(context, root, bytes, name)
+                        }
                     } else editor.message = context.getString(R.string.err_read_image)
                 }
                 .onFailure { editor.message = context.getString(R.string.err_read_image) }
@@ -485,8 +490,14 @@ private fun EditorScreen(
         if (uri != null) {
             runCatching { resolver.openInputStream(uri)?.use { it.readBytes() } }
                 .onSuccess { bytes ->
-                    if (bytes != null) editor.noteCreationPageImageBytes = bytes
-                    else editor.message = context.getString(R.string.err_read_image)
+                    if (bytes != null) {
+                        editor.noteCreationPageImageBytes = bytes
+                        val root = editor.browseRoot
+                        val name = displayNameOf(resolver, uri)
+                        scope.launch(kotlinx.coroutines.Dispatchers.IO) {
+                            com.xnotes.platform.CustomAssetFolders.storeImage(context, root, bytes, name)
+                        }
+                    } else editor.message = context.getString(R.string.err_read_image)
                 }
                 .onFailure { editor.message = context.getString(R.string.err_read_image) }
         }

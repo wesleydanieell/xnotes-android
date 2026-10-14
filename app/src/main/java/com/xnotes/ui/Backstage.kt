@@ -2253,6 +2253,7 @@ private fun NoteCreationDialog(
                     }
                 }
                 Text(stringResource(R.string.create_page_pattern), color = palette.textDim.toComposeColor(), fontSize = 12.sp)
+                Text(stringResource(R.string.create_asset_folder_help), color = palette.textDim.toComposeColor(), fontSize = 10.sp)
                 ModeChip(stringResource(R.string.none), pagePattern == PageTemplates.NONE) { pagePattern = PageTemplates.NONE }
                 TemplateStrip(
                     entries = availableTemplates,

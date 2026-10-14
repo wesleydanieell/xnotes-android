@@ -1503,6 +1503,7 @@ class Editor(context: Context, val pane: Pane = Pane.PRIMARY) : ToolPopupHost, S
     @Volatile private var thumbsAwaitMath = false
 
     init {
+        TemplateLibrary.configureStorageTree(browseRoot)
         com.xnotes.platform.MathRendering.addListener(mathLanded)
         view.input = { ev ->
             // Any fresh canvas touch quietly retires the flow action bar and still does its job.
@@ -3539,6 +3540,8 @@ class Editor(context: Context, val pane: Pane = Pane.PRIMARY) : ToolPopupHost, S
     fun updateBrowseRoot(treeUri: String) {
         colorNames = emptyMap()
         browseRoot = treeUri
+        TemplateLibrary.configureStorageTree(treeUri)
+        TemplateLibraryUi.version++
         settings = settings.copy(browseRoot = treeUri)
         settingsRepo.save(settings)
         browseCache.clear()

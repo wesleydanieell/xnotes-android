@@ -993,4 +993,5 @@
     <string name="create_cover_image_preview">Cover image preview</string>
     <string name="create_pick_page_image">Choose custom page image</string>
     <string name="create_page_image_preview">Custom page image preview</string>
+    <string name="create_asset_folder_help">Imported templates and custom page/cover images are saved in hidden .xnotes-templates and .xnotes-pages folders under your selected notes folder.</string>
 </resources>
