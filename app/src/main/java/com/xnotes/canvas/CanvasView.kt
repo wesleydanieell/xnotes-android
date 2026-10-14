@@ -403,11 +403,11 @@ class CanvasView @JvmOverloads constructor(
 
         val visible = st.visibleContentRect()
         val border = Pen(st.palette.paperBorder, 1.0, cosmetic = true)
-        // Paginated mode shows only the current row; neighbours never draw.
+        // Paginated mode shows only the current row; neighbours never draw. Iterate the range
+        // directly instead of scanning every page on every animation frame in a large document.
         val drawable = st.drawablePageRange()
 
-        for (i in st.document.pages.indices) {
-            if (i !in drawable) continue
+        for (i in drawable) {
             val pr = st.pageRects.getOrNull(i) ?: continue
             if (!pr.intersects(visible)) continue
             val page = st.document.pages[i]
@@ -453,8 +453,7 @@ class CanvasView @JvmOverloads constructor(
                         r.clipRect(Rect(blit.dx, blit.dy, dw, dh))
                         r.translate(origin.x, origin.y)
                         r.scale(st.zoom, st.zoom)
-                        for (i in st.document.pages.indices) {
-                            if (i !in drawable) continue
+                        for (i in drawable) {
                             val pr = st.pageRects.getOrNull(i) ?: continue
                             if (!pr.intersects(visible)) continue
                             val page = st.document.pages[i]
@@ -490,8 +489,7 @@ class CanvasView @JvmOverloads constructor(
         r.withSave {
             r.translate(origin.x, origin.y)
             r.scale(st.zoom, st.zoom)
-            for (i in st.document.pages.indices) {
-                if (i !in drawable) continue
+            for (i in drawable) {
                 val pr = st.pageRects.getOrNull(i) ?: continue
                 if (!pr.intersects(visible)) continue
                 val page = st.document.pages[i]
