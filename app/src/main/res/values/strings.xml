@@ -384,6 +384,17 @@
     <!-- Home screen and explorer -->
     <string name="collapse_sidebar">Collapse sidebar</string>
     <string name="home">Home</string>
+    <string name="create_custom_colour">Custom colour</string>
+    <string name="create_saved_template">Saved template</string>
+    <string name="create_page_size">Page size</string>
+    <string name="create_orientation">Orientation</string>
+    <string name="create_page_appearance">Page appearance</string>
+    <string name="create_paper_colour">Paper colour</string>
+    <string name="create_page_pattern">Page pattern</string>
+    <string name="create_add_cover">Add a cover page</string>
+    <string name="create_cover_help">Adds a title page before the first writing page.</string>
+    <string name="create_cover_colour">Cover colour</string>
+    <string name="create_cover_pattern">Cover pattern</string>
     <string name="new_note">New note</string>
     <string name="new_canvas">New canvas</string>
     <string name="about">About</string>

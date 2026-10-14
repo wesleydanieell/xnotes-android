@@ -89,6 +89,25 @@ class DocumentCodecTest {
         return out
     }
 
+    @Test fun coverPageStyleAndTitleSurviveRoundTrip() {
+        val doc = Document.blankPixels(2, 1240.0, 1754.0)
+        doc.style = PageStyle(pageColor = Rgba(245, 245, 245), template = PagePattern.LINES.id)
+        doc.pages[0].style = PageStyle(pageColor = Rgba(47, 62, 112), template = PagePattern.DOTS.id)
+        doc.pages[0].items += TextItem(
+            pos = Pt(124.0, 596.0), width = 992.0, text = "Research notebook",
+            rgba = Rgba(250, 250, 250), pointSize = 32.0, face = FontFace.SANS,
+            measurer = FakeTextMeasurer(),
+        )
+
+        val back = roundTrip(doc)
+        assertEquals(2, back.pages.size)
+        assertEquals(doc.style, back.style)
+        assertEquals(doc.pages[0].style, back.pages[0].style)
+        val title = back.pages[0].items.single() as TextItem
+        assertEquals("Research notebook", title.text)
+        assertEquals(32.0, title.pointSize, 0.0)
+    }
+
     @Test fun markupsRideTheirOwnEntryJustBeforeTheManifest() {
         val doc = Document(dpi = 150)
         doc.pages += Page(1240.0, 1754.0)

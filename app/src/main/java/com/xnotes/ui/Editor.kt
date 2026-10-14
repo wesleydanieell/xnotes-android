@@ -44,6 +44,7 @@ import com.xnotes.core.model.PageStyle
 import com.xnotes.core.model.PageTemplates
 import com.xnotes.core.model.Rgba
 import com.xnotes.core.model.TextMarkup
+import com.xnotes.core.model.TextItem
 import com.xnotes.core.pal.FontFace
 import com.xnotes.core.pal.Renderer
 import com.xnotes.core.pdf.MarkupPainter
@@ -225,6 +226,15 @@ private val sharedRecents = androidx.compose.runtime.mutableStateOf<List<com.xno
  * session in its own slot, and leaves the tool/toolbar preference snapshot to the primary.
  */
 enum class Pane { PRIMARY, SECONDARY }
+
+/** Per-note choices collected by the creation dialog. Styles are persisted using the existing page/document format. */
+data class NoteCreationOptions(
+    val pageSize: PageSize,
+    val orientation: Orientation,
+    val pageStyle: PageStyle,
+    val includeCover: Boolean,
+    val coverStyle: PageStyle,
+)
 
 @Stable
 class Editor(context: Context, val pane: Pane = Pane.PRIMARY) : ToolPopupHost, SelectionMenuHost, LongPressMenuHost, TextEditHost {
@@ -2557,6 +2567,10 @@ class Editor(context: Context, val pane: Pane = Pane.PRIMARY) : ToolPopupHost, S
     val currentPageStyle: PageStyle
         get() = state.document.pages.getOrNull(state.currentPageIndex())?.style ?: PageStyle()
 
+    /** Defaults used to prefill the new-note creation dialog. */
+    val defaultNewPageSize: PageSize get() = settings.prefs.defaultPageSize
+    val defaultNewPageOrientation: Orientation get() = settings.prefs.defaultPageOrientation
+
     /** The saved All Pages style stamped onto newly created notes (empty ⇒ app built-ins). */
     var newNoteStyle by mutableStateOf(settings.newNoteStyle)
         private set
@@ -2595,10 +2609,24 @@ class Editor(context: Context, val pane: Pane = Pane.PRIMARY) : ToolPopupHost, S
         settingsRepo.save(settings)
     }
 
-    /** A blank document at the user's default page size, custom dimensions included. */
-    private fun blankDocument(): Document {
-        val (w, h) = settings.prefs.newPagePixels()
-        return Document.blankPixels(Document.DEFAULT_NEW_PAGES, w, h).also { it.created = System.currentTimeMillis() }
+    /** A blank document at a chosen page size, falling back to the user's defaults. */
+    private fun blankDocument(
+        pageSize: PageSize? = null,
+        orientation: Orientation? = null,
+        count: Int = Document.DEFAULT_NEW_PAGES,
+    ): Document {
+        val prefs = settings.prefs
+        val chosenSize = pageSize ?: prefs.defaultPageSize
+        val chosenOrientation = orientation ?: prefs.defaultPageOrientation
+        val (w, h) = if (chosenSize == PageSize.CUSTOM) {
+            // With no per-note override, preserve the user's typed custom dimensions exactly.
+            if (pageSize == null && orientation == null) prefs.newPagePixels() else {
+                val a = PageSize.mmToPx(prefs.customPageWidthMm, PageSize.DEFAULT_DPI)
+                val b = PageSize.mmToPx(prefs.customPageHeightMm, PageSize.DEFAULT_DPI)
+                if (chosenOrientation == Orientation.LANDSCAPE) maxOf(a, b) to minOf(a, b) else minOf(a, b) to maxOf(a, b)
+            }
+        } else chosenSize.pixels(chosenOrientation, PageSize.DEFAULT_DPI)
+        return Document.blankPixels(count, w, h).also { it.created = System.currentTimeMillis() }
     }
 
     /** Stamp the saved new-note defaults (page style + flow config) onto a fresh [doc]. */
@@ -3782,9 +3810,40 @@ class Editor(context: Context, val pane: Pane = Pane.PRIMARY) : ToolPopupHost, S
     }
 
     /** Creates a blank `.xnote` under [parentDocId]; returns its URI, or null. IO — call off-thread. */
-    fun createBlankNoteFile(treeUri: String, parentDocId: String, rawName: String): String? {
+    fun createBlankNoteFile(
+        treeUri: String,
+        parentDocId: String,
+        rawName: String,
+        options: NoteCreationOptions? = null,
+    ): String? {
         val name = uniqueDocumentName(treeUri, parentDocId, rawName, com.xnotes.core.util.DocumentKind.NOTE)
-        val blank = blankDocument().also { stampNewNoteDefaults(it) }
+        val blank = if (options == null) blankDocument() else {
+            blankDocument(options.pageSize, options.orientation, if (options.includeCover) 2 else 1)
+        }
+        stampNewNoteDefaults(blank)
+        if (options != null) {
+            blank.style = options.pageStyle
+            TemplateLibrary.embed(blank, options.pageStyle.template)
+            if (options.includeCover) {
+                val cover = blank.pages.first()
+                cover.style = options.coverStyle
+                TemplateLibrary.embed(blank, options.coverStyle.template)
+                val title = com.xnotes.core.util.DocumentKind.stripSuffix(name).ifBlank { "Untitled" }
+                val paper = options.coverStyle.pageColor
+                val ink = if (paper != null && paper.luminance() < 0.42) Rgba(250, 250, 250) else Rgba(35, 39, 48)
+                cover.items.add(
+                    TextItem(
+                        pos = Pt(cover.width * 0.10, cover.height * 0.34),
+                        width = cover.width * 0.80,
+                        text = title,
+                        rgba = ink,
+                        pointSize = 32.0,
+                        face = FontFace.SANS,
+                        measurer = textMeasurer,
+                    ),
+                )
+            }
+        }
         return createNoteFile(treeUri, parentDocId, name) { codec.write(blank, it) }
     }
 
