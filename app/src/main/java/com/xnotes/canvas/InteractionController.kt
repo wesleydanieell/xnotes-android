@@ -284,6 +284,13 @@ class InteractionController(
     private var lastFlingMs = 0L
     private val flingFrame = Choreographer.FrameCallback { frameTimeNanos -> stepFling(frameTimeNanos) }
 
+    // Animate the incoming spread from the side after a paginated swipe.
+    private var pageFlipAnimating = false
+    private var pageFlipStartMs = 0L
+    private var pageFlipStartOffset = 0.0
+    private val pageFlipDurationMs = 220.0
+    private val pageFlipFrame = Choreographer.FrameCallback { frameTimeNanos -> stepPageFlip(frameTimeNanos) }
+
     // ELASTIC OVERSCROLL (pull past the bottom end to add a page)
     /** True once the live stretch has crossed the add-page threshold, so the haptic fires once. */
     private var overscrollArmed = false
@@ -3686,19 +3693,53 @@ class InteractionController(
                 flipTo(state.currentRow + 1)
             panVel.x >= FLIP_FLING_VEL && state.atRowEdge(next = false) && state.currentRow > 0 ->
                 flipTo(state.currentRow - 1)
-            pull != 0.0 -> { clearFlipPull(); onViewChanged(); requestRender() }
+            pull != 0.0 -> { animateFlipPullBack(); onViewChanged(); requestRender() }
             else -> startPanFling()
         }
     }
 
-    /**
-     * Jump to [rowIndex] with no animation: the new row simply appears at its landing spot
-     * ([CanvasState.rowTargetScroll] — zoom kept, top-aligned).
-     */
+    /** Navigate to a row and slide its pages into view, keeping the current zoom and alignment. */
     private fun flipTo(rowIndex: Int) {
         stopFling()
+        pageFlipAnimating = false
+        val oldRow = state.currentRow
+        val direction = if (rowIndex > oldRow) 1.0 else -1.0
+        state.flipOffsetX = 0.0
         state.goToPage(state.rowRanges()[rowIndex].first)
+        // contentToViewport subtracts flipOffsetX, so the next spread enters from the right.
+        state.flipOffsetX = -direction * state.viewportW.toDouble()
+        pageFlipStartOffset = state.flipOffsetX
+        pageFlipStartMs = System.nanoTime() / 1_000_000L
+        pageFlipAnimating = true
+        choreographer.postFrameCallback(pageFlipFrame)
         onViewChanged()
+        requestRender()
+    }
+
+    /** Ease a sub-threshold edge pull back to rest instead of snapping the page into place. */
+    private fun animateFlipPullBack() {
+        if (state.flipOffsetX == 0.0) return
+        stopFling()
+        pageFlipAnimating = false
+        pageFlipStartOffset = state.flipOffsetX
+        pageFlipStartMs = System.nanoTime() / 1_000_000L
+        pageFlipAnimating = true
+        choreographer.postFrameCallback(pageFlipFrame)
+    }
+
+    private fun stepPageFlip(frameTimeNanos: Long) {
+        if (!pageFlipAnimating) return
+        val now = frameTimeNanos / 1_000_000L
+        val t = ((now - pageFlipStartMs) / pageFlipDurationMs).coerceIn(0.0, 1.0)
+        // Cubic ease-out gives the page a quick start and a soft landing.
+        val eased = 1.0 - (1.0 - t) * (1.0 - t) * (1.0 - t)
+        state.flipOffsetX = pageFlipStartOffset * (1.0 - eased)
+        if (t >= 1.0 || abs(state.flipOffsetX) < 0.5) {
+            state.flipOffsetX = 0.0
+            pageFlipAnimating = false
+        } else {
+            choreographer.postFrameCallback(pageFlipFrame)
+        }
         requestRender()
     }
 
@@ -3859,6 +3900,7 @@ class InteractionController(
      */
     fun resetGestureState() {
         stopFling()
+        pageFlipAnimating = false
         state.flipOffsetX = 0.0
         clearOverscroll()
         cancelDwell()
