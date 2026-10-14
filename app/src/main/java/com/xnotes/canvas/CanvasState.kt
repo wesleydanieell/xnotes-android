@@ -931,11 +931,16 @@ class CanvasState(
      * winning when both grab. Otherwise [raw] passes through and both flags clear. Returns the
      * zoom the caller applies; the false→true transition of either flag surfaces the lock hint.
      */
-    fun snapZoomToFit(raw: Double): Double {
+    fun snapZoomToFit(raw: Double, pinchStartZoom: Double = zoom): Double {
         val fitW = fitWidthZoom()
         val fitH = fitHeightZoom()
-        val nearW = fitW > 0.0 && abs(raw - fitW) <= fitW * SNAP_TO_FIT_WIDTH
-        val nearH = fitH > 0.0 && abs(raw - fitH) <= fitH * SNAP_TO_FIT_WIDTH
+        // Only snap when the gesture approaches a fit target while zooming OUT from above it.
+        // Snapping while zooming IN makes the page suddenly fill the viewport, clamps the row's
+        // vertical scroll range to almost zero, and feels like a pan/zoom lock to the user.
+        val canSnapW = fitW > 0.0 && fitW < pinchStartZoom
+        val canSnapH = fitH > 0.0 && fitH < pinchStartZoom
+        val nearW = canSnapW && abs(raw - fitW) <= fitW * SNAP_TO_FIT_WIDTH
+        val nearH = canSnapH && abs(raw - fitH) <= fitH * SNAP_TO_FIT_WIDTH
         val pickH = nearH && (!nearW || abs(raw - fitH) < abs(raw - fitW))
         fitHeightActive = pickH
         fitWidthActive = nearW && !pickH

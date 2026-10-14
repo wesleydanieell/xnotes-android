@@ -3965,7 +3965,7 @@ class InteractionController(
         // within the band (pinch past it to break free). The lock hint surfaces the moment a
         // magnet grabs and is dismissed the moment it breaks free. A locked pinch is pan-only,
         // so it never snaps.
-        val z = if (state.zoomLocked) pinchInitZoom else state.snapZoomToFit(raw)
+        val z = if (state.zoomLocked) pinchInitZoom else state.snapZoomToFit(raw, pinchInitZoom)
         // A two-finger pan held at its zoom (locked, or on a fit magnet) keeps prefetching like a one-finger one.
         if (z != pinchInitZoom) state.zoomingInProgress = true
         state.zoom = z

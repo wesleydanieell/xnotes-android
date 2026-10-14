@@ -10,7 +10,7 @@ import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
-/** Guards the live magnetic fit-to-width snap and the sidebar-resize re-fit. */
+/** Guards directional fit snapping and resize re-fit without trapping zoom-in gestures. */
 class FitWidthSnapTest {
 
     private fun state(pages: Int = 1, viewportW: Int = 1000): CanvasState =
@@ -38,6 +38,45 @@ class FitWidthSnapTest {
         val z = st.snapZoomToFit(fit * 1.3)
         assertEquals(fit * 1.3, z, 1e-9) // raw zoom passes through untouched
         assertFalse(st.fitWidthActive)
+    }
+
+    @Test fun zoomingInTowardFitWidthDoesNotSnapOrClampToViewport() {
+        val st = state()
+        val fit = st.fitWidthZoom()
+        st.zoom = fit * 0.8
+        val raw = fit * 0.99
+
+        val z = st.snapZoomToFit(raw, pinchStartZoom = st.zoom)
+
+        assertEquals(raw, z, 1e-9)
+        assertFalse(st.fitWidthActive)
+    }
+
+    @Test fun zoomingInTowardFitHeightDoesNotSnapOrClampToViewport() {
+        val st = state()
+        st.verticalScroll = false
+        st.relayout()
+        val fit = st.fitHeightZoom()
+        st.zoom = fit * 0.8
+        val raw = fit * 0.99
+
+        val z = st.snapZoomToFit(raw, pinchStartZoom = st.zoom)
+
+        assertEquals(raw, z, 1e-9)
+        assertFalse(st.fitHeightActive)
+    }
+
+    @Test fun zoomingOutTowardFitHeightStillSnaps() {
+        val st = state()
+        st.verticalScroll = false
+        st.relayout()
+        val fit = st.fitHeightZoom()
+        st.zoom = fit * 1.2
+
+        val z = st.snapZoomToFit(fit * 1.03, pinchStartZoom = st.zoom)
+
+        assertEquals(fit, z, 1e-9)
+        assertTrue(st.fitHeightActive)
     }
 
     @Test fun noHeightMagnetInVerticalMode() {
