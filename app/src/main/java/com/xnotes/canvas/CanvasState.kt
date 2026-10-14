@@ -166,6 +166,9 @@ class CanvasState(
      */
     var flipOffsetX: Double = 0.0
 
+    /** Small, signed vertical edge-drag stretch used only in paginated mode. */
+    var panOffsetY: Double = 0.0
+
     /**
      * Whole-file clockwise page rotation (0/90/180/270), applied by the view: pages lay
      * out with their rotated footprints ([displayW]/[displayH]) and their page-space
@@ -625,7 +628,7 @@ class CanvasState(
         // Paginated: the row clamp centres the row when it fits, so the scroll always wins; the
         // whole strip must never be centred (two pages would push each single-page row off centre).
         val ox = (if (!verticalScroll || cw >= clearW) -scrollX else insetLeft + (clearW - cw) / 2.0) - flipOffsetX
-        val oy = (if (ch < clearH) insetTop + (clearH - ch) / 2.0 else -scrollY) - overscrollY
+        val oy = (if (ch < clearH) insetTop + (clearH - ch) / 2.0 else -scrollY) - overscrollY - panOffsetY
         return Pt(ox, oy)
     }
 

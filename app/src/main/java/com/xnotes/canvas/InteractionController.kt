@@ -288,6 +288,7 @@ class InteractionController(
     private var pageFlipAnimating = false
     private var pageFlipStartMs = 0L
     private var pageFlipStartOffset = 0.0
+    private var pageFlipStartOffsetY = 0.0
     private val pageFlipDurationMs = 220.0
     private val pageFlipFrame = Choreographer.FrameCallback { frameTimeNanos -> stepPageFlip(frameTimeNanos) }
 
@@ -3649,8 +3650,9 @@ class InteractionController(
      * the flip. Relaxing motion unwinds the pull before the scroll moves again, exactly
      * like the bottom overscroll. No add-page elastic in this mode.
      */
-    private fun extendPanPaginated(dx0: Double, dy: Double) {
+    private fun extendPanPaginated(dx0: Double, dy0: Double) {
         var dx = dx0
+        var dy = dy0
         val pull = state.flipOffsetX
         if (pull > 0.0 && dx < 0.0 || pull < 0.0 && dx > 0.0) {
             val relaxed = pull + dx * FLIP_RESIST
@@ -3662,16 +3664,34 @@ class InteractionController(
                 dx = 0.0
             }
         }
+        // Reverse motion first relaxes the vertical rubber-band, then resumes scrolling.
+        val verticalPull = state.panOffsetY
+        if (verticalPull > 0.0 && dy < 0.0 || verticalPull < 0.0 && dy > 0.0) {
+            val relaxed = verticalPull + dy * PAGINATED_VERTICAL_RESIST
+            if (relaxed * verticalPull <= 0.0) {
+                state.panOffsetY = 0.0
+                dy += verticalPull / PAGINATED_VERTICAL_RESIST
+            } else {
+                state.panOffsetY = relaxed
+                dy = 0.0
+            }
+        }
         val beforeX = state.scrollX
+        val beforeY = state.scrollY
         state.scrollBy(dx, dy)
         val leftoverX = dx - (state.scrollX - beforeX)
+        val leftoverY = dy - (state.scrollY - beforeY)
         if (leftoverX != 0.0) {
             val cap = FLIP_MAX_FRACTION * state.viewportW
             val armedBefore = abs(state.flipOffsetX) >= FLIP_TRIGGER
             state.flipOffsetX = (state.flipOffsetX + leftoverX * FLIP_RESIST).coerceIn(-cap, cap)
             if (!armedBefore && abs(state.flipOffsetX) >= FLIP_TRIGGER) onHaptic()
         }
-        // The pull reveals only empty background; the neighbouring row never joins the screen.
+        if (leftoverY != 0.0) {
+            val capY = min(PAGINATED_VERTICAL_MAX, state.viewportH * PAGINATED_VERTICAL_MAX_FRACTION)
+            state.panOffsetY = (state.panOffsetY + leftoverY * PAGINATED_VERTICAL_RESIST).coerceIn(-capY, capY)
+        }
+        // Both edge pulls are visual only; neighbouring pages never bleed into the current view.
     }
 
     /** Decide what a lifted paginated pan does: flip instantly, add a page, drop the pull, or glide. */
@@ -3693,7 +3713,7 @@ class InteractionController(
                 flipTo(state.currentRow + 1)
             panVel.x >= FLIP_FLING_VEL && state.atRowEdge(next = false) && state.currentRow > 0 ->
                 flipTo(state.currentRow - 1)
-            pull != 0.0 -> { animateFlipPullBack(); onViewChanged(); requestRender() }
+            pull != 0.0 || state.panOffsetY != 0.0 -> { animateFlipPullBack(); onViewChanged(); requestRender() }
             else -> startPanFling()
         }
     }
@@ -3705,10 +3725,12 @@ class InteractionController(
         val oldRow = state.currentRow
         val direction = if (rowIndex > oldRow) 1.0 else -1.0
         state.flipOffsetX = 0.0
+        state.panOffsetY = 0.0
         state.goToPage(state.rowRanges()[rowIndex].first)
         // contentToViewport subtracts flipOffsetX, so the next spread enters from the right.
         state.flipOffsetX = -direction * state.viewportW.toDouble()
         pageFlipStartOffset = state.flipOffsetX
+        pageFlipStartOffsetY = 0.0
         pageFlipStartMs = System.nanoTime() / 1_000_000L
         pageFlipAnimating = true
         choreographer.postFrameCallback(pageFlipFrame)
@@ -3718,10 +3740,11 @@ class InteractionController(
 
     /** Ease a sub-threshold edge pull back to rest instead of snapping the page into place. */
     private fun animateFlipPullBack() {
-        if (state.flipOffsetX == 0.0) return
+        if (state.flipOffsetX == 0.0 && state.panOffsetY == 0.0) return
         stopFling()
         pageFlipAnimating = false
         pageFlipStartOffset = state.flipOffsetX
+        pageFlipStartOffsetY = state.panOffsetY
         pageFlipStartMs = System.nanoTime() / 1_000_000L
         pageFlipAnimating = true
         choreographer.postFrameCallback(pageFlipFrame)
@@ -3734,8 +3757,10 @@ class InteractionController(
         // Cubic ease-out gives the page a quick start and a soft landing.
         val eased = 1.0 - (1.0 - t) * (1.0 - t) * (1.0 - t)
         state.flipOffsetX = pageFlipStartOffset * (1.0 - eased)
-        if (t >= 1.0 || abs(state.flipOffsetX) < 0.5) {
+        state.panOffsetY = pageFlipStartOffsetY * (1.0 - eased)
+        if (t >= 1.0 || (abs(state.flipOffsetX) < 0.5 && abs(state.panOffsetY) < 0.5)) {
             state.flipOffsetX = 0.0
+            state.panOffsetY = 0.0
             pageFlipAnimating = false
         } else {
             choreographer.postFrameCallback(pageFlipFrame)
@@ -3902,6 +3927,7 @@ class InteractionController(
         stopFling()
         pageFlipAnimating = false
         state.flipOffsetX = 0.0
+        state.panOffsetY = 0.0
         clearOverscroll()
         cancelDwell()
         clearFading()
@@ -3940,6 +3966,7 @@ class InteractionController(
         if (mode == PointerMode.SHOT) clearScreenshot() // a second finger turns the drag into a zoom
         clearOverscroll() // a second finger ends any bottom-pull; the elastic snaps away
         clearFlipPull() // ...and any paginated edge-pull folds back into the scroll
+        state.panOffsetY = 0.0
         mode = PointerMode.PINCH
         val a = Pt(e.getX(0).toDouble(), e.getY(0).toDouble())
         val b = Pt(e.getX(1).toDouble(), e.getY(1).toDouble())
@@ -4593,9 +4620,12 @@ class InteractionController(
         const val OVERSCROLL_SPRING = 14.0 // spring-back rate toward rest (1/s; higher = snappier)
 
         // Paginated page-flip tuning.
-        const val FLIP_RESIST = 0.55 // fraction of past-edge finger travel that becomes pull
-        const val FLIP_TRIGGER = 90.0 // pull (viewport px) at which releasing flips the page
+        const val FLIP_RESIST = 0.60 // fraction of past-edge finger travel that becomes pull
+        const val FLIP_TRIGGER = 108.0 // slightly longer deliberate pull before changing pages
         const val FLIP_FLING_VEL = 900.0 // finger velocity (viewport px/s) that flips from the edge
-        const val FLIP_MAX_FRACTION = 0.6 // pull cap, as a fraction of the viewport width
+        const val FLIP_MAX_FRACTION = 0.78 // allow a longer horizontal pull before the page settles
+        const val PAGINATED_VERTICAL_RESIST = 0.58
+        const val PAGINATED_VERTICAL_MAX = 180.0
+        const val PAGINATED_VERTICAL_MAX_FRACTION = 0.30 // cap vertical edge drag to 30% of the viewport
     }
 }
