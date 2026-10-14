@@ -234,6 +234,10 @@ data class NoteCreationOptions(
     val pageStyle: PageStyle,
     val includeCover: Boolean,
     val coverStyle: PageStyle,
+    /** Optional encoded image to place behind the title on the first page. */
+    val coverImageBytes: ByteArray? = null,
+    /** Optional image used as the background paper on every page. */
+    val pageImageBytes: ByteArray? = null,
 )
 
 @Stable
@@ -2575,6 +2579,10 @@ class Editor(context: Context, val pane: Pane = Pane.PRIMARY) : ToolPopupHost, S
     var newNoteStyle by mutableStateOf(settings.newNoteStyle)
         private set
 
+    /** Transient image chosen in the note-creation dialog; embedded into the new note on creation. */
+    var noteCreationCoverImageBytes by mutableStateOf<ByteArray?>(null)
+    var noteCreationPageImageBytes by mutableStateOf<ByteArray?>(null)
+
     /** Save (or, passing an empty style, forget) the All Pages style new notes start with. */
     fun saveNewNoteStyle(style: PageStyle) {
         if (newNoteStyle == style) return
@@ -3824,12 +3832,38 @@ class Editor(context: Context, val pane: Pane = Pane.PRIMARY) : ToolPopupHost, S
         if (options != null) {
             blank.style = options.pageStyle
             TemplateLibrary.embed(blank, options.pageStyle.template)
+            val pageBackgroundBytes = options.pageImageBytes
+            if (pageBackgroundBytes != null) {
+                val file = runCatching {
+                    java.io.File.createTempFile("paper", null, imageDir).apply { writeBytes(pageBackgroundBytes) }
+                }.getOrNull()
+                val size = file?.let { imageCodec.probeFile(it.path) }
+                if (file != null && size != null && size.width > 0 && size.height > 0) {
+                    val data = ImageData(file, size.width, size.height)
+                    blank.pages.forEachIndexed { index, page ->
+                        // A dedicated cover image replaces the paper image on the cover itself.
+                        if (!(options.includeCover && index == 0 && options.coverImageBytes != null)) {
+                            page.items.add(0, ImageItem(data, Rect(0.0, 0.0, page.width, page.height)))
+                        }
+                    }
+                } else file?.delete()
+            }
             if (options.includeCover) {
                 val cover = blank.pages.first()
                 cover.style = options.coverStyle
                 TemplateLibrary.embed(blank, options.coverStyle.template)
                 val title = com.xnotes.core.util.DocumentKind.stripSuffix(name).ifBlank { "Untitled" }
                 val paper = options.coverStyle.pageColor
+                val coverBytes = options.coverImageBytes
+                if (coverBytes != null) {
+                    val file = runCatching {
+                        java.io.File.createTempFile("cover", null, imageDir).apply { writeBytes(coverBytes) }
+                    }.getOrNull()
+                    val size = file?.let { imageCodec.probeFile(it.path) }
+                    if (file != null && size != null && size.width > 0 && size.height > 0) {
+                        cover.items.add(ImageItem(ImageData(file, size.width, size.height), Rect(0.0, 0.0, cover.width, cover.height)))
+                    } else file?.delete()
+                }
                 val ink = if (paper != null && paper.luminance() < 0.42) Rgba(250, 250, 250) else Rgba(35, 39, 48)
                 cover.items.add(
                     TextItem(

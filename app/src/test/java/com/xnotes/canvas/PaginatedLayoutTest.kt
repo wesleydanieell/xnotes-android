@@ -51,6 +51,17 @@ class PaginatedLayoutTest {
         assertEquals((rb1.left - st.sideMargin) * st.zoom, st.scrollX, 1e-6)
     }
 
+    @Test fun tallRowClampUsesCurrentRowTopInsteadOfDocumentOrigin() {
+        val st = state(4)
+        st.currentRow = 2
+        val row = st.rowBounds(st.rowRanges()[st.currentRow])
+        st.zoom = (st.clearH + 100.0) / row.h
+        assertTrue(row.h * st.zoom > st.clearH)
+        val clamped = st.rowClampedScroll(st.currentRow, st.scrollX, -1e9)
+        assertEquals(row.top * st.zoom - st.insetTop - CanvasState.TOP_GAP, clamped.y, 1e-6)
+        assertTrue("later rows must not clamp to document y=0", clamped.y > 0.0)
+    }
+
     @Test fun goToPageJumpsTheWindowToTheRow() {
         val st = state(5)
         st.zoom = 1.0

@@ -988,4 +988,9 @@
     <string name="toolbar_size_compact">Compact</string>
     <string name="toolbar_size_regular">Regular</string>
     <string name="toolbar_size_comfortable">Comfortable</string>
+    <string name="create_save_as_default">Set as default for new notes</string>
+    <string name="create_pick_cover_image">Choose cover image</string>
+    <string name="create_cover_image_preview">Cover image preview</string>
+    <string name="create_pick_page_image">Choose custom page image</string>
+    <string name="create_page_image_preview">Custom page image preview</string>
 </resources>

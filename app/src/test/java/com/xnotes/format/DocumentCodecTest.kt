@@ -530,6 +530,21 @@ class DocumentCodecTest {
         assertEquals(100, (loaded.pages[0].items[0] as Stroke).samples.size)
     }
 
+    @Test fun sharedPageBackgroundImageIsStoredOnlyOnceAndReferencedByEveryPage() {
+        val doc = Document.blank(count = 3)
+        val shared = ImageData(imageFile(), 100, 150)
+        doc.pages.forEach { page ->
+            page.items.add(ImageItem(shared, Rect(0.0, 0.0, page.width, page.height)))
+        }
+        assertEquals(1, codec.imageAssets(doc).size)
+        val out = ByteArrayOutputStream()
+        codec.write(doc, out)
+        assertEquals(1, entryNames(out.toByteArray()).count { it.startsWith("assets/image-") })
+        val back = roundTrip(doc)
+        assertTrue(back.pages.all { it.items.single() is ImageItem })
+        assertEquals(1, back.pages.map { (it.items.single() as ImageItem).image.file.absolutePath }.distinct().size)
+    }
+
     @Test fun imageKeepsItsZOrderSlot() {
         // Image files stream out of the zip after the manifest, so image items are
         // inserted late; they must still land between the items they were drawn between.

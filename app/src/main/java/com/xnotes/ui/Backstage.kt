@@ -89,6 +89,7 @@ import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.lerp
 import androidx.compose.ui.graphics.vector.ImageVector
@@ -136,6 +137,7 @@ import com.xnotes.core.model.PageSize
 import com.xnotes.core.model.PageStyle
 import com.xnotes.core.model.PageTemplates
 import com.xnotes.platform.PdfOpenError
+import com.xnotes.platform.TemplateLibrary
 import androidx.compose.foundation.lazy.grid.GridItemSpan
 import androidx.compose.foundation.lazy.grid.LazyGridScope
 import androidx.compose.ui.platform.LocalContext
@@ -204,6 +206,12 @@ fun Backstage(
     onImportCodeTheme: () -> Unit = {},
     /** Preferences asked to import a font file. */
     onImportFont: () -> Unit = {},
+    /** Import a .xtemplate into the shared template library. */
+    onImportTemplate: () -> Unit = {},
+    /** Choose an image for the new note's cover. */
+    onPickCoverImage: () -> Unit = {},
+    /** Choose an image to use as custom page paper on the new note. */
+    onPickPageImage: () -> Unit = {},
     /** Two picked files are to be opened together, one per pane of a split view. */
     onOpenSplit: (String, String) -> Unit = { _, _ -> },
     /** Several files are to be shared at once, as they are. */
@@ -227,7 +235,7 @@ fun Backstage(
     )
     // The backstage is the root of the stack — ordinary base content, not a dialog. The activity
     // window already runs edge-to-edge with the system bars hidden (MainActivity.applyFullscreen).
-    BackstageContent(editor, compact, view, onSelectView, calls, onExitApp, onImportCodeTheme, onImportFont)
+    BackstageContent(editor, compact, view, onSelectView, calls, onExitApp, onImportCodeTheme, onImportFont, onImportTemplate, onPickCoverImage, onPickPageImage)
 }
 
 /** Width at or above which the sidebar is a persistent pane rather than a drawer. */
@@ -255,6 +263,9 @@ private fun BackstageContent(
     onExitApp: () -> Unit,
     onImportCodeTheme: () -> Unit,
     onImportFont: () -> Unit,
+    onImportTemplate: () -> Unit,
+    onPickCoverImage: () -> Unit,
+    onPickPageImage: () -> Unit,
 ) {
     val palette = LocalPalette.current
     var createMode by remember { mutableStateOf(CreateMode.NONE) }
@@ -339,7 +350,7 @@ private fun BackstageContent(
         Box(Modifier.fillMaxSize().background(palette.bg.toComposeColor())) {
             BackstageMain(
                 Modifier.fillMaxSize(), editor, view, compact, drawerOpen, { animateClose = true; drawerOpen = true }, { selectView(BackstageView.HOME) },
-                calls, createMode, { createMode = it }, onImportCodeTheme, onImportFont, link, { selectView(BackstageView.PREFERENCES) },
+                calls, createMode, { createMode = it }, onImportCodeTheme, onImportFont, onImportTemplate, onPickCoverImage, onPickPageImage, link, { selectView(BackstageView.PREFERENCES) },
             )
             AnimatedVisibility(
                 visible = drawerOpen,
@@ -372,7 +383,7 @@ private fun BackstageContent(
                     layout(constraints.maxWidth, placeable.height) { placeable.place(inset, 0) }
                 },
                 editor, view, compact, true, { setRailed(false) }, { selectView(BackstageView.HOME) },
-                calls, createMode, { createMode = it }, onImportCodeTheme, onImportFont, link, { selectView(BackstageView.PREFERENCES) },
+                calls, createMode, { createMode = it }, onImportCodeTheme, onImportFont, onImportTemplate, onPickCoverImage, onPickPageImage, link, { selectView(BackstageView.PREFERENCES) },
             )
             // Both stay composed so a fold never pays to build one; only the current one is measured and placed.
             Layout(
@@ -534,6 +545,9 @@ private fun BackstageMain(
     onCreateMode: (CreateMode) -> Unit,
     onImportCodeTheme: () -> Unit,
     onImportFont: () -> Unit,
+    onImportTemplate: () -> Unit,
+    onPickCoverImage: () -> Unit,
+    onPickPageImage: () -> Unit,
     link: ExplorerLink,
     onOpenPreferences: () -> Unit,
 ) {
@@ -563,7 +577,7 @@ private fun BackstageMain(
         }
         Box(Modifier.weight(1f).fillMaxWidth().padding(start = 16.dp, end = 16.dp, top = 4.dp, bottom = 12.dp)) {
             when (view) {
-                BackstageView.HOME -> HomePane(editor, calls, createMode, onCreateMode, sidebarOpen, onShowSidebar, link)
+                BackstageView.HOME -> HomePane(editor, calls, createMode, onCreateMode, sidebarOpen, onShowSidebar, link, onImportTemplate, onPickCoverImage, onPickPageImage)
                 BackstageView.PREFERENCES -> PreferencesPane(editor, compact, sidebarOpen, onShowSidebar, onBackToHome, onImportCodeTheme, onImportFont)
                 BackstageView.TRASH -> TrashPane(editor, sidebarOpen, onShowSidebar, onOpenPreferences)
                 BackstageView.ABOUT -> AboutPane()
@@ -812,6 +826,9 @@ private fun HomePane(
     sidebarOpen: Boolean,
     onShowSidebar: () -> Unit,
     link: ExplorerLink,
+    onImportTemplate: () -> Unit,
+    onPickCoverImage: () -> Unit,
+    onPickPageImage: () -> Unit,
 ) {
     val palette = LocalPalette.current
     val focusManager = LocalFocusManager.current
@@ -819,7 +836,7 @@ private fun HomePane(
     // A tap on empty space anywhere in the pane drops focus from the search field, dismissing it
     // (children like tiles and buttons consume their own taps, so this only fires "outside").
     Box(Modifier.fillMaxSize().pointerInput(Unit) { detectTapGestures { focusManager.clearFocus() } }) {
-        ExplorerSection(editor, calls, createMode, onCreateMode, sidebarOpen, onShowSidebar, link)
+        ExplorerSection(editor, calls, createMode, onCreateMode, sidebarOpen, onShowSidebar, link, onImportTemplate, onPickCoverImage, onPickPageImage)
         // A round quick-create button: the same things as the ⋮ menu's New block, landed in the current
         // folder. Only with a folder granted, else there's nowhere to create.
         if (editor.browseRoot != null && prefs.showCreateButton) {
@@ -853,6 +870,9 @@ private fun ExplorerSection(
     sidebarOpen: Boolean,
     onShowSidebar: () -> Unit,
     link: ExplorerLink,
+    onImportTemplate: () -> Unit,
+    onPickCoverImage: () -> Unit,
+    onPickPageImage: () -> Unit,
 ) {
     val palette = LocalPalette.current
     val root = editor.browseRoot
@@ -1738,6 +1758,9 @@ private fun ExplorerSection(
                 initial = default,
                 editor = editor,
                 error = fieldError,
+                onImportTemplate = onImportTemplate,
+                onPickCoverImage = onPickCoverImage,
+                onPickPageImage = onPickPageImage,
                 onConfirm = { n, options ->
                     scope.launch {
                         val uri = withContext(Dispatchers.IO) { editor.createBlankNoteFile(root, currentDocId, n, options) }
@@ -1745,7 +1768,7 @@ private fun ExplorerSection(
                         else fieldError = context.getString(R.string.err_create_note)
                     }
                 },
-                onDismiss = { fieldError = null; onCreateMode(CreateMode.NONE) },
+                onDismiss = { editor.noteCreationCoverImageBytes = null; editor.noteCreationPageImageBytes = null; fieldError = null; onCreateMode(CreateMode.NONE) },
             )
         } else {
             NameDialog(
@@ -2120,6 +2143,9 @@ private fun NoteCreationDialog(
     initial: String,
     editor: Editor,
     error: String?,
+    onImportTemplate: () -> Unit,
+    onPickCoverImage: () -> Unit,
+    onPickPageImage: () -> Unit,
     onConfirm: (String, NoteCreationOptions) -> Unit,
     onDismiss: () -> Unit,
 ) {
@@ -2133,6 +2159,8 @@ private fun NoteCreationDialog(
     var pagePattern by remember { mutableStateOf(savedTemplate ?: PageTemplates.NONE) }
     var coverColor by remember { mutableStateOf(Rgba(47, 62, 112)) }
     var coverPattern by remember { mutableStateOf(PageTemplates.NONE) }
+    var coverImageBytes by remember { mutableStateOf(editor.noteCreationCoverImageBytes) }
+    var pageImageBytes by remember { mutableStateOf(editor.noteCreationPageImageBytes) }
     var pageColourPickerOpen by remember { mutableStateOf(false) }
     var coverColourPickerOpen by remember { mutableStateOf(false) }
     val focus = remember { FocusRequester() }
@@ -2145,6 +2173,15 @@ private fun NoteCreationDialog(
         Rgba(157, 99, 42), Rgba(45, 49, 58), Rgba(80, 66, 120),
     )
     LaunchedEffect(Unit) { runCatching { focus.requestFocus() } }
+    LaunchedEffect(editor.noteCreationCoverImageBytes) {
+        coverImageBytes = editor.noteCreationCoverImageBytes
+        if (editor.noteCreationCoverImageBytes != null) includeCover = true
+    }
+    LaunchedEffect(editor.noteCreationPageImageBytes) { pageImageBytes = editor.noteCreationPageImageBytes }
+    val templateVersion = TemplateLibraryUi.version
+    val availableTemplates = remember(templateVersion) { TemplateLibrary.all() }
+    val pagePixels = remember(pageSize, orientation) { pageSize.pixels(orientation, PageSize.DEFAULT_DPI) }
+    val pageMm = pagePixels.first to pagePixels.second // the preview only needs the aspect ratio
     val confirm = {
         val name = text.text.trim()
         if (name.isNotEmpty()) {
@@ -2155,7 +2192,9 @@ private fun NoteCreationDialog(
                 template = coverPattern,
                 patternColor = Rgba(255, 255, 255, 100),
             )
-            onConfirm(name, NoteCreationOptions(pageSize, orientation, baseStyle, includeCover, coverStyle))
+            onConfirm(name, NoteCreationOptions(pageSize, orientation, baseStyle, includeCover, coverStyle, coverImageBytes, pageImageBytes))
+            editor.noteCreationCoverImageBytes = null
+            editor.noteCreationPageImageBytes = null
         }
     }
     AlertDialog(
@@ -2214,20 +2253,34 @@ private fun NoteCreationDialog(
                     }
                 }
                 Text(stringResource(R.string.create_page_pattern), color = palette.textDim.toComposeColor(), fontSize = 12.sp)
-                FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(5.dp)) {
-                    if (savedTemplate != null && savedTemplate !in setOf(PageTemplates.NONE, PagePattern.LINES.id, PagePattern.DOTS.id, PagePattern.GRID.id)) {
-                        ModeChip(stringResource(R.string.create_saved_template), pagePattern == savedTemplate) { pagePattern = savedTemplate }
-                    }
-                    listOf(PageTemplates.NONE, PagePattern.LINES.id, PagePattern.DOTS.id, PagePattern.GRID.id).forEach { pattern ->
-                        val label = when (pattern) {
-                            PageTemplates.NONE -> stringResource(R.string.none)
-                            PagePattern.LINES.id -> stringResource(R.string.pattern_lines)
-                            PagePattern.DOTS.id -> stringResource(R.string.pattern_dots)
-                            else -> stringResource(R.string.pattern_grid)
-                        }
-                        ModeChip(label, pagePattern == pattern) { pagePattern = pattern }
+                ModeChip(stringResource(R.string.none), pagePattern == PageTemplates.NONE) { pagePattern = PageTemplates.NONE }
+                TemplateStrip(
+                    entries = availableTemplates,
+                    selected = pagePattern,
+                    pageMm = pageMm,
+                    ink = Rgba(70, 70, 70),
+                    accent = PageStyle.DEFAULT_ACCENT_COLOR,
+                    paper = pageColor ?: Rgba(255, 255, 255),
+                    onSelect = { pagePattern = it },
+                    onImport = onImportTemplate,
+                    onRemove = { editor.removeTemplate(it) },
+                    onKeep = { },
+                )
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    TextButton(onClick = onPickPageImage) { Text(stringResource(R.string.create_pick_page_image)) }
+                    if (pageImageBytes != null) TextButton(onClick = { pageImageBytes = null; editor.noteCreationPageImageBytes = null }) {
+                        Text(stringResource(R.string.remove))
                     }
                 }
+                pageImageBytes?.let { bytes ->
+                    val preview = remember(bytes) { android.graphics.BitmapFactory.decodeByteArray(bytes, 0, bytes.size)?.asImageBitmap() }
+                    if (preview != null) Image(preview, contentDescription = stringResource(R.string.create_page_image_preview), modifier = Modifier.size(70.dp, 95.dp), contentScale = ContentScale.Crop)
+                }
+                TextButton(onClick = {
+                    val defaultStyle = editor.newNoteStyle.withTemplate(pagePattern, editor.newNoteStyle.template ?: PageTemplates.NONE)
+                        .copy(pageColor = pageColor)
+                    editor.saveNewNoteStyle(defaultStyle)
+                }) { Text(stringResource(R.string.create_save_as_default)) }
                 HorizontalDivider(color = palette.border.toComposeColor())
                 Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
                     Checkbox(checked = includeCover, onCheckedChange = { includeCover = it })
@@ -2246,15 +2299,31 @@ private fun NoteCreationDialog(
                         }
                     }
                     Text(stringResource(R.string.create_cover_pattern), color = palette.textDim.toComposeColor(), fontSize = 12.sp)
-                    FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(5.dp)) {
-                        listOf(PageTemplates.NONE, PagePattern.LINES.id, PagePattern.DOTS.id, PagePattern.GRID.id).forEach { pattern ->
-                            val label = when (pattern) {
-                                PageTemplates.NONE -> stringResource(R.string.none)
-                                PagePattern.LINES.id -> stringResource(R.string.pattern_lines)
-                                PagePattern.DOTS.id -> stringResource(R.string.pattern_dots)
-                                else -> stringResource(R.string.pattern_grid)
+                    ModeChip(stringResource(R.string.none), coverPattern == PageTemplates.NONE) { coverPattern = PageTemplates.NONE }
+                    TemplateStrip(
+                        entries = availableTemplates,
+                        selected = coverPattern,
+                        pageMm = pageMm,
+                        ink = Rgba(245, 245, 245),
+                        accent = Rgba(255, 190, 120),
+                        paper = coverColor,
+                        onSelect = { coverPattern = it },
+                        onImport = onImportTemplate,
+                        onRemove = { editor.removeTemplate(it) },
+                        onKeep = { },
+                    )
+                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        TextButton(onClick = onPickCoverImage) { Text(stringResource(R.string.create_pick_cover_image)) }
+                        if (coverImageBytes != null) {
+                            TextButton(onClick = { coverImageBytes = null; editor.noteCreationCoverImageBytes = null }) {
+                                Text(stringResource(R.string.remove))
                             }
-                            ModeChip(label, coverPattern == pattern) { coverPattern = pattern }
+                        }
+                    }
+                    coverImageBytes?.let { bytes ->
+                        val preview = remember(bytes) { android.graphics.BitmapFactory.decodeByteArray(bytes, 0, bytes.size)?.asImageBitmap() }
+                        if (preview != null) {
+                            Image(preview, contentDescription = stringResource(R.string.create_cover_image_preview), modifier = Modifier.size(90.dp, 120.dp), contentScale = ContentScale.Crop)
                         }
                     }
                 }

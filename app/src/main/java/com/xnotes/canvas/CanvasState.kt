@@ -687,7 +687,12 @@ class CanvasState(
             minY = rb.top * zoom - (viewportH - insetBottom) + visible
             maxY = rb.bottom * zoom - insetTop - visible
         } else {
-            minY = -insetTop
+            // Clamp to this row's own vertical span, not the document origin. When zoom crosses
+            // the fit-height threshold, the short-row range above collapses into this range; using
+            // -insetTop here teleports every later row toward the top of the document (perceived as
+            // the page jumping to its centre). Keeping rb.top in the lower bound makes the ranges
+            // continuous at the threshold and preserves the pinch anchor.
+            minY = rb.top * zoom - insetTop - TOP_GAP
             maxY = ((rb.bottom + vertMargin) * zoom - viewportH + insetBottom).coerceAtLeast(minY)
         }
         return Pt(cx, sy.coerceIn(minY, maxY))
