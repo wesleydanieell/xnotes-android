@@ -166,9 +166,6 @@ class CanvasState(
      */
     var flipOffsetX: Double = 0.0
 
-    /** Small, signed vertical edge-drag stretch used only in paginated mode. */
-    var panOffsetY: Double = 0.0
-
     /**
      * Whole-file clockwise page rotation (0/90/180/270), applied by the view: pages lay
      * out with their rotated footprints ([displayW]/[displayH]) and their page-space
@@ -584,7 +581,13 @@ class CanvasState(
         val minX = (rb.left - sideMargin) * zoom - insetLeft
         val maxX = (rb.right + sideMargin) * zoom - viewportW + insetRight
         val sx = if (maxX < minX) (minX + maxX) / 2.0 else minX
-        val sy = (rb.top * zoom - TOP_GAP - insetTop).coerceAtLeast(-insetTop)
+        val sy = if (rb.h * zoom < clearH) {
+            // Preserve the old centred appearance when entering a short page, while keeping its
+            // vertical position in scrollY so a later drag can reposition it permanently.
+            rb.centerY * zoom - clearCenter().y
+        } else {
+            (rb.top * zoom - TOP_GAP - insetTop).coerceAtLeast(-insetTop)
+        }
         return Pt(sx, sy)
     }
 
@@ -628,7 +631,9 @@ class CanvasState(
         // Paginated: the row clamp centres the row when it fits, so the scroll always wins; the
         // whole strip must never be centred (two pages would push each single-page row off centre).
         val ox = (if (!verticalScroll || cw >= clearW) -scrollX else insetLeft + (clearW - cw) / 2.0) - flipOffsetX
-        val oy = (if (ch < clearH) insetTop + (clearH - ch) / 2.0 else -scrollY) - overscrollY - panOffsetY
+        // Continuous mode may centre a short document. Paginated mode always honours scrollY so
+        // users can position a short page vertically and keep that position after releasing it.
+        val oy = (if (verticalScroll && ch < clearH) insetTop + (clearH - ch) / 2.0 else -scrollY) - overscrollY
         return Pt(ox, oy)
     }
 
@@ -672,8 +677,20 @@ class CanvasState(
         val minX = (rb.left - sideMargin) * zoom - insetLeft
         val maxX = (rb.right + sideMargin) * zoom - viewportW + insetRight
         val cx = if (maxX < minX) (minX + maxX) / 2.0 else sx.coerceIn(minX, maxX)
-        val maxY = ((rb.bottom + vertMargin) * zoom - viewportH + insetBottom).coerceAtLeast(-insetTop)
-        return Pt(cx, sy.coerceIn(-insetTop, maxY))
+        val rowHeightPx = rb.h * zoom
+        val minY: Double
+        val maxY: Double
+        if (rowHeightPx < clearH) {
+            // A short page can move vertically instead of being pinned to the top. Keep a small
+            // part of it visible at either extreme so it can always be dragged back into view.
+            val visible = min(48.0 * devicePxPerDp, rowHeightPx / 2.0)
+            minY = rb.top * zoom - (viewportH - insetBottom) + visible
+            maxY = rb.bottom * zoom - insetTop - visible
+        } else {
+            minY = -insetTop
+            maxY = ((rb.bottom + vertMargin) * zoom - viewportH + insetBottom).coerceAtLeast(minY)
+        }
+        return Pt(cx, sy.coerceIn(minY, maxY))
     }
 
     fun scrollBy(dx: Double, dy: Double) {
