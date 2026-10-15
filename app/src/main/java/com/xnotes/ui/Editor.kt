@@ -3847,8 +3847,9 @@ class Editor(context: Context, val pane: Pane = Pane.PRIMARY) : ToolPopupHost, S
                 if (file != null && size != null && size.width > 0 && size.height > 0) {
                     val data = ImageData(file, size.width, size.height)
                     blank.pages.forEachIndexed { index, page ->
-                        // A dedicated cover image replaces the paper image on the cover itself.
-                        if (!(options.includeCover && index == 0 && options.coverImageBytes != null)) {
+                        // Page-pattern images belong only to writing pages. The cover has its own
+                        // independent pattern/image selector, even when the cover uses no photo.
+                        if (!(options.includeCover && index == 0)) {
                             page.items.add(0, ImageItem(data, Rect(0.0, 0.0, page.width, page.height)))
                         }
                     }
