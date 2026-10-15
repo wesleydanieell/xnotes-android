@@ -677,24 +677,15 @@ class CanvasState(
         val minX = (rb.left - sideMargin) * zoom - insetLeft
         val maxX = (rb.right + sideMargin) * zoom - viewportW + insetRight
         val cx = if (maxX < minX) (minX + maxX) / 2.0 else sx.coerceIn(minX, maxX)
-        val rowHeightPx = rb.h * zoom
-        val minY: Double
-        val maxY: Double
-        if (rowHeightPx < clearH) {
-            // A short page can move vertically instead of being pinned to the top. Keep a small
-            // part of it visible at either extreme so it can always be dragged back into view.
-            val visible = min(48.0 * devicePxPerDp, rowHeightPx / 2.0)
-            minY = rb.top * zoom - (viewportH - insetBottom) + visible
-            maxY = rb.bottom * zoom - insetTop - visible
-        } else {
-            // Clamp to this row's own vertical span, not the document origin. When zoom crosses
-            // the fit-height threshold, the short-row range above collapses into this range; using
-            // -insetTop here teleports every later row toward the top of the document (perceived as
-            // the page jumping to its centre). Keeping rb.top in the lower bound makes the ranges
-            // continuous at the threshold and preserves the pinch anchor.
-            minY = rb.top * zoom - insetTop - TOP_GAP
-            maxY = ((rb.bottom + vertMargin) * zoom - viewportH + insetBottom).coerceAtLeast(minY)
-        }
+        // Keep the same vertical drag window at every zoom level. Previously this switched from
+        // a viewport-sized range for short pages to a page-sized range for tall pages exactly when
+        // the page crossed the viewport height (around 140% on common layouts). The clamp then
+        // rejected the pinch anchor and teleported the view, making vertical movement feel locked.
+        // In paginated mode the user is allowed to reposition the current page freely; retain a
+        // small visible strip at either extreme so the page can always be recovered.
+        val visible = min(48.0 * devicePxPerDp, rb.h * zoom / 2.0)
+        val minY = rb.top * zoom - (viewportH - insetBottom) + visible
+        val maxY = rb.bottom * zoom - insetTop - visible
         return Pt(cx, sy.coerceIn(minY, maxY))
     }
 

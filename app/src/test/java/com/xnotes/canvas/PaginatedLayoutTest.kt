@@ -62,15 +62,29 @@ class PaginatedLayoutTest {
         assertEquals(below.y, above.y, 1e-9)
     }
 
-    @Test fun tallRowClampUsesCurrentRowTopInsteadOfDocumentOrigin() {
+    @Test fun tallRowKeepsVerticalMovementInsteadOfLockingAtFitHeight() {
         val st = state(4)
         st.currentRow = 2
         val row = st.rowBounds(st.rowRanges()[st.currentRow])
         st.zoom = (st.clearH + 100.0) / row.h
         assertTrue(row.h * st.zoom > st.clearH)
-        val clamped = st.rowClampedScroll(st.currentRow, st.scrollX, -1e9)
-        assertEquals(row.top * st.zoom - st.insetTop - CanvasState.TOP_GAP, clamped.y, 1e-6)
-        assertTrue("later rows must not clamp to document y=0", clamped.y > 0.0)
+        val top = st.rowClampedScroll(st.currentRow, st.scrollX, -1e9)
+        val bottom = st.rowClampedScroll(st.currentRow, st.scrollX, 1e9)
+        assertEquals(row.top * st.zoom - (st.viewportH - st.insetBottom) + minOf(48.0 * st.devicePxPerDp, row.h * st.zoom / 2.0), top.y, 1e-6)
+        assertEquals(row.bottom * st.zoom - st.insetTop - minOf(48.0 * st.devicePxPerDp, row.h * st.zoom / 2.0), bottom.y, 1e-6)
+        assertTrue("tall pages must remain vertically pannable", bottom.y - top.y > 100.0)
+    }
+
+    @Test fun verticalClampDoesNotJumpWhenPageCrossesViewportHeight() {
+        val st = state(3)
+        val row = st.rowBounds(st.rowRanges()[st.currentRow])
+        val threshold = st.clearH / row.h
+        val sy = row.centerY * threshold - st.clearCenter().y
+        st.zoom = threshold * (1.0 - 1e-4)
+        val below = st.rowClampedScroll(st.currentRow, st.scrollX, sy).y
+        st.zoom = threshold * (1.0 + 1e-4)
+        val above = st.rowClampedScroll(st.currentRow, st.scrollX, sy).y
+        assertEquals("vertical scroll clamp must be continuous across fit-height", below, above, 1.0)
     }
 
     @Test fun goToPageJumpsTheWindowToTheRow() {
