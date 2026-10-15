@@ -6793,7 +6793,8 @@ class Editor(context: Context, val pane: Pane = Pane.PRIMARY) : ToolPopupHost, S
             message = appContext.getString(R.string.err_import_template, appContext.getString(R.string.template_too_large))
             return
         }
-        runCatching { TemplateLibrary.import(String(bytes, Charsets.UTF_8)) }
+        val text = String(bytes, Charsets.UTF_8)
+        runCatching { TemplateLibrary.import(text) }
             .onSuccess {
                 message = appContext.getString(R.string.template_imported, it.template.name)
                 TemplateLibraryUi.version++

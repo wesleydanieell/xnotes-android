@@ -2,6 +2,7 @@ package com.xnotes.platform
 
 import android.content.Context
 import android.net.Uri
+import org.json.JSONObject
 import android.provider.DocumentsContract
 import android.content.res.AssetManager
 import com.xnotes.core.geometry.Rect
@@ -108,14 +109,24 @@ object TemplateLibrary {
 
     /** Adopt [text] as a user template; throws [TemplateFormatException] when it is not one. */
     fun import(text: String): Entry {
-        val t = TemplateReader.read(text)
-        val key = keyOf(text)
-        entry(key)?.let { return it }
+        var importText = text
+        var t = TemplateReader.read(importText)
+        var key = keyOf(importText)
+        val existing = entry(key)
+        if (existing != null) {
+            if (existing.source == Source.IMPORTED) return existing
+            // Let users explicitly import a bundled example into their custom collection too.
+            // Preserve its design and name, but add ignored metadata so the custom copy has its
+            // own stable content key and does not get shadowed by the bundled entry.
+            importText = JSONObject(text).put("xnotesImportedCopy", java.util.UUID.randomUUID().toString()).toString(2)
+            t = TemplateReader.read(importText)
+            key = keyOf(importText)
+        }
         val dir = importDir ?: throw TemplateFormatException("template storage is unavailable")
         dir.mkdirs()
-        File(dir, key + EXT).writeText(text, Charsets.UTF_8)
-        writeExternal(key + EXT, text.toByteArray(Charsets.UTF_8))
-        return Entry(key, t, text, Source.IMPORTED).also { imported[key] = it; parsed[key] = t }
+        File(dir, key + EXT).writeText(importText, Charsets.UTF_8)
+        writeExternal(key + EXT, importText.toByteArray(Charsets.UTF_8))
+        return Entry(key, t, importText, Source.IMPORTED).also { imported[key] = it; parsed[key] = t }
     }
 
     fun remove(key: String) {

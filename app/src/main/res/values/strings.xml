@@ -92,6 +92,7 @@
     <string name="remove_template">Remove from library</string>
     <string name="keep_template">Add to library</string>
     <string name="template_imported">Template \"%1$s\" imported.</string>
+    <string name="template_already_available">Template \"%1$s\" is already available in the template library.</string>
     <string name="err_import_template">Could not import the template: %1$s</string>
     <string name="template_too_large">it is larger than 1 MiB</string>
     <string name="default_for_new_notes">Default for new notes</string>
