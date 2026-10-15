@@ -2,6 +2,7 @@ package com.xnotes.ui
 
 import android.graphics.Bitmap
 import android.graphics.Canvas
+import android.graphics.BitmapFactory
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
@@ -36,6 +37,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.ImageBitmap
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.stringResource
@@ -53,6 +55,7 @@ import com.xnotes.core.template.TemplatePage
 import com.xnotes.core.template.TemplatePainter
 import com.xnotes.core.template.TemplateValues
 import com.xnotes.platform.AndroidRenderer
+import com.xnotes.platform.CustomAssetFolders
 import com.xnotes.platform.TemplateLibrary
 import com.xnotes.ui.theme.LocalPalette
 import com.xnotes.ui.theme.toComposeColor
@@ -162,6 +165,65 @@ internal fun TemplateStrip(
                 fontSize = 9.sp,
                 maxLines = 1,
             )
+        }
+    }
+}
+
+/** Image-backed custom page/cover patterns, rendered as page-shaped thumbnails like template presets. */
+@OptIn(ExperimentalFoundationApi::class)
+@Composable
+internal fun CustomImageStrip(
+    images: List<CustomAssetFolders.CustomImage>,
+    selectedBytes: ByteArray?,
+    pageMm: Pair<Double, Double>,
+    paper: Rgba,
+    onSelect: (ByteArray) -> Unit,
+    onImport: () -> Unit,
+    onClear: () -> Unit,
+) {
+    val palette = LocalPalette.current
+    val aspect = (pageMm.second / pageMm.first).coerceIn(0.5, 2.0)
+    val thumbH = THUMB_W * aspect.toFloat()
+    Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+        if (selectedBytes != null) {
+            Column(
+                Modifier.width(TILE_W).clip(MaterialTheme.shapes.extraSmall).combinedClickable(onClick = onClear).padding(vertical = 3.dp),
+                horizontalAlignment = Alignment.CenterHorizontally,
+            ) {
+                Box(Modifier.size(THUMB_W, thumbH).border(1.dp, palette.accent.toComposeColor(), RoundedCornerShape(3.dp)).background(paper.toComposeColor(), RoundedCornerShape(3.dp)), contentAlignment = Alignment.Center) {
+                    Text("×", color = palette.textDim.toComposeColor(), fontSize = 20.sp)
+                }
+                Spacer(Modifier.height(3.dp))
+                Text(stringResource(R.string.none), color = palette.text.toComposeColor(), fontSize = 9.sp, maxLines = 1)
+            }
+        }
+        images.forEach { entry ->
+            key(entry.id) {
+                val selected = selectedBytes?.contentEquals(entry.bytes) == true
+                val bitmap = remember(entry.id) { BitmapFactory.decodeByteArray(entry.bytes, 0, entry.bytes.size)?.asImageBitmap() }
+                Column(
+                    Modifier.width(TILE_W).clip(MaterialTheme.shapes.extraSmall)
+                        .combinedClickable(onClick = { onSelect(entry.bytes) }).padding(vertical = 3.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                ) {
+                    Box(Modifier.size(THUMB_W, thumbH).border(if (selected) 2.dp else 1.dp, (if (selected) palette.accent else palette.border).toComposeColor(), RoundedCornerShape(3.dp)).padding(if (selected) 2.dp else 1.dp)) {
+                        if (bitmap != null) Image(bitmap, contentDescription = entry.name, modifier = Modifier.size(THUMB_W, thumbH), contentScale = ContentScale.Crop)
+                        else Box(Modifier.size(THUMB_W, thumbH).background(paper.toComposeColor()), contentAlignment = Alignment.Center) { Text("?", color = palette.textDim.toComposeColor()) }
+                    }
+                    Spacer(Modifier.height(3.dp))
+                    Text(entry.name.substringBeforeLast('.', entry.name), color = palette.text.toComposeColor(), fontSize = 9.sp, maxLines = 1, overflow = TextOverflow.Ellipsis, textAlign = TextAlign.Center)
+                }
+            }
+        }
+        Column(
+            Modifier.width(TILE_W).clip(MaterialTheme.shapes.extraSmall).combinedClickable(onClick = onImport).padding(vertical = 3.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+        ) {
+            Box(Modifier.size(THUMB_W, thumbH).border(1.dp, palette.border.toComposeColor(), RoundedCornerShape(3.dp)).background(palette.surface.toComposeColor(), RoundedCornerShape(3.dp)), contentAlignment = Alignment.Center) {
+                Text("+", color = palette.textDim.toComposeColor(), fontSize = 20.sp)
+            }
+            Spacer(Modifier.height(3.dp))
+            Text(stringResource(R.string.create_import_image), color = palette.text.toComposeColor(), fontSize = 9.sp, maxLines = 1)
         }
     }
 }

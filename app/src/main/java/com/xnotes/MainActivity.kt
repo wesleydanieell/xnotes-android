@@ -478,7 +478,9 @@ private fun EditorScreen(
                         val root = editor.browseRoot
                         val name = displayNameOf(resolver, uri)
                         scope.launch(kotlinx.coroutines.Dispatchers.IO) {
-                            com.xnotes.platform.CustomAssetFolders.storeImage(context, root, bytes, name)
+                            if (com.xnotes.platform.CustomAssetFolders.storeImage(context, root, bytes, name, com.xnotes.platform.CustomAssetFolders.Kind.COVER)) {
+                                editor.customAssetsChanged()
+                            }
                         }
                     } else editor.message = context.getString(R.string.err_read_image)
                 }
@@ -495,7 +497,9 @@ private fun EditorScreen(
                         val root = editor.browseRoot
                         val name = displayNameOf(resolver, uri)
                         scope.launch(kotlinx.coroutines.Dispatchers.IO) {
-                            com.xnotes.platform.CustomAssetFolders.storeImage(context, root, bytes, name)
+                            if (com.xnotes.platform.CustomAssetFolders.storeImage(context, root, bytes, name, com.xnotes.platform.CustomAssetFolders.Kind.PAGE)) {
+                                editor.customAssetsChanged()
+                            }
                         }
                     } else editor.message = context.getString(R.string.err_read_image)
                 }

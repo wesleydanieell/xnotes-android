@@ -51,6 +51,17 @@ class PaginatedLayoutTest {
         assertEquals((rb1.left - st.sideMargin) * st.zoom, st.scrollX, 1e-6)
     }
 
+    @Test fun paginatedRenderOriginDoesNotJumpWhenPageCrossesViewportHeight() {
+        val st = state(3)
+        st.scrollY = 217.0
+        val threshold = st.clearH / st.contentH
+        val below = st.originFor(st.scrollX, st.scrollY, threshold * (1.0 - 1e-4))
+        val above = st.originFor(st.scrollX, st.scrollY, threshold * (1.0 + 1e-4))
+        assertEquals(-st.scrollY, below.y, 1e-9)
+        assertEquals(-st.scrollY, above.y, 1e-9)
+        assertEquals(below.y, above.y, 1e-9)
+    }
+
     @Test fun tallRowClampUsesCurrentRowTopInsteadOfDocumentOrigin() {
         val st = state(4)
         st.currentRow = 2

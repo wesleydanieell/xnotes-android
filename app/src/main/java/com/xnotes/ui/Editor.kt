@@ -2584,6 +2584,9 @@ class Editor(context: Context, val pane: Pane = Pane.PRIMARY) : ToolPopupHost, S
     var noteCreationCoverImageBytes by mutableStateOf<ByteArray?>(null)
     var noteCreationPageImageBytes by mutableStateOf<ByteArray?>(null)
 
+    /** Refresh custom cover/page image strips after an import completes. */
+    fun customAssetsChanged() { TemplateLibraryUi.version++ }
+
     /** Save (or, passing an empty style, forget) the All Pages style new notes start with. */
     fun saveNewNoteStyle(style: PageStyle) {
         if (newNoteStyle == style) return

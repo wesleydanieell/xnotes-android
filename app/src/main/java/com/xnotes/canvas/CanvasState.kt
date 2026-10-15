@@ -1771,11 +1771,15 @@ class CanvasState(
         r.restore()
     }
 
-    private fun originFor(sx: Double, sy: Double, z: Double): Pt {
+    internal fun originFor(sx: Double, sy: Double, z: Double): Pt {
         val cw = contentW * z
         val ch = contentH * z
         val ox = if (!verticalScroll || cw >= clearW) -sx else insetLeft + (clearW - cw) / 2.0
-        val oy = if (ch < clearH) insetTop + (clearH - ch) / 2.0 else -sy
+        // Match origin(): only continuous scrolling centres a short document. In paginated mode
+        // rowTargetScroll already records the initial centring in scrollY; switching this renderer
+        // to implicit centring when page height crosses clearH creates a discontinuous jump (often
+        // around 140% zoom) and makes the touch transform disagree with the painted page.
+        val oy = if (verticalScroll && ch < clearH) insetTop + (clearH - ch) / 2.0 else -sy
         return Pt(ox, oy)
     }
 

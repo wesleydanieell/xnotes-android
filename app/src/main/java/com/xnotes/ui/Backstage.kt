@@ -2179,7 +2179,25 @@ private fun NoteCreationDialog(
     }
     LaunchedEffect(editor.noteCreationPageImageBytes) { pageImageBytes = editor.noteCreationPageImageBytes }
     val templateVersion = TemplateLibraryUi.version
-    val availableTemplates = remember(templateVersion) { TemplateLibrary.all() }
+    val availableTemplates = TemplateLibrary.all()
+    val context = LocalContext.current
+    val customPageImages by produceState(
+        initialValue = emptyList<com.xnotes.platform.CustomAssetFolders.CustomImage>(),
+        key1 = editor.browseRoot, key2 = templateVersion,
+    ) {
+        value = withContext(Dispatchers.IO) {
+            com.xnotes.platform.CustomAssetFolders.loadImages(context, editor.browseRoot, com.xnotes.platform.CustomAssetFolders.Kind.PAGE)
+        }
+    }
+    val customCoverImages by produceState(
+        initialValue = emptyList<com.xnotes.platform.CustomAssetFolders.CustomImage>(),
+        key1 = editor.browseRoot, key2 = templateVersion,
+    ) {
+        value = withContext(Dispatchers.IO) {
+            com.xnotes.platform.CustomAssetFolders.loadImages(context, editor.browseRoot, com.xnotes.platform.CustomAssetFolders.Kind.COVER)
+        }
+    }
+    var saveAsDefault by remember { mutableStateOf(false) }
     val pagePixels = remember(pageSize, orientation) { pageSize.pixels(orientation, PageSize.DEFAULT_DPI) }
     val pageMm = pagePixels.first to pagePixels.second // the preview only needs the aspect ratio
     val confirm = {
@@ -2192,6 +2210,7 @@ private fun NoteCreationDialog(
                 template = coverPattern,
                 patternColor = Rgba(255, 255, 255, 100),
             )
+            if (saveAsDefault) editor.saveNewNoteStyle(baseStyle)
             onConfirm(name, NoteCreationOptions(pageSize, orientation, baseStyle, includeCover, coverStyle, coverImageBytes, pageImageBytes))
             editor.noteCreationCoverImageBytes = null
             editor.noteCreationPageImageBytes = null
@@ -2256,7 +2275,7 @@ private fun NoteCreationDialog(
                 Text(stringResource(R.string.create_asset_folder_help), color = palette.textDim.toComposeColor(), fontSize = 10.sp)
                 ModeChip(stringResource(R.string.none), pagePattern == PageTemplates.NONE) { pagePattern = PageTemplates.NONE }
                 TemplateStrip(
-                    entries = availableTemplates,
+                    entries = availableTemplates.filter { it.source == TemplateLibrary.Source.BUILT_IN || it.source == TemplateLibrary.Source.BUNDLED },
                     selected = pagePattern,
                     pageMm = pageMm,
                     ink = Rgba(70, 70, 70),
@@ -2267,21 +2286,29 @@ private fun NoteCreationDialog(
                     onRemove = { editor.removeTemplate(it) },
                     onKeep = { },
                 )
-                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    TextButton(onClick = onPickPageImage) { Text(stringResource(R.string.create_pick_page_image)) }
-                    if (pageImageBytes != null) TextButton(onClick = { pageImageBytes = null; editor.noteCreationPageImageBytes = null }) {
-                        Text(stringResource(R.string.remove))
-                    }
-                }
-                pageImageBytes?.let { bytes ->
-                    val preview = remember(bytes) { android.graphics.BitmapFactory.decodeByteArray(bytes, 0, bytes.size)?.asImageBitmap() }
-                    if (preview != null) Image(preview, contentDescription = stringResource(R.string.create_page_image_preview), modifier = Modifier.size(70.dp, 95.dp), contentScale = ContentScale.Crop)
-                }
-                TextButton(onClick = {
-                    val defaultStyle = editor.newNoteStyle.withTemplate(pagePattern, editor.newNoteStyle.template ?: PageTemplates.NONE)
-                        .copy(pageColor = pageColor)
-                    editor.saveNewNoteStyle(defaultStyle)
-                }) { Text(stringResource(R.string.create_save_as_default)) }
+                Text(stringResource(R.string.create_custom_page_templates), color = palette.textDim.toComposeColor(), fontSize = 12.sp)
+                TemplateStrip(
+                    entries = availableTemplates.filter { it.source == TemplateLibrary.Source.IMPORTED },
+                    selected = pagePattern,
+                    pageMm = pageMm,
+                    ink = Rgba(70, 70, 70),
+                    accent = PageStyle.DEFAULT_ACCENT_COLOR,
+                    paper = pageColor ?: Rgba(255, 255, 255),
+                    onSelect = { pagePattern = it },
+                    onImport = onImportTemplate,
+                    onRemove = { editor.removeTemplate(it) },
+                    onKeep = { },
+                )
+                Text(stringResource(R.string.create_custom_page_patterns), color = palette.textDim.toComposeColor(), fontSize = 12.sp)
+                CustomImageStrip(
+                    images = customPageImages,
+                    selectedBytes = pageImageBytes,
+                    pageMm = pageMm,
+                    paper = pageColor ?: Rgba(255, 255, 255),
+                    onSelect = { bytes -> pageImageBytes = bytes; editor.noteCreationPageImageBytes = bytes },
+                    onImport = onPickPageImage,
+                    onClear = { pageImageBytes = null; editor.noteCreationPageImageBytes = null },
+                )
                 HorizontalDivider(color = palette.border.toComposeColor())
                 Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
                     Checkbox(checked = includeCover, onCheckedChange = { includeCover = it })
@@ -2302,7 +2329,7 @@ private fun NoteCreationDialog(
                     Text(stringResource(R.string.create_cover_pattern), color = palette.textDim.toComposeColor(), fontSize = 12.sp)
                     ModeChip(stringResource(R.string.none), coverPattern == PageTemplates.NONE) { coverPattern = PageTemplates.NONE }
                     TemplateStrip(
-                        entries = availableTemplates,
+                        entries = availableTemplates.filter { it.source == TemplateLibrary.Source.BUILT_IN || it.source == TemplateLibrary.Source.BUNDLED },
                         selected = coverPattern,
                         pageMm = pageMm,
                         ink = Rgba(245, 245, 245),
@@ -2313,19 +2340,36 @@ private fun NoteCreationDialog(
                         onRemove = { editor.removeTemplate(it) },
                         onKeep = { },
                     )
-                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        TextButton(onClick = onPickCoverImage) { Text(stringResource(R.string.create_pick_cover_image)) }
-                        if (coverImageBytes != null) {
-                            TextButton(onClick = { coverImageBytes = null; editor.noteCreationCoverImageBytes = null }) {
-                                Text(stringResource(R.string.remove))
-                            }
-                        }
-                    }
-                    coverImageBytes?.let { bytes ->
-                        val preview = remember(bytes) { android.graphics.BitmapFactory.decodeByteArray(bytes, 0, bytes.size)?.asImageBitmap() }
-                        if (preview != null) {
-                            Image(preview, contentDescription = stringResource(R.string.create_cover_image_preview), modifier = Modifier.size(90.dp, 120.dp), contentScale = ContentScale.Crop)
-                        }
+                    Text(stringResource(R.string.create_custom_cover_templates), color = palette.textDim.toComposeColor(), fontSize = 12.sp)
+                    TemplateStrip(
+                        entries = availableTemplates.filter { it.source == TemplateLibrary.Source.IMPORTED },
+                        selected = coverPattern,
+                        pageMm = pageMm,
+                        ink = Rgba(245, 245, 245),
+                        accent = Rgba(255, 190, 120),
+                        paper = coverColor,
+                        onSelect = { coverPattern = it },
+                        onImport = onImportTemplate,
+                        onRemove = { editor.removeTemplate(it) },
+                        onKeep = { },
+                    )
+                    Text(stringResource(R.string.create_custom_cover_patterns), color = palette.textDim.toComposeColor(), fontSize = 12.sp)
+                    CustomImageStrip(
+                        images = customCoverImages,
+                        selectedBytes = coverImageBytes,
+                        pageMm = pageMm,
+                        paper = coverColor,
+                        onSelect = { bytes -> coverImageBytes = bytes; editor.noteCreationCoverImageBytes = bytes },
+                        onImport = onPickCoverImage,
+                        onClear = { coverImageBytes = null; editor.noteCreationCoverImageBytes = null },
+                    )
+                }
+                HorizontalDivider(color = palette.border.toComposeColor())
+                Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
+                    Checkbox(checked = saveAsDefault, onCheckedChange = { saveAsDefault = it })
+                    Column(Modifier.weight(1f)) {
+                        Text(stringResource(R.string.create_save_as_default), color = palette.text.toComposeColor(), fontWeight = FontWeight.Medium, fontSize = 13.sp)
+                        Text(stringResource(R.string.create_save_as_default_help), color = palette.textDim.toComposeColor(), fontSize = 11.sp)
                     }
                 }
             }
