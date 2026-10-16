@@ -1058,9 +1058,9 @@ private fun ExplorerSection(
     }
     val kindOf: (BrowseEntry) -> EntryKind = { entryKind(it, editor.cachedMeta(it)) }
     val withCreated: (BrowseEntry) -> BrowseEntry = { e -> editor.createdOf(e).let { if (it == e.created) e else e.copy(created = it) } }
-    val arrange: (List<BrowseEntry>) -> List<BrowseEntry> = remember(view.sortKey, view.descending, view.folders, kindFilter, metaTick, layout) {
+    val arrange: (List<BrowseEntry>) -> List<BrowseEntry> = remember(view.sortKey, view.descending, view.folders, kindFilter, metaTick) {
         { list ->
-            list.filter { e -> if (e.isDir) (layout == ExplorerLayout.TREE || view.folders != FolderPlacement.HIDDEN) && kindFilter == null else kindFilter == null || kindOf(e) == kindFilter }
+            list.filter { e -> if (e.isDir) view.folders != FolderPlacement.HIDDEN && kindFilter == null else kindFilter == null || kindOf(e) == kindFilter }
                 .map(withCreated)
                 .sortedWith(explorerComparator(view.sortKey, view.descending, foldersFirst = view.folders != FolderPlacement.MIXED) { it.created })
         }
@@ -1105,6 +1105,7 @@ private fun ExplorerSection(
     val folderSpots = remember(root) { HashMap<String, LayoutCoordinates>() }
     val fileSpots = remember(root) { HashMap<String, LayoutCoordinates>() }
     val treeFolderSpots = remember(root) { HashMap<String, Pair<BrowseEntry, LayoutCoordinates>>() }
+    val treeFileSpots = remember(root) { HashMap<String, Pair<BrowseEntry, LayoutCoordinates>>() }
     var rootDropSpot by remember(root) { mutableStateOf<LayoutCoordinates?>(null) }
     var dragItems by remember(root) { mutableStateOf<List<BrowseEntry>>(emptyList()) }
     var dragPos by remember(root) { mutableStateOf<Offset?>(null) }
@@ -1123,15 +1124,15 @@ private fun ExplorerSection(
         val i = selection.indexOfFirst { it.documentUri == e.documentUri }
         if (i >= 0) selection.removeAt(i) else selection.add(e)
     }
-    // The folder under the finger, ignoring any folder that's itself part of the dragged selection.
+    // Both panes accept the same dragged selection; never highlight its own entries as drop targets.
     fun updateDropTarget(pos: Offset) {
+        val draggedUris = dragItems.mapTo(HashSet()) { it.documentUri }
         val treeTarget = treeFolderSpots.entries.firstOrNull { (uri, pair) ->
-            uri !in dragItems.map { it.documentUri } && pair.second.isAttached &&
+            uri !in draggedUris && pair.second.isAttached &&
                 pair.second.boundsInWindow().contains(pos)
         }?.key
         val gridTarget = folderSpots.entries.firstOrNull { (uri, c) ->
-            c.isAttached && c.boundsInWindow().contains(pos) &&
-                dragItems.none { it.documentUri == uri }
+            uri !in draggedUris && c.isAttached && c.boundsInWindow().contains(pos)
         }?.key
         dropTargetUri = treeTarget ?: gridTarget ?: rootDropSpot
             ?.takeIf { it.isAttached && it.boundsInWindow().contains(pos) }
@@ -1479,15 +1480,19 @@ private fun ExplorerSection(
                         val treeHit = treeFolderSpots.values.firstOrNull {
                             it.second.isAttached && it.second.boundsInWindow().contains(winDown)
                         }
+                        val treeFileHit = treeFileSpots.values.firstOrNull {
+                            it.second.isAttached && it.second.boundsInWindow().contains(winDown)
+                        }
                         val gridFile = fileSpots.entries.firstOrNull {
                             it.value.isAttached && it.value.boundsInWindow().contains(winDown)
                         }
                         val gridFolder = folderSpots.entries.firstOrNull {
                             it.value.isAttached && it.value.boundsInWindow().contains(winDown)
                         }
-                        val hitUri = treeHit?.first?.documentUri ?: gridFile?.key ?: gridFolder?.key
+                        val hitUri = treeHit?.first?.documentUri ?: treeFileHit?.first?.documentUri
+                            ?: gridFile?.key ?: gridFolder?.key
                             ?: return@awaitEachGesture
-                        val hitEntry = treeHit?.first ?: filesNow.value.firstOrNull { it.documentUri == hitUri }
+                        val hitEntry = treeHit?.first ?: treeFileHit?.first ?: filesNow.value.firstOrNull { it.documentUri == hitUri }
                             ?: timeline?.files?.firstOrNull { it.documentUri == hitUri }
                             ?: return@awaitEachGesture
                         if (selection.none { it.documentUri == hitUri }) {
@@ -1496,7 +1501,7 @@ private fun ExplorerSection(
                         }
                         renaming = null
                         opError = null
-                        val rect = (treeHit?.second ?: fileSpots[hitUri] ?: folderSpots[hitUri])
+                        val rect = (treeHit?.second ?: treeFileHit?.second ?: fileSpots[hitUri] ?: folderSpots[hitUri])
                             ?.takeIf { it.isAttached }?.boundsInWindow()
                         dragItems = selection.toList()
                         dragCardSize = rect?.let { IntSize(it.width.roundToInt(), it.height.roundToInt()) }
@@ -1588,6 +1593,10 @@ private fun ExplorerSection(
                         onFolderPlaced = { e, coords ->
                             if (coords == null) treeFolderSpots.remove(e.documentUri)
                             else treeFolderSpots[e.documentUri] = e to coords
+                        },
+                        onFilePlaced = { e, coords ->
+                            if (coords == null) treeFileSpots.remove(e.documentUri)
+                            else treeFileSpots[e.documentUri] = e to coords
                         },
                         content = { gridModifier ->
                             if (empty != null && !shelves) {

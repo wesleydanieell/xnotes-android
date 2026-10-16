@@ -40,6 +40,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -367,6 +368,7 @@ internal fun TreeBody(
     onRootPlaced: (LayoutCoordinates?) -> Unit,
     onOpenFolder: (BrowseEntry) -> Unit,
     onFolderPlaced: (BrowseEntry, LayoutCoordinates?) -> Unit,
+    onFilePlaced: (BrowseEntry, LayoutCoordinates?) -> Unit,
     content: @Composable (Modifier) -> Unit,
     modifier: Modifier = Modifier,
 ) {
@@ -385,8 +387,8 @@ internal fun TreeBody(
     ) {
         value = withContext(Dispatchers.IO) { b.editor.browseChildren(root, rootDocId) }
     }
-    val rootFolders = remember(rootEntries, arrange) {
-        rootEntries?.let(arrange)?.filter { it.isDir }.orEmpty()
+    val rootItems = remember(rootEntries, arrange, b.view.treeShowFiles) {
+        treeEntries(rootEntries, arrange, b.view.treeShowFiles)
     }
 
     // Share Columns' top rule, 272dp navigator width and neutral surface. The app header and
@@ -411,7 +413,7 @@ internal fun TreeBody(
                         overflow = TextOverflow.Ellipsis,
                         modifier = Modifier.weight(1f),
                     )
-                    androidx.compose.material3.IconButton(
+                    IconButton(
                         onClick = onCreateFolder,
                         modifier = Modifier.size(32.dp),
                     ) {
@@ -447,7 +449,8 @@ internal fun TreeBody(
                         ) {
                             Icon(
                                 XnotesIcons.folder, null,
-                                tint = palette.textDim.toComposeColor(),
+                                tint = if (currentDocId == rootDocId || rootDropHighlighted)
+                                    palette.accent.toComposeColor() else palette.textDim.toComposeColor(),
                                 modifier = Modifier.size(18.dp),
                             )
                             Text(
@@ -459,11 +462,11 @@ internal fun TreeBody(
                             )
                         }
                     }
-                    items(rootFolders, key = { it.documentUri }, contentType = { "treeFolder" }) { entry ->
-                        TreeFolderNode(
+                    items(rootItems, key = { it.documentUri }, contentType = { if (it.isDir) "treeFolder" else "treeFile" }) { entry ->
+                        if (entry.isDir) TreeFolderNode(
                             b, root, entry, currentDocId, 0, refreshKey, arrange, expanded,
-                            onOpenFolder, onFolderPlaced,
-                        )
+                            onOpenFolder, onFolderPlaced, onFilePlaced,
+                        ) else TreeFileRow(b, entry, 0, onFilePlaced)
                     }
                 }
             }
@@ -487,6 +490,7 @@ private fun TreeBranch(
     expanded: MutableMap<String, Boolean>,
     onOpenFolder: (BrowseEntry) -> Unit,
     onFolderPlaced: (BrowseEntry, LayoutCoordinates?) -> Unit,
+    onFilePlaced: (BrowseEntry, LayoutCoordinates?) -> Unit,
 ) {
     val entries by produceState<List<BrowseEntry>?>(
         b.editor.cachedChildren(root, parentDocId), root, parentDocId,
@@ -494,19 +498,27 @@ private fun TreeBranch(
     ) {
         value = withContext(Dispatchers.IO) { b.editor.browseChildren(root, parentDocId) }
     }
-    // The navigator only lists directories; note and canvas tiles belong to the right-hand grid.
-    val folders = remember(entries, arrange) { entries?.let(arrange)?.filter { it.isDir }.orEmpty() }
+    val shown = remember(entries, arrange, b.view.treeShowFiles) {
+        treeEntries(entries, arrange, b.view.treeShowFiles)
+    }
     Column {
-        folders.forEach { entry ->
+        shown.forEach { entry ->
             key(entry.documentUri) {
-                TreeFolderNode(
+                if (entry.isDir) TreeFolderNode(
                     b, root, entry, currentDocId, depth, refreshKey, arrange, expanded,
-                    onOpenFolder, onFolderPlaced,
-                )
+                    onOpenFolder, onFolderPlaced, onFilePlaced,
+                ) else TreeFileRow(b, entry, depth, onFilePlaced)
             }
         }
     }
 }
+
+/** Folder navigation always includes folders, regardless of how files are shown in the grid. */
+private fun treeEntries(
+    entries: List<BrowseEntry>?,
+    arrange: (List<BrowseEntry>) -> List<BrowseEntry>,
+    showFiles: Boolean,
+): List<BrowseEntry> = entries?.let(arrange)?.filter { it.isDir || showFiles }.orEmpty()
 
 /** One visible node owns the expansion of its own descendants, independently of navigation. */
 @Composable
@@ -521,6 +533,7 @@ private fun TreeFolderNode(
     expanded: MutableMap<String, Boolean>,
     onOpenFolder: (BrowseEntry) -> Unit,
     onFolderPlaced: (BrowseEntry, LayoutCoordinates?) -> Unit,
+    onFilePlaced: (BrowseEntry, LayoutCoordinates?) -> Unit,
 ) {
     val id = b.editor.browseDocId(entry.documentUri)
     TreeFolderRow(
@@ -542,8 +555,50 @@ private fun TreeFolderNode(
     if (expanded[id] == true) {
         TreeBranch(
             b, root, id, currentDocId, depth + 1, refreshKey, arrange, expanded,
-            onOpenFolder, onFolderPlaced,
+            onOpenFolder, onFolderPlaced, onFilePlaced,
         )
+    }
+}
+
+@Composable
+private fun TreeFileRow(
+    b: ExplorerBody,
+    entry: BrowseEntry,
+    depth: Int,
+    onFilePlaced: (BrowseEntry, LayoutCoordinates?) -> Unit,
+) {
+    val palette = LocalPalette.current
+    val selected = b.host.isSelected(entry)
+    DisposableEffect(entry.documentUri) { onDispose { onFilePlaced(entry, null) } }
+    Row(
+        Modifier.fillMaxWidth().height(44.dp)
+            .clip(MaterialTheme.shapes.small)
+            .background(if (selected) palette.selectionBackground.toComposeColor() else Color.Transparent)
+            .onPlaced { onFilePlaced(entry, it) }
+            .combinedClickable(
+                interactionSource = remember { MutableInteractionSource() },
+                indication = null,
+                onClick = { b.host.onClick(entry) },
+                onLongClick = { b.host.onLongClick(entry) },
+            )
+            .padding(start = (34 + depth * 16).dp, end = 8.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(10.dp),
+    ) {
+        Icon(
+            kindIcon(b.kind(entry)), null,
+            tint = if (selected) palette.accent.toComposeColor() else palette.textDim.toComposeColor(),
+            modifier = Modifier.size(18.dp),
+        )
+        Text(
+            b.label(entry),
+            color = (if (selected) palette.selectionForeground else palette.text).toComposeColor(),
+            fontSize = 13.5.sp,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+            modifier = Modifier.weight(1f),
+        )
+        if (!b.host.selecting()) EntryMenuButton(b, entry, palette.textDim.toComposeColor(), size = 26.dp)
     }
 }
 

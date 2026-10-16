@@ -420,6 +420,15 @@ internal fun ViewOptionsContent(
                 }
             }
         }
+        if (layout == ExplorerLayout.TREE) {
+            OptionBlock(stringResource(R.string.layout_tree)) {
+                ExplorerChip(
+                    stringResource(R.string.tree_show_files),
+                    view.treeShowFiles,
+                    icon = if (view.treeShowFiles) XnotesIcons.check else XnotesIcons.plus,
+                ) { onChange(view.copy(treeShowFiles = !view.treeShowFiles)) }
+            }
+        }
         if (layout == ExplorerLayout.LIST) {
             OptionBlock(stringResource(R.string.opt_rows)) {
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
