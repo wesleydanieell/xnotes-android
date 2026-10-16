@@ -8,6 +8,7 @@ enum class ExplorerLayout(val id: String) {
     GALLERY("gallery"),
     LIST("list"),
     COLUMNS("columns"),
+    TREE("tree"),
     TIMELINE("timeline");
 
     companion object {

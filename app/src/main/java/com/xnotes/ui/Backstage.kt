@@ -1005,11 +1005,11 @@ private fun ExplorerSection(
     val searching = query.isNotBlank()
     val flat = searching || colorFilter != null || showRecent
     val layout = when {
-        flat && (view.layout == ExplorerLayout.COLUMNS || view.layout == ExplorerLayout.TIMELINE) -> ExplorerLayout.GRID
-        compactScreen && view.layout == ExplorerLayout.COLUMNS -> ExplorerLayout.LIST
+        flat && (view.layout == ExplorerLayout.COLUMNS || view.layout == ExplorerLayout.TREE || view.layout == ExplorerLayout.TIMELINE) -> ExplorerLayout.GRID
+        compactScreen && (view.layout == ExplorerLayout.COLUMNS || view.layout == ExplorerLayout.TREE) -> ExplorerLayout.LIST
         else -> view.layout
     }
-    val switcherLayouts = prefs.switcherLayouts.filter { !(compactScreen && it == ExplorerLayout.COLUMNS) }
+    val switcherLayouts = prefs.switcherLayouts.filter { !(compactScreen && (it == ExplorerLayout.COLUMNS || it == ExplorerLayout.TREE)) }
 
     // Listing. Re-keyed on noteOpen so returning from the editor re-queries the folder, picking up
     // the just-closed note's new mtime (its tile refreshes) and any newly created/discovered items.
@@ -1058,9 +1058,9 @@ private fun ExplorerSection(
     }
     val kindOf: (BrowseEntry) -> EntryKind = { entryKind(it, editor.cachedMeta(it)) }
     val withCreated: (BrowseEntry) -> BrowseEntry = { e -> editor.createdOf(e).let { if (it == e.created) e else e.copy(created = it) } }
-    val arrange: (List<BrowseEntry>) -> List<BrowseEntry> = remember(view.sortKey, view.descending, view.folders, kindFilter, metaTick) {
+    val arrange: (List<BrowseEntry>) -> List<BrowseEntry> = remember(view.sortKey, view.descending, view.folders, kindFilter, metaTick, layout) {
         { list ->
-            list.filter { e -> if (e.isDir) view.folders != FolderPlacement.HIDDEN && kindFilter == null else kindFilter == null || kindOf(e) == kindFilter }
+            list.filter { e -> if (e.isDir) (layout == ExplorerLayout.TREE || view.folders != FolderPlacement.HIDDEN) && kindFilter == null else kindFilter == null || kindOf(e) == kindFilter }
                 .map(withCreated)
                 .sortedWith(explorerComparator(view.sortKey, view.descending, foldersFirst = view.folders != FolderPlacement.MIXED) { it.created })
         }
@@ -1104,6 +1104,8 @@ private fun ExplorerSection(
     // Coordinates, not rects: tiles move every frame of a scroll or resize, and only a drag needs bounds.
     val folderSpots = remember(root) { HashMap<String, LayoutCoordinates>() }
     val fileSpots = remember(root) { HashMap<String, LayoutCoordinates>() }
+    val treeFolderSpots = remember(root) { HashMap<String, Pair<BrowseEntry, LayoutCoordinates>>() }
+    var rootDropSpot by remember(root) { mutableStateOf<LayoutCoordinates?>(null) }
     var dragItems by remember(root) { mutableStateOf<List<BrowseEntry>>(emptyList()) }
     var dragPos by remember(root) { mutableStateOf<Offset?>(null) }
     var dropTargetUri by remember(root) { mutableStateOf<String?>(null) }
@@ -1123,8 +1125,17 @@ private fun ExplorerSection(
     }
     // The folder under the finger, ignoring any folder that's itself part of the dragged selection.
     fun updateDropTarget(pos: Offset) {
-        dropTargetUri = folderSpots.entries
-            .firstOrNull { (uri, c) -> c.isAttached && c.boundsInWindow().contains(pos) && dragItems.none { it.documentUri == uri } }?.key
+        val treeTarget = treeFolderSpots.entries.firstOrNull { (uri, pair) ->
+            uri !in dragItems.map { it.documentUri } && pair.second.isAttached &&
+                pair.second.boundsInWindow().contains(pos)
+        }?.key
+        val gridTarget = folderSpots.entries.firstOrNull { (uri, c) ->
+            c.isAttached && c.boundsInWindow().contains(pos) &&
+                dragItems.none { it.documentUri == uri }
+        }?.key
+        dropTargetUri = treeTarget ?: gridTarget ?: rootDropSpot
+            ?.takeIf { it.isAttached && it.boundsInWindow().contains(pos) }
+            ?.let { root }
     }
     // While dragging a selection near the top/bottom edge of the body, keep it scrolling so a folder
     // that's currently off-screen can still be reached, the same way the toolbar drag does.
@@ -1323,7 +1334,7 @@ private fun ExplorerSection(
         else -> null
     }
     // Files scroll under the header except in Columns and the empty states, which keep it over plain background.
-    val liftSource = rememberUpdatedState(if ((empty == null || shelves) && layout != ExplorerLayout.COLUMNS) scrollNow.value else null)
+    val liftSource = rememberUpdatedState(if ((empty == null || shelves) && layout != ExplorerLayout.COLUMNS && layout != ExplorerLayout.TREE) scrollNow.value else null)
     val headerLift = remember { Animatable(0f) }
     LaunchedEffect(headerLift) {
         snapshotFlow { liftSource.value?.canScrollBackward == true }.collectLatest { headerLift.animateTo(if (it) 1f else 0f, tween(180)) }
@@ -1463,32 +1474,30 @@ private fun ExplorerSection(
                             true
                         }
                         if (!longPress) return@awaitEachGesture
-                        // Long-press fired. Find the file tile under the finger; ignore folders/empty.
+                        // Use one drag lifecycle for files, grid folders and Tree folders.
                         val winDown = boxCoords?.localToWindow(down.position) ?: return@awaitEachGesture
-                        val hitUri = fileSpots.entries.firstOrNull { it.value.isAttached && it.value.boundsInWindow().contains(winDown) }?.key
-                        if (hitUri == null) return@awaitEachGesture
+                        val treeHit = treeFolderSpots.values.firstOrNull {
+                            it.second.isAttached && it.second.boundsInWindow().contains(winDown)
+                        }
+                        val gridFile = fileSpots.entries.firstOrNull {
+                            it.value.isAttached && it.value.boundsInWindow().contains(winDown)
+                        }
+                        val gridFolder = folderSpots.entries.firstOrNull {
+                            it.value.isAttached && it.value.boundsInWindow().contains(winDown)
+                        }
+                        val hitUri = treeHit?.first?.documentUri ?: gridFile?.key ?: gridFolder?.key
+                            ?: return@awaitEachGesture
+                        val hitEntry = treeHit?.first ?: filesNow.value.firstOrNull { it.documentUri == hitUri }
+                            ?: timeline?.files?.firstOrNull { it.documentUri == hitUri }
+                            ?: return@awaitEachGesture
                         if (selection.none { it.documentUri == hitUri }) {
-                            // First long-press selects. Consume to the up (Initial pass, ahead of the
-                            // tile) so its click can't toggle the selection straight back off.
-                            (filesNow.value.firstOrNull { it.documentUri == hitUri } ?: timeline?.files?.firstOrNull { it.documentUri == hitUri })?.let {
-                                renaming = null; opError = null; selection.add(it)
-                            }
-                            do {
-                                val e = awaitPointerEvent(PointerEventPass.Initial)
-                                e.changes.forEach { it.consume() }
-                            } while (e.changes.any { it.id == down.id && it.pressed })
-                            return@awaitEachGesture
+                            selection.clear()
+                            selection.add(hitEntry)
                         }
-                        // Second long-press on a selected tile: pick the whole selection up and drag it.
-                        // Dragging moves files only; if any folder is selected, claim the gesture but don't drag.
-                        if (selection.any { it.isDir }) {
-                            do {
-                                val e = awaitPointerEvent(PointerEventPass.Initial)
-                                e.changes.forEach { it.consume() }
-                            } while (e.changes.any { it.id == down.id && it.pressed })
-                            return@awaitEachGesture
-                        }
-                        val rect = fileSpots[hitUri]?.takeIf { it.isAttached }?.boundsInWindow()
+                        renaming = null
+                        opError = null
+                        val rect = (treeHit?.second ?: fileSpots[hitUri] ?: folderSpots[hitUri])
+                            ?.takeIf { it.isAttached }?.boundsInWindow()
                         dragItems = selection.toList()
                         dragCardSize = rect?.let { IntSize(it.width.roundToInt(), it.height.roundToInt()) }
                         var pos = winDown
@@ -1510,7 +1519,7 @@ private fun ExplorerSection(
                         val items = dragItems
                         dragPos = null; dropTargetUri = null; dragItems = emptyList()
                         if (target != null) {
-                            val targetDocId = editor.browseDocId(target)
+                            val targetDocId = if (target == root) rootDocId else editor.browseDocId(target)
                             pulseUri = target; opError = null
                             scope.launch {
                                 val ok = withContext(Dispatchers.IO) {
@@ -1539,7 +1548,7 @@ private fun ExplorerSection(
             })
             val gridTop: (LazyGridScope.() -> Unit)? = shelfBlock?.let { c -> { item(key = "shelves", span = { GridItemSpan(maxLineSpan) }, contentType = "shelves") { c() } } }
             when {
-                empty != null && !shelves -> Column(Modifier.fillMaxSize()) {
+                empty != null && !shelves && layout != ExplorerLayout.TREE -> Column(Modifier.fillMaxSize()) {
                     Spacer(Modifier.height(EXPLORER_HEADER))
                     chipRow(48.dp)
                     EmptyPane(empty.text, empty.art, if (!empty.offersCreate) null else { {
@@ -1559,6 +1568,44 @@ private fun ExplorerSection(
                     )
                 }
                 layout == ExplorerLayout.TIMELINE -> TimelineBody(body, arranged.orEmpty().filterNot { it.isDir }, shownMonth, { timelineMonth = it }, timelineState, chipRow, Modifier.fillMaxSize())
+                layout == ExplorerLayout.TREE -> Column(Modifier.fillMaxSize()) {
+                    // Columns keeps the app header and filter chips above its panes.
+                    Spacer(Modifier.height(EXPLORER_HEADER))
+                    chipRow(48.dp)
+                    TreeBody(
+                        b = body,
+                        root = root,
+                        rootDocId = rootDocId,
+                        rootName = rootName ?: stringResource(R.string.folder),
+                        levels = listOf(rootDocId to (rootName ?: stringResource(R.string.folder))) + stack,
+                        refreshKey = refreshKey,
+                        arrange = columnsArrange,
+                        onOpenRoot = { stack.clear(); clearUp() },
+                        onCreateFolder = { onCreateMode(CreateMode.FOLDER) },
+                        rootDropHighlighted = dragPos != null && dropTargetUri == root,
+                        onRootPlaced = { rootDropSpot = it },
+                        onOpenFolder = { e -> openChain(e.documentUri) },
+                        onFolderPlaced = { e, coords ->
+                            if (coords == null) treeFolderSpots.remove(e.documentUri)
+                            else treeFolderSpots[e.documentUri] = e to coords
+                        },
+                        content = { gridModifier ->
+                            if (empty != null && !shelves) {
+                                EmptyPane(empty.text, empty.art, if (!empty.offersCreate) null else { {
+                                    PrimaryButton(XnotesIcons.edit, stringResource(R.string.new_note_menu)) { onCreateMode(CreateMode.FILE) }
+                                    PrimaryButton(XnotesIcons.canvas, stringResource(R.string.new_canvas_menu)) { onCreateMode(CreateMode.CANVAS) }
+                                    PrimaryButton(XnotesIcons.importDoc, stringResource(R.string.import_pdf), onClick = calls.importPdf)
+                                } })
+                            } else BoxWithConstraints(gridModifier) {
+                                GridBody(
+                                    body, gridState, gridColumns(maxWidth.value.toInt(), view.tileSize),
+                                    chipRow, gridTop, Modifier.fillMaxSize(), embedded = true,
+                                )
+                            }
+                        },
+                        modifier = Modifier.fillMaxSize(),
+                    )
+                }
                 // Each column scrolls on its own, so here the chip row stays put under the header.
                 else -> Column(Modifier.fillMaxSize()) {
                     Spacer(Modifier.height(EXPLORER_HEADER))
@@ -1670,7 +1717,7 @@ private fun ExplorerSection(
                         DropdownMenu(expanded = optionsOpen, onDismissRequest = { optionsOpen = false }) {
                             ViewOptionsContent(
                                 view = view.copy(layout = layout),
-                                layouts = ExplorerLayout.entries.filter { !(compactScreen && it == ExplorerLayout.COLUMNS) },
+                                layouts = ExplorerLayout.entries.filter { !(compactScreen && (it == ExplorerLayout.COLUMNS || it == ExplorerLayout.TREE)) },
                                 everyFolder = !prefs.perFolderViews,
                                 // Results shown in the grid for now leave the folder's own layout alone unless another is picked.
                                 onChange = { v -> setView(if (v.layout == layout) v.copy(layout = view.layout) else v); if (v.layout != layout) columnsPick = null },
@@ -2135,14 +2182,19 @@ private fun DragPreview(editor: Editor, items: List<BrowseEntry>, sizePx: IntSiz
 @Composable
 private fun StackedNoteCard(editor: Editor, entry: BrowseEntry, modifier: Modifier) {
     val palette = LocalPalette.current
-    val thumb = editor.cachedNoteTile(entry.documentUri)
+    val thumb = if (entry.isDir) null else editor.cachedNoteTile(entry.documentUri)
     val shape = MaterialTheme.shapes.medium
     Column(modifier.clip(shape).background(palette.bg.toComposeColor()).border(1.dp, palette.accent.toComposeColor(), shape)) {
         Box(Modifier.fillMaxWidth().weight(1f).background(palette.paper.toComposeColor())) {
             if (thumb != null) {
                 Image(thumb, null, contentScale = ContentScale.Crop, alignment = Alignment.TopCenter, modifier = Modifier.matchParentSize())
             } else {
-                Icon(XnotesIcons.file, null, tint = palette.textDim.toComposeColor(), modifier = Modifier.size(32.dp).align(Alignment.Center))
+                Icon(
+                    if (entry.isDir) XnotesIcons.folder else XnotesIcons.file,
+                    null,
+                    tint = palette.textDim.toComposeColor(),
+                    modifier = Modifier.size(32.dp).align(Alignment.Center),
+                )
             }
         }
         Column(Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 6.dp)) {

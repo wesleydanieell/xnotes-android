@@ -72,6 +72,7 @@ internal fun layoutIcon(l: ExplorerLayout): ImageVector = when (l) {
     ExplorerLayout.GALLERY -> XnotesIcons.gallery
     ExplorerLayout.LIST -> XnotesIcons.list
     ExplorerLayout.COLUMNS -> XnotesIcons.columns
+    ExplorerLayout.TREE -> XnotesIcons.folderTree
     ExplorerLayout.TIMELINE -> XnotesIcons.timeline
 }
 

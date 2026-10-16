@@ -236,7 +236,7 @@ internal fun ThumbBadges(b: ExplorerBody, e: BrowseEntry, inset: Dp = 8.dp) {
 }
 
 @Composable
-private fun EntryMenuButton(b: ExplorerBody, e: BrowseEntry, tint: Color, size: Dp = 32.dp) {
+internal fun EntryMenuButton(b: ExplorerBody, e: BrowseEntry, tint: Color, size: Dp = 32.dp) {
     var open by remember { mutableStateOf(false) }
     Box {
         Tooltip(stringResource(R.string.more)) {
@@ -270,7 +270,7 @@ internal fun EntryMenuFor(b: ExplorerBody, e: BrowseEntry, expanded: Boolean, on
 
 /** Keeps a tile's coordinates registered for hit-testing a drag, and drops them when it leaves. */
 @Composable
-private fun Modifier.registered(b: ExplorerBody, e: BrowseEntry): Modifier {
+internal fun Modifier.registered(b: ExplorerBody, e: BrowseEntry): Modifier {
     DisposableEffect(e.documentUri) { onDispose { b.host.onPlaced(e, null) } }
     return this.onPlaced { b.host.onPlaced(e, it) }
 }
