@@ -1,0 +1,71 @@
+name: Community Release
+
+on:
+  push:
+    tags:
+      - 'community-v*'
+
+permissions:
+  contents: write
+
+jobs:
+  signed-release:
+    runs-on: ubuntu-latest
+    timeout-minutes: 75
+    steps:
+      - name: Check out tagged source
+        uses: actions/checkout@v4
+      - name: Set up Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v3
+      - name: Install pinned native toolchain
+        run: sdkmanager --install 'platforms;android-36' 'ndk;27.0.12077973' 'cmake;3.22.1'
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v4
+      - name: Check release signing secrets
+        env:
+          KEYSTORE_B64: ${{ secrets.COMMUNITY_KEYSTORE_BASE64 }}
+          STORE_PASSWORD: ${{ secrets.COMMUNITY_STORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.COMMUNITY_KEY_ALIAS }}
+          KEY_PASSWORD: ${{ secrets.COMMUNITY_KEY_PASSWORD }}
+        run: |
+          test -n "$KEYSTORE_B64" && test -n "$STORE_PASSWORD" && test -n "$KEY_ALIAS" && test -n "$KEY_PASSWORD" || {
+            echo 'Missing community signing secrets. See docs/COMMUNITY_RELEASES.md.' >&2
+            exit 1
+          }
+          printf '%s' "$KEYSTORE_B64" | base64 --decode > app/community-release.jks
+          chmod 600 app/community-release.jks
+          {
+            echo 'storeFile=community-release.jks'
+            printf 'storePassword=%s\n' "$STORE_PASSWORD"
+            printf 'keyAlias=%s\n' "$KEY_ALIAS"
+            printf 'keyPassword=%s\n' "$KEY_PASSWORD"
+          } > keystore.properties
+          chmod 600 keystore.properties
+      - name: Test and build signed community APK
+        env:
+          COMMUNITY_VERSION_NAME: ${{ github.ref_name }}
+          COMMUNITY_VERSION_CODE: ${{ github.run_number }}
+        run: ./gradlew :app:testDebugUnitTest :app:assembleCommunity --no-daemon --stacktrace
+      - name: Prepare APK and checksums
+        run: |
+          mkdir -p dist
+          cp app/build/outputs/apk/community/*.apk "dist/XNotes-${GITHUB_REF_NAME}.apk"
+          cd dist
+          sha256sum *.apk > SHA256SUMS.txt
+      - name: Publish GitHub release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          if [[ "$GITHUB_REF_NAME" =~ (alpha|beta|preview|rc) ]]; then
+            gh release create "$GITHUB_REF_NAME" dist/* --title "$GITHUB_REF_NAME" --generate-notes --prerelease
+          else
+            gh release create "$GITHUB_REF_NAME" dist/* --title "$GITHUB_REF_NAME" --generate-notes
+          fi
+      - name: Remove local signing material
+        if: always()
+        run: rm -f keystore.properties app/community-release.jks
