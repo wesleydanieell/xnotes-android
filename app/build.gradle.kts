@@ -25,7 +25,7 @@ android {
         applicationId = "com.xnotes"
         minSdk = 26
         targetSdk = 36
-        versionCode = 63
+        versionCode = System.getenv("COMMUNITY_VERSION_CODE")?.toIntOrNull() ?: 63
         versionName = "0.9.2"
         ndk {
             abiFilters += listOf("arm64-v8a", "armeabi-v7a", "x86_64")
@@ -85,6 +85,15 @@ android {
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro",
             )
+        }
+        create("community") {
+            initWith(getByName("release"))
+            applicationIdSuffix = ".community"
+            versionNameSuffix = "-community"
+            matchingFallbacks += listOf("release")
+            System.getenv("COMMUNITY_VERSION_NAME")?.takeIf { it.isNotBlank() }?.let {
+                versionNameSuffix = "-$it"
+            }
         }
     }
 
