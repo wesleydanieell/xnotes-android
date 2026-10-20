@@ -490,6 +490,58 @@ private fun EditorScreen(
         }
     }
 
+    // Both asset pickers accept batches, but only the first readable image is selected
+    // for the new note. All readable images are saved in the corresponding library.
+    fun importCreationImages(uris: List<Uri>, kind: com.xnotes.platform.CustomAssetFolders.Kind) {
+        if (uris.isEmpty()) return
+        scope.launch {
+            val root = editor.browseRoot
+            val result = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+                var selected: ByteArray? = null
+                var imported = 0
+                var failed = 0
+                for (uri in uris) {
+                    val bytes = runCatching { resolver.openInputStream(uri)?.use { it.readBytes() } }
+                        .getOrNull()?.takeIf { it.isNotEmpty() }
+                    if (bytes == null) {
+                        failed++
+                        continue
+                    }
+                    if (selected == null) selected = bytes
+                    val name = displayNameOf(resolver, uri)
+                    if (com.xnotes.platform.CustomAssetFolders.storeImage(context, root, bytes, name, kind)) {
+                        imported++
+                    } else {
+                        failed++
+                    }
+                }
+                Triple(selected, imported, failed)
+            }
+            val (selected, imported, failed) = result
+            if (selected != null) {
+                if (kind == com.xnotes.platform.CustomAssetFolders.Kind.COVER) {
+                    editor.noteCreationCoverImageBytes = selected
+                } else {
+                    editor.noteCreationPageImageBytes = selected
+                }
+            }
+            if (imported > 0) editor.customAssetsChanged()
+            editor.message = when {
+                imported > 0 -> context.getString(R.string.create_images_imported, imported, failed)
+                selected == null -> context.getString(R.string.err_read_image)
+                else -> context.getString(R.string.create_images_not_saved)
+            }
+        }
+    }
+
+    val pickCreationCoverLauncher = rememberLauncherForActivityResult(ActivityResultContracts.OpenMultipleDocuments()) { uris ->
+        importCreationImages(uris, com.xnotes.platform.CustomAssetFolders.Kind.COVER)
+    }
+
+    val pickCreationPageImageLauncher = rememberLauncherForActivityResult(ActivityResultContracts.OpenMultipleDocuments()) { uris ->
+        importCreationImages(uris, com.xnotes.platform.CustomAssetFolders.Kind.PAGE)
+    }
+
     // A user font (.ttf/.otf), stored + registered by the editor.
     val importFontLauncher = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
         if (uri != null) {
@@ -833,6 +885,9 @@ private fun EditorScreen(
                 onExitApp = { (context as? android.app.Activity)?.finish() },
                 onImportCodeTheme = { importCodeThemeLauncher.launch(arrayOf("*/*")) },
                 onImportFont = { importFontLauncher.launch(arrayOf("*/*")) },
+                onImportTemplate = { importTemplateLauncher.launch(arrayOf("*/*")) },
+                onPickCoverImage = { pickCreationCoverLauncher.launch(arrayOf("image/*")) },
+                onPickPageImage = { pickCreationPageImageLauncher.launch(arrayOf("image/*")) },
                 onImportPdf = { importPdfLauncher.launch(arrayOf("application/pdf")) },
                 onOpenFile = { uri -> guarded(editor) { openTreeFile(uri) } },
                 onPickRoot = { pickRootLauncher.launch(null) },

@@ -373,6 +373,17 @@
     <!-- Home screen and explorer -->
     <string name="collapse_sidebar">收起侧边栏</string>
     <string name="home">首页</string>
+    <string name="create_custom_colour">自定义颜色</string>
+    <string name="create_saved_template">已保存的模板</string>
+    <string name="create_page_size">页面大小</string>
+    <string name="create_orientation">页面方向</string>
+    <string name="create_page_appearance">页面外观</string>
+    <string name="create_paper_colour">纸张颜色</string>
+    <string name="create_page_pattern">页面样式</string>
+    <string name="create_add_cover">添加封面页</string>
+    <string name="create_cover_help">在第一页书写内容之前添加标题封面。</string>
+    <string name="create_cover_colour">封面颜色</string>
+    <string name="create_cover_pattern">封面样式</string>
     <string name="new_note">新笔记</string>
     <string name="new_canvas">新画布</string>
     <string name="about">关于</string>

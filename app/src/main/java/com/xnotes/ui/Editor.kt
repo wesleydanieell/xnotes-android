@@ -44,6 +44,7 @@ import com.xnotes.core.model.PageStyle
 import com.xnotes.core.model.PageTemplates
 import com.xnotes.core.model.Rgba
 import com.xnotes.core.model.TextMarkup
+import com.xnotes.core.model.TextItem
 import com.xnotes.core.pal.FontFace
 import com.xnotes.core.pal.Renderer
 import com.xnotes.core.pdf.MarkupPainter
@@ -229,6 +230,21 @@ private val sharedRecents = androidx.compose.runtime.mutableStateOf<List<com.xno
  * session in its own slot, and leaves the tool/toolbar preference snapshot to the primary.
  */
 enum class Pane { PRIMARY, SECONDARY }
+
+/** Per-note choices collected by the creation dialog. Styles are persisted using the existing page/document format. */
+data class NoteCreationOptions(
+    val pageSize: PageSize,
+    val orientation: Orientation,
+    val pageStyle: PageStyle,
+    val includeCover: Boolean,
+    val coverStyle: PageStyle,
+    /** Optional encoded image to place behind the title on the first page. */
+    val coverImageBytes: ByteArray? = null,
+    /** Optional image used as the background paper on every page. */
+    val pageImageBytes: ByteArray? = null,
+    /** Cover can use portrait geometry even when writing pages are landscape. */
+    val coverOrientation: Orientation = orientation,
+)
 
 @Stable
 class Editor(context: Context, val pane: Pane = Pane.PRIMARY) : ToolPopupHost, SelectionMenuHost, LongPressMenuHost, TextEditHost {
@@ -1503,6 +1519,7 @@ class Editor(context: Context, val pane: Pane = Pane.PRIMARY) : ToolPopupHost, S
     @Volatile private var thumbsAwaitMath = false
 
     init {
+        TemplateLibrary.configureStorageTree(browseRoot)
         com.xnotes.platform.MathRendering.addListener(mathLanded)
         view.input = { ev ->
             // Any fresh canvas touch quietly retires the flow action bar and still does its job.
@@ -2571,9 +2588,20 @@ class Editor(context: Context, val pane: Pane = Pane.PRIMARY) : ToolPopupHost, S
     val currentPageStyle: PageStyle
         get() = state.document.pages.getOrNull(state.currentPageIndex())?.style ?: PageStyle()
 
+    /** Defaults used to prefill the new-note creation dialog. */
+    val defaultNewPageSize: PageSize get() = settings.prefs.defaultPageSize
+    val defaultNewPageOrientation: Orientation get() = settings.prefs.defaultPageOrientation
+
     /** The saved All Pages style stamped onto newly created notes (empty ⇒ app built-ins). */
     var newNoteStyle by mutableStateOf(settings.newNoteStyle)
         private set
+
+    /** Transient image chosen in the note-creation dialog; embedded into the new note on creation. */
+    var noteCreationCoverImageBytes by mutableStateOf<ByteArray?>(null)
+    var noteCreationPageImageBytes by mutableStateOf<ByteArray?>(null)
+
+    /** Refresh custom cover/page image strips after an import completes. */
+    fun customAssetsChanged() { TemplateLibraryUi.version++ }
 
     /** Save (or, passing an empty style, forget) the All Pages style new notes start with. */
     fun saveNewNoteStyle(style: PageStyle) {
@@ -2609,10 +2637,24 @@ class Editor(context: Context, val pane: Pane = Pane.PRIMARY) : ToolPopupHost, S
         settingsRepo.save(settings)
     }
 
-    /** A blank document at the user's default page size, custom dimensions included. */
-    private fun blankDocument(): Document {
-        val (w, h) = settings.prefs.newPagePixels()
-        return Document.blankPixels(Document.DEFAULT_NEW_PAGES, w, h).also { it.created = System.currentTimeMillis() }
+    /** A blank document at a chosen page size, falling back to the user's defaults. */
+    private fun blankDocument(
+        pageSize: PageSize? = null,
+        orientation: Orientation? = null,
+        count: Int = Document.DEFAULT_NEW_PAGES,
+    ): Document {
+        val prefs = settings.prefs
+        val chosenSize = pageSize ?: prefs.defaultPageSize
+        val chosenOrientation = orientation ?: prefs.defaultPageOrientation
+        val (w, h) = if (chosenSize == PageSize.CUSTOM) {
+            // With no per-note override, preserve the user's typed custom dimensions exactly.
+            if (pageSize == null && orientation == null) prefs.newPagePixels() else {
+                val a = PageSize.mmToPx(prefs.customPageWidthMm, PageSize.DEFAULT_DPI)
+                val b = PageSize.mmToPx(prefs.customPageHeightMm, PageSize.DEFAULT_DPI)
+                if (chosenOrientation == Orientation.LANDSCAPE) maxOf(a, b) to minOf(a, b) else minOf(a, b) to maxOf(a, b)
+            }
+        } else chosenSize.pixels(chosenOrientation, PageSize.DEFAULT_DPI)
+        return Document.blankPixels(count, w, h).also { it.created = System.currentTimeMillis() }
     }
 
     /** Stamp the saved new-note defaults (page style + flow config) onto a fresh [doc]. */
@@ -3250,6 +3292,9 @@ class Editor(context: Context, val pane: Pane = Pane.PRIMARY) : ToolPopupHost, S
                 }
             }
         }
+        // Explorer tile and Gallery must paint the stored .xtemplate, just like the
+        // open canvas and PDF export. Without this the cover is only its paper colour.
+        TemplateLibrary.paint(r, doc, page, cover, cover)
         if (page.pdfPage == null) MarkupPainter.paint(r, page.markups, doc.dpi / 72.0)
         // A closed note's flow is laid out locally (the published snapshot serves the open note only),
         // and only as far as this page, so a tile never sets the formulas further on.
@@ -3517,6 +3562,8 @@ class Editor(context: Context, val pane: Pane = Pane.PRIMARY) : ToolPopupHost, S
     fun updateBrowseRoot(treeUri: String) {
         colorNames = emptyMap()
         browseRoot = treeUri
+        TemplateLibrary.configureStorageTree(treeUri)
+        TemplateLibraryUi.version++
         settings = settings.copy(browseRoot = treeUri)
         settingsRepo.save(settings)
         browseCache.clear()
@@ -3796,9 +3843,70 @@ class Editor(context: Context, val pane: Pane = Pane.PRIMARY) : ToolPopupHost, S
     }
 
     /** Creates a blank `.xnote` under [parentDocId]; returns its URI, or null. IO — call off-thread. */
-    fun createBlankNoteFile(treeUri: String, parentDocId: String, rawName: String): String? {
+    fun createBlankNoteFile(
+        treeUri: String,
+        parentDocId: String,
+        rawName: String,
+        options: NoteCreationOptions? = null,
+    ): String? {
         val name = uniqueDocumentName(treeUri, parentDocId, rawName, com.xnotes.core.util.DocumentKind.NOTE)
-        val blank = blankDocument().also { stampNewNoteDefaults(it) }
+        val blank = if (options == null) blankDocument() else {
+            blankDocument(options.pageSize, options.orientation, if (options.includeCover) 2 else 1)
+        }
+        stampNewNoteDefaults(blank)
+        if (options != null) {
+            blank.style = options.pageStyle
+            TemplateLibrary.embed(blank, options.pageStyle.template)
+            val pageBackgroundBytes = options.pageImageBytes
+            if (pageBackgroundBytes != null) {
+                val file = runCatching {
+                    java.io.File.createTempFile("paper", null, imageDir).apply { writeBytes(pageBackgroundBytes) }
+                }.getOrNull()
+                val size = file?.let { imageCodec.probeFile(it.path) }
+                if (file != null && size != null && size.width > 0 && size.height > 0) {
+                    val data = ImageData(file, size.width, size.height)
+                    blank.pages.forEachIndexed { index, page ->
+                        // Page-pattern images belong only to writing pages. The cover has its own
+                        // independent pattern/image selector, even when the cover uses no photo.
+                        if (!(options.includeCover && index == 0)) {
+                            page.items.add(0, ImageItem(data, Rect(0.0, 0.0, page.width, page.height)))
+                        }
+                    }
+                } else file?.delete()
+            }
+            if (options.includeCover) {
+                val cover = blank.pages.first()
+                val (coverWidth, coverHeight) = options.pageSize.pixels(options.coverOrientation, blank.dpi)
+                cover.width = coverWidth
+                cover.height = coverHeight
+                cover.style = options.coverStyle
+                TemplateLibrary.embed(blank, options.coverStyle.template)
+                val title = com.xnotes.core.util.DocumentKind.stripSuffix(name).ifBlank { "Untitled" }
+                val paper = options.coverStyle.pageColor
+                val coverBytes = options.coverImageBytes
+                if (coverBytes != null) {
+                    val file = runCatching {
+                        java.io.File.createTempFile("cover", null, imageDir).apply { writeBytes(coverBytes) }
+                    }.getOrNull()
+                    val size = file?.let { imageCodec.probeFile(it.path) }
+                    if (file != null && size != null && size.width > 0 && size.height > 0) {
+                        cover.items.add(ImageItem(ImageData(file, size.width, size.height), Rect(0.0, 0.0, cover.width, cover.height)))
+                    } else file?.delete()
+                }
+                val ink = if (paper != null && paper.luminance() < 0.42) Rgba(250, 250, 250) else Rgba(35, 39, 48)
+                cover.items.add(
+                    TextItem(
+                        pos = Pt(cover.width * 0.10, cover.height * 0.34),
+                        width = cover.width * 0.80,
+                        text = title,
+                        rgba = ink,
+                        pointSize = 32.0,
+                        face = FontFace.SANS,
+                        measurer = textMeasurer,
+                    ),
+                )
+            }
+        }
         return createNoteFile(treeUri, parentDocId, name) { codec.write(blank, it) }
     }
 
@@ -6788,7 +6896,8 @@ class Editor(context: Context, val pane: Pane = Pane.PRIMARY) : ToolPopupHost, S
             message = appContext.getString(R.string.err_import_template, appContext.getString(R.string.template_too_large))
             return
         }
-        runCatching { TemplateLibrary.import(String(bytes, Charsets.UTF_8)) }
+        val text = String(bytes, Charsets.UTF_8)
+        runCatching { TemplateLibrary.import(text) }
             .onSuccess {
                 message = appContext.getString(R.string.template_imported, it.template.name)
                 TemplateLibraryUi.version++

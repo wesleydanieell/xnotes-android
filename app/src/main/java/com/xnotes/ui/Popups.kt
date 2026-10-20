@@ -274,6 +274,7 @@ fun StylesPopup(editor: Editor, onImportTemplate: () -> Unit = {}, onDismiss: ()
             TemplateStrip(
                 entries = choices,
                 selected = style.template,
+                onClear = { apply(style.withTemplate(com.xnotes.core.model.PageTemplates.NONE, inherited)) },
                 pageMm = editor.currentPageMm,
                 ink = look.ink,
                 accent = look.accent,
@@ -503,7 +504,7 @@ fun MarginsPopup(editor: Editor, onDismiss: () -> Unit) {
  */
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
-private fun TemplateParamControls(
+internal fun TemplateParamControls(
     t: com.xnotes.core.template.Template,
     style: PageStyle,
     lower: PageStyle?,

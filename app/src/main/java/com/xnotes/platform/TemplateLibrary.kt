@@ -1,6 +1,9 @@
 package com.xnotes.platform
 
 import android.content.Context
+import android.net.Uri
+import org.json.JSONObject
+import android.provider.DocumentsContract
 import android.content.res.AssetManager
 import com.xnotes.core.geometry.Rect
 import com.xnotes.core.model.Document
@@ -45,7 +48,14 @@ object TemplateLibrary {
     private const val EXT = ".xtemplate"
 
     @Volatile
+    private var appContext: Context? = null
+    @Volatile
     private var importDir: File? = null
+    @Volatile
+    private var storageTree: Uri? = null
+    @Volatile
+    private var storageDirId: String? = null
+    private const val STORAGE_DIR = ".xnotes-templates"
     @Volatile
     private var bundled: List<Entry> = emptyList()
     private val imported = ConcurrentHashMap<String, Entry>()
@@ -56,6 +66,7 @@ object TemplateLibrary {
 
     fun init(context: Context) {
         val app = context.applicationContext
+        appContext = app
         importDir = File(app.filesDir, "templates")
         bundled = loadBundled(app.assets)
         reloadImported()
@@ -63,6 +74,13 @@ object TemplateLibrary {
 
     /** Every template to offer, built-ins first, then the bundled examples, then imports. */
     fun all(): List<Entry> = bundled + imported.values.sortedBy { it.template.name.lowercase() }
+
+    /** Store imported templates in a hidden folder beside the selected notes root as well as privately. */
+    fun configureStorageTree(treeUri: String?) {
+        storageTree = treeUri?.let { runCatching { Uri.parse(it) }.getOrNull() }
+        storageDirId = ensureStorageDir()
+        reloadImported()
+    }
 
     fun entry(key: String): Entry? = bundled.firstOrNull { it.key == key } ?: imported[key]
 
@@ -91,18 +109,30 @@ object TemplateLibrary {
 
     /** Adopt [text] as a user template; throws [TemplateFormatException] when it is not one. */
     fun import(text: String): Entry {
-        val t = TemplateReader.read(text)
-        val key = keyOf(text)
-        entry(key)?.let { return it }
+        var importText = text
+        var t = TemplateReader.read(importText)
+        var key = keyOf(importText)
+        val existing = entry(key)
+        if (existing != null) {
+            if (existing.source == Source.IMPORTED) return existing
+            // Let users explicitly import a bundled example into their custom collection too.
+            // Preserve its design and name, but add ignored metadata so the custom copy has its
+            // own stable content key and does not get shadowed by the bundled entry.
+            importText = JSONObject(text).put("xnotesImportedCopy", java.util.UUID.randomUUID().toString()).toString(2)
+            t = TemplateReader.read(importText)
+            key = keyOf(importText)
+        }
         val dir = importDir ?: throw TemplateFormatException("template storage is unavailable")
         dir.mkdirs()
-        File(dir, key + EXT).writeText(text, Charsets.UTF_8)
-        return Entry(key, t, text, Source.IMPORTED).also { imported[key] = it; parsed[key] = t }
+        File(dir, key + EXT).writeText(importText, Charsets.UTF_8)
+        writeExternal(key + EXT, importText.toByteArray(Charsets.UTF_8))
+        return Entry(key, t, importText, Source.IMPORTED).also { imported[key] = it; parsed[key] = t }
     }
 
     fun remove(key: String) {
         imported.remove(key) ?: return
-        File(importDir ?: return, key + EXT).delete()
+        importDir?.let { File(it, key + EXT).delete() }
+        deleteExternal(key + EXT)
     }
 
     private fun parse(key: String, text: String): Template? =
@@ -127,13 +157,80 @@ object TemplateLibrary {
 
     private fun reloadImported() {
         imported.clear()
-        val files = importDir?.listFiles() ?: return
-        for (f in files) {
-            if (!f.isFile || !f.name.endsWith(EXT)) continue
-            val text = runCatching { f.readText(Charsets.UTF_8) }.getOrNull() ?: continue
-            val t = runCatching { TemplateReader.read(text) }.getOrNull() ?: continue
+        importDir?.listFiles()?.forEach { f ->
+            if (!f.isFile || !f.name.endsWith(EXT)) return@forEach
+            val text = runCatching { f.readText(Charsets.UTF_8) }.getOrNull() ?: return@forEach
+            val t = runCatching { TemplateReader.read(text) }.getOrNull() ?: return@forEach
             val key = keyOf(text)
             imported[key] = Entry(key, t, text, Source.IMPORTED)
+        }
+        val tree = storageTree ?: return
+        val dirId = storageDirId ?: return
+        externalChildren(tree, dirId).forEach { (name, id) ->
+            if (!name.endsWith(EXT)) return@forEach
+            val uri = DocumentsContract.buildDocumentUriUsingTree(tree, id)
+            val text = runCatching {
+                appContext?.contentResolver?.openInputStream(uri)?.bufferedReader(Charsets.UTF_8)?.use { it.readText() }
+            }.getOrNull() ?: return@forEach
+            val t = runCatching { TemplateReader.read(text) }.getOrNull() ?: return@forEach
+            val key = keyOf(text)
+            imported[key] = Entry(key, t, text, Source.IMPORTED)
+        }
+    }
+
+    private fun ensureStorageDir(): String? = runCatching {
+        val context = appContext ?: return null
+        val tree = storageTree ?: return null
+        val rootId = DocumentsContract.getTreeDocumentId(tree)
+        externalChildren(tree, rootId).firstOrNull { it.first == STORAGE_DIR }?.second?.let { return it }
+        val root = DocumentsContract.buildDocumentUriUsingTree(tree, rootId)
+        val created = DocumentsContract.createDocument(
+            context.contentResolver, root, DocumentsContract.Document.MIME_TYPE_DIR, STORAGE_DIR,
+        ) ?: return null
+        DocumentsContract.getDocumentId(created)
+    }.getOrNull()
+
+    private fun externalChildren(tree: Uri, parentId: String): List<Pair<String, String>> = runCatching {
+        val context = appContext ?: return emptyList()
+        val children = DocumentsContract.buildChildDocumentsUriUsingTree(tree, parentId)
+        val out = ArrayList<Pair<String, String>>()
+        context.contentResolver.query(
+            children,
+            arrayOf(DocumentsContract.Document.COLUMN_DISPLAY_NAME, DocumentsContract.Document.COLUMN_DOCUMENT_ID),
+            null, null, null,
+        )?.use { c ->
+            while (c.moveToNext()) {
+                val name = c.getString(0) ?: continue
+                val id = c.getString(1) ?: continue
+                out += name to id
+            }
+        }
+        out
+    }.getOrDefault(emptyList())
+
+    private fun writeExternal(name: String, bytes: ByteArray) {
+        runCatching {
+            val context = appContext ?: return
+            val tree = storageTree ?: return
+            val dirId = storageDirId ?: return
+            val existing = externalChildren(tree, dirId).firstOrNull { it.first == name }?.second
+            val target = existing?.let { DocumentsContract.buildDocumentUriUsingTree(tree, it) }
+                ?: DocumentsContract.createDocument(
+                    context.contentResolver,
+                    DocumentsContract.buildDocumentUriUsingTree(tree, dirId),
+                    "application/json", name,
+                ) ?: return
+            context.contentResolver.openOutputStream(target, "wt")?.use { it.write(bytes) }
+        }
+    }
+
+    private fun deleteExternal(name: String) {
+        runCatching {
+            val context = appContext ?: return
+            val tree = storageTree ?: return
+            val dirId = storageDirId ?: return
+            val id = externalChildren(tree, dirId).firstOrNull { it.first == name }?.second ?: return
+            DocumentsContract.deleteDocument(context.contentResolver, DocumentsContract.buildDocumentUriUsingTree(tree, id))
         }
     }
 

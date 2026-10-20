@@ -8,6 +8,7 @@ import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.gestures.scrollBy
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.FlowRow
@@ -27,6 +28,7 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.HorizontalDivider
@@ -79,6 +81,7 @@ import com.xnotes.core.tools.ToolbarItem
 import com.xnotes.core.tools.ToolbarLayout
 import com.xnotes.core.util.NameTemplate
 import com.xnotes.settings.Preferences
+import com.xnotes.platform.TemplateLibrary
 import com.xnotes.settings.MaterialStyle
 import com.xnotes.settings.CornerStyle
 import com.xnotes.settings.ToolbarPosition
@@ -127,6 +130,11 @@ fun PreferencesPane(
     val palette = LocalPalette.current
     val focusManager = LocalFocusManager.current
     var prefs by remember { mutableStateOf(editor.preferences) }
+    val libraryVersion = TemplateLibraryUi.version
+    val availableTags = remember(libraryVersion) {
+        TemplateLibrary.all().flatMap { it.template.tags }
+            .map(::canonicalTemplateTag).filter { it.isNotBlank() }.distinct().sorted()
+    }
     fun update(p: Preferences) {
         prefs = p
         editor.applyPreferences(p)
@@ -383,6 +391,48 @@ fun PreferencesPane(
             CheckRow(stringResource(R.string.pref_page_colour_follows_theme), prefs.pageColor == null) {
                 update(prefs.copy(pageColor = if (it) null else pageColorPresets.first()))
             }
+
+            HorizontalDivider(color = palette.border.toComposeColor())
+            SectionTitle(stringResource(R.string.pref_template_organization))
+            Text(
+                stringResource(R.string.pref_template_organization_help),
+                color = palette.textDim.toComposeColor(),
+                fontSize = 12.sp,
+            )
+            CheckRow(stringResource(R.string.pref_template_separate), prefs.creationTemplateTagSeparation) {
+                updateHome(prefs.copy(creationTemplateTagSeparation = it))
+            }
+            if (prefs.creationTemplateTagSeparation) {
+                TemplateExclusionEditor(
+                    title = stringResource(R.string.pref_template_pages_exclude),
+                    tags = prefs.creationPageExcludedTags,
+                suggestions = availableTags,
+                    onChange = { updateHome(prefs.copy(creationPageExcludedTags = it)) },
+                )
+                TemplateExclusionEditor(
+                    title = stringResource(R.string.pref_template_covers_exclude),
+                    tags = prefs.creationCoverExcludedTags,
+                suggestions = availableTags,
+                    onChange = { updateHome(prefs.copy(creationCoverExcludedTags = it)) },
+                )
+            }
+            Text(
+                stringResource(R.string.pref_template_shortcuts_help),
+                color = palette.textDim.toComposeColor(),
+                fontSize = 12.sp,
+            )
+            TemplateExclusionEditor(
+                title = stringResource(R.string.pref_template_pages_shortcuts),
+                tags = prefs.creationPageFilterTags,
+                suggestions = availableTags,
+                onChange = { updateHome(prefs.copy(creationPageFilterTags = it)) },
+            )
+            TemplateExclusionEditor(
+                title = stringResource(R.string.pref_template_covers_shortcuts),
+                tags = prefs.creationCoverFilterTags,
+                suggestions = availableTags,
+                onChange = { updateHome(prefs.copy(creationCoverFilterTags = it)) },
+            )
 
             HorizontalDivider(color = palette.border.toComposeColor())
             SectionTitle(stringResource(R.string.pref_home_explorer))
@@ -967,5 +1017,120 @@ private fun OptionDropdown(options: List<Pair<String, String>>, selectedId: Stri
                 DropdownMenuItem(text = { Text(lbl) }, onClick = { onSelect(id); expanded = false })
             }
         }
+    }
+}
+
+
+/** Show selected tags in settings; scan and edit tags in a compact Add dialog. */
+@OptIn(ExperimentalLayoutApi::class)
+@Composable
+private fun TemplateExclusionEditor(
+    title: String,
+    tags: List<String>,
+    suggestions: List<String>,
+    onChange: (List<String>) -> Unit,
+) {
+    val palette = LocalPalette.current
+    var open by remember { mutableStateOf(false) }
+    val selected = tags.map(::canonicalTemplateTag).toSet()
+    Column(verticalArrangement = Arrangement.spacedBy(5.dp)) {
+        FieldLabel(title)
+        FlowRow(
+            horizontalArrangement = Arrangement.spacedBy(5.dp),
+            verticalArrangement = Arrangement.spacedBy(5.dp),
+        ) {
+            tags.forEach { tag ->
+                Box(
+                    Modifier.clip(MaterialTheme.shapes.small)
+                        .background(palette.selectionBackground.toComposeColor())
+                        .border(1.dp, palette.border.toComposeColor(), MaterialTheme.shapes.small)
+                        .padding(horizontal = 8.dp, vertical = 5.dp),
+                ) {
+                    Text(tag, fontSize = 11.sp, color = palette.selectionForeground.toComposeColor())
+                }
+            }
+            Chip("+ " + stringResource(R.string.pref_template_add_tag), false) { open = true }
+        }
+    }
+    if (open) {
+        var custom by remember { mutableStateOf("") }
+        val choices = (suggestions + selected).map(::canonicalTemplateTag)
+            .filter { it.isNotBlank() }.distinct().sorted()
+        val grouped = choices.groupBy {
+            it.firstOrNull()?.uppercaseChar()?.takeIf { letter -> letter.isLetter() } ?: '#'
+        }
+        AlertDialog(
+            onDismissRequest = { open = false },
+            title = { Text(title, fontSize = 17.sp) },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    OutlinedTextField(
+                        value = custom,
+                        onValueChange = { custom = it },
+                        singleLine = true,
+                        textStyle = TextStyle(fontSize = 12.sp),
+                        placeholder = { Text(stringResource(R.string.pref_template_tags_hint), fontSize = 11.sp) },
+                        modifier = Modifier.fillMaxWidth(),
+                    )
+                    TextButton(
+                        onClick = {
+                            val extra = custom.split(',', ';').map(::canonicalTemplateTag)
+                                .filter { it.isNotBlank() }
+                            onChange((tags + extra).map(::canonicalTemplateTag).distinct().take(40))
+                            custom = ""
+                        },
+                        enabled = custom.isNotBlank(),
+                    ) { Text(stringResource(R.string.pref_template_add_tag)) }
+                    Column(
+                        Modifier.heightIn(max = 330.dp).verticalScroll(rememberScrollState()),
+                        verticalArrangement = Arrangement.spacedBy(6.dp),
+                    ) {
+                        grouped.forEach { (letter, items) ->
+                            Row(
+                                horizontalArrangement = Arrangement.spacedBy(7.dp),
+                                verticalAlignment = Alignment.Top,
+                            ) {
+                                Text(letter.toString(), fontSize = 12.sp, fontWeight = FontWeight.Bold,
+                                    color = palette.textDim.toComposeColor(),
+                                    modifier = Modifier.width(15.dp).padding(top = 6.dp))
+                                FlowRow(
+                                    modifier = Modifier.weight(1f),
+                                    horizontalArrangement = Arrangement.spacedBy(5.dp),
+                                    verticalArrangement = Arrangement.spacedBy(5.dp),
+                                ) {
+                                    items.forEach { tag ->
+                                        val active = tag in selected
+                                        Box(
+                                            Modifier.clip(MaterialTheme.shapes.small)
+                                                .border(1.dp, if (active) palette.accent.toComposeColor()
+                                                    else palette.border.toComposeColor(), MaterialTheme.shapes.small)
+                                                .background(if (active) palette.selectionBackground.toComposeColor()
+                                                    else palette.surface.toComposeColor())
+                                                .clickable {
+                                                    val next = if (active) tags.filterNot { canonicalTemplateTag(it) == tag }
+                                                        else tags + tag
+                                                    onChange(next.map(::canonicalTemplateTag).distinct().take(40))
+                                                }
+                                                .padding(horizontal = 8.dp, vertical = 5.dp),
+                                        ) {
+                                            Text(tag, fontSize = 11.sp,
+                                                color = if (active) palette.selectionForeground.toComposeColor()
+                                                    else palette.text.toComposeColor())
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                        if (grouped.isEmpty()) {
+                            Text(stringResource(R.string.pref_template_no_tags),
+                                fontSize = 11.sp, color = palette.textDim.toComposeColor())
+                        }
+                    }
+                }
+            },
+            confirmButton = {
+                TextButton(onClick = { open = false }) { Text(stringResource(R.string.done)) }
+            },
+        )
     }
 }

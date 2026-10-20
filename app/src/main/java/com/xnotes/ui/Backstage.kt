@@ -56,6 +56,8 @@ import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Checkbox
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExtendedFloatingActionButton
 import androidx.compose.material3.HorizontalDivider
@@ -88,6 +90,7 @@ import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.lerp
 import androidx.compose.ui.graphics.vector.ImageVector
@@ -129,7 +132,13 @@ import androidx.compose.ui.unit.lerp
 import androidx.compose.ui.unit.sp
 import com.xnotes.R
 import com.xnotes.core.model.Rgba
+import com.xnotes.core.model.Orientation
+import com.xnotes.core.model.PagePattern
+import com.xnotes.core.model.PageSize
+import com.xnotes.core.model.PageStyle
+import com.xnotes.core.model.PageTemplates
 import com.xnotes.platform.PdfOpenError
+import com.xnotes.platform.TemplateLibrary
 import androidx.compose.foundation.lazy.grid.GridItemSpan
 import androidx.compose.foundation.lazy.grid.LazyGridScope
 import androidx.compose.ui.platform.LocalContext
@@ -198,6 +207,12 @@ fun Backstage(
     onImportCodeTheme: () -> Unit = {},
     /** Preferences asked to import a font file. */
     onImportFont: () -> Unit = {},
+    /** Import a .xtemplate into the shared template library. */
+    onImportTemplate: () -> Unit = {},
+    /** Choose an image for the new note's cover. */
+    onPickCoverImage: () -> Unit = {},
+    /** Choose an image to use as custom page paper on the new note. */
+    onPickPageImage: () -> Unit = {},
     /** Two picked files are to be opened together, one per pane of a split view. */
     onOpenSplit: (String, String) -> Unit = { _, _ -> },
     /** Several files are to be shared at once, as they are. */
@@ -224,7 +239,7 @@ fun Backstage(
     )
     // The backstage is the root of the stack — ordinary base content, not a dialog. The activity
     // window already runs edge-to-edge with the system bars hidden (MainActivity.applyFullscreen).
-    BackstageContent(editor, compact, view, onSelectView, calls, onExitApp, onImportCodeTheme, onImportFont)
+    BackstageContent(editor, compact, view, onSelectView, calls, onExitApp, onImportCodeTheme, onImportFont, onImportTemplate, onPickCoverImage, onPickPageImage)
 }
 
 /** Width at or above which the sidebar is a persistent pane rather than a drawer. */
@@ -252,6 +267,9 @@ private fun BackstageContent(
     onExitApp: () -> Unit,
     onImportCodeTheme: () -> Unit,
     onImportFont: () -> Unit,
+    onImportTemplate: () -> Unit,
+    onPickCoverImage: () -> Unit,
+    onPickPageImage: () -> Unit,
 ) {
     val palette = LocalPalette.current
     var createMode by remember { mutableStateOf(CreateMode.NONE) }
@@ -336,7 +354,7 @@ private fun BackstageContent(
         Box(Modifier.fillMaxSize().background(palette.bg.toComposeColor())) {
             BackstageMain(
                 Modifier.fillMaxSize(), editor, view, compact, drawerOpen, { animateClose = true; drawerOpen = true }, { selectView(BackstageView.HOME) },
-                calls, createMode, { createMode = it }, onImportCodeTheme, onImportFont, link, { selectView(BackstageView.PREFERENCES) },
+                calls, createMode, { createMode = it }, onImportCodeTheme, onImportFont, onImportTemplate, onPickCoverImage, onPickPageImage, link, { selectView(BackstageView.PREFERENCES) },
             )
             AnimatedVisibility(
                 visible = drawerOpen,
@@ -369,7 +387,7 @@ private fun BackstageContent(
                     layout(constraints.maxWidth, placeable.height) { placeable.place(inset, 0) }
                 },
                 editor, view, compact, true, { setRailed(false) }, { selectView(BackstageView.HOME) },
-                calls, createMode, { createMode = it }, onImportCodeTheme, onImportFont, link, { selectView(BackstageView.PREFERENCES) },
+                calls, createMode, { createMode = it }, onImportCodeTheme, onImportFont, onImportTemplate, onPickCoverImage, onPickPageImage, link, { selectView(BackstageView.PREFERENCES) },
             )
             // Both stay composed so a fold never pays to build one; only the current one is measured and placed.
             Layout(
@@ -531,6 +549,9 @@ private fun BackstageMain(
     onCreateMode: (CreateMode) -> Unit,
     onImportCodeTheme: () -> Unit,
     onImportFont: () -> Unit,
+    onImportTemplate: () -> Unit,
+    onPickCoverImage: () -> Unit,
+    onPickPageImage: () -> Unit,
     link: ExplorerLink,
     onOpenPreferences: () -> Unit,
 ) {
@@ -560,7 +581,7 @@ private fun BackstageMain(
         }
         Box(Modifier.weight(1f).fillMaxWidth().padding(start = 16.dp, end = 16.dp, top = 4.dp, bottom = 12.dp)) {
             when (view) {
-                BackstageView.HOME -> HomePane(editor, calls, createMode, onCreateMode, sidebarOpen, onShowSidebar, link)
+                BackstageView.HOME -> HomePane(editor, calls, createMode, onCreateMode, sidebarOpen, onShowSidebar, link, onImportTemplate, onPickCoverImage, onPickPageImage)
                 BackstageView.PREFERENCES -> PreferencesPane(editor, compact, sidebarOpen, onShowSidebar, onBackToHome, onImportCodeTheme, onImportFont)
                 BackstageView.TRASH -> TrashPane(editor, sidebarOpen, onShowSidebar, onOpenPreferences)
                 BackstageView.ABOUT -> AboutPane()
@@ -811,12 +832,15 @@ private fun HomePane(
     sidebarOpen: Boolean,
     onShowSidebar: () -> Unit,
     link: ExplorerLink,
+    onImportTemplate: () -> Unit,
+    onPickCoverImage: () -> Unit,
+    onPickPageImage: () -> Unit,
 ) {
     val focusManager = LocalFocusManager.current
     // A tap on empty space anywhere in the pane drops focus from the search field, dismissing it
     // (children like tiles and buttons consume their own taps, so this only fires "outside").
     Box(Modifier.fillMaxSize().pointerInput(Unit) { detectTapGestures { focusManager.clearFocus() } }) {
-        ExplorerSection(editor, calls, createMode, onCreateMode, sidebarOpen, onShowSidebar, link)
+        ExplorerSection(editor, calls, createMode, onCreateMode, sidebarOpen, onShowSidebar, link, onImportTemplate, onPickCoverImage, onPickPageImage)
     }
 }
 
@@ -840,6 +864,7 @@ private fun CreateButton(
                 icon = {
                     Crossfade(exporting, label = "createButtonIcon") { e ->
                         Icon(if (e) XnotesIcons.pdfFile else XnotesIcons.edit, if (e) exportLabel else createLabel, Modifier.size(24.dp))
+
                     }
                 },
                 onClick = { if (exporting) onExport() else menuOpen = true },
@@ -865,6 +890,9 @@ private fun ExplorerSection(
     sidebarOpen: Boolean,
     onShowSidebar: () -> Unit,
     link: ExplorerLink,
+    onImportTemplate: () -> Unit,
+    onPickCoverImage: () -> Unit,
+    onPickPageImage: () -> Unit,
 ) {
     val palette = LocalPalette.current
     val root = editor.browseRoot
@@ -1756,49 +1784,69 @@ private fun ExplorerSection(
                 nextUntitled(editor, editor.cachedChildren(root, currentDocId))
             else -> "" // new folder
         }
-        NameDialog(
-            title = when {
-                pendingImport != null -> stringResource(R.string.import_title)
-                isFolder -> stringResource(R.string.new_folder)
-                createMode == CreateMode.CANVAS -> stringResource(R.string.new_canvas)
-                else -> stringResource(R.string.new_note)
-            },
-            initial = default,
-            confirmLabel = if (pendingImport != null) stringResource(R.string.save) else stringResource(R.string.create),
-            placeholder = if (isFolder) stringResource(R.string.folder_name) else null,
-            allowEmpty = !isFolder, // a folder needs a name; a blank note name becomes "untitled_N"
-            error = fieldError,
-            onConfirm = { n ->
-                when {
-                    pendingImport != null -> scope.launch {
-                        // Land the import in the current folder; it opens only when the user taps it.
-                        // commitImportAsync drives the "Importing…" dialog and runs the copy off-thread.
-                        val uri = editor.commitImportAsync(root, currentDocId, n)
-                        when {
-                            uri != null -> refreshKey++
-                            editor.pendingImport != null -> fieldError = context.getString( // genuine failure; keep the prompt
-                                if (editor.lastImportError == PdfOpenError.PASSWORD) R.string.err_pdf_password else R.string.err_save_that_note,
-                            )
-                            // else: cancelled — the prompt already dismissed (pendingImport cleared)
+        if (createMode == CreateMode.FILE && pendingImport == null) {
+            NoteCreationDialog(
+                title = stringResource(R.string.new_note),
+                initial = default,
+                editor = editor,
+                error = fieldError,
+                onImportTemplate = onImportTemplate,
+                onPickCoverImage = onPickCoverImage,
+                onPickPageImage = onPickPageImage,
+                onConfirm = { n, options ->
+                    scope.launch {
+                        val uri = withContext(Dispatchers.IO) { editor.createBlankNoteFile(root, currentDocId, n, options) }
+                        if (uri != null) { onCreateMode(CreateMode.NONE); refreshKey++ }
+                        else fieldError = context.getString(R.string.err_create_note)
+                    }
+                },
+                onDismiss = { editor.noteCreationCoverImageBytes = null; editor.noteCreationPageImageBytes = null; fieldError = null; onCreateMode(CreateMode.NONE) },
+            )
+        } else {
+            NameDialog(
+                title = when {
+                    pendingImport != null -> stringResource(R.string.import_title)
+                    isFolder -> stringResource(R.string.new_folder)
+                    createMode == CreateMode.CANVAS -> stringResource(R.string.new_canvas)
+                    else -> stringResource(R.string.new_note)
+                },
+                initial = default,
+                confirmLabel = if (pendingImport != null) stringResource(R.string.save) else stringResource(R.string.create),
+                placeholder = if (isFolder) stringResource(R.string.folder_name) else null,
+                allowEmpty = !isFolder, // a folder needs a name; a blank note name becomes "untitled_N"
+                error = fieldError,
+                onConfirm = { n ->
+                    when {
+                        pendingImport != null -> scope.launch {
+                            // Land the import in the current folder; it opens only when the user taps it.
+                            // commitImportAsync drives the "Importing…" dialog and runs the copy off-thread.
+                            val uri = editor.commitImportAsync(root, currentDocId, n)
+                            when {
+                                uri != null -> refreshKey++
+                                editor.pendingImport != null -> fieldError = context.getString( // genuine failure; keep the prompt
+                                    if (editor.lastImportError == PdfOpenError.PASSWORD) R.string.err_pdf_password else R.string.err_save_that_note,
+                                )
+                                // else: cancelled — the prompt already dismissed (pendingImport cleared)
+                            }
+                        }
+                        isFolder -> scope.launch {
+                            val ok = withContext(Dispatchers.IO) { editor.createFolder(root, currentDocId, n) }
+                            if (ok) { onCreateMode(CreateMode.NONE); refreshKey++ } else fieldError = context.getString(R.string.err_create_folder)
+                        }
+                        createMode == CreateMode.CANVAS -> scope.launch {
+                            val uri = withContext(Dispatchers.IO) { editor.createBlankCanvasFile(root, currentDocId, n) }
+                            if (uri != null) { onCreateMode(CreateMode.NONE); refreshKey++ } else fieldError = context.getString(R.string.err_create_canvas)
+                        }
+                        else -> scope.launch {
+                            // Just create the note in the explorer — it opens only when the user taps it.
+                            val uri = withContext(Dispatchers.IO) { editor.createBlankNoteFile(root, currentDocId, n) }
+                            if (uri != null) { onCreateMode(CreateMode.NONE); refreshKey++ } else fieldError = context.getString(R.string.err_create_note)
                         }
                     }
-                    isFolder -> scope.launch {
-                        val ok = withContext(Dispatchers.IO) { editor.createFolder(root, currentDocId, n) }
-                        if (ok) { onCreateMode(CreateMode.NONE); refreshKey++ } else fieldError = context.getString(R.string.err_create_folder)
-                    }
-                    createMode == CreateMode.CANVAS -> scope.launch {
-                        val uri = withContext(Dispatchers.IO) { editor.createBlankCanvasFile(root, currentDocId, n) }
-                        if (uri != null) { onCreateMode(CreateMode.NONE); refreshKey++ } else fieldError = context.getString(R.string.err_create_canvas)
-                    }
-                    else -> scope.launch {
-                        // Just create the note in the explorer — it opens only when the user taps it.
-                        val uri = withContext(Dispatchers.IO) { editor.createBlankNoteFile(root, currentDocId, n) }
-                        if (uri != null) { onCreateMode(CreateMode.NONE); refreshKey++ } else fieldError = context.getString(R.string.err_create_note)
-                    }
-                }
-            },
-            onDismiss = { fieldError = null; if (pendingImport != null) editor.cancelImport() else onCreateMode(CreateMode.NONE) },
-        )
+                },
+                onDismiss = { fieldError = null; if (pendingImport != null) editor.cancelImport() else onCreateMode(CreateMode.NONE) },
+            )
+        }
     }
 
     namingColor?.let { c -> ColorNameDialog(editor, c) { namingColor = null } }
@@ -2119,6 +2167,419 @@ private fun StackedNoteCard(editor: Editor, entry: BrowseEntry, modifier: Modifi
 }
 
 // --- shared bits ---
+
+/** Note creation keeps page, cover, and document settings together instead of creating a note first and styling it later. */
+@Composable
+private fun NoteCreationDialog(
+    title: String,
+    initial: String,
+    editor: Editor,
+    error: String?,
+    onImportTemplate: () -> Unit,
+    onPickCoverImage: () -> Unit,
+    onPickPageImage: () -> Unit,
+    onConfirm: (String, NoteCreationOptions) -> Unit,
+    onDismiss: () -> Unit,
+) {
+    val palette = LocalPalette.current
+    val scope = rememberCoroutineScope()
+    var text by remember { mutableStateOf(TextFieldValue(initial, selection = TextRange(0, initial.length))) }
+    var pageSize by remember { mutableStateOf(editor.defaultNewPageSize) }
+    var orientation by remember { mutableStateOf(editor.defaultNewPageOrientation) }
+    var advancedOptions by remember { mutableStateOf(false) }
+    var appearanceTab by remember { mutableStateOf(0) }
+    var pageSourceTab by remember { mutableStateOf(if (editor.noteCreationPageImageBytes == null) 0 else 1) }
+    var coverSourceTab by remember { mutableStateOf(if (editor.noteCreationCoverImageBytes == null) 0 else 1) }
+    var pageTemplateGroup by remember { mutableStateOf(0) }
+    // Covers should show the user's designs first; built-in rulings remain one tap away.
+    var coverTemplateGroup by remember { mutableStateOf(1) }
+    var pageTemplateTag by remember { mutableStateOf("") }
+    var coverTemplateTag by remember { mutableStateOf("") }
+    var pageTemplateStyle by remember { mutableStateOf(editor.newNoteStyle) }
+    var coverTemplateStyle by remember { mutableStateOf(PageStyle()) }
+    var includeCover by remember { mutableStateOf(false) }
+    var pageColor by remember { mutableStateOf(editor.newNoteStyle.pageColor) }
+    val savedTemplate = editor.newNoteStyle.template
+    var pageImageBytes by remember { mutableStateOf(editor.noteCreationPageImageBytes) }
+    var pagePattern by remember {
+        mutableStateOf(if (editor.noteCreationPageImageBytes != null) PageTemplates.NONE else savedTemplate ?: PageTemplates.NONE)
+    }
+    // A preset inherited at dialog opening isn't a deliberate template selection.
+    var pageTemplatePicked by remember { mutableStateOf(false) }
+    var coverColor by remember { mutableStateOf(Rgba(47, 62, 112)) }
+    var coverImageBytes by remember { mutableStateOf(editor.noteCreationCoverImageBytes) }
+    var coverPattern by remember { mutableStateOf(PageTemplates.NONE) }
+    var coverOrientation by remember { mutableStateOf(Orientation.PORTRAIT) }
+    var pageColourPickerOpen by remember { mutableStateOf(false) }
+    val focus = remember { FocusRequester() }
+    val pageColours = listOf(
+        Rgba(255, 255, 255), Rgba(250, 247, 235), Rgba(231, 241, 255),
+        Rgba(232, 246, 235), Rgba(255, 236, 236), Rgba(35, 39, 48),
+    )
+    val coverColours = listOf(
+        Rgba(47, 62, 112), Rgba(36, 91, 78), Rgba(122, 55, 70),
+        Rgba(157, 99, 42), Rgba(45, 49, 58), Rgba(80, 66, 120),
+    )
+    LaunchedEffect(Unit) { runCatching { focus.requestFocus() } }
+    LaunchedEffect(editor.noteCreationCoverImageBytes) {
+        coverImageBytes = editor.noteCreationCoverImageBytes
+        if (editor.noteCreationCoverImageBytes != null) {
+            includeCover = true
+            coverSourceTab = 1
+        }
+    }
+    LaunchedEffect(editor.noteCreationPageImageBytes) {
+        pageImageBytes = editor.noteCreationPageImageBytes
+        if (editor.noteCreationPageImageBytes != null) pageSourceTab = 1
+    }
+    val templateVersion = TemplateLibraryUi.version
+    val availableTemplates = TemplateLibrary.all()
+    // Explicit cover/page tags keep imported designs in the appropriate creation tab.
+    // Untagged templates remain usable in either context for backwards compatibility.
+    val separation = editor.preferences.creationTemplateTagSeparation
+    val pageExclusions = editor.preferences.creationPageExcludedTags.map(::canonicalTemplateTag).toSet()
+    val coverExclusions = editor.preferences.creationCoverExcludedTags.map(::canonicalTemplateTag).toSet()
+    val pageTemplates = availableTemplates.filter { entry ->
+        !separation || entry.source != TemplateLibrary.Source.IMPORTED ||
+            entry.template.tags.none { canonicalTemplateTag(it) in pageExclusions }
+    }
+    val coverTemplates = availableTemplates.filter { entry ->
+        !separation || entry.source != TemplateLibrary.Source.IMPORTED ||
+            entry.template.tags.none { canonicalTemplateTag(it) in coverExclusions }
+    }
+    val pageGroupTemplates = pageTemplates.filter {
+        if (pageTemplateGroup == 0) it.source == TemplateLibrary.Source.BUILT_IN || it.source == TemplateLibrary.Source.BUNDLED
+        else it.source == TemplateLibrary.Source.IMPORTED || it.source == TemplateLibrary.Source.NOTE
+    }
+    val coverGroupTemplates = coverTemplates.filter {
+        if (coverTemplateGroup == 0) it.source == TemplateLibrary.Source.BUILT_IN || it.source == TemplateLibrary.Source.BUNDLED
+        else it.source == TemplateLibrary.Source.IMPORTED || it.source == TemplateLibrary.Source.NOTE
+    }
+    val context = LocalContext.current
+    val customPageImages by produceState(
+        initialValue = emptyList<com.xnotes.platform.CustomAssetFolders.CustomImage>(),
+        key1 = editor.browseRoot, key2 = templateVersion,
+    ) {
+        value = withContext(Dispatchers.IO) {
+            com.xnotes.platform.CustomAssetFolders.loadImages(context, editor.browseRoot, com.xnotes.platform.CustomAssetFolders.Kind.PAGE)
+        }
+    }
+    val customCoverImages by produceState(
+        initialValue = emptyList<com.xnotes.platform.CustomAssetFolders.CustomImage>(),
+        key1 = editor.browseRoot, key2 = templateVersion,
+    ) {
+        value = withContext(Dispatchers.IO) {
+            com.xnotes.platform.CustomAssetFolders.loadImages(context, editor.browseRoot, com.xnotes.platform.CustomAssetFolders.Kind.COVER)
+        }
+    }
+    var saveAsDefault by remember { mutableStateOf(false) }
+    // The xtemplate renderer evaluates spacing and geometry in millimetres, not document pixels.
+    val pageMm = remember(pageSize, orientation) { pageSize.millimetres(orientation) }
+    val coverMm = remember(pageSize, coverOrientation) { pageSize.millimetres(coverOrientation) }
+    val confirm = {
+        val name = text.text.trim()
+        if (name.isNotEmpty()) {
+            val effectivePagePattern = if (pageImageBytes != null) PageTemplates.NONE else pagePattern
+            val baseStyle = pageTemplateStyle.withTemplate(effectivePagePattern, PageTemplates.NONE)
+                .copy(pageColor = pageColor)
+            val coverStyle = coverTemplateStyle.withTemplate(
+                if (coverImageBytes != null) PageTemplates.NONE else coverPattern, PageTemplates.NONE,
+            ).copy(pageColor = coverColor, patternColor = coverTemplateStyle.patternColor ?: Rgba(255, 255, 255, 100))
+            if (saveAsDefault) editor.saveNewNoteStyle(baseStyle)
+            onConfirm(name, NoteCreationOptions(pageSize, orientation, baseStyle, includeCover, coverStyle, coverImageBytes, pageImageBytes, coverOrientation))
+            editor.noteCreationCoverImageBytes = null
+            editor.noteCreationPageImageBytes = null
+        }
+    }
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(title) },
+        text = {
+            Column(
+                Modifier.fillMaxWidth().heightIn(max = 500.dp).verticalScroll(rememberScrollState()),
+                verticalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                OutlinedTextField(
+                    value = text,
+                    onValueChange = { text = it },
+                    singleLine = true,
+                    isError = error != null,
+                    supportingText = error?.let { { Text(it) } },
+                    keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
+                    keyboardActions = KeyboardActions(onDone = { confirm() }),
+                    modifier = Modifier.fillMaxWidth().focusRequester(focus).onPreviewKeyEvent { ev ->
+                        when {
+                            ev.type != KeyEventType.KeyDown -> false
+                            ev.key == Key.Enter || ev.key == Key.NumPadEnter -> { confirm(); true }
+                            ev.key == Key.Escape -> { onDismiss(); true }
+                            else -> false
+                        }
+                    },
+                )
+                Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
+                    Text(
+                        stringResource(R.string.create_note_summary, pageSize.displayName),
+                        color = palette.textDim.toComposeColor(),
+                        fontSize = 12.sp,
+                        modifier = Modifier.weight(1f),
+                    )
+                    ModeChip(stringResource(if (advancedOptions) R.string.create_basic_options else R.string.create_advanced_options), advancedOptions) {
+                        advancedOptions = !advancedOptions
+                    }
+                }
+                if (advancedOptions) {
+                    HorizontalDivider(color = palette.border.toComposeColor())
+                    Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                        ModeChip(stringResource(R.string.create_page_appearance), appearanceTab == 0) { appearanceTab = 0 }
+                        ModeChip(stringResource(R.string.create_cover_tab), appearanceTab == 1) { appearanceTab = 1 }
+                    }
+                    if (appearanceTab == 0) {
+                Text(stringResource(R.string.create_page_size), color = palette.text.toComposeColor(), fontWeight = FontWeight.SemiBold, fontSize = 13.sp)
+                FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(5.dp)) {
+                    PageSize.entries.forEach { size ->
+                        val label = when (size) {
+                            PageSize.CUSTOM -> stringResource(R.string.page_size_custom)
+                            PageSize.LETTER -> stringResource(R.string.page_size_letter)
+                            PageSize.LEGAL -> stringResource(R.string.page_size_legal)
+                            PageSize.SLIDE_16_9 -> stringResource(R.string.page_size_slide_16_9)
+                            PageSize.SLIDE_4_3 -> stringResource(R.string.page_size_slide_4_3)
+                            else -> size.displayName
+                        }
+                        ModeChip(label, pageSize == size) { pageSize = size }
+                    }
+                }
+                Text(stringResource(R.string.create_orientation), color = palette.text.toComposeColor(), fontWeight = FontWeight.SemiBold, fontSize = 13.sp)
+                Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                    ModeChip(stringResource(R.string.orientation_portrait), orientation == Orientation.PORTRAIT) { orientation = Orientation.PORTRAIT }
+                    ModeChip(stringResource(R.string.orientation_landscape), orientation == Orientation.LANDSCAPE) { orientation = Orientation.LANDSCAPE }
+                }
+                Text(stringResource(R.string.create_page_appearance), color = palette.text.toComposeColor(), fontWeight = FontWeight.SemiBold, fontSize = 13.sp)
+                Text(stringResource(R.string.create_paper_colour), color = palette.textDim.toComposeColor(), fontSize = 12.sp)
+                FlowRow(horizontalArrangement = Arrangement.spacedBy(7.dp), verticalArrangement = Arrangement.spacedBy(5.dp)) {
+                    ModeChip(stringResource(R.string.default_choice), pageColor == null) { pageColor = null }
+                    pageColours.forEach { colour -> NoteCreationColour(colour, pageColor == colour) { pageColor = colour } }
+                    Box {
+                        ModeChip(stringResource(R.string.create_custom_colour), pageColor != null && pageColor !in pageColours) { pageColourPickerOpen = true }
+                        if (pageColourPickerOpen) ColorPickerPopup(pageColor, editor.recentColors, { pageColourPickerOpen = false }) { pageColor = it }
+                    }
+                }
+                Text(stringResource(R.string.create_page_pattern), color = palette.textDim.toComposeColor(), fontSize = 12.sp)
+
+                Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                    ModeChip(stringResource(R.string.create_template_source), pageSourceTab == 0) { pageSourceTab = 0 }
+                    ModeChip(stringResource(R.string.create_image_source), pageSourceTab == 1) { pageSourceTab = 1 }
+                }
+                if (pageSourceTab == 0) {
+                Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                    ModeChip(stringResource(R.string.create_builtin_templates), pageTemplateGroup == 0) {
+                        pageTemplateGroup = 0; pageTemplateTag = ""
+                    }
+                    ModeChip(stringResource(R.string.create_imported_templates), pageTemplateGroup == 1) {
+                        pageTemplateGroup = 1; pageTemplateTag = ""
+                    }
+                }
+                CreationTemplateTagFilters(
+                    pageGroupTemplates,
+                    pageTemplateTag,
+                    editor.preferences.creationPageFilterTags,
+                ) { pageTemplateTag = it }
+                TemplateStrip(
+                    entries = pageGroupTemplates.filter { templateMatchesTag(it, pageTemplateTag) },
+                    selected = pagePattern,
+                    showClear = pageTemplatePicked,
+                        onClear = {
+                            pageTemplatePicked = false
+                            pagePattern = PageTemplates.NONE
+                            pageTemplateStyle = pageTemplateStyle.withTemplate(PageTemplates.NONE, PageTemplates.NONE)
+                        },
+                    pageMm = pageMm,
+                    ink = pageTemplateStyle.patternColor ?: Rgba(70, 70, 70),
+                    accent = pageTemplateStyle.accentColor ?: PageStyle.DEFAULT_ACCENT_COLOR,
+                    paper = pageColor ?: palette.paper,
+                    selectedStyle = pageTemplateStyle,
+                    onSelect = {
+                        pageTemplatePicked = true
+                        pagePattern = it
+                        pageImageBytes = null
+                        editor.noteCreationPageImageBytes = null
+                        pageTemplateStyle = pageTemplateStyle.withTemplate(it, PageTemplates.NONE)
+                    },
+                    onImport = onImportTemplate,
+                    onRemove = { editor.removeTemplate(it) },
+                    onKeep = { },
+                )
+                CreationTemplateSettings(
+                    entry = availableTemplates.firstOrNull { it.key == pagePattern }.takeIf { pageImageBytes == null },
+                    style = pageTemplateStyle,
+                    pageMm = pageMm,
+                    ink = Rgba(70, 70, 70),
+                    accent = PageStyle.DEFAULT_ACCENT_COLOR,
+                    paper = pageColor ?: palette.paper,
+                    onChange = { pageTemplateStyle = it },
+                )
+                }
+                if (pageSourceTab == 1) {
+                Text(stringResource(R.string.create_custom_page_patterns), color = palette.textDim.toComposeColor(), fontSize = 12.sp)
+                CustomImageStrip(
+                    images = customPageImages,
+                    selectedBytes = pageImageBytes,
+                    pageMm = pageMm,
+                    paper = pageColor ?: palette.paper,
+                    onSelect = { bytes ->
+                        pageImageBytes = bytes
+                        editor.noteCreationPageImageBytes = bytes
+                        pagePattern = PageTemplates.NONE
+                    },
+                    onImport = onPickPageImage,
+                    onClear = { pageImageBytes = null; editor.noteCreationPageImageBytes = null },
+                    onDelete = { entry ->
+                        scope.launch {
+                            val deleted = withContext(Dispatchers.IO) {
+                                com.xnotes.platform.CustomAssetFolders.deleteImage(
+                                    context, editor.browseRoot,
+                                    com.xnotes.platform.CustomAssetFolders.Kind.PAGE, entry.id,
+                                )
+                            }
+                            if (deleted) {
+                                if (pageImageBytes?.contentEquals(entry.bytes) == true) {
+                                    pageImageBytes = null
+                                    editor.noteCreationPageImageBytes = null
+                                }
+                                editor.customAssetsChanged()
+                            } else editor.message = context.getString(R.string.create_delete_asset_failed)
+                        }
+                    },
+                )
+                }
+                    } else {
+                Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
+                    Checkbox(checked = includeCover, onCheckedChange = { includeCover = it })
+                    Column(Modifier.weight(1f)) {
+                        Text(stringResource(R.string.create_add_cover), color = palette.text.toComposeColor(), fontWeight = FontWeight.Medium, fontSize = 13.sp)
+                        Text(stringResource(R.string.create_cover_help), color = palette.textDim.toComposeColor(), fontSize = 11.sp)
+                    }
+                }
+                if (includeCover) {
+                    Text(stringResource(R.string.create_cover_orientation), color = palette.textDim.toComposeColor(), fontSize = 12.sp)
+                    Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                        ModeChip(stringResource(R.string.orientation_portrait), coverOrientation == Orientation.PORTRAIT) { coverOrientation = Orientation.PORTRAIT }
+                        ModeChip(stringResource(R.string.orientation_landscape), coverOrientation == Orientation.LANDSCAPE) { coverOrientation = Orientation.LANDSCAPE }
+                    }
+                    Text(stringResource(R.string.create_cover_pattern), color = palette.textDim.toComposeColor(), fontSize = 12.sp)
+
+                    Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                        ModeChip(stringResource(R.string.create_template_source), coverSourceTab == 0) { coverSourceTab = 0 }
+                        ModeChip(stringResource(R.string.create_image_source), coverSourceTab == 1) { coverSourceTab = 1 }
+                    }
+                    if (coverSourceTab == 0) {
+                    Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                        ModeChip(stringResource(R.string.create_imported_templates), coverTemplateGroup == 1) {
+                            coverTemplateGroup = 1; coverTemplateTag = ""
+                        }
+                        ModeChip(stringResource(R.string.create_builtin_templates), coverTemplateGroup == 0) {
+                            coverTemplateGroup = 0; coverTemplateTag = ""
+                        }
+                    }
+                    CreationTemplateTagFilters(
+                        coverGroupTemplates,
+                        coverTemplateTag,
+                        editor.preferences.creationCoverFilterTags,
+                    ) { coverTemplateTag = it }
+                    TemplateStrip(
+                        entries = coverGroupTemplates.filter { templateMatchesTag(it, coverTemplateTag) },
+                        selected = coverPattern,
+                        onClear = {
+                            coverPattern = PageTemplates.NONE
+                            coverTemplateStyle = coverTemplateStyle.withTemplate(PageTemplates.NONE, PageTemplates.NONE)
+                        },
+                        pageMm = coverMm,
+                        ink = coverTemplateStyle.patternColor ?: Rgba(245, 245, 245),
+                        accent = coverTemplateStyle.accentColor ?: Rgba(255, 190, 120),
+                        paper = coverColor,
+                        selectedStyle = coverTemplateStyle,
+                        onSelect = {
+                            coverPattern = it
+                            coverImageBytes = null
+                            editor.noteCreationCoverImageBytes = null
+                            coverTemplateStyle = coverTemplateStyle.withTemplate(it, PageTemplates.NONE)
+                        },
+                        onImport = onImportTemplate,
+                        onRemove = { editor.removeTemplate(it) },
+                        onKeep = { },
+                    )
+                    CreationTemplateSettings(
+                        entry = availableTemplates.firstOrNull { it.key == coverPattern }.takeIf { coverImageBytes == null },
+                        style = coverTemplateStyle,
+                        pageMm = coverMm,
+                        ink = Rgba(245, 245, 245),
+                        accent = Rgba(255, 190, 120),
+                        paper = coverColor,
+                        onChange = { coverTemplateStyle = it },
+                        coverColors = coverColours,
+                        onCoverColorChange = { coverColor = it },
+                        recentColors = editor.recentColors,
+                    )
+                    }
+                    if (coverSourceTab == 1) {
+                    Text(stringResource(R.string.create_custom_cover_patterns), color = palette.textDim.toComposeColor(), fontSize = 12.sp)
+                    CustomImageStrip(
+                        images = customCoverImages,
+                        selectedBytes = coverImageBytes,
+                        pageMm = coverMm,
+                        paper = coverColor,
+                        onSelect = { bytes ->
+                            coverImageBytes = bytes
+                            editor.noteCreationCoverImageBytes = bytes
+                            coverPattern = PageTemplates.NONE
+                        },
+                        onImport = onPickCoverImage,
+                        onClear = { coverImageBytes = null; editor.noteCreationCoverImageBytes = null },
+                        onDelete = { entry ->
+                            scope.launch {
+                                val deleted = withContext(Dispatchers.IO) {
+                                    com.xnotes.platform.CustomAssetFolders.deleteImage(
+                                        context, editor.browseRoot,
+                                        com.xnotes.platform.CustomAssetFolders.Kind.COVER, entry.id,
+                                    )
+                                }
+                                if (deleted) {
+                                    if (coverImageBytes?.contentEquals(entry.bytes) == true) {
+                                        coverImageBytes = null
+                                        editor.noteCreationCoverImageBytes = null
+                                    }
+                                    editor.customAssetsChanged()
+                                } else editor.message = context.getString(R.string.create_delete_asset_failed)
+                            }
+                        },
+                    )
+                    }
+                }
+                    }
+                    HorizontalDivider(color = palette.border.toComposeColor())
+                Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
+                    Checkbox(checked = saveAsDefault, onCheckedChange = { saveAsDefault = it })
+                    Column(Modifier.weight(1f)) {
+                        Text(stringResource(R.string.create_save_as_default), color = palette.text.toComposeColor(), fontWeight = FontWeight.Medium, fontSize = 13.sp)
+                        Text(stringResource(R.string.create_save_as_default_help), color = palette.textDim.toComposeColor(), fontSize = 11.sp)
+                    }
+                }
+                }
+            }
+        },
+        confirmButton = { TextButton(onClick = confirm, enabled = text.text.isNotBlank()) { Text(stringResource(R.string.create)) } },
+        dismissButton = { TextButton(onClick = onDismiss) { Text(stringResource(R.string.cancel)) } },
+    )
+}
+
+@Composable
+private fun NoteCreationColour(colour: Rgba, selected: Boolean, onClick: () -> Unit) {
+    Box(
+        Modifier.size(28.dp).clip(CircleShape)
+            .background(colour.toComposeColor())
+            .border(if (selected) 3.dp else 1.dp, if (selected) LocalPalette.current.accent.toComposeColor() else LocalPalette.current.border.toComposeColor(), CircleShape)
+            .clickable(onClick = onClick),
+    )
+}
 
 /**
  * A small modal that asks for a single name, used for new notes, new folders, renames, and

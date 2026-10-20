@@ -110,6 +110,15 @@ data class Preferences(
     val showExtensions: Boolean = false,
     /** Whether an exported PDF gets a bookmark for each heading of the note's text. */
     val pdfHeadingBookmarks: Boolean = true,
+    /** Optional tag-based separation in the note-creation Pages and Covers tabs. */
+    val creationTemplateTagSeparation: Boolean = true,
+    /** Tags excluded from the Pages tab (case-insensitive, aliases canonicalized by the UI). */
+    val creationPageExcludedTags: List<String> = listOf("cover"),
+    /** Tags excluded from the Covers tab. */
+    val creationCoverExcludedTags: List<String> = listOf("page"),
+    /** Visible tag shortcuts. Hidden shortcuts remain findable via All. */
+    val creationPageFilterTags: List<String> = listOf("lines", "grid", "dots", "planner", "study"),
+    val creationCoverFilterTags: List<String> = listOf("cover"),
 ) {
     /**
      * A new note's page size in document pixels. A named size is laid out under
@@ -195,6 +204,11 @@ data class Preferences(
         .put("show_folder_counts", showFolderCounts)
         .put("show_extensions", showExtensions)
         .put("pdf_heading_bookmarks", pdfHeadingBookmarks)
+        .put("creation_template_tag_separation", creationTemplateTagSeparation)
+        .put("creation_page_excluded_tags", org.json.JSONArray(creationPageExcludedTags))
+        .put("creation_cover_excluded_tags", org.json.JSONArray(creationCoverExcludedTags))
+        .put("creation_page_filter_tags", org.json.JSONArray(creationPageFilterTags))
+        .put("creation_cover_filter_tags", org.json.JSONArray(creationCoverFilterTags))
 
     companion object {
         val DEFAULT_ACCENT = Rgba(0, 230, 118, 255)
@@ -212,6 +226,13 @@ data class Preferences(
         /** Settable range of the min/max zoom limits, in percent (within the hard zoom bounds). */
         const val ZOOM_LIMIT_MIN_PCT = 20
         const val ZOOM_LIMIT_MAX_PCT = 1600
+
+        private fun readTemplateTags(o: JSONObject, key: String, fallback: List<String>): List<String> {
+            val array = o.optJSONArray(key) ?: return fallback
+            return (0 until array.length()).mapNotNull { index ->
+                array.optString(index).trim().lowercase().takeIf { it.isNotEmpty() }
+            }.distinct().take(40)
+        }
 
         fun fromJson(o: JSONObject?): Preferences {
             if (o == null) return Preferences()
@@ -302,6 +323,11 @@ data class Preferences(
                 showFolderCounts = o.optBoolean("show_folder_counts", true),
                 showExtensions = o.optBoolean("show_extensions", false),
                 pdfHeadingBookmarks = o.optBoolean("pdf_heading_bookmarks", true),
+                creationTemplateTagSeparation = o.optBoolean("creation_template_tag_separation", true),
+                creationPageExcludedTags = readTemplateTags(o, "creation_page_excluded_tags", listOf("cover")),
+                creationCoverExcludedTags = readTemplateTags(o, "creation_cover_excluded_tags", listOf("page")),
+                creationPageFilterTags = readTemplateTags(o, "creation_page_filter_tags", listOf("lines", "grid", "dots", "planner", "study")),
+                creationCoverFilterTags = readTemplateTags(o, "creation_cover_filter_tags", listOf("cover")),
             )
         }
     }

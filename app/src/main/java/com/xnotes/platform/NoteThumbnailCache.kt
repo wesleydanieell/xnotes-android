@@ -41,6 +41,7 @@ class NoteThumbnailCache(dir: File, maxFiles: Int = 256) {
 
     private companion object {
         const val DECODE_PX = 300
-        const val FORMAT = 3
+        // Invalidate tiles rendered before explorer thumbnails painted .xtemplate backgrounds.
+        const val FORMAT = 4
     }
 }
