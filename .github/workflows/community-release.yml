@@ -48,10 +48,11 @@ jobs:
             printf 'keyPassword=%s\n' "$KEY_PASSWORD"
           } > keystore.properties
           chmod 600 keystore.properties
+      - name: Set monotonic Community version code
+        run: echo "COMMUNITY_VERSION_CODE=$((640000 + GITHUB_RUN_NUMBER))" >> "$GITHUB_ENV"
       - name: Test and build signed community APK
         env:
           COMMUNITY_VERSION_NAME: ${{ github.ref_name }}
-          COMMUNITY_VERSION_CODE: ${{ github.run_number }}
         run: ./gradlew :app:testDebugUnitTest :app:assembleCommunity --no-daemon --stacktrace
       - name: Prepare APK and checksums
         run: |
