@@ -37,8 +37,8 @@ Example commands after the secrets are configured and a commit has passed CI:
 # Preview from develop
 git switch develop
 git pull --ff-only origin develop
-git tag -a community-v0.9.2-preview.1 -m 'Community preview 1'
-git push origin community-v0.9.2-preview.1
+git tag -a community-v0.9.3-preview.1 -m 'Community preview 1'
+git push origin community-v0.9.3-preview.1
 
 # Stable release: merge develop into master, validate, then tag master.
 ```
