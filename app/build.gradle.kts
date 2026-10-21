@@ -91,8 +91,11 @@ android {
             applicationIdSuffix = ".community"
             versionNameSuffix = "-community"
             matchingFallbacks += listOf("release")
-            System.getenv("COMMUNITY_VERSION_NAME")?.takeIf { it.isNotBlank() }?.let {
-                versionNameSuffix = "-$it"
+            System.getenv("COMMUNITY_VERSION_NAME")?.takeIf { it.isNotBlank() }?.let { tag ->
+                val channel = tag.removePrefix("community-v")
+                    .removePrefix(defaultConfig.versionName.orEmpty())
+                    .removePrefix("-")
+                if (channel.isNotBlank()) versionNameSuffix = "-community-$channel"
             }
         }
     }
