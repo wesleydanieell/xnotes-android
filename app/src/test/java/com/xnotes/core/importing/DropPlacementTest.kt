@@ -123,6 +123,16 @@ class DropPlacementTest {
         assertTrue(shape.box.contains(Pt(frame.right, frame.bottom)))
     }
 
+    @Test fun importedHostStartsAtTheHeightOfItsActualWrappedLines() {
+        val shape = place(listOf(DroppedContent.Text("The same paragraph again. ".repeat(100))),
+            constrained = false, labels = true).single() as ShapeItem
+        val frame = shape.labelRect()!!
+        assertEquals("the visible text must start at the box's top", shape.box.top, frame.top, 1e-9)
+        assertEquals(shape.box.w, frame.w, 1e-9)
+        assertEquals("drop placement should not need a second width-dependent layout",
+            shape.box.h, frame.h, 1e-9)
+    }
+
     @Test fun blankTextAndInvalidImagesDoNotBecomeItems() {
         assertTrue(place(listOf(DroppedContent.Text(" \n"),
             DroppedContent.Image(ImageData(File("bad"), 0, 10)))).isEmpty())

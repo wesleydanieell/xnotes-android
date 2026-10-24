@@ -44,10 +44,9 @@ object DropPlacement {
                     // Infinite canvases already render, edit and persist shape labels; they have
                     // no standalone TextItem support. An invisible host keeps the words editable.
                     val label = ShapeLabel(entry.value, TextStyle(color, pointSize, face), measurer)
-                    // Use the existing shape-label layout without changing editor behavior.
-                    // Rectangle labels inset by at most 6% of the width on each side.
-                    val wrap = maxOf(width * 0.88, lineHeight * ShapeLabel.MIN_WIDTH_LINES)
-                    val height = label.height(wrap) + width * 0.12
+                    // The invisible shape uses its full width for text wrapping. Measure that
+                    // exact width once, so opening the canvas can reuse the cached height.
+                    val height = label.height(width)
                     ShapeItem(ShapeKind.RECTANGLE, target, target + Pt(width, height),
                         strokeRgba = color.withAlpha(0), strokeWidth = 0.0).also { it.label = label }
                 } else {
