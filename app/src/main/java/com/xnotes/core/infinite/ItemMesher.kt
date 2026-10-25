@@ -1,11 +1,16 @@
 package com.xnotes.core.infinite
 
+import com.xnotes.core.audio.AudioPill
+import com.xnotes.core.geometry.Pt
 import com.xnotes.core.geometry.Rect
+import com.xnotes.core.model.AudioItem
+import com.xnotes.core.model.AudioLook
 import com.xnotes.core.model.CanvasItem
 import com.xnotes.core.model.ConnectorItem
 import com.xnotes.core.model.Rgba
 import com.xnotes.core.model.ShapeItem
 import com.xnotes.core.model.Stroke
+import com.xnotes.core.pal.FontSpec
 import com.xnotes.core.stroke.RibbonPoints
 import com.xnotes.core.tools.Tool
 
@@ -24,6 +29,9 @@ enum class InkPass {
      * draw calls, so it is never the default.
      */
     EVEN_ODD,
+
+    /** Signed triangle fans accumulate nonzero winding on the GPU, preserving glyph holes and overlaps. */
+    NONZERO,
 
     /** Like [TRANSLUCENT] but multiplied, and always drawn last, exactly as the paged canvas does. */
     MULTIPLY,
@@ -101,8 +109,37 @@ object ItemMesher {
             is Stroke -> meshStroke(item, tolerance)
             is ShapeItem -> meshShape(item, tolerance)
             is ConnectorItem -> meshConnector(item, tolerance)
+            is AudioItem -> meshAudio(item, tolerance)
             else -> null // images carry a texture rather than a colour, and take their own path
         }
+
+    /** The pill as [AudioPill] lays it out, in opaque parts back to front, its text set as glyphs. */
+    private fun meshAudio(item: AudioItem, tolerance: Double): MeshedItem {
+        val l = AudioPill.layout(item)
+        val look = AudioLook.current
+        val parts = ArrayList<MeshPart>()
+        fun fill(polys: List<List<Pt>>, color: Rgba) {
+            val b = MeshBuilder()
+            for (p in polys) b.polygon(p)
+            if (!b.isEmpty) parts.add(MeshPart(b.build(), color, InkPass.OPAQUE))
+        }
+        fun text(s: String, font: FontSpec, at: Pt, color: Rgba) {
+            if (s.isEmpty()) return
+            val width = item.measurer.advances(s, font).sum() + font.pointSize
+            val top = at.y - item.measurer.metrics(font).ascent
+            ShapeTessellator.textPart(item.measurer.outline(s, font, width), color) { Pt(at.x + it.x, top + it.y) }?.let { parts.add(it) }
+        }
+        fill(listOf(l.body), look.body)
+        MeshBuilder().also {
+            it.circle(l.discCenter.x, l.discCenter.y, l.discRadius, tolerance)
+            parts.add(MeshPart(it.build(), look.disc, InkPass.OPAQUE))
+        }
+        fill(l.glyph, look.glyph)
+        for ((color, bars) in l.bars.indices.groupBy { AudioPill.barColor(look, l, it) }) fill(bars.map { l.bars[it] }, color)
+        text(l.name, l.nameFont, l.nameAt, look.name)
+        text(l.time, l.timeFont, l.timeAt, if (l.active) look.timeActive else look.time)
+        return MeshedItem(parts, item.paintBounds())
+    }
 
     private fun meshStroke(stroke: Stroke, tolerance: Double): MeshedItem? {
         if (stroke.isEmpty) return null
@@ -208,7 +245,7 @@ object ItemMesher {
     }
 
     private fun meshShape(shape: ShapeItem, tolerance: Double): MeshedItem? {
-        val parts = ShapeTessellator.tessellate(shape, tolerance) + listOfNotNull(ShapeTessellator.labelPart(shape))
+        val parts = ShapeTessellator.tessellate(shape, tolerance) + ShapeTessellator.labelParts(shape)
         if (parts.isEmpty()) return null
         // Drawn text has no line to fade when it thins out on screen.
         val half = if (shape.shape == com.xnotes.core.shapes.ShapeKind.GLYPHS) 0.0 else shape.strokeWidth / 2.0
@@ -216,7 +253,7 @@ object ItemMesher {
     }
 
     private fun meshConnector(connector: ConnectorItem, tolerance: Double): MeshedItem? {
-        val parts = ShapeTessellator.tessellate(connector, tolerance) + listOfNotNull(ShapeTessellator.labelPart(connector))
+        val parts = ShapeTessellator.tessellate(connector, tolerance) + ShapeTessellator.labelParts(connector)
         if (parts.isEmpty()) return null
         return MeshedItem(parts, connector.paintBounds(), connector.strokeWidth / 2.0)
     }

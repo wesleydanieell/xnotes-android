@@ -32,6 +32,7 @@ private val CANVAS_TOOL_OF: Map<ToolbarItem, Tool> = mapOf(
     ToolbarItem.SELECT to Tool.SELECT,
     ToolbarItem.LASSO to Tool.LASSO,
     ToolbarItem.SHAPE to Tool.SHAPE,
+    ToolbarItem.TEXT_BOX to Tool.TEXT_BOX,
 )
 
 /**
@@ -49,6 +50,8 @@ fun InfiniteToolbar(
     onOpenBackstage: () -> Unit,
     onInsertImage: () -> Unit = {},
     onClosePane: (() -> Unit)? = null,
+    onInsertAudio: () -> Unit = {},
+    onRecordAudio: () -> Unit = {},
 ) {
     // The stroke tools use the same designed drawables the paged toolbar does, so a pen looks like
     // a pen on either canvas rather than like a generic glyph.
@@ -62,6 +65,7 @@ fun InfiniteToolbar(
         Tool.PAN to XnotesIcons.pan,
         Tool.ERASER to XnotesIcons.eraser,
         Tool.SHAPE to XnotesIcons.shape,
+        Tool.TEXT_BOX to XnotesIcons.textBox,
         Tool.SELECT to XnotesIcons.select,
         Tool.LASSO to XnotesIcons.lasso,
     )
@@ -125,12 +129,17 @@ fun InfiniteToolbar(
                         active = editor.wandEnabled,
                     ) { editor.toggleWand() }
 
-                    ToolbarItem.IMAGE -> ToolbarIcon(XnotesIcons.image, stringResource(R.string.insert_image)) { onInsertImage() }
+                    ToolbarItem.IMAGE -> InsertButton(
+                        owner = editor,
+                        imageRows = listOf(InsertRow(XnotesIcons.image, stringResource(R.string.insert_image_ellipsis)) { onInsertImage() }),
+                        onAudioFromFile = onInsertAudio,
+                        onRecord = onRecordAudio,
+                    )
 
                     ToolbarItem.COLORS ->
                         editor.toolbarColors.take(editor.toolbarColorCount).forEachIndexed { i, color ->
                             Box {
-                                Swatch(color.toComposeColor(), active = editor.activeColorIndex == i) {
+                                Swatch(color.toComposeColor(), active = editor.activeColorIndex == i, drag = editor, ink = color) {
                                     if (editor.activeColorIndex == i) switcherIndex = i else editor.pickColor(i)
                                 }
                                 if (switcherIndex == i) ColorSwitcherPopup(editor, i) { switcherIndex = null }

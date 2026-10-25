@@ -22,6 +22,7 @@ import com.xnotes.core.model.CanvasItem
 import com.xnotes.core.model.ConnectorDraft
 import com.xnotes.core.model.ConnectorEdit
 import com.xnotes.core.model.ConnectorItem
+import com.xnotes.core.model.EraseRule
 import com.xnotes.core.model.Glue
 import com.xnotes.core.model.GlueFollow
 import com.xnotes.core.model.ImageItem
@@ -29,7 +30,6 @@ import com.xnotes.core.model.Labelled
 import com.xnotes.core.model.Rgba
 import com.xnotes.core.model.ShapeItem
 import com.xnotes.core.model.Stroke
-import com.xnotes.core.model.TextItem
 import com.xnotes.core.stroke.Sample
 import com.xnotes.core.stroke.Scribble
 import com.xnotes.core.stroke.ShapeRecognizer
@@ -43,7 +43,7 @@ import com.xnotes.core.tools.ToolConfig
 import kotlin.math.exp
 
 /** What the current gesture is doing. */
-enum class CanvasPointerMode { IDLE, PAN, PINCH, DRAW, ERASE, SHAPE, BAND, LASSO, MOVE, RESIZE, ROTATE, VERTEX, POLYGON, CONNECT, JOINT, SLIDE }
+enum class CanvasPointerMode { IDLE, PAN, PINCH, DRAW, ERASE, SHAPE, TEXT_BOX, BAND, LASSO, MOVE, RESIZE, ROTATE, VERTEX, POLYGON, CONNECT, JOINT, SLIDE }
 
 /**
  * Gestures on the infinite canvas.
@@ -84,6 +84,9 @@ class InfiniteInteraction(
     private val onPendingShape: (CanvasItem?) -> Unit = {},
     /** A finished shape or connector: add it to the document and push the undo command. */
     private val onCommitShape: (CanvasItem) -> Unit = {},
+    /** Create a text box from a tap or drag, or edit the box tapped beneath the pointer. */
+    private val onCreateTextBox: (Pt, Pt) -> Unit = { _, _ -> },
+    private val onEditTextBoxAt: (Pt) -> Boolean = { false },
     /** The shape tool's style, and the active ink colour it draws in. */
     private val shapeConfig: () -> ShapeConfig = { ShapeConfig() },
     private val inkColor: () -> Rgba = { InkPalette.DEFAULT },
@@ -99,6 +102,10 @@ class InfiniteInteraction(
     private val onCommitSelection: (com.xnotes.core.history.Command?) -> Unit = {},
     /** Draw [items] displaced by the drag so far, rather than moving them. An empty list ends it. */
     private val onLiftSelection: (List<CanvasItem>, LiftTransform) -> Unit = { _, _ -> },
+    /** Raster previews for lone editable text; UI geometry stays untouched until release. */
+    private val onTextResizeStart: (ShapeItem) -> Unit = {},
+    private val onTextResizeMove: (Affine) -> Unit = {},
+    private val onTextResizeEnd: (Boolean) -> Unit = {},
     /** Content pixels per dp, so the speed pen judges gesture speed independently of zoom. */
     private val devicePxPerDp: () -> Double = { 1.0 },
     /** A press that landed on the minimap; returns true when it was consumed as navigation. */
@@ -118,6 +125,10 @@ class InfiniteInteraction(
     private val isEditingText: () -> Boolean = { false },
     /** End that edit, keeping what was typed. */
     private val onCommitText: () -> Unit = {},
+    /** A pan that ended as a tap, at this content point, which an audio pill there may take. */
+    private val onAudioTap: (Pt) -> Boolean = { false },
+    /** The view was panned or pinched by hand, as distinct from moved by the app. */
+    private val onUserMovedView: () -> Unit = {},
 ) {
 
     private val choreographer = Choreographer.getInstance()
@@ -165,6 +176,10 @@ class InfiniteInteraction(
     private val stylusButtons = StylusButtonLatch()
 
     private var eraseSession: EraseSession? = null
+
+    // A text box uses the same tap-or-drag gesture as the paged editor.
+    private var textBoxStart = Pt.ZERO
+    private var textBoxEnd = Pt.ZERO
 
     // The shape being dragged out with the shape tool.
     private var pendingShape: ShapeItem? = null
@@ -218,6 +233,7 @@ class InfiniteInteraction(
     // A lifted resize leaves shapes out and bakes them every frame: they keep their outline width
     // through a resize, which a mesh scaled by the shader cannot.
     private var bakedInLift: Set<CanvasItem> = emptySet()
+    private var liveTextReflow = false
     private var liftItems: List<CanvasItem> = emptyList()
 
     // How far outside the box a resize's handle sat, which the box edge keeps behind the pointer.
@@ -485,6 +501,7 @@ class InfiniteInteraction(
             placing -> beginPolygonTap(vx, vy)
             effective == Tool.SHAPE && shapeConfig().connector != null -> beginConnector(vx, vy)
             effective == Tool.SHAPE -> beginShape(vx, vy)
+            effective == Tool.TEXT_BOX -> beginTextBox(vx, vy)
             effective == Tool.SELECT -> beginSelect(vx, vy)
             effective == Tool.LASSO -> beginLasso(vx, vy)
             else -> beginPan(vx, vy, fromPenButton = buttonHeld && penButtonTool == Tool.PAN)
@@ -578,6 +595,7 @@ class InfiniteInteraction(
         if (mode == CanvasPointerMode.ERASE && drawingIsStylus) return
         if (e.pointerCount >= 2) {
             if (mode == CanvasPointerMode.DRAW) abandonStroke()
+            if (mode == CanvasPointerMode.TEXT_BOX) onPendingShape(null)
             // A finger erase yields to a pinch: commit what it already removed rather than lose it.
             if (mode == CanvasPointerMode.ERASE) endErase()
             beginPinch(e)
@@ -596,6 +614,7 @@ class InfiniteInteraction(
             CanvasPointerMode.DRAW -> extendDraw(e)
             CanvasPointerMode.ERASE -> extendErase(e)
             CanvasPointerMode.SHAPE -> extendShape(e.getX(0).toDouble(), e.getY(0).toDouble())
+            CanvasPointerMode.TEXT_BOX -> extendTextBox(e.getX(0).toDouble(), e.getY(0).toDouble())
             CanvasPointerMode.CONNECT -> extendConnector(e.getX(0).toDouble(), e.getY(0).toDouble())
             CanvasPointerMode.JOINT -> extendJoint(e.getX(0).toDouble(), e.getY(0).toDouble())
             CanvasPointerMode.SLIDE -> extendSlide(e.getX(0).toDouble(), e.getY(0).toDouble())
@@ -626,9 +645,12 @@ class InfiniteInteraction(
         cancelLongPress()
         val wasMoving = (mode == CanvasPointerMode.PAN && singleFingerPanAllowed() && !panFromPenButton) ||
             (mode == CanvasPointerMode.PINCH && pinchPanAllowed())
+        // A pan that never moved is a tap, and a tap on a pill plays it, as a finger opens links on a note.
+        val panTap = mode == CanvasPointerMode.PAN && !panFromPenButton && panWasTap(e.getX(0).toDouble(), e.getY(0).toDouble())
+        val audioTapped = panTap && onAudioTap(viewport.viewportToContent(Pt(e.getX(0).toDouble(), e.getY(0).toDouble())))
         // A finger tap off the selection puts it away; a tap is the only way to say so with a
         // finger, since a drag there is a pan.
-        if (mode == CanvasPointerMode.PAN && panMayDismiss &&
+        if (!audioTapped && mode == CanvasPointerMode.PAN && panMayDismiss &&
             panWasTap(e.getX(0).toDouble(), e.getY(0).toDouble())
         ) {
             clearSelection()
@@ -642,6 +664,7 @@ class InfiniteInteraction(
             onEraseLifted()
         }
         if (mode == CanvasPointerMode.SHAPE) endShape()
+        if (mode == CanvasPointerMode.TEXT_BOX) endTextBox(e.getX(0).toDouble(), e.getY(0).toDouble())
         if (mode == CanvasPointerMode.CONNECT) endConnector()
         when (mode) {
             CanvasPointerMode.BAND -> endBand()
@@ -683,6 +706,7 @@ class InfiniteInteraction(
         if (mode == CanvasPointerMode.SLIDE) abandonSlide()
         if (mode == CanvasPointerMode.POLYGON) showPolygonDraft(null)
         if ((mode == CanvasPointerMode.ROTATE || mode == CanvasPointerMode.RESIZE) && liftedTransform) {
+            if (liveTextReflow) onTextResizeEnd(true)
             selection()?.previewBack()
             if (bakedInLift.isNotEmpty()) selection()?.applyLiveTo(bakedInLift, Affine.IDENTITY)
             selection()?.unfollow()
@@ -818,10 +842,9 @@ class InfiniteInteraction(
         val path = List(stroke.sampleCount) { Pt(stroke.xAt(it), stroke.yAt(it)) }
         val passes = Scribble.passes(path, dpPerUnit) ?: return false
         val radius = stroke.config.baseWidth / 2.0 + Scribble.TOUCH_DP / dpPerUnit
-        // Images, text and anything locked are spared, as the eraser spares them.
-        val candidates = itemsIn(Rect.bounding(path).outset(radius))
-            .filter { !it.locked && it !is ImageItem && it !is TextItem }
-        val taken = Scribble.taken(passes, radius, candidates) { c, x, y, r -> c.intersectsCircle(x, y, r) }
+        // Images, text and anything locked are spared, as the eraser spares them; a scribble is ink, so it takes only lines.
+        val candidates = itemsIn(Rect.bounding(path).outset(radius)).filter { EraseRule.erasable(it) }
+        val taken = Scribble.taken(passes, radius, candidates) { c, x, y, r -> EraseRule.touchesLine(c, x, y, r) }
         if (taken.isEmpty()) return false
         onWetStroke(null)
         onScribbleErase(stroke, taken)
@@ -1126,12 +1149,23 @@ class InfiniteInteraction(
         transformPointer = at
         liftedTransform = sel.items.all { it is Stroke || it is ShapeItem || isVectorImage(it) }
         if (!liftedTransform) return
-        bakedInLift = if (resize) sel.items.filterTo(HashSet()) { it is ShapeItem } else emptySet()
+        // Text stays on the lifted GPU path with *translation only* during side resizes.
+        // A worker prepares occasional new line arrangements without stretching glyphs.
+        liveTextReflow = resize &&
+            (grabHandle == HandleId.L || grabHandle == HandleId.R ||
+                grabHandle == HandleId.T || grabHandle == HandleId.B) &&
+            (sel.items.singleOrNull() as? ShapeItem)?.isTextOnlyBox() == true
+        if (liveTextReflow) onTextResizeStart(sel.items.single() as ShapeItem)
+        // Other shapes still bake their outlines so stroke widths do not get scaled.
+        bakedInLift = if (resize) sel.items.filterTo(HashSet()) {
+            it is ShapeItem && !it.isTextOnlyBox()
+        } else emptySet()
         liftItems = if (bakedInLift.isEmpty()) sel.items else sel.items.filter { it !in bakedInLift }
         onLiftSelection(liftItems, LiftTransform.NONE)
     }
 
     private fun endLift() {
+        liveTextReflow = false
         liftedTransform = false
         bakedInLift = emptySet()
         liftItems = emptyList()
@@ -1152,7 +1186,18 @@ class InfiniteInteraction(
         if (liftedTransform) {
             val map = sel.previewResize(handle, at, transformMargin) ?: return
             if (bakedInLift.isNotEmpty()) sel.applyLiveTo(bakedInLift, map)
-            onLiftSelection(liftItems, LiftTransform.of(map, sel.transformPivot ?: Pt.ZERO))
+            val onlyText = sel.items.singleOrNull() as? ShapeItem
+            val sideHandle = handle == HandleId.L || handle == HandleId.R ||
+                handle == HandleId.T || handle == HandleId.B
+            val lift = if (sideHandle && onlyText?.isTextOnlyBox() == true) {
+                // Horizontal wrap is centred, but the first text line is pinned to the box's
+                // *top*. Scaling T/B about the box centre displaced its lines by half a drag.
+                // The top-edge midpoint respects both rules, including on rotated boxes.
+                if (liveTextReflow) onTextResizeMove(map)
+                val textTop = onlyText.toPage(Pt(onlyText.box.centerX, onlyText.box.top))
+                com.xnotes.core.infinite.fixedSizeTextLift(textTop, map)
+            } else LiftTransform.of(map, sel.transformPivot ?: Pt.ZERO)
+            onLiftSelection(liftItems, lift)
         } else {
             sel.resizeLive(handle, at, transformMargin)
         }
@@ -1185,6 +1230,7 @@ class InfiniteInteraction(
         // Finger up on a lifted drag: apply the whole thing to the model once, then hand the drawing
         // back to it.
         if (liftedTransform) {
+            if (liveTextReflow) onTextResizeEnd(false)
             if (handle != null) sel.resizeLive(handle, transformPointer, transformMargin)
             else sel.rotateLive(transformPointer)
             onLiftSelection(emptyList(), LiftTransform.NONE)
@@ -1455,6 +1501,37 @@ class InfiniteInteraction(
     /** End a draft something else interrupts: two corners or more stay, as an open line. */
     fun finishPolygonDraft() {
         if (polygonDraft != null) commitPolygon(closed = false)
+    }
+
+    // --- text boxes ---
+
+    private fun beginTextBox(vx: Double, vy: Double) {
+        val at = viewport.viewportToContent(Pt(vx, vy))
+        if (onEditTextBoxAt(at)) {
+            mode = CanvasPointerMode.IDLE
+            return
+        }
+        textBoxStart = at
+        textBoxEnd = at
+        mode = CanvasPointerMode.TEXT_BOX
+        setInteractive(false, false)
+    }
+
+    private fun extendTextBox(vx: Double, vy: Double) {
+        textBoxEnd = viewport.viewportToContent(Pt(vx, vy))
+        if (textBoxStart.distanceTo(textBoxEnd) * viewport.zoom < TAP_SLOP_PX) return
+        // A lightweight outline marks the box width while it is drawn; only the finished box
+        // becomes an editable label, so line layout never runs on pointer movement.
+        onPendingShape(ShapeItem(ShapeKind.RECTANGLE, textBoxStart, textBoxEnd,
+            inkColor().withAlpha(160), 1.0 / viewport.zoom))
+        requestRender()
+    }
+
+    private fun endTextBox(vx: Double, vy: Double) {
+        textBoxEnd = viewport.viewportToContent(Pt(vx, vy))
+        onPendingShape(null)
+        onCreateTextBox(textBoxStart, textBoxEnd)
+        requestRender()
     }
 
     // --- shapes ---
@@ -1735,6 +1812,7 @@ class InfiniteInteraction(
 
     private fun extendPan(vx: Double, vy: Double) {
         trackVelocity(vx, vy)
+        onUserMovedView()
         if (singleFingerPanAllowed()) viewport.panByViewport(vx - lastPan.x, vy - lastPan.y)
         lastPan = Pt(vx, vy)
         onViewChanged()
@@ -1763,6 +1841,7 @@ class InfiniteInteraction(
 
     private fun updatePinch(e: MotionEvent) {
         if (e.pointerCount < 2) return
+        onUserMovedView()
         val a = Pt(e.getX(0).toDouble(), e.getY(0).toDouble())
         val b = Pt(e.getX(1).toDouble(), e.getY(1).toDouble())
         val dist = a.distanceTo(b)

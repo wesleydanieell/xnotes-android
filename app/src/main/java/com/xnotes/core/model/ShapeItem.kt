@@ -74,6 +74,7 @@ class ShapeItem(
     override val kind = KIND
     override val resizable = true
     override var locked = false
+    override var sync: SyncMark? = null
 
     /** Drawn text is words, which a mirror would turn backwards. */
     override val mirrorable: Boolean get() = shape != ShapeKind.GLYPHS
@@ -96,6 +97,9 @@ class ShapeItem(
 
     /** True for the kinds that hold their outline in [path] rather than drawing it from the box. */
     val isFree: Boolean get() = shape.isFree
+
+    /** True for a dropped colour's area: only fill, which an eraser takes whole and nothing glues to. */
+    val isFill: Boolean get() = shape == ShapeKind.FILL
 
     /** [p] from the shape's unturned frame onto the page: turned by [rotation] about the box centre. */
     fun toPage(p: Pt): Pt {
@@ -234,11 +238,21 @@ class ShapeItem(
                 return Rect(c.x - w / 2.0, c.y - h / 2.0, w, h)
             }
         }
-        val t = localGeometry().textRect
+        // A text-only host has no outline to pad, so its full box is the wrapping width.
+        val textOnly = isTextOnlyBox()
+        val t = if (textOnly) box else localGeometry().textRect
         val w = max(t.w, l.lineHeight * ShapeLabel.MIN_WIDTH_LINES)
-        val h = l.height(w)
+        val h = if (textOnly) l.normalizedHeight(w) else l.height(w)
+        // Text imported onto an infinite canvas uses an invisible rectangle as its editable
+        // host. Anchor its first line to the top-left: centring by h moved every line vertically
+        // whenever a horizontal resize changed wrapping, sometimes far outside the handles.
+        if (isTextOnlyBox()) return Rect(t.left, t.top, w, h)
         return Rect(t.centerX - w / 2.0, t.centerY - h / 2.0, w, h)
     }
+
+    /** Editable text imported into the infinite canvas, represented by an invisible shape. */
+    fun isTextOnlyBox(): Boolean = (shape == ShapeKind.RECTANGLE || shape == ShapeKind.POLYGON) &&
+        label != null && strokeWidth == 0.0 && strokeRgba.a == 0 && fillRgba == null
 
     /** Where a connector may glue, on the page, each with its ways out turned with the shape; none for a line or arrow. */
     fun connectionPoints(): List<ConnectionPoint> {
@@ -464,12 +478,23 @@ class ShapeItem(
      */
     fun touches(p: Pt, tolerance: Double): Boolean = hits(toLocal(p), max(strokeWidth / 2.0, tolerance)) || labelContains(p)
 
-    /** True if an eraser circle of [radius] at (cx,cy) touches the shape's geometry. */
+    /** True if an eraser circle of [radius] at (cx,cy) touches the shape's geometry; a fill's, even at its edge. */
     override fun intersectsCircle(cx: Double, cy: Double, radius: Double): Boolean {
         if (bounds().distanceTo(Pt(cx, cy)) > radius) return false // cheap AABB reject
+        if (isFill) return fillMeets(cx, cy, radius)
         // A circle turns into itself, so the test runs in the unturned frame.
         return hits(toLocal(Pt(cx, cy)), radius + strokeWidth / 2.0)
     }
+
+    /** True when page point [p] lands on the outline itself, within [tolerance] (or half its width, if wider); never its fill or label. */
+    fun onOutline(p: Pt, tolerance: Double): Boolean =
+        Outline.hits(localPaths(), toLocal(p), max(strokeWidth / 2.0, tolerance), filled = false)
+
+    /** The rings the shape's own fill covers, on the page, curves flattened to [tolerance]; none for an open kind. */
+    fun fillRings(tolerance: Double): List<List<Pt>> = paths()
+        .filter { it.role == PathRole.OUTLINE || it.role == PathRole.FILL_ONLY }
+        .flatMap { path -> path.contours.map { PathFlattener.flatten(it, tolerance) } }
+        .filter { it.size >= 3 }
 
     /** True when page point [p] lies inside the outline, filled or not: where a label would go. */
     fun encloses(p: Pt): Boolean {
@@ -489,16 +514,35 @@ class ShapeItem(
      * shape, else the stroked lines left outside the circle, cut cleanly at its edge, as ordinary ink.
      * A cut shape stops being a shape: its pieces are pen strokes in its colour and width, dashed
      * where it was dashed (a solid's hidden edges too) and neon where it glowed. A fill cannot
-     * survive a cut, so it goes, even when the eraser only crossed the fill; a filled head keeps
-     * its outline.
+     * survive a cut, so it goes; an eraser that only crosses the fill leaves the shape alone here,
+     * and takes just the fill instead (see [EraseRule]). A filled head keeps its outline. A
+     * dropped colour's fill and drawn text go whole.
      */
     fun erasedBy(cx: Double, cy: Double, radius: Double): List<CanvasItem>? {
         val c = Pt(cx, cy)
         if (bounds().distanceTo(c) > radius) return null
-        val fillHit = fillRgba != null && intersectsCircle(cx, cy, radius)
+        if (isFill || shape == ShapeKind.GLYPHS) return if (intersectsCircle(cx, cy, radius)) emptyList() else null
         val (hit, ink) = Outline.cut(paths(), pen(), neon, neonStrength, c, radius)
-            ?: return if (intersectsCircle(cx, cy, radius)) emptyList() else null
-        return if (hit || fillHit) ink else null
+            ?: return if (outlineMeets(cx, cy, radius)) emptyList() else null
+        return if (hit) ink else null
+    }
+
+    /** True when an eraser circle at ([cx], [cy]) with [radius] touches the outline itself; never the fill or label. */
+    fun outlineMeets(cx: Double, cy: Double, radius: Double): Boolean {
+        if (bounds().distanceTo(Pt(cx, cy)) > radius) return false
+        return Outline.hits(localPaths(), toLocal(Pt(cx, cy)), radius + strokeWidth / 2.0, filled = false)
+    }
+
+    /** True when an eraser circle at ([cx], [cy]) with [radius] touches the shape's fill at all, even its edge; false without one. */
+    fun fillMeets(cx: Double, cy: Double, radius: Double): Boolean {
+        if (fillRgba == null) return false
+        val c = Pt(cx, cy)
+        if (bounds().distanceTo(c) > radius) return false
+        val q = toLocal(c)
+        val rings = localGeometry().paths
+            .filter { it.role == PathRole.OUTLINE || it.role == PathRole.FILL_ONLY }
+            .flatMap { path -> path.contours.map { PathFlattener.flatten(it, Outline.HIT_FLATTEN) } }
+        return Outline.inRings(rings, q) || rings.any { Outline.nearPolyline(it, q, radius, closed = true) }
     }
 
     override fun geometry(): GeoHandle = ShapeHandle(start, end)
@@ -510,7 +554,7 @@ class ShapeItem(
         }
     }
 
-    override fun snapshotGeometry(): GeometrySnapshot = ShapeSnapshot(shape, start, end, path, rotation, adj.copyOf(), n, labelAt, flip)
+    override fun snapshotGeometry(): GeometrySnapshot = ShapeSnapshot(shape, start, end, path, rotation, adj.copyOf(), n, labelAt, flip, label)
 
     override fun restoreGeometry(snap: GeometrySnapshot) {
         if (snap !is ShapeSnapshot) return
@@ -523,6 +567,7 @@ class ShapeItem(
         n = snap.n
         labelAt = snap.labelAt
         flip = snap.flip
+        label = snap.label
     }
 
     /**
@@ -761,6 +806,9 @@ class ShapeItem(
         /** The kind a file gives drawn text, which readers that predate it skip rather than misdraw. */
         const val GLYPHS_KIND = "glyphs"
 
+        /** The kind a file gives a dropped colour's area, which readers that predate it skip. */
+        const val FILL_KIND = "fill"
+
         private const val LEGACY_FLATTEN = 0.25
 
         /** [a] folded into (-PI, PI]. */
@@ -792,6 +840,16 @@ class ShapeItem(
             )
         }
 
+        /** A dropped colour's area: the page-space [rings], holes by parity, filled solid in [color] and never stroked. */
+        fun fill(rings: List<List<Pt>>, color: Rgba): ShapeItem {
+            val contours = rings.filter { it.size >= 3 }.map { FreePath.lines(it, closed = true) }
+            val box = FreePath.bounds(contours) ?: Rect(0.0, 0.0, 0.0, 0.0)
+            return ShapeItem(
+                ShapeKind.FILL, box.topLeft, Pt(box.right, box.bottom), color, 0.0, color,
+                path = FreePath.normalize(contours, box),
+            )
+        }
+
         /** A free shape whose outline is the page-space [contours], boxed tight around what they draw. */
         fun free(shape: ShapeKind, contours: List<VectorContour>, strokeRgba: Rgba, strokeWidth: Double = 3.0): ShapeItem {
             val box = FreePath.bounds(contours) ?: Rect(0.0, 0.0, 0.0, 0.0)
@@ -814,11 +872,13 @@ private class ShapeSnapshot(
     val n: Int,
     val labelAt: Double,
     val flip: Flip,
+    val label: ShapeLabel?,
 ) : GeometrySnapshot {
     // Value equality, so a drag that changed nothing records nothing.
     override fun equals(other: Any?): Boolean = other is ShapeSnapshot && shape == other.shape &&
         start == other.start && end == other.end && path === other.path && rotation == other.rotation &&
-        adj.contentEquals(other.adj) && n == other.n && labelAt == other.labelAt && flip == other.flip
+        adj.contentEquals(other.adj) && n == other.n && labelAt == other.labelAt && flip == other.flip &&
+        (label === other.label || label?.sameAs(other.label) == true)
 
     override fun hashCode(): Int = start.hashCode() * 31 + end.hashCode()
 }
