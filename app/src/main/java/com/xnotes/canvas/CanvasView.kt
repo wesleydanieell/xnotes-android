@@ -17,9 +17,10 @@ import com.xnotes.core.geometry.Rect
 import com.xnotes.core.model.Page
 import com.xnotes.core.model.Stroke
 import com.xnotes.core.pal.BlendMode
-import com.xnotes.core.pal.Pen
 import com.xnotes.platform.AndroidRenderer
 import com.xnotes.platform.MathRendering
+import kotlin.math.ceil
+import kotlin.math.floor
 
 /**
  * The on-screen canvas. Draws the document in immediate mode each frame
@@ -107,6 +108,9 @@ class CanvasView @JvmOverloads constructor(
     private var scrollbarFrac = 0.0
     private var scrollbarLastY = 0f
     private val scrollbarPaint = Paint()
+
+    // The page outline sits on whole device pixels, so it needs no antialiasing.
+    private val borderPaint = Paint()
 
     // Reused paints for the elastic "pull to add page" badge, so onDraw allocates nothing.
     private val overscrollStroke = Paint(Paint.ANTI_ALIAS_FLAG).apply { style = Paint.Style.STROKE; strokeCap = Paint.Cap.ROUND }
@@ -402,7 +406,6 @@ class CanvasView @JvmOverloads constructor(
         r.scale(st.zoom, st.zoom)
 
         val visible = st.visibleContentRect()
-        val border = Pen(st.palette.paperBorder, 1.0, cosmetic = true)
         // Paginated mode shows only the current row; neighbours never draw. Iterate the range
         // directly instead of scanning every page on every animation frame in a large document.
         val drawable = st.drawablePageRange()
@@ -413,7 +416,6 @@ class CanvasView @JvmOverloads constructor(
             val page = st.document.pages[i]
 
             r.fillRect(pr, st.paperColor(page))
-            if (st.pageBorders) r.strokeRect(pr, border)
             st.backgroundForOrSchedule(page)?.let { blitPageSurface(r, st, page, pr, it.surface) }
             // A live caret session lifts the flow out of the ink cache; paint it
             // immediate-mode here (under the ink, over the background) so every
@@ -422,10 +424,7 @@ class CanvasView @JvmOverloads constructor(
             r.withSave {
                 r.clipRect(pr)
                 r.translate(pr.left, pr.top)
-                st.applyPageTransform(r, page)
-                val region = st.displayRectToPage(page, visible.translate(-pr.left, -pr.top))
-                if (st.flowLifted) st.paintFlow?.invoke(page, r, region)
-                st.paintMath?.invoke(page, r, region)
+                paintUnderInk(r, st, page, st.displayRectToPage(page, visible.translate(-pr.left, -pr.top)))
             }
             st.cacheForOrSchedule(page)?.let { blitPageSurface(r, st, page, pr, it.surface) }
         }
@@ -433,8 +432,8 @@ class CanvasView @JvmOverloads constructor(
 
         // Draw the adjacent spread throughout the gesture and settlement animation,
         // with clipping to the actual viewport and no stale sharp overlay.
-        st.linkedNeighbourRow()?.let { neighbourRow ->
-            val offset = st.linkedNeighbourOffset(neighbourRow)
+        val neighbour = st.linkedNeighbourRow()?.let { it to st.linkedNeighbourOffset(it) }
+        neighbour?.let { (neighbourRow, offset) ->
             // The neighbour is positioned relative to the current page and viewport;
             // clipping here avoids painting the offscreen part of the strip.
             canvas.save()
@@ -453,15 +452,11 @@ class CanvasView @JvmOverloads constructor(
                     if (!pr.intersects(neighbourVisible)) continue
                     val page = st.document.pages[i]
                     r.fillRect(pr, st.paperColor(page))
-                    if (st.pageBorders) r.strokeRect(pr, border)
                     st.backgroundForOrSchedule(page)?.let { blitPageSurface(r, st, page, pr, it.surface) }
                     r.withSave {
                         r.clipRect(pr)
                         r.translate(pr.left, pr.top)
-                        st.applyPageTransform(r, page)
-                        val region = st.displayRectToPage(page, neighbourVisible.translate(-pr.left, -pr.top))
-                        if (st.flowLifted) st.paintFlow?.invoke(page, r, region)
-                        st.paintMath?.invoke(page, r, region)
+                        paintUnderInk(r, st, page, st.displayRectToPage(page, neighbourVisible.translate(-pr.left, -pr.top)))
                     }
                     st.cacheForOrSchedule(page)?.let { blitPageSurface(r, st, page, pr, it.surface) }
                 }
@@ -486,7 +481,7 @@ class CanvasView @JvmOverloads constructor(
                 // page loop's live pass already painted them, and a second
                 // (translucent) chip on top reads as a lighter band while the slid
                 // sharp frame settles.
-                if (st.flowLifted || st.paintMath != null) {
+                if (st.flowLifted || st.paintMath != null || st.paintLiftedUnderText != null) {
                     r.withSave {
                         r.clipRect(Rect(blit.dx, blit.dy, dw, dh))
                         r.translate(origin.x, origin.y)
@@ -498,10 +493,7 @@ class CanvasView @JvmOverloads constructor(
                             r.withSave {
                                 r.clipRect(pr)
                                 r.translate(pr.left, pr.top)
-                                st.applyPageTransform(r, page)
-                                val region = st.displayRectToPage(page, visible.translate(-pr.left, -pr.top))
-                                if (st.flowLifted) st.paintFlow?.invoke(page, r, region)
-                                st.paintMath?.invoke(page, r, region)
+                                paintUnderInk(r, st, page, st.displayRectToPage(page, visible.translate(-pr.left, -pr.top)))
                             }
                         }
                     }
@@ -544,9 +536,24 @@ class CanvasView @JvmOverloads constructor(
                             // Blit the pre-rendered opaque ribbon at the ink's alpha and blend,
                             // instead of re-tessellating the ribbon every frame.
                             val hc = st.highlighterCacheFor(item, page)
-                            r.drawRasterBlended(hc.surface, hc.cover, item.renderColor.a / 255.0, item.blendMode)
+                            val faint = if (st.fade?.fades(item) == true) com.xnotes.core.audio.InkFade.ALPHA else 1.0
+                            r.drawRasterBlended(hc.surface, hc.cover, item.renderColor.a / 255.0 * faint, item.blendMode)
                         }
                     }
+                }
+            }
+        }
+
+        // Outlines go on last, over each page's soft edge and the sharp viewport alike.
+        if (st.pageBorders) {
+            borderPaint.color = st.palette.paperBorder.toArgb()
+            for (i in drawable) {
+                val pr = st.pageRects.getOrNull(i) ?: continue
+                if (pr.intersects(visible)) drawPageBorder(canvas, pr, st.zoom, origin)
+            }
+            neighbour?.let { (row, offset) ->
+                for (i in st.rowRanges()[row]) {
+                    st.pageRects.getOrNull(i)?.let { drawPageBorder(canvas, it, st.zoom, origin + offset) }
                 }
             }
         }
@@ -572,8 +579,37 @@ class CanvasView @JvmOverloads constructor(
         if (r.standIns > 0) postInvalidateDelayed(SHIMMER_FRAME_MS)
     }
 
+    /**
+     * What goes live between a page's background and its ink cache: the fills under its typed text
+     * that the cache leaves out, a lifted flow, and the formulas. [r] stands at the page's display origin.
+     */
+    private fun paintUnderInk(r: AndroidRenderer, st: CanvasState, page: Page, region: Rect) {
+        r.withSave {
+            st.applyPageTransform(r, page)
+            st.paintUnderText(page, r, region)
+        }
+        st.paintLiftedUnderText?.invoke(page, r)
+        r.withSave {
+            st.applyPageTransform(r, page)
+            if (st.flowLifted) st.paintFlow?.invoke(page, r, region)
+            st.paintMath?.invoke(page, r, region)
+        }
+    }
+
     /** Fires once the view has been still for [SHARP_SETTLE_MS], rendering the sharp viewport. */
     private val sharpDebounce = Runnable { state?.requestSharpViewport() }
+
+    /** Outline [pr] in the device pixel row or column each edge falls in, so zooming never smears or splits it. */
+    private fun drawPageBorder(canvas: Canvas, pr: Rect, zoom: Double, origin: Pt) {
+        val l = ceil(pr.left * zoom + origin.x).toFloat() - 1f
+        val t = ceil(pr.top * zoom + origin.y).toFloat() - 1f
+        val r = floor(pr.right * zoom + origin.x).toFloat()
+        val b = floor(pr.bottom * zoom + origin.y).toFloat()
+        canvas.drawRect(l, t, r + 1f, t + 1f, borderPaint)
+        canvas.drawRect(l, b, r + 1f, b + 1f, borderPaint)
+        canvas.drawRect(l, t + 1f, l + 1f, b, borderPaint)
+        canvas.drawRect(r, t + 1f, r + 1f, b, borderPaint)
+    }
 
     /** Blit a page-space cache surface into the page's display rect, rotated per the view. The
      *  surface covers the page's whole footprint (margins included), so it blits at [CanvasState.footprint]. */

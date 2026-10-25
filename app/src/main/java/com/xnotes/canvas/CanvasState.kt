@@ -7,6 +7,8 @@ import com.xnotes.core.model.CanvasItem
 import com.xnotes.core.model.Document
 import com.xnotes.core.model.Page
 import com.xnotes.core.model.PageInsets
+import com.xnotes.core.audio.InkFade
+import com.xnotes.core.model.PageLayers
 import com.xnotes.core.model.PageTemplates
 import com.xnotes.core.model.Rgba
 import com.xnotes.core.model.Stroke
@@ -14,7 +16,6 @@ import com.xnotes.core.model.TextMarkup
 import com.xnotes.core.model.insets
 import com.xnotes.core.model.resolvedPageColor
 import com.xnotes.core.model.resolvedTemplate
-import com.xnotes.core.pal.Pen
 import com.xnotes.core.pal.RasterSurface
 import com.xnotes.core.pal.Renderer
 import com.xnotes.core.pal.SurfaceFactory
@@ -104,12 +105,6 @@ class CanvasState(
     /** User-set zoom limits (preferences); every zoom path clamps into [minZoom]..[maxZoom]. */
     var minZoom: Double = MIN_ZOOM
     var maxZoom: Double = MAX_ZOOM
-
-    /** Horizontal page navigation cannot zoom below 60%, unless a stricter configured
-     * maximum makes that impossible. Continuous vertical scrolling retains its limits. */
-    fun effectiveMinZoom(): Double =
-        (if (verticalScroll) minZoom else max(minZoom, PAGINATED_MIN_ZOOM))
-            .coerceAtMost(maxZoom)
 
     /**
      * Long-edge cap (content px) for the on-screen page caches; zoom past it renders the visible
@@ -212,9 +207,23 @@ class CanvasState(
         val neighbourEdge = if (rowIndex > currentRow) neighbour.left else neighbour.right
         return Pt(
             targetEdge - (neighbourEdge * zoom - scrollX),
-            (current.top - neighbour.top) * zoom,
+            scrollY - flipLandingScrollY(rowIndex), // drawn where the turn will land it
         )
     }
+
+    /** The scroll Y a turn to [row] lands at: where the row rests, or the same reading height between two tall pages. */
+    private fun flipLandingScrollY(row: Int): Double {
+        val rows = rowRanges()
+        val before = rowBounds(rows[currentRow.coerceIn(0, rows.lastIndex)])
+        val after = rowBounds(rows[row])
+        val sy = if (before.h * zoom >= clearH && after.h * zoom >= clearH) {
+            scrollY + (after.top - before.top) * zoom
+        } else {
+            rowTargetScroll(row).y
+        }
+        return rowClampedScroll(row, scrollX, sy).y
+    }
+
     /** True only while an incoming paginated row or cancelled edge-pull is animating. */
     var pageFlipAnimating: Boolean = false
 
@@ -366,8 +375,8 @@ class CanvasState(
 
     /** When true, zoom is fixed (pinch pans only, zoom buttons/fit are no-ops). */
     var zoomLocked: Boolean = false
-    /** User preference: enable automatic pinch-to-fit magnets in paginated mode only. */
-    var paginatedZoomSnap: Boolean = true
+    /** Paginated only: pages move up and down freely and pinches never snap to a fit (the View menu toggle). */
+    var freeMovement: Boolean = false
 
     /**
      * True while the view is sitting at fit-to-width. Set when a pinch snaps to fit-width (or
@@ -469,6 +478,9 @@ class CanvasState(
     private val pendingInk = HashSet<Page>()
     private val pendingBg = HashSet<Page>()
 
+    /** Where [repairRegion] repainted a page while its build was in flight, to paint again on what the build brings. */
+    private val repairedMeanwhile = HashMap<Page, Rect>()
+
     /**
      * Pages whose cached ink is known to be out of date and is being rebuilt off-thread (see
      * [refreshAllInk]). The surface stays in [caches] and keeps being blitted meanwhile, so the page
@@ -488,7 +500,7 @@ class CanvasState(
 
     // Two layers, like the page cache, so an erase can clear ink in a region without
     // disturbing the (PDF/paper) background underneath: [base] holds window bg + paper +
-    // border + background + labels, [ink] holds just the strokes on a transparent surface.
+    // background + labels, [ink] holds just the strokes on a transparent surface.
     private class SharpFrame(
         val base: RasterSurface,
         val ink: RasterSurface,
@@ -517,7 +529,7 @@ class CanvasState(
     private class SharpPageSnap(
         val page: Page,
         val pr: Rect,
-        val items: List<CanvasItem>,
+        val items: InkItems,
         val region: Rect,
         val index: Int,
     )
@@ -628,7 +640,7 @@ class CanvasState(
         return acc ?: Rect(0.0, 0.0, 1.0, 1.0)
     }
 
-    /** The paginated scroll target for [rowIndex]: keep the zoom, land at the row's top. */
+    /** The paginated scroll target for [rowIndex]: keep the zoom, land centred if the row fits, else at its top. */
     fun rowTargetScroll(rowIndex: Int): Pt {
         val rows = rowRanges()
         if (rows.isEmpty()) return Pt(0.0, 0.0)
@@ -637,8 +649,6 @@ class CanvasState(
         val maxX = (rb.right + sideMargin) * zoom - viewportW + insetRight
         val sx = if (maxX < minX) (minX + maxX) / 2.0 else minX
         val sy = if (rb.h * zoom < clearH) {
-            // Preserve the old centred appearance when entering a short page, while keeping its
-            // vertical position in scrollY so a later drag can reposition it permanently.
             rb.centerY * zoom - clearCenter().y
         } else {
             (rb.top * zoom - TOP_GAP - insetTop).coerceAtLeast(-insetTop)
@@ -684,11 +694,9 @@ class CanvasState(
         val cw = contentW * zoom
         val ch = contentH * zoom
         // Paginated: the row clamp centres the row when it fits, so the scroll always wins; the
-        // whole strip must never be centred (two pages would push each single-page row off centre).
+        // whole strip must never be centred (a spread or a taller page would push a page off centre).
         val ox = (if (!verticalScroll || cw >= clearW) -scrollX else insetLeft + (clearW - cw) / 2.0) - flipOffsetX
-        // Continuous mode may centre a short document. Paginated mode always honours scrollY so
-        // users can position a short page vertically and keep that position after releasing it.
-        val oy = (if (verticalScroll && ch < clearH) insetTop + (clearH - ch) / 2.0 else -scrollY) - overscrollY
+        val oy = (if (!verticalScroll || ch >= clearH) -scrollY else insetTop + (clearH - ch) / 2.0) - overscrollY
         return Pt(ox, oy)
     }
 
@@ -732,25 +740,35 @@ class CanvasState(
         val minX = (rb.left - sideMargin) * zoom - insetLeft
         val maxX = (rb.right + sideMargin) * zoom - viewportW + insetRight
         val cx = if (maxX < minX) (minX + maxX) / 2.0 else sx.coerceIn(minX, maxX)
-        if (paginatedZoomSnap && rb.h * zoom >= clearH) {
-            // Original master clamp for the enlarged paginated page. This creates the
-            // familiar top-edge boundary at the fit threshold without changing continuous
-            // vertical scrolling, or forcing short pages into the top edge.
-            val maxY = ((rb.bottom + vertMargin) * zoom - viewportH + insetBottom)
-                .coerceAtLeast(-insetTop)
-            return Pt(cx, sy.coerceIn(-insetTop, maxY))
+        if (!freeMovement) {
+            // A page that fits sits centred and can't move, and a tall one stops at its margins.
+            val minY = (rb.top - vertMargin) * zoom - insetTop
+            val maxY = (rb.bottom + vertMargin) * zoom - viewportH + insetBottom
+            return Pt(cx, if (maxY < minY) (minY + maxY) / 2.0 else sy.coerceIn(minY, maxY))
         }
-        // Free movement remains the default, with enough of the page visible to recover it.
-        val visible = min(48.0 * devicePxPerDp, rb.h * zoom / 2.0)
-        val minY = rb.top * zoom - (viewportH - insetBottom) + visible
-        val maxY = rb.bottom * zoom - insetTop - visible
-        return Pt(cx, sy.coerceIn(minY, maxY))
+        // Free movement: a page moves until its top or bottom edge reaches the middle of the clear area.
+        val mid = clearCenter().y
+        return Pt(cx, sy.coerceIn(rb.top * zoom - mid, rb.bottom * zoom - mid))
     }
 
     fun scrollBy(dx: Double, dy: Double) {
         scrollX += dx
         scrollY += dy
         clampScroll()
+    }
+
+    /** Scroll so content rect [c] is on screen, [margin] viewport px clear of the edges and any toolbar; not at all if it is. */
+    fun scrollIntoView(c: Rect, margin: Double) {
+        val tl = contentToViewport(Pt(c.left, c.top))
+        val br = contentToViewport(Pt(c.right, c.bottom))
+        val left = insetLeft + margin
+        val right = viewportW - insetRight - margin
+        val top = insetTop + margin
+        val bottom = viewportH - insetBottom - margin
+        if (right <= left || bottom <= top) return
+        val dx = if (tl.x < left || br.x > right) (tl.x + br.x) / 2 - (left + right) / 2 else 0.0
+        val dy = if (tl.y < top || br.y > bottom) (tl.y + br.y) / 2 - (top + bottom) / 2 else 0.0
+        if (dx != 0.0 || dy != 0.0) scrollBy(dx, dy)
     }
 
     // --- pages & navigation ---
@@ -874,11 +892,32 @@ class CanvasState(
         clampScroll()
     }
 
+    /** After a relayout, scroll by as much as [page] moved from [was], so it stays where it showed. */
+    fun keepPageInPlace(page: Page, was: Rect) {
+        val i = document.pages.indexOfFirst { it === page }
+        val now = pageRects.getOrNull(i) ?: return
+        scrollX += (now.left - was.left) * zoom
+        scrollY += (now.top - was.top) * zoom
+        if (!verticalScroll) currentRow = rowIndexOf(i)
+        clampScroll()
+    }
+
+    /** End a paginated turn on [row], at the height the slide showed it at. */
+    fun landFlip(row: Int) {
+        val rows = rowRanges()
+        if (row !in rows.indices) return
+        val landing = flipLandingScrollY(row)
+        goToPage(rows[row].first)
+        scrollY = landing
+        clampScroll()
+        clearSharpViewport()
+    }
+
     // --- zoom ---
 
     fun setZoomAnchored(focusViewport: Pt, newZoom: Double) {
         if (zoomLocked) return
-        val z = newZoom.coerceIn(effectiveMinZoom(), maxZoom)
+        val z = newZoom.coerceIn(minZoom, maxZoom)
         if (abs(z - zoom) < 1e-9) return
         fitWidthActive = false // an explicit zoom step leaves the fit magnets
         fitHeightActive = false
@@ -898,7 +937,7 @@ class CanvasState(
     /** Pull the live zoom back inside [minZoom]..[maxZoom] after the limits changed, anchored at
      *  the viewport centre. Deliberately ignores the zoom lock: a limit edit must always win. */
     fun clampZoomToLimits() {
-        val z = zoom.coerceIn(effectiveMinZoom(), maxZoom)
+        val z = zoom.coerceIn(minZoom, maxZoom)
         if (abs(z - zoom) < 1e-9) return
         if (viewportW == 0 || viewportH == 0) {
             zoom = z // not laid out yet; the initial view will place the scroll
@@ -930,7 +969,7 @@ class CanvasState(
         if (zoomLocked || pages.isEmpty() || viewportH == 0) return
         val cur = currentPageIndex()
         val magnet = fitHeightZoom() // paginated: land exactly where a pinch's height magnet does
-        zoom = if (magnet > 0.0) magnet else ((clearH - 60.0) / displayH(pages[cur])).coerceIn(effectiveMinZoom(), maxZoom)
+        zoom = if (magnet > 0.0) magnet else ((clearH - 60.0) / displayH(pages[cur])).coerceIn(minZoom, maxZoom)
         fitWidthActive = false
         fitHeightActive = magnet > 0.0
         invalidateCachesForZoom()
@@ -945,7 +984,7 @@ class CanvasState(
         val w = displayW(page) + 2 * sideMargin
         val h = displayH(page) + 2 * vertMargin
         if (w <= 0.0 || h <= 0.0) return
-        zoom = min(clearW / w, clearH / h).coerceIn(effectiveMinZoom(), maxZoom)
+        zoom = min(clearW / w, clearH / h).coerceIn(minZoom, maxZoom)
         fitWidthActive = false
         fitHeightActive = false
         invalidateCachesForZoom()
@@ -962,10 +1001,10 @@ class CanvasState(
             val rows = rowRanges()
             if (rows.isEmpty()) return 0.0
             val w = rowBounds(rows[currentRow.coerceIn(0, rows.lastIndex)]).w + 2 * sideMargin
-            return if (w <= 0.0) 0.0 else (clearW / w).coerceIn(effectiveMinZoom(), maxZoom)
+            return if (w <= 0.0) 0.0 else (clearW / w).coerceIn(minZoom, maxZoom)
         }
         if (contentW <= 0.0) return 0.0
-        return (clearW / contentW).coerceIn(effectiveMinZoom(), maxZoom)
+        return (clearW / contentW).coerceIn(minZoom, maxZoom)
     }
 
     /** The zoom at which the current paginated row (plus the vertical margins) exactly fills
@@ -975,7 +1014,7 @@ class CanvasState(
         val rows = rowRanges()
         if (rows.isEmpty()) return 0.0
         val h = rowBounds(rows[currentRow.coerceIn(0, rows.lastIndex)]).h + 2 * vertMargin
-        return if (h <= 0.0) 0.0 else (clearH / h).coerceIn(effectiveMinZoom(), maxZoom)
+        return if (h <= 0.0) 0.0 else (clearH / h).coerceIn(minZoom, maxZoom)
     }
 
     /**
@@ -986,19 +1025,15 @@ class CanvasState(
      * zoom the caller applies; the false→true transition of either flag surfaces the lock hint.
      */
     fun snapZoomToFit(raw: Double): Double {
-        if (!verticalScroll && !paginatedZoomSnap) {
+        if (!verticalScroll && freeMovement) { // free movement pinches straight past both magnets
             fitWidthActive = false
             fitHeightActive = false
             return raw
         }
         val fitW = fitWidthZoom()
         val fitH = fitHeightZoom()
-        // Restore the original bidirectional fit magnets when the classic paginated
-        // behavior is enabled. Free mode skips them; continuous vertical mode is unchanged.
-        val canSnapW = fitW > 0.0 && (verticalScroll || paginatedZoomSnap)
-        val canSnapH = fitH > 0.0 && paginatedZoomSnap
-        val nearW = canSnapW && abs(raw - fitW) <= fitW * SNAP_TO_FIT_WIDTH
-        val nearH = canSnapH && abs(raw - fitH) <= fitH * SNAP_TO_FIT_WIDTH
+        val nearW = fitW > 0.0 && abs(raw - fitW) <= fitW * SNAP_TO_FIT_WIDTH
+        val nearH = fitH > 0.0 && abs(raw - fitH) <= fitH * SNAP_TO_FIT_WIDTH
         val pickH = nearH && (!nearW || abs(raw - fitH) < abs(raw - fitW))
         fitHeightActive = pickH
         fitWidthActive = nearW && !pickH
@@ -1045,7 +1080,7 @@ class CanvasState(
      * document must land at its own view rather than inherit the previous one's.
      */
     fun setView(newZoom: Double, sx: Double, sy: Double) {
-        zoom = newZoom.coerceIn(effectiveMinZoom(), maxZoom)
+        zoom = newZoom.coerceIn(minZoom, maxZoom)
         scrollX = sx
         scrollY = sy
         syncCurrentRowToScroll() // paginated: land on the restored row before the clamp
@@ -1131,9 +1166,12 @@ class CanvasState(
             val entry = renderInk(page, res, items, withFlow)
             postToMain {
                 pendingInk.remove(page)
+                val meanwhile = repairedMeanwhile.remove(page)
                 if (gen == cacheGen) {
                     caches[page] = entry
                     staleInk.remove(page)
+                    // The build painted from what it read then; a repair since, as a playhead crossing ink, would be lost.
+                    meanwhile?.let { repaintCached(entry, page, it) }
                 }
                 // Repaint either way. A build the page outgrew mid-flight (a margin drag bumps the
                 // generation on every tick) is discarded here, and the draw loop is what schedules
@@ -1144,15 +1182,41 @@ class CanvasState(
         }
     }
 
-    /** Items baked into a page's ink cache: all but lifted items and highlighters
-     *  ([isHighlighterInk] — those composite live so they MULTIPLY against the background). */
-    private fun cacheItems(page: Page): List<CanvasItem> =
-        page.items.filter { !isLiftedItem(it) && !it.isHighlighterInk() }
+    /** A page's cached ink either side of its typed text (see [PageLayers]). */
+    private class InkItems(val under: List<CanvasItem>, val over: List<CanvasItem>)
+
+    /**
+     * The ink a playback fades, read by every painter of a page, off the main thread too; immutable
+     * and swapped whole. Whoever changes it repaints what changed: a fade baked into a cache stays.
+     */
+    @Volatile
+    var fade: InkFade? = null
+
+    /** Paint one item, faint if the playback fades it. */
+    fun paintItem(item: CanvasItem, r: Renderer) {
+        val f = fade
+        if (f == null || !f.fades(item)) return item.paint(r)
+        r.saveLayerAlpha(item.paintBounds(), InkFade.ALPHA)
+        item.paint(r)
+        r.restore()
+    }
+
+    /**
+     * Items baked into a page's ink cache: all but lifted items and highlighters ([isHighlighterInk]
+     * — those composite live so they MULTIPLY against the background). While the flow is lifted, so
+     * are the fills under it, which the view then paints live beneath it.
+     */
+    private fun cacheItems(page: Page): InkItems {
+        val n = PageLayers.underText(page.items)
+        val under = if (flowLifted) emptyList() else page.items.subList(0, n).filter { !isLiftedItem(it) }
+        val over = page.items.subList(n, page.items.size).filter { !isLiftedItem(it) && !it.isHighlighterInk() }
+        return InkItems(under, over)
+    }
 
     private fun buildCache(page: Page, res: Double): CacheEntry =
         renderInk(page, res, cacheItems(page), includeFlow = !flowLifted)
 
-    private fun renderInk(page: Page, res: Double, items: List<CanvasItem>, includeFlow: Boolean): CacheEntry {
+    private fun renderInk(page: Page, res: Double, items: InkItems, includeFlow: Boolean): CacheEntry {
         val cover = footprint(page)
         val w = ceil(cover.w * res).toInt().coerceAtLeast(1)
         val h = ceil(cover.h * res).toInt().coerceAtLeast(1)
@@ -1161,8 +1225,10 @@ class CanvasState(
         val r = surface.renderer()
         r.scale(res, res)
         r.translate(-cover.left, -cover.top) // the surface covers the margins, so page space starts inset
+        val f = fade
+        InkFade.paint(items.under, r, f) { it.paint(r) }
         if (includeFlow) paintFlow?.invoke(page, r, cover)
-        for (item in items) item.paint(r)
+        InkFade.paint(items.over, r, f) { it.paint(r) }
         noteGeometryBuilt(page)
         return CacheEntry(surface, res, cover)
     }
@@ -1366,7 +1432,7 @@ class CanvasState(
         val r = existing.surface.renderer()
         r.scale(res, res)
         r.translate(-cover.left, -cover.top)
-        item.paint(r)
+        paintItem(item, r)
     }
 
     /**
@@ -1383,20 +1449,59 @@ class CanvasState(
         repairSharpInk(page, dirtyRect) // erase from the sharp ink layer in place, no re-render
         if (pendingSharp) pendingSharpEdits.add(page to dirtyRect)
         val entry = caches[page] ?: return false
+        repaintCached(entry, page, dirtyRect)
+        if (page in pendingInk) repairedMeanwhile[page] = repairedMeanwhile[page]?.union(dirtyRect) ?: dirtyRect
+        return true
+    }
+
+    /** Clear [rect] (page-local) of [entry]'s ink and paint [page]'s items there again. */
+    private fun repaintCached(entry: CacheEntry, page: Page, rect: Rect) {
         val cover = entry.cover
         val r = entry.surface.renderer()
         r.save()
         r.scale(entry.res, entry.res)
         r.translate(-cover.left, -cover.top)
-        r.clipRect(dirtyRect)
+        r.clipRect(rect)
         r.clear()
-        if (!flowLifted) paintFlow?.invoke(page, r, dirtyRect)
-        for (item in page.items) {
-            if (!isLiftedItem(item) && !item.isHighlighterInk() && item.paintBounds().intersects(dirtyRect)) item.paint(r)
-        }
+        paintInk(page, r, rect)
         r.restore()
-        return true
     }
+
+    /** Repaint [page]'s cached ink where it meets [region]: the fills under its typed text, the text, then the rest. */
+    private fun paintInk(page: Page, r: Renderer, region: Rect) {
+        val n = PageLayers.underText(page.items)
+        val f = fade
+        if (!flowLifted) {
+            InkFade.paint(page.items.subList(0, n), r, f, { !isLiftedItem(it) && it.paintBounds().intersects(region) }) { it.paint(r) }
+            paintFlow?.invoke(page, r, region)
+        }
+        InkFade.paint(page.items.subList(n, page.items.size), r, f, {
+            !isLiftedItem(it) && !it.isHighlighterInk() && it.paintBounds().intersects(region)
+        }) { it.paint(r) }
+    }
+
+    /**
+     * Paint the fills under [page]'s typed text that its ink cache leaves out, beneath the cache: all
+     * of them while the flow is lifted (lifted ones go through [paintLiftedUnderText] instead).
+     */
+    fun paintUnderText(page: Page, r: Renderer, region: Rect) {
+        if (!flowLifted) return
+        val n = PageLayers.underText(page.items)
+        InkFade.paint(page.items.subList(0, n), r, fade, { !isLiftedItem(it) && it.paintBounds().intersects(region) }) { it.paint(r) }
+    }
+
+    /** True when [item] is one of the fills under [page]'s typed text. */
+    fun isUnderText(page: Page, item: CanvasItem): Boolean {
+        val n = PageLayers.underText(page.items)
+        for (i in 0 until n) if (page.items[i] === item) return true
+        return false
+    }
+
+    /**
+     * Paints [page]'s lifted (selected) fills that sit under its typed text, so a selected fill stays
+     * under the ink it is filled in. Called at the page's display origin, before its page transform.
+     */
+    var paintLiftedUnderText: ((page: Page, r: Renderer) -> Unit)? = null
 
     fun invalidatePage(page: Page) {
         caches.remove(page)
@@ -1502,6 +1607,24 @@ class CanvasState(
         cacheGen++
         sharpGen++
         for (page in pages) {
+            if (page !in caches) continue
+            staleInk.add(page)
+            scheduleInk(page, clampedRes(page))
+        }
+    }
+
+    /**
+     * [refreshInk] for a change spread over [regions] (page-local) too wide to repaint inline, as
+     * playback's fade coming or going: the sharp viewport is patched there in place, not dropped,
+     * so a deep zoom stays crisp while the pages rebuild.
+     */
+    fun refreshInkRegions(regions: Map<Page, Rect>) {
+        if (regions.isEmpty()) return
+        cacheGen++
+        for ((page, rect) in regions) {
+            val padded = rect.outset(SHARP_EDIT_PAD)
+            repairSharpInk(page, padded)
+            if (pendingSharp) pendingSharpEdits.add(page to padded)
             if (page !in caches) continue
             staleInk.add(page)
             scheduleInk(page, clampedRes(page))
@@ -1752,7 +1875,7 @@ class CanvasState(
         }
     }
 
-    /** Paint the [base] (paper/border/background/labels) and [ink] (flow + strokes) sharp layers. */
+    /** Paint the [base] (paper/background/labels) and [ink] (flow + strokes) sharp layers. */
     private fun renderSharpFrame(
         base: RasterSurface,
         ink: RasterSurface,
@@ -1768,10 +1891,8 @@ class CanvasState(
         val ri = ink.renderer()
         ri.translate(o.x, o.y)
         ri.scale(z, z)
-        val border = Pen(palette.paperBorder, 1.0, cosmetic = true)
         for (d in draws) {
             rb.fillRect(d.pr, paperColor(d.page))
-            if (pageBorders) rb.strokeRect(d.pr, border)
             rb.save()
             rb.clipRect(d.pr)
             rb.translate(d.pr.left, d.pr.top)
@@ -1784,10 +1905,12 @@ class CanvasState(
             ri.clipRect(d.pr)
             ri.translate(d.pr.left, d.pr.top)
             applyPageTransform(ri, d.page)
+            val f = fade
+            InkFade.paint(d.items.under, ri, f) { it.paint(ri) }
             if (withFlow && d.region.w > 0.0 && d.region.h > 0.0) {
                 paintFlow?.invoke(d.page, ri, d.region)
             }
-            for (item in d.items) item.paint(ri)
+            InkFade.paint(d.items.over, ri, f) { it.paint(ri) }
             ri.restore()
         }
     }
@@ -1805,7 +1928,7 @@ class CanvasState(
         r.clipRect(pr)
         r.translate(pr.left, pr.top)
         applyPageTransform(r, page)
-        item.paint(r)
+        paintItem(item, r)
         r.restore()
     }
 
@@ -1824,10 +1947,7 @@ class CanvasState(
         applyPageTransform(r, page)
         r.clipRect(dirtyRect)
         r.clear()
-        if (!flowLifted) paintFlow?.invoke(page, r, dirtyRect)
-        for (item in page.items) {
-            if (!isLiftedItem(item) && !item.isHighlighterInk() && item.paintBounds().intersects(dirtyRect)) item.paint(r)
-        }
+        paintInk(page, r, dirtyRect)
         r.restore()
     }
 
@@ -1835,11 +1955,7 @@ class CanvasState(
         val cw = contentW * z
         val ch = contentH * z
         val ox = if (!verticalScroll || cw >= clearW) -sx else insetLeft + (clearW - cw) / 2.0
-        // Match origin(): only continuous scrolling centres a short document. In paginated mode
-        // rowTargetScroll already records the initial centring in scrollY; switching this renderer
-        // to implicit centring when page height crosses clearH creates a discontinuous jump (often
-        // around 140% zoom) and makes the touch transform disagree with the painted page.
-        val oy = if (verticalScroll && ch < clearH) insetTop + (clearH - ch) / 2.0 else -sy
+        val oy = if (!verticalScroll || ch >= clearH) -sy else insetTop + (clearH - ch) / 2.0
         return Pt(ox, oy)
     }
 
@@ -1930,7 +2046,6 @@ class CanvasState(
     companion object {
         const val MARGIN = 48.0
         const val MIN_ZOOM = 0.12
-        const val PAGINATED_MIN_ZOOM = 0.60
         const val MAX_ZOOM = 16.0
         const val ZOOM_STEP = 1.25
 

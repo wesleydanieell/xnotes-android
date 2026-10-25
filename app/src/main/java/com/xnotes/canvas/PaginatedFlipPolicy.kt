@@ -16,6 +16,7 @@ internal object PaginatedFlipPolicy {
     private const val FAST_PULL_FRACTION = 0.55
     private const val FAST_FLICK_DP_PER_SECOND = 850.0
     private const val REVERSE_VETO_DP_PER_SECOND = 170.0
+    /** A flick counts only if the finger was still moving this recently when it lifted. */
     const val RELEASE_MOTION_MAX_AGE_MS = 180L
     /** Creating a new page requires a longer pull than navigating to an existing one. */
     const val ADD_PAGE_VIEWPORT_FRACTION = 0.22
@@ -34,34 +35,21 @@ internal object PaginatedFlipPolicy {
         return max(MIN_PULL_DP * density.coerceAtLeast(1.0), viewportWidthPx * VIEWPORT_FRACTION) * zoomFactor
     }
 
-    /**
-     * A deliberate page pull should not fail simply because the finger decelerates before
-     * release. Require meaningful recent motion (not raw touch events), and veto a clear
-     * reversal. Fast flicks are still allowed at shorter distances.
-     */
+    /** A pull past the threshold turns the page unless the finger is flicking back or moving mostly vertically as it lifts. */
     fun shouldCommitOnRelease(
         pullPx: Double,
         viewportWidthPx: Int,
         density: Double,
         fingerVelocityX: Double,
         fingerVelocityY: Double,
-        lastMovementAgeMs: Long,
-        lastHorizontalDirection: Int = 0,
         zoom: Double = 1.0,
     ): Boolean {
-        if (lastMovementAgeMs !in 0..RELEASE_MOTION_MAX_AGE_MS || lastHorizontalDirection == 0) return false
-        val direction = if (pullPx > 0.0) -1 else 1 // finger movement vs scroll pull
-        if (lastHorizontalDirection != 0 && lastHorizontalDirection != direction) return false
         val scale = density.coerceAtLeast(1.0)
         val clearlyReversing = fingerVelocityX * pullPx > 0.0 &&
             abs(fingerVelocityX) >= REVERSE_VETO_DP_PER_SECOND * scale
         val predominantlyVertical = abs(fingerVelocityY) >= 170.0 * scale &&
             abs(fingerVelocityY) > abs(fingerVelocityX) * 1.2
         if (clearlyReversing || predominantlyVertical) return false
-
-        // The normal 75dp / 9%-width pull is enough when the gesture is recent, even
-        // if the velocity was already slowing toward zero on the final frame.
-        if (abs(pullPx) >= threshold(viewportWidthPx, density, zoom)) return true
         return shouldFlip(pullPx, viewportWidthPx, density, fingerVelocityX, fingerVelocityY, zoom)
     }
 
@@ -81,5 +69,11 @@ internal object PaginatedFlipPolicy {
         val horizontalFlick = abs(fingerVelocityX) >= FAST_FLICK_DP_PER_SECOND * density.coerceAtLeast(1.0) &&
             abs(fingerVelocityX) > abs(fingerVelocityY) * 1.5
         return outward && horizontalFlick && abs(pullPx) >= normal * FAST_PULL_FRACTION
+    }
+
+    /** Unwinds [pull] by the scroll [dx] at the [gain] it was built with; returns the new pull and the scroll left over. */
+    fun retract(pull: Double, dx: Double, gain: Double): Pair<Double, Double> {
+        val relaxed = pull + dx * gain
+        return if (relaxed * pull <= 0.0) 0.0 to dx + pull / gain else relaxed to 0.0
     }
 }
