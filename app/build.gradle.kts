@@ -28,8 +28,8 @@ android {
         minSdk = 26
         targetSdk = 36
         testInstrumentationRunner = "android.test.InstrumentationTestRunner"
-        versionCode = System.getenv("COMMUNITY_VERSION_CODE")?.toIntOrNull() ?: 64
-        versionName = "0.9.3"
+        versionCode = System.getenv("COMMUNITY_VERSION_CODE")?.toIntOrNull() ?: 66
+        versionName = "0.9.5"
         ndk {
             abiFilters += listOf("arm64-v8a", "armeabi-v7a", "x86_64")
         }
