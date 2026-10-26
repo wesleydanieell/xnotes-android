@@ -105,16 +105,20 @@ fun NoteTabBar(
         val slotWidthPx = with(density) { animatedWidth.toPx() }
         val barHeightPx = with(density) { 42.dp.toPx() }
         val splitThresholdPx = with(density) { 48.dp.toPx() }
-        val previewDrop = draggingUri?.let { uri ->
+        // The pointer detector may outlive width/scroll animations. Keep its drop resolver current
+        // so releasing at either end uses the same geometry as the visible insertion preview.
+        val resolveDrop: (String, Offset) -> TabDrop? = { uri, point ->
             resolveTabDrop(
                 fromIndex = tabs.tabs.indexOfFirst { it.uri == uri },
-                x = dragPoint.x, y = dragPoint.y,
+                x = point.x, y = point.y,
                 barLeft = barOrigin[0].x, barTop = barOrigin[0].y,
                 barWidth = barWidthPx, barHeight = barHeightPx,
                 slotWidth = slotWidthPx, scrollOffset = scrollState.value.toFloat(),
                 tabCount = tabs.tabs.size, splitThreshold = splitThresholdPx,
             )
         }
+        val currentResolveDrop by rememberUpdatedState(resolveDrop)
+        val previewDrop = draggingUri?.let { uri -> resolveDrop(uri, dragPoint) }
         val insertionX = (previewDrop as? TabDrop.Reorder)?.let {
             insertionBoundary(it.from, it.to) * slotWidthPx
         }
@@ -182,14 +186,7 @@ fun NoteTabBar(
                                 onDragEnd = {
                                     val position = dragPoint
                                     draggingUri = null
-                                    when (val drop = resolveTabDrop(
-                                        fromIndex = tabs.tabs.indexOfFirst { it.uri == tab.uri },
-                                        x = position.x, y = position.y,
-                                        barLeft = barOrigin[0].x, barTop = barOrigin[0].y,
-                                        barWidth = barWidthPx, barHeight = barHeightPx,
-                                        slotWidth = slotWidthPx, scrollOffset = scrollState.value.toFloat(),
-                                        tabCount = tabs.tabs.size, splitThreshold = splitThresholdPx,
-                                    )) {
+                                    when (val drop = currentResolveDrop(tab.uri, position)) {
                                         is TabDrop.Reorder -> reorderNow(drop.from, drop.to)
                                         is TabDrop.Split -> splitNow(tab.uri, drop.onRight)
                                         null -> Unit

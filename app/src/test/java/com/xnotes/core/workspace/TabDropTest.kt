@@ -17,6 +17,15 @@ class TabDropTest {
         assertNull(drop(300f, 30f))
     }
 
+    @Test fun bothEndsAcceptDropsWhileAllTabsAreVisible() {
+        // Four 200px slots fit exactly into the 800px strip. Either visible edge
+        // must resolve to the actual first/last index, including slight overshoot.
+        assertEquals(TabDrop.Reorder(2, 0), drop(20f, 30f, from = 2))
+        assertEquals(TabDrop.Reorder(2, 0), drop(0f, 30f, from = 2))
+        assertEquals(TabDrop.Reorder(1, 3), drop(819f, 30f, from = 1))
+        assertEquals(TabDrop.Reorder(1, 3), drop(850f, 30f, from = 1))
+    }
+
     @Test fun draggingBelowStripTargetsTheCorrectHalf() {
         assertEquals(TabDrop.Split(false), drop(100f, 130f))
         assertEquals(TabDrop.Split(true), drop(700f, 130f))
