@@ -23,6 +23,15 @@ class TabDropTest {
         assertNull(drop(100f, -70f))
     }
 
+    @Test fun insertionGuideAccountsForRemovedTab() {
+        assertEquals(3, insertionBoundary(0, 2))
+        assertEquals(1, insertionBoundary(3, 1))
+    }
+
+    @Test fun singleTabCannotClaimASplitDropTarget() {
+        assertNull(resolveTabDrop(0, 700f, 130f, 20f, 10f, 800f, 42f, 800f, 0f, 1, 48f))
+    }
+
     @Test fun invalidSourceCannotMoveOrSplit() {
         assertNull(drop(700f, 130f, from = 4))
     }

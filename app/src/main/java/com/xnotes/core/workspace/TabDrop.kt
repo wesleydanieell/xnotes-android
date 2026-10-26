@@ -6,6 +6,9 @@ sealed interface TabDrop {
     data class Split(val onRight: Boolean) : TabDrop
 }
 
+/** Boundary in the original strip that corresponds to the target after removal. */
+fun insertionBoundary(from: Int, to: Int): Int = if (to > from) to + 1 else to
+
 fun resolveTabDrop(
     fromIndex: Int,
     x: Float,
@@ -21,7 +24,7 @@ fun resolveTabDrop(
 ): TabDrop? {
     if (fromIndex !in 0 until tabCount || slotWidth <= 0f || barWidth <= 0f) return null
     if (y >= barTop + barHeight + splitThreshold) {
-        return TabDrop.Split(onRight = x >= barLeft + barWidth / 2f)
+        return if (tabCount >= 2) TabDrop.Split(onRight = x >= barLeft + barWidth / 2f) else null
     }
     if (y < barTop - splitThreshold) return null
     val contentX = x - barLeft + scrollOffset
