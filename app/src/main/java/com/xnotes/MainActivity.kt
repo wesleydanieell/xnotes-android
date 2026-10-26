@@ -19,6 +19,7 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -27,6 +28,8 @@ import androidx.compose.foundation.gestures.awaitEachGesture
 import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.foundation.gestures.detectDragGesturesAfterLongPress
 import androidx.compose.foundation.gestures.detectTapGestures
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxScope
 import androidx.compose.foundation.layout.BoxWithConstraints
@@ -70,6 +73,16 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.foundation.focusable
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.layout.positionInWindow
+import androidx.compose.ui.unit.IntOffset
+import androidx.compose.ui.unit.IntRect
+import androidx.compose.ui.unit.IntSize
+import androidx.compose.ui.unit.LayoutDirection
+import androidx.compose.ui.window.Popup
+import androidx.compose.ui.window.PopupPositionProvider
+import androidx.compose.ui.window.PopupProperties
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.Dp
@@ -1459,6 +1472,7 @@ private val SwallowTouches = Modifier.pointerInput(Unit) {
  */
 @Composable
 private fun SplitHost(editor: Editor, actions: PaneActions, openingSplit: Boolean = false) {
+    var swapPreview by remember { mutableStateOf<Pair<com.xnotes.ui.Pane, Float>?>(null) }
     val second = editor.secondary
     val split = editor.noteOpen && second?.noteOpen == true
     // A pane that closed on its own leaves the other one full-screen; once neither is open the
@@ -1505,6 +1519,7 @@ private fun SplitHost(editor: Editor, actions: PaneActions, openingSplit: Boolea
                 actions = actions,
                 closable = split,
                 onSwap = if (split) editor::swapSplitPanes else null,
+                onSwapPreview = { distance -> swapPreview = distance?.let { editor.pane to it } },
                 sideBySide = sideBySide,
                 modifier = (if (swapped) paneOffset(firstExtent).then(paneSize(secondExtent))
                     else paneSize(firstExtent)),
@@ -1517,6 +1532,7 @@ private fun SplitHost(editor: Editor, actions: PaneActions, openingSplit: Boolea
                 actions = actions,
                 closable = split,
                 onSwap = if (split) editor::swapSplitPanes else null,
+                onSwapPreview = { distance -> swapPreview = distance?.let { second.pane to it } },
                 sideBySide = sideBySide,
                 modifier = (if (swapped) paneSize(firstExtent)
                     else paneOffset(if (split) firstExtent else 0.dp).then(paneSize(secondExtent))),
@@ -1532,6 +1548,27 @@ private fun SplitHost(editor: Editor, actions: PaneActions, openingSplit: Boolea
                 modifier = paneOffset((firstExtent - DIVIDER / 2).coerceAtLeast(0.dp))
                     .then(paneSize(DIVIDER)),
             )
+        }
+        if (split) swapPreview?.let { (sourcePane, distance) ->
+            // Preview the OTHER slot while a pane handle is held. Nothing moves until release.
+            val sourceInFirstSlot = (sourcePane == com.xnotes.ui.Pane.PRIMARY) != swapped
+            val destination = if (sourceInFirstSlot) paneOffset(firstExtent).then(paneSize(secondExtent))
+                else paneSize(firstExtent)
+            val ready = kotlin.math.abs(distance) >= with(LocalDensity.current) { 72.dp.toPx() }
+            val opacity by androidx.compose.animation.core.animateFloatAsState(
+                if (ready) 0.20f else 0.09f, tween(140), label = "swapTargetOpacity",
+            )
+            val palette = LocalPalette.current
+            Box(destination.padding(6.dp)
+                .clip(RoundedCornerShape(14.dp))
+                .background(palette.selectionBackground.toComposeColor().copy(alpha = opacity))
+                .border(2.dp, palette.border.toComposeColor().copy(alpha = if (ready) 0.9f else 0.5f),
+                    RoundedCornerShape(14.dp)),
+                contentAlignment = Alignment.Center,
+            ) {
+                Text(if (ready) "Release to swap" else "Drag farther to swap",
+                    color = palette.text.toComposeColor())
+            }
         }
         // Both documents load asynchronously. Mask the transient one-pane arrangement until
         // the final split exists, instead of flashing the dragged note full-screen.
@@ -1562,6 +1599,7 @@ private fun EditorPane(
     actions: PaneActions,
     closable: Boolean,
     onSwap: (() -> Unit)? = null,
+    onSwapPreview: (Float?) -> Unit = {},
     sideBySide: Boolean = true,
     modifier: Modifier = Modifier,
 ) {
@@ -1602,7 +1640,8 @@ private fun EditorPane(
                     Modifier
                         .fillMaxWidth()
                         .height(2.dp)
-                        .background((if (focused) palette.accent else palette.border).toComposeColor()),
+                        .background((if (focused) palette.accent else palette.border).toComposeColor()
+                            .copy(alpha = if (focused) 0.30f else 0.50f)),
                 )
             }
             if (editor.canvasOpen) {
@@ -1711,41 +1750,98 @@ private fun EditorPane(
         // tap or short move never swaps editors, preventing accidental changes while inking.
         if (onSwap != null) {
             val swapNow by rememberUpdatedState(onSwap)
+            val previewNow by rememberUpdatedState(onSwapPreview)
+            val gripOrigin = remember { arrayOf(Offset.Zero) }
+            var dragStartOrigin by remember { mutableStateOf(Offset.Zero) }
             var dragDistance by remember { mutableStateOf(0f) }
+            var ghostOffset by remember { mutableStateOf(Offset.Zero) }
             var isDragging by remember { mutableStateOf(false) }
             val density = LocalDensity.current
             val threshold = with(density) { 72.dp.toPx() }
             val confirmed = kotlin.math.abs(dragDistance) >= threshold
             Box(
                 Modifier.align(Alignment.TopCenter)
-                    .offset(
-                        x = if (sideBySide) with(density) { dragDistance.toDp() } else 0.dp,
-                        y = if (sideBySide) 0.dp else with(density) { dragDistance.toDp() },
-                    )
                     .size(width = 48.dp, height = 20.dp)
+                    .onGloballyPositioned { gripOrigin[0] = it.positionInWindow() }
                     .clip(RoundedCornerShape(bottomStart = 10.dp, bottomEnd = 10.dp))
-                    .background((if (confirmed) palette.accent else palette.border).toComposeColor())
+                    .background(palette.panel.toComposeColor().copy(alpha = if (isDragging) 0.55f else 0.88f))
                     .pointerInput(onSwap, sideBySide) {
                         detectDragGesturesAfterLongPress(
-                            onDragStart = { isDragging = true; dragDistance = 0f },
+                            onDragStart = {
+                                dragStartOrigin = gripOrigin[0]
+                                isDragging = true
+                                dragDistance = 0f
+                                ghostOffset = Offset.Zero
+                                previewNow(0f)
+                            },
                             onDrag = { change, delta ->
                                 change.consume()
                                 dragDistance += if (sideBySide) delta.x else delta.y
+                                ghostOffset += delta
+                                previewNow(dragDistance)
                             },
                             onDragEnd = {
-                                if (kotlin.math.abs(dragDistance) >= threshold) swapNow()
+                                val shouldSwap = kotlin.math.abs(dragDistance) >= threshold
+                                previewNow(null)
+                                isDragging = false
+                                dragDistance = 0f
+                                if (shouldSwap) swapNow()
+                            },
+                            onDragCancel = {
+                                previewNow(null)
                                 dragDistance = 0f
                                 isDragging = false
                             },
-                            onDragCancel = { dragDistance = 0f; isDragging = false },
                         )
                     },
                 contentAlignment = Alignment.Center,
             ) {
-                Text(if (sideBySide) "↔" else "↕", fontSize = 13.sp,
-                    color = palette.text.toComposeColor())
+                PaneGripDots()
+            }
+            if (isDragging) {
+                val floatingPosition = remember(dragStartOrigin, ghostOffset) {
+                    object : PopupPositionProvider {
+                        override fun calculatePosition(
+                            anchorBounds: IntRect, windowSize: IntSize,
+                            layoutDirection: LayoutDirection, popupContentSize: IntSize,
+                        ): IntOffset = IntOffset(
+                            (dragStartOrigin.x + ghostOffset.x).roundToInt(),
+                            (dragStartOrigin.y + ghostOffset.y).roundToInt(),
+                        )
+                    }
+                }
+                Popup(
+                    popupPositionProvider = floatingPosition,
+                    properties = PopupProperties(
+                        flags = WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or
+                            WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE,
+                        dismissOnBackPress = false, dismissOnClickOutside = false,
+                    ),
+                ) {
+                    Row(Modifier
+                        .clip(RoundedCornerShape(12.dp))
+                        .background(palette.panel.toComposeColor())
+                        .border(1.dp, if (confirmed) palette.accent.toComposeColor().copy(alpha = 0.7f)
+                            else palette.border.toComposeColor(), RoundedCornerShape(12.dp))
+                        .padding(horizontal = 12.dp, vertical = 8.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    ) {
+                        PaneGripDots()
+                        Text(editor.title.take(24), fontSize = 11.sp, color = palette.text.toComposeColor())
+                    }
+                }
             }
         }
+    }
+}
+
+/** Three-dot pane grip, styled from the active theme rather than a directional arrow. */
+@Composable
+private fun PaneGripDots() {
+    val color = LocalPalette.current.textDim.toComposeColor()
+    Row(horizontalArrangement = Arrangement.spacedBy(4.dp), verticalAlignment = Alignment.CenterVertically) {
+        repeat(3) { Box(Modifier.size(4.dp).clip(CircleShape).background(color)) }
     }
 }
 
@@ -1798,7 +1894,7 @@ private fun SplitDivider(
                     vertical = if (sideBySide) 0.dp else (DIVIDER - DIVIDER_LINE) / 2,
                 )
                 .clip(RoundedCornerShape(DIVIDER_LINE / 2))
-                .background(palette.accent.toComposeColor()),
+                .background(palette.border.toComposeColor().copy(alpha = 0.55f)),
         )
     }
 }
