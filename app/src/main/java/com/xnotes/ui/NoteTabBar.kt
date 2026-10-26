@@ -7,6 +7,9 @@ import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectDragGesturesAfterLongPress
 import androidx.compose.foundation.interaction.MutableInteractionSource
@@ -45,6 +48,15 @@ import androidx.compose.ui.unit.toSize
 import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.unit.IntOffset
+import androidx.compose.ui.unit.IntRect
+import androidx.compose.ui.unit.IntSize
+import androidx.compose.ui.unit.LayoutDirection
+import androidx.compose.ui.window.Popup
+import androidx.compose.ui.window.PopupPositionProvider
+import androidx.compose.ui.window.PopupProperties
+import android.view.WindowManager
+import kotlin.math.roundToInt
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -193,8 +205,59 @@ fun NoteTabBar(
             }
         }
     }
+    // An untouchable popup follows the pointer beyond the strip into either editor pane.
+    // It never steals the gesture from the tab that started the drag.
+    draggingUri?.let { uri ->
+        val tab = tabs.tabs.firstOrNull { it.uri == uri }
+        if (tab != null) {
+            val overEditor = dragPoint.y >= barOrigin[0].y + barHeightPx + splitThresholdPx
+            val destination = when {
+                !overEditor -> "Reorder tab"
+                dragPoint.x < barOrigin[0].x + barWidthPx / 2 -> "Split to left"
+                else -> "Split to right"
+            }
+            val popupPosition = remember(dragPoint) {
+                object : PopupPositionProvider {
+                    override fun calculatePosition(
+                        anchorBounds: IntRect,
+                        windowSize: IntSize,
+                        layoutDirection: LayoutDirection,
+                        popupContentSize: IntSize,
+                    ): IntOffset = IntOffset(
+                        (dragPoint.x + 20f).roundToInt().coerceIn(0, (windowSize.width - popupContentSize.width).coerceAtLeast(0)),
+                        (dragPoint.y + 20f).roundToInt().coerceIn(0, (windowSize.height - popupContentSize.height).coerceAtLeast(0)),
+                    )
+                }
+            }
+            Popup(popupPositionProvider = popupPosition, properties = TAB_DRAG_POPUP) {
+                Column(
+                    Modifier.widthIn(min = 120.dp, max = 230.dp)
+                        .border(1.dp, palette.selectionBackground.toComposeColor(), RoundedCornerShape(12.dp))
+                        .background(palette.bg.toComposeColor(), RoundedCornerShape(12.dp))
+                        .padding(horizontal = 14.dp, vertical = 10.dp),
+                ) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        val canvas = tab.title.endsWith(".xcanvas", true) || tab.uri.endsWith(".xcanvas", true)
+                        Icon(if (canvas) Icons.Outlined.Gesture else Icons.AutoMirrored.Outlined.Article,
+                            contentDescription = null, tint = palette.text.toComposeColor(), modifier = Modifier.size(18.dp))
+                        Text(tab.title.replace(Regex("(?i)\\.(xnote|xcanvas)$"), ""),
+                            maxLines = 1, overflow = TextOverflow.Ellipsis,
+                            color = palette.text.toComposeColor(), modifier = Modifier.padding(start = 8.dp))
+                    }
+                    Text(destination, fontSize = 11.sp,
+                        color = palette.textDim.toComposeColor(), modifier = Modifier.padding(top = 3.dp))
+                }
+            }
+        }
+    }
     }
 }
+
+private val TAB_DRAG_POPUP = PopupProperties(
+    flags = WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE,
+    dismissOnBackPress = false,
+    dismissOnClickOutside = false,
+)
 
 /** Equal-width tabs until five fit, but never below 144 dp per visible tab. */
 internal fun visibleTabSlots(widthDp: Float, tabCount: Int): Int =
