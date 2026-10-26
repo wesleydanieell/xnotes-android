@@ -29,6 +29,27 @@ class NoteTabsTest {
         assertEquals(listOf("a", "c"), closed.tabs.map { it.uri })
     }
 
+    @Test fun closingEitherSplitTabCollapsesItsPaneButKeepsBackgroundTabs() {
+        val split = NoteTabs().open("a", "A").open("b", "B")
+            .open("c", "C", secondary = true)
+        val leftClosed = split.closeSplitPaneTab("b")
+        assertNull(leftClosed.primaryUri)
+        assertEquals("c", leftClosed.secondaryUri)
+        assertEquals(listOf("a", "c"), leftClosed.tabs.map { it.uri })
+        val rightClosed = split.closeSplitPaneTab("c")
+        assertEquals("b", rightClosed.primaryUri)
+        assertNull(rightClosed.secondaryUri)
+        assertEquals(listOf("a", "b"), rightClosed.tabs.map { it.uri })
+    }
+
+    @Test fun switchingTabAfterClosingPaneKeepsItsExistingAssignment() {
+        val split = NoteTabs().open("a", "A").open("b", "B", secondary = true)
+        val collapsed = split.hide("a")
+        val next = collapsed.open("a", "A", secondary = true)
+        assertNull(next.primaryUri)
+        assertEquals("a", next.secondaryUri)
+    }
+
     @Test fun reorderDoesNotChangeSelectedDocuments() {
         val workspace = NoteTabs().open("a", "A").open("b", "B").move(0, 1)
         assertEquals(listOf("b", "a"), workspace.tabs.map { it.uri })

@@ -104,6 +104,7 @@ import com.xnotes.ui.theme.toComposeColor
 import com.xnotes.core.workspace.NoteTabs
 import com.xnotes.platform.NoteTabsStore
 import kotlin.math.roundToInt
+import kotlinx.coroutines.async
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
@@ -310,6 +311,7 @@ private fun EditorScreen(
     val snackbar = remember { SnackbarHostState() }
     val tabsStore = remember(context) { NoteTabsStore(context) }
     var noteTabs by remember { mutableStateOf(tabsStore.load()) }
+    var splitOpening by remember { mutableStateOf(false) }
     LaunchedEffect(noteTabs) { tabsStore.save(noteTabs) }
     // The LaTeX renderer resolves its fonts through the composition, so this is the
     // only place it can be built; the flow reaches it through MathRendering after.
@@ -707,15 +709,23 @@ private fun EditorScreen(
     }
 
     fun activateTab(uri: String, secondary: Boolean = false) {
-        val target = if (secondary) editor.secondaryPane() else editor
+        // Outside split mode, reuse the only remaining pane. Reopening the other editor would
+        // resurrect a split the user explicitly closed, even if its tab is still in the strip.
+        val workspaceSplit = editor.inSplit && noteTabs.primaryUri != null && noteTabs.secondaryUri != null
+        val useSecondary = if (workspaceSplit) secondary
+            else if (noteTabs.primaryUri == null && noteTabs.secondaryUri != null) true
+            else false
+        val target = if (useSecondary) editor.secondaryPane() else editor
         val other = if (target === editor) editor.secondary else editor
-        if (other?.noteOpen == true && (if (other.canvasOpen) other.infinite.document.path else other.currentUri) == uri) {
+        val otherAssigned = if (other === editor) noteTabs.primaryUri else noteTabs.secondaryUri
+        if (other?.noteOpen == true && otherAssigned == uri &&
+            (if (other.canvasOpen) other.infinite.document.path else other.currentUri) == uri) {
             editor.focusPane(other.pane)
             return
         }
         val activeUri = if (target.canvasOpen) target.infinite.document.path else target.currentUri
         if (target.noteOpen && activeUri == uri) {
-            noteTabs = noteTabs.open(uri, noteTabs.tabs.first { it.uri == uri }.title, secondary)
+            noteTabs = noteTabs.open(uri, noteTabs.tabs.first { it.uri == uri }.title, useSecondary)
             return
         }
         guarded(target) {
@@ -728,8 +738,9 @@ private fun EditorScreen(
             pane.noteOpen && (if (pane.canvasOpen) pane.infinite.document.path else pane.currentUri) == uri
         }
         val finish = {
-            val updated = noteTabs.close(uri)
-            val replacement = when (matching?.pane) {
+            val closingSplitPane = matching != null && editor.inSplit
+            val updated = if (closingSplitPane) noteTabs.closeSplitPaneTab(uri) else noteTabs.close(uri)
+            val replacement = if (closingSplitPane) null else when (matching?.pane) {
                 com.xnotes.ui.Pane.PRIMARY -> updated.primaryUri
                 com.xnotes.ui.Pane.SECONDARY -> updated.secondaryUri
                 else -> null
@@ -755,20 +766,30 @@ private fun EditorScreen(
         editor.splitRatio = 0.5f
         editor.focusPane(com.xnotes.ui.Pane.PRIMARY)
         val second = editor.secondaryPane()
+        splitOpening = true
         scope.launch {
-            openInto(editor, firstUri)
-            openInto(second, secondUri)
-            // A file that would not open leaves no half-built pane behind; the other stays as it is.
-            if (!second.noteOpen) {
-                editor.abandonSecondary()
-                editor.message = context.getString(R.string.err_open_second)
+            try {
+                // Keep the transition covered until both documents are attached. Otherwise the
+                // first async load briefly renders its pane full-screen before the second finishes.
+                kotlinx.coroutines.coroutineScope {
+                    val firstLoad = async { openInto(editor, firstUri) }
+                    val secondLoad = async { openInto(second, secondUri) }
+                    firstLoad.await()
+                    secondLoad.await()
+                }
+                if (!second.noteOpen) {
+                    editor.abandonSecondary()
+                    editor.message = context.getString(R.string.err_open_second)
+                }
+            } finally {
+                splitOpening = false
             }
         }
     }
 
     /** Route a dragged tab into the left or right half of the existing split editor. */
     fun splitFromTab(uri: String, onRight: Boolean) {
-        if (editor.inSplit) {
+        if (editor.inSplit && noteTabs.primaryUri != null && noteTabs.secondaryUri != null) {
             activateTab(uri, secondary = onRight)
             return
         }
@@ -1087,7 +1108,11 @@ private fun EditorScreen(
                     backstageView = com.xnotes.ui.BackstageView.HOME
                     guardedAll { editor.goHomeAll() }
                 },
-                onClosePane = { pane -> guarded(pane) { pane.goHome() } },
+                onClosePane = { pane -> guarded(pane) {
+                    val closedUri = if (pane.canvasOpen) pane.infinite.document.path else pane.currentUri
+                    if (closedUri != null) noteTabs = noteTabs.hide(closedUri)
+                    pane.goHome()
+                } },
                 onInsertImage = { pane, at ->
                     pendingInsert = PendingInsert(pane, at)
                     insertImageLauncher.launch(arrayOf("image/*"))
@@ -1159,7 +1184,7 @@ private fun EditorScreen(
                     insertPdfLauncher.launch(arrayOf("application/pdf"))
                 },
             )
-            SplitHost(editor, actions)
+            SplitHost(editor, actions, openingSplit = splitOpening)
             }
         }
     }
@@ -1419,7 +1444,7 @@ private val SwallowTouches = Modifier.pointerInput(Unit) {
  * when the split opens, closes or the device turns.
  */
 @Composable
-private fun SplitHost(editor: Editor, actions: PaneActions) {
+private fun SplitHost(editor: Editor, actions: PaneActions, openingSplit: Boolean = false) {
     val second = editor.secondary
     val split = editor.noteOpen && second?.noteOpen == true
     // A pane that closed on its own leaves the other one full-screen; once neither is open the
@@ -1427,7 +1452,7 @@ private fun SplitHost(editor: Editor, actions: PaneActions) {
     LaunchedEffect(editor.noteOpen, second?.noteOpen) {
         if (second != null && !second.noteOpen) editor.releaseClosedSecondary()
     }
-    if (!editor.noteOpen && second?.noteOpen != true) return
+    if (!editor.noteOpen && second?.noteOpen != true && !openingSplit) return
 
     val sideBySide = LocalConfiguration.current.orientation ==
         android.content.res.Configuration.ORIENTATION_LANDSCAPE
@@ -1489,6 +1514,17 @@ private fun SplitHost(editor: Editor, actions: PaneActions) {
                 modifier = paneOffset((firstExtent - DIVIDER / 2).coerceAtLeast(0.dp))
                     .then(paneSize(DIVIDER)),
             )
+        }
+        // Both documents load asynchronously. Mask the transient one-pane arrangement until
+        // the final split exists, instead of flashing the dragged note full-screen.
+        if (openingSplit) {
+            val palette = LocalPalette.current
+            Box(Modifier.fillMaxSize().background(palette.bg.toComposeColor()),
+                contentAlignment = Alignment.Center) {
+                androidx.compose.material3.CircularProgressIndicator(
+                    color = palette.accent.toComposeColor(),
+                )
+            }
         }
     }
 }

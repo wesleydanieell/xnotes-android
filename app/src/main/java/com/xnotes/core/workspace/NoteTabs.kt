@@ -58,6 +58,20 @@ data class NoteTabs(
         )
     }
 
+    /**
+     * Closing a tab from a split ends its pane, rather than silently opening a replacement
+     * document in that pane. Background tabs remain available to open in the surviving pane.
+     */
+    fun closeSplitPaneTab(uri: String): NoteTabs {
+        val wasPrimary = primaryUri == uri
+        val wasSecondary = secondaryUri == uri
+        val closed = close(uri)
+        return closed.copy(
+            primaryUri = if (wasPrimary) null else closed.primaryUri,
+            secondaryUri = if (wasSecondary) null else closed.secondaryUri,
+        )
+    }
+
     /** Workspace selection remains valid while the focused editor swaps documents asynchronously. */
     fun selectedUri(secondaryFocused: Boolean): String? =
         if (secondaryFocused) secondaryUri ?: primaryUri else primaryUri ?: secondaryUri
