@@ -8,6 +8,7 @@ import androidx.compose.animation.core.tween
 import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.detectDragGesturesAfterLongPress
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.BoxWithConstraints
@@ -29,10 +30,18 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.key
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.layout.positionInWindow
+import androidx.compose.ui.unit.toSize
 import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
@@ -41,6 +50,8 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.text.style.TextOverflow
 import com.xnotes.core.workspace.NoteTabs
+import com.xnotes.core.workspace.TabDrop
+import com.xnotes.core.workspace.resolveTabDrop
 import com.xnotes.ui.theme.LocalPalette
 import com.xnotes.ui.theme.toComposeColor
 
@@ -54,18 +65,31 @@ fun NoteTabBar(
     activeUri: String?,
     onSelect: (String) -> Unit,
     onClose: (String) -> Unit,
+    onReorder: (Int, Int) -> Unit,
+    onSplit: (String, Boolean) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val palette = LocalPalette.current
     // All tabs are equal-width, so the indicator can be positioned arithmetically.
     // Avoid feeding onGloballyPositioned measurements into Compose state each animation frame.
     val highlight = palette.selectionBackground.toComposeColor()
-    BoxWithConstraints(modifier.fillMaxWidth()) {
+    val barOrigin = remember { arrayOf(Offset.Zero) }
+    val tabOrigins = remember { HashMap<String, Offset>() }
+    var draggingUri by remember { mutableStateOf<String?>(null) }
+    var dragPoint by remember { mutableStateOf(Offset.Zero) }
+    val reorderNow by rememberUpdatedState(onReorder)
+    val splitNow by rememberUpdatedState(onSplit)
+    BoxWithConstraints(modifier.fillMaxWidth().onGloballyPositioned { barOrigin[0] = it.positionInWindow() }) {
         val visibleSlots = visibleTabSlots(maxWidth.value, tabs.tabs.size)
         val tabWidth = maxWidth / visibleSlots
         val animatedWidth by animateDpAsState(tabWidth, tween(240), label = "tabWidth")
         val activeIndex = tabs.tabs.indexOfFirst { it.uri == activeUri }
         val density = LocalDensity.current
+        val scrollState = rememberScrollState()
+        val barWidthPx = with(density) { maxWidth.toPx() }
+        val slotWidthPx = with(density) { animatedWidth.toPx() }
+        val barHeightPx = with(density) { 42.dp.toPx() }
+        val splitThresholdPx = with(density) { 48.dp.toPx() }
         val (highlightXDp, highlightWidthDp) = tabHighlightBounds(animatedWidth.value, activeIndex)
         val targetX = with(density) { highlightXDp.dp.toPx() }
         val targetWidth = with(density) { highlightWidthDp.dp.toPx() }
@@ -75,7 +99,7 @@ fun NoteTabBar(
     Row(
         Modifier.fillMaxWidth()
             .background(palette.bg.toComposeColor())
-            .horizontalScroll(rememberScrollState())
+            .horizontalScroll(scrollState)
             .height(42.dp)
             .drawBehind {
                 if (activeIndex >= 0 && highlightWidth > 0f) {
@@ -101,11 +125,42 @@ fun NoteTabBar(
             Row(
                 Modifier.width(animatedWidth)
                     .padding(horizontal = 2.dp)
+                    .graphicsLayer { alpha = if (draggingUri == tab.uri) 0.55f else 1f }
                     .clip(RoundedCornerShape(8.dp)),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 Row(
                     Modifier.weight(1f).height(40.dp)
+                        .onGloballyPositioned { tabOrigins[tab.uri] = it.positionInWindow() }
+                        .pointerInput(tab.uri, visibleSlots) {
+                            detectDragGesturesAfterLongPress(
+                                onDragStart = { local ->
+                                    draggingUri = tab.uri
+                                    dragPoint = (tabOrigins[tab.uri] ?: Offset.Zero) + local
+                                },
+                                onDrag = { change, delta ->
+                                    change.consume()
+                                    dragPoint += delta
+                                },
+                                onDragEnd = {
+                                    val position = dragPoint
+                                    draggingUri = null
+                                    when (val drop = resolveTabDrop(
+                                        fromIndex = tabs.tabs.indexOfFirst { it.uri == tab.uri },
+                                        x = position.x, y = position.y,
+                                        barLeft = barOrigin[0].x, barTop = barOrigin[0].y,
+                                        barWidth = barWidthPx, barHeight = barHeightPx,
+                                        slotWidth = slotWidthPx, scrollOffset = scrollState.value.toFloat(),
+                                        tabCount = tabs.tabs.size, splitThreshold = splitThresholdPx,
+                                    )) {
+                                        is TabDrop.Reorder -> reorderNow(drop.from, drop.to)
+                                        is TabDrop.Split -> splitNow(tab.uri, drop.onRight)
+                                        null -> Unit
+                                    }
+                                },
+                                onDragCancel = { draggingUri = null },
+                            )
+                        }
                         .clickable(
                             interactionSource = remember(tab.uri) { MutableInteractionSource() },
                             indication = null,

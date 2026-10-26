@@ -765,6 +765,20 @@ private fun EditorScreen(
         }
     }
 
+    /** Route a dragged tab into the left or right half of the existing split editor. */
+    fun splitFromTab(uri: String, onRight: Boolean) {
+        if (editor.inSplit) {
+            activateTab(uri, secondary = onRight)
+            return
+        }
+        val companion = noteTabs.selectedUri(false)?.takeUnless { it == uri }
+            ?: noteTabs.tabs.firstOrNull { it.uri != uri }?.uri
+            ?: return // a single tab cannot display the same document twice
+        guardedAll {
+            if (onRight) openSplit(companion, uri) else openSplit(uri, companion)
+        }
+    }
+
     fun stemOf(uriStr: String): String =
         com.xnotes.core.util.Paths.stem(displayNameOf(resolver, Uri.parse(uriStr)) ?: "Note")
 
@@ -1006,6 +1020,8 @@ private fun EditorScreen(
                     activeUri = noteTabs.selectedUri(editor.active.pane == com.xnotes.ui.Pane.SECONDARY),
                     onSelect = { uri -> activateTab(uri) },
                     onClose = ::closeTab,
+                    onReorder = { from, to -> noteTabs = noteTabs.move(from, to) },
+                    onSplit = ::splitFromTab,
                 )
             }
             Box(modifier = Modifier.fillMaxWidth().weight(1f)) {
