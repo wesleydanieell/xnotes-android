@@ -20,6 +20,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
@@ -230,41 +231,50 @@ fun NoteTabBar(
             }
         }
     }
-    // Preview the destination half of the editor, below the tabs. This popup is
-    // untouchable, so dragging remains owned by the original tab.
-    if (previewDrop is TabDrop.Split) {
-        val side = previewDrop.side
+    // Keep a single preview window alive throughout the entire drag. Recreating/repositioning
+    // separate Popup windows on each edge change could miss frames during fast transitions.
+    if (draggingUri != null) {
+        val side = (previewDrop as? TabDrop.Split)?.side
         val vertical = side == SplitSide.TOP || side == SplitSide.BOTTOM
-        val overlayTopPx = barOrigin[0].y + barHeightPx + with(density) { 6.dp.toPx() }
-        val overlayHeight = (LocalConfiguration.current.screenHeightDp.dp -
-            with(density) { overlayTopPx.toDp() } - 8.dp).coerceAtLeast(180.dp)
-        val overlayPosition = remember(side, overlayTopPx, barWidthPx, overlayHeight) {
+        val screen = LocalConfiguration.current
+        val screenWidth = screen.screenWidthDp.dp
+        val screenHeight = screen.screenHeightDp.dp
+        val previewTop = with(density) { (barOrigin[0].y + barHeightPx).toDp() } + 6.dp
+        val previewHeight = (screenHeight - previewTop - 8.dp).coerceAtLeast(180.dp)
+        val left = with(density) { barOrigin[0].x.toDp() } + 4.dp
+        val targetX = left + if (side == SplitSide.RIGHT) maxWidth / 2 else 0.dp
+        val targetY = previewTop + if (side == SplitSide.BOTTOM) previewHeight / 2 else 0.dp
+        val targetWidth = if (vertical) maxWidth - 8.dp else maxWidth / 2 - 8.dp
+        val targetHeight = if (vertical) previewHeight / 2 - 4.dp else previewHeight
+        val x by animateDpAsState(targetX, tween(130), label = "splitPreviewX")
+        val y by animateDpAsState(targetY, tween(130), label = "splitPreviewY")
+        val w by animateDpAsState(targetWidth, tween(130), label = "splitPreviewWidth")
+        val h by animateDpAsState(targetHeight, tween(130), label = "splitPreviewHeight")
+        val fixedPosition = remember {
             object : PopupPositionProvider {
                 override fun calculatePosition(
-                    anchorBounds: IntRect,
-                    windowSize: IntSize,
-                    layoutDirection: LayoutDirection,
-                    popupContentSize: IntSize,
-                ): IntOffset = IntOffset(
-                    (barOrigin[0].x + if (side == SplitSide.RIGHT) barWidthPx / 2f else 0f).roundToInt() + 4,
-                    (overlayTopPx + if (side == SplitSide.BOTTOM) with(density) { overlayHeight.toPx() } / 2f else 0f).roundToInt(),
-                )
+                    anchorBounds: IntRect, windowSize: IntSize,
+                    layoutDirection: LayoutDirection, popupContentSize: IntSize,
+                ) = IntOffset.Zero
             }
         }
-        Popup(popupPositionProvider = overlayPosition, properties = TAB_DRAG_POPUP) {
-            Box(
-                Modifier.width(if (vertical) maxWidth - 8.dp else maxWidth / 2 - 8.dp)
-                    .height(if (vertical) overlayHeight / 2 - 4.dp else overlayHeight)
-                    .background(highlight.copy(alpha = 0.13f), RoundedCornerShape(16.dp))
-                    .border(2.dp, highlight, RoundedCornerShape(16.dp)),
-                contentAlignment = Alignment.TopCenter,
-            ) {
-                Text(when (side) {
-                    SplitSide.LEFT -> "Left pane"
-                    SplitSide.RIGHT -> "Right pane"
-                    SplitSide.TOP -> "Top pane"
-                    SplitSide.BOTTOM -> "Bottom pane"
-                }, color = highlight, modifier = Modifier.padding(top = 16.dp))
+        Popup(popupPositionProvider = fixedPosition, properties = TAB_DRAG_POPUP) {
+            Box(Modifier.width(screenWidth).height(screenHeight)) {
+                if (side != null) {
+                    Box(
+                        Modifier.offset(x, y).width(w).height(h)
+                            .background(highlight.copy(alpha = 0.13f), RoundedCornerShape(16.dp))
+                            .border(2.dp, highlight, RoundedCornerShape(16.dp)),
+                        contentAlignment = Alignment.TopCenter,
+                    ) {
+                        Text(when (side) {
+                            SplitSide.LEFT -> "Left pane"
+                            SplitSide.RIGHT -> "Right pane"
+                            SplitSide.TOP -> "Top pane"
+                            SplitSide.BOTTOM -> "Bottom pane"
+                        }, color = highlight, modifier = Modifier.padding(top = 16.dp))
+                    }
+                }
             }
         }
     }
