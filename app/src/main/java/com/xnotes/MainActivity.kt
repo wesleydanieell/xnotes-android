@@ -25,6 +25,7 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.foundation.gestures.awaitEachGesture
 import androidx.compose.foundation.gestures.awaitFirstDown
+import androidx.compose.foundation.gestures.detectDragGesturesAfterLongPress
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxScope
@@ -1453,13 +1454,17 @@ private fun SplitHost(editor: Editor, actions: PaneActions) {
             y = if (sideBySide) 0.dp else along,
         )
 
+        val swapped = split && editor.splitSwapped
         if (editor.noteOpen) {
             EditorPane(
                 editor = editor,
                 app = editor,
                 actions = actions,
                 closable = split,
-                modifier = paneSize(firstExtent),
+                onSwap = if (split) editor::swapSplitPanes else null,
+                sideBySide = sideBySide,
+                modifier = (if (swapped) paneOffset(firstExtent).then(paneSize(secondExtent))
+                    else paneSize(firstExtent)),
             )
         }
         if (second?.noteOpen == true) {
@@ -1468,7 +1473,10 @@ private fun SplitHost(editor: Editor, actions: PaneActions) {
                 app = editor,
                 actions = actions,
                 closable = split,
-                modifier = paneOffset(if (split) firstExtent else 0.dp).then(paneSize(secondExtent)),
+                onSwap = if (split) editor::swapSplitPanes else null,
+                sideBySide = sideBySide,
+                modifier = (if (swapped) paneSize(firstExtent)
+                    else paneOffset(if (split) firstExtent else 0.dp).then(paneSize(secondExtent))),
             )
         }
         // Composed last so it sits over both panes and catches the drag before either of them.
@@ -1499,6 +1507,8 @@ private fun EditorPane(
     app: Editor,
     actions: PaneActions,
     closable: Boolean,
+    onSwap: (() -> Unit)? = null,
+    sideBySide: Boolean = true,
     modifier: Modifier = Modifier,
 ) {
     val palette = LocalPalette.current
@@ -1643,6 +1653,45 @@ private fun EditorPane(
             }
         }
         com.xnotes.ui.ColorDropOverlay(if (editor.canvasOpen) editor.infinite else editor)
+        // Hold and drag the small pane grip across the split to exchange positions. A simple
+        // tap or short move never swaps editors, preventing accidental changes while inking.
+        if (onSwap != null) {
+            val swapNow by rememberUpdatedState(onSwap)
+            var dragDistance by remember { mutableStateOf(0f) }
+            var isDragging by remember { mutableStateOf(false) }
+            val density = LocalDensity.current
+            val threshold = with(density) { 72.dp.toPx() }
+            val confirmed = kotlin.math.abs(dragDistance) >= threshold
+            Box(
+                Modifier.align(Alignment.TopCenter)
+                    .offset(
+                        x = if (sideBySide) with(density) { dragDistance.toDp() } else 0.dp,
+                        y = if (sideBySide) 0.dp else with(density) { dragDistance.toDp() },
+                    )
+                    .size(width = 48.dp, height = 20.dp)
+                    .clip(RoundedCornerShape(bottomStart = 10.dp, bottomEnd = 10.dp))
+                    .background((if (confirmed) palette.accent else palette.border).toComposeColor())
+                    .pointerInput(onSwap, sideBySide) {
+                        detectDragGesturesAfterLongPress(
+                            onDragStart = { isDragging = true; dragDistance = 0f },
+                            onDrag = { change, delta ->
+                                change.consume()
+                                dragDistance += if (sideBySide) delta.x else delta.y
+                            },
+                            onDragEnd = {
+                                if (kotlin.math.abs(dragDistance) >= threshold) swapNow()
+                                dragDistance = 0f
+                                isDragging = false
+                            },
+                            onDragCancel = { dragDistance = 0f; isDragging = false },
+                        )
+                    },
+                contentAlignment = Alignment.Center,
+            ) {
+                Text(if (sideBySide) "↔" else "↕", fontSize = 13.sp,
+                    color = palette.text.toComposeColor())
+            }
+        }
     }
 }
 

@@ -9062,6 +9062,14 @@ class Editor(context: Context, val pane: Pane = Pane.PRIMARY) : ToolPopupHost, S
     /** The divider position, as the first pane's share of the split axis. */
     var splitRatio by mutableStateOf(0.5f)
 
+    /** Swaps which live editor occupies the first/second split slot without reopening documents. */
+    var splitSwapped by mutableStateOf(false)
+
+    fun swapSplitPanes() {
+        if (!inSplit) return
+        splitSwapped = !splitSwapped
+    }
+
     /** The pane that keyboard shortcuts and the file/export actions act on. */
     var focusedPane by mutableStateOf(Pane.PRIMARY)
 
