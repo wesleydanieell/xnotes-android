@@ -72,6 +72,11 @@ data class NoteTabs(
         )
     }
 
+    /** Route an ordinary tab click to the focused split pane, not the editor created first. */
+    fun targetSecondary(requested: Boolean?, splitVisible: Boolean, focusedSecondary: Boolean): Boolean =
+        if (splitVisible && primaryUri != null && secondaryUri != null) requested ?: focusedSecondary
+        else primaryUri == null && secondaryUri != null
+
     /** Workspace selection remains valid while the focused editor swaps documents asynchronously. */
     fun selectedUri(secondaryFocused: Boolean): String? =
         if (secondaryFocused) secondaryUri ?: primaryUri else primaryUri ?: secondaryUri

@@ -64,6 +64,7 @@ import androidx.compose.ui.unit.sp
 import androidx.compose.ui.text.style.TextOverflow
 import com.xnotes.core.workspace.NoteTabs
 import com.xnotes.core.workspace.TabDrop
+import com.xnotes.core.workspace.SplitSide
 import com.xnotes.core.workspace.resolveTabDrop
 import com.xnotes.core.workspace.insertionBoundary
 import androidx.compose.ui.platform.LocalConfiguration
@@ -81,7 +82,7 @@ fun NoteTabBar(
     onSelect: (String) -> Unit,
     onClose: (String) -> Unit,
     onReorder: (Int, Int) -> Unit,
-    onSplit: (String, Boolean) -> Unit,
+    onSplit: (String, SplitSide) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val palette = LocalPalette.current
@@ -105,6 +106,7 @@ fun NoteTabBar(
         val slotWidthPx = with(density) { animatedWidth.toPx() }
         val barHeightPx = with(density) { 42.dp.toPx() }
         val splitThresholdPx = with(density) { 48.dp.toPx() }
+        val workspaceBottomPx = with(density) { LocalConfiguration.current.screenHeightDp.dp.toPx() }
         // The pointer detector may outlive width/scroll animations. Keep its drop resolver current
         // so releasing at either end uses the same geometry as the visible insertion preview.
         val resolveDrop: (String, Offset) -> TabDrop? = { uri, point ->
@@ -115,6 +117,7 @@ fun NoteTabBar(
                 barWidth = barWidthPx, barHeight = barHeightPx,
                 slotWidth = slotWidthPx, scrollOffset = scrollState.value.toFloat(),
                 tabCount = tabs.tabs.size, splitThreshold = splitThresholdPx,
+                workspaceBottom = workspaceBottomPx,
             )
         }
         val currentResolveDrop by rememberUpdatedState(resolveDrop)
@@ -188,7 +191,7 @@ fun NoteTabBar(
                                     draggingUri = null
                                     when (val drop = currentResolveDrop(tab.uri, position)) {
                                         is TabDrop.Reorder -> reorderNow(drop.from, drop.to)
-                                        is TabDrop.Split -> splitNow(tab.uri, drop.onRight)
+                                        is TabDrop.Split -> splitNow(tab.uri, drop.side)
                                         null -> Unit
                                     }
                                 },
@@ -230,11 +233,12 @@ fun NoteTabBar(
     // Preview the destination half of the editor, below the tabs. This popup is
     // untouchable, so dragging remains owned by the original tab.
     if (previewDrop is TabDrop.Split) {
-        val onRight = previewDrop.onRight
+        val side = previewDrop.side
+        val vertical = side == SplitSide.TOP || side == SplitSide.BOTTOM
         val overlayTopPx = barOrigin[0].y + barHeightPx + with(density) { 6.dp.toPx() }
         val overlayHeight = (LocalConfiguration.current.screenHeightDp.dp -
             with(density) { overlayTopPx.toDp() } - 8.dp).coerceAtLeast(180.dp)
-        val overlayPosition = remember(onRight, overlayTopPx, barWidthPx) {
+        val overlayPosition = remember(side, overlayTopPx, barWidthPx, overlayHeight) {
             object : PopupPositionProvider {
                 override fun calculatePosition(
                     anchorBounds: IntRect,
@@ -242,20 +246,25 @@ fun NoteTabBar(
                     layoutDirection: LayoutDirection,
                     popupContentSize: IntSize,
                 ): IntOffset = IntOffset(
-                    (barOrigin[0].x + if (onRight) barWidthPx / 2f else 0f).roundToInt() + 4,
-                    overlayTopPx.roundToInt(),
+                    (barOrigin[0].x + if (side == SplitSide.RIGHT) barWidthPx / 2f else 0f).roundToInt() + 4,
+                    (overlayTopPx + if (side == SplitSide.BOTTOM) with(density) { overlayHeight.toPx() } / 2f else 0f).roundToInt(),
                 )
             }
         }
         Popup(popupPositionProvider = overlayPosition, properties = TAB_DRAG_POPUP) {
             Box(
-                Modifier.width(maxWidth / 2 - 8.dp).height(overlayHeight)
+                Modifier.width(if (vertical) maxWidth - 8.dp else maxWidth / 2 - 8.dp)
+                    .height(if (vertical) overlayHeight / 2 - 4.dp else overlayHeight)
                     .background(highlight.copy(alpha = 0.13f), RoundedCornerShape(16.dp))
                     .border(2.dp, highlight, RoundedCornerShape(16.dp)),
                 contentAlignment = Alignment.TopCenter,
             ) {
-                Text(if (onRight) "Right pane" else "Left pane",
-                    color = highlight, modifier = Modifier.padding(top = 16.dp))
+                Text(when (side) {
+                    SplitSide.LEFT -> "Left pane"
+                    SplitSide.RIGHT -> "Right pane"
+                    SplitSide.TOP -> "Top pane"
+                    SplitSide.BOTTOM -> "Bottom pane"
+                }, color = highlight, modifier = Modifier.padding(top = 16.dp))
             }
         }
     }
@@ -265,7 +274,7 @@ fun NoteTabBar(
         val tab = tabs.tabs.firstOrNull { it.uri == uri }
         if (tab != null) {
             val destination = when (val drop = previewDrop) {
-                is TabDrop.Split -> if (drop.onRight) "Split to right" else "Split to left"
+                is TabDrop.Split -> "Split to ${drop.side.name.lowercase()}"
                 is TabDrop.Reorder -> "Move to position ${drop.to + 1}"
                 null -> "Drag to reorder"
             }

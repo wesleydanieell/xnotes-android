@@ -26,10 +26,20 @@ class TabDropTest {
         assertEquals(TabDrop.Reorder(1, 3), drop(850f, 30f, from = 1))
     }
 
-    @Test fun draggingBelowStripTargetsTheCorrectHalf() {
-        assertEquals(TabDrop.Split(false), drop(100f, 130f))
-        assertEquals(TabDrop.Split(true), drop(700f, 130f))
+    @Test fun draggingIntoEachEdgeTargetsFourSplitDirections() {
+        assertEquals(TabDrop.Split(SplitSide.LEFT), drop(100f, 130f))
+        assertEquals(TabDrop.Split(SplitSide.RIGHT), drop(700f, 130f))
+        assertEquals(TabDrop.Split(SplitSide.TOP), drop(400f, 130f))
+        assertEquals(TabDrop.Split(SplitSide.BOTTOM), drop(400f, 700f))
         assertNull(drop(100f, -70f))
+    }
+
+    @Test fun splitTargetCanUsePortraitWorkspaceHeight() {
+        assertEquals(TabDrop.Split(SplitSide.BOTTOM), resolveTabDrop(
+            fromIndex = 0, x = 400f, y = 1200f, barLeft = 0f, barTop = 0f,
+            barWidth = 800f, barHeight = 42f, slotWidth = 200f, scrollOffset = 0f,
+            tabCount = 4, splitThreshold = 48f, workspaceBottom = 1400f,
+        ))
     }
 
     @Test fun insertionGuideAccountsForRemovedTab() {

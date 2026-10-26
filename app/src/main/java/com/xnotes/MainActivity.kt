@@ -102,6 +102,8 @@ import com.xnotes.ui.theme.LocalPalette
 import com.xnotes.ui.theme.XnotesTheme
 import com.xnotes.ui.theme.toComposeColor
 import com.xnotes.core.workspace.NoteTabs
+import com.xnotes.core.workspace.SplitSide
+import com.xnotes.ui.SplitAxis
 import com.xnotes.platform.NoteTabsStore
 import kotlin.math.roundToInt
 import kotlinx.coroutines.async
@@ -708,13 +710,13 @@ private fun EditorScreen(
         }
     }
 
-    fun activateTab(uri: String, secondary: Boolean = false) {
+    fun activateTab(uri: String, secondary: Boolean? = null) {
         // Outside split mode, reuse the only remaining pane. Reopening the other editor would
         // resurrect a split the user explicitly closed, even if its tab is still in the strip.
-        val workspaceSplit = editor.inSplit && noteTabs.primaryUri != null && noteTabs.secondaryUri != null
-        val useSecondary = if (workspaceSplit) secondary
-            else if (noteTabs.primaryUri == null && noteTabs.secondaryUri != null) true
-            else false
+        val useSecondary = noteTabs.targetSecondary(
+            requested = secondary, splitVisible = editor.inSplit,
+            focusedSecondary = editor.active.pane == com.xnotes.ui.Pane.SECONDARY,
+        )
         val target = if (useSecondary) editor.secondaryPane() else editor
         val other = if (target === editor) editor.secondary else editor
         val otherAssigned = if (other === editor) noteTabs.primaryUri else noteTabs.secondaryUri
@@ -762,8 +764,10 @@ private fun EditorScreen(
     }
 
     /** Open two picked files together, one per pane, and start the split focused on the first. */
-    fun openSplit(firstUri: String, secondUri: String) {
+    fun openSplit(firstUri: String, secondUri: String, axis: SplitAxis = SplitAxis.AUTO) {
         editor.splitRatio = 0.5f
+        editor.splitAxis = axis
+        editor.splitSwapped = false
         editor.focusPane(com.xnotes.ui.Pane.PRIMARY)
         val second = editor.secondaryPane()
         splitOpening = true
@@ -787,17 +791,27 @@ private fun EditorScreen(
         }
     }
 
-    /** Route a dragged tab into the left or right half of the existing split editor. */
-    fun splitFromTab(uri: String, onRight: Boolean) {
+    /** Route the dragged tab into any of four half-screen targets. */
+    fun splitFromTab(uri: String, side: SplitSide) {
+        val axis = when (side) {
+            SplitSide.LEFT, SplitSide.RIGHT -> SplitAxis.HORIZONTAL
+            SplitSide.TOP, SplitSide.BOTTOM -> SplitAxis.VERTICAL
+        }
+        val firstSlot = side == SplitSide.LEFT || side == SplitSide.TOP
         if (editor.inSplit && noteTabs.primaryUri != null && noteTabs.secondaryUri != null) {
-            activateTab(uri, secondary = onRight)
+            // A grip may have swapped physical positions. The drop selects a screen slot, not
+            // an editor construction order, so resolve through the current swap arrangement.
+            editor.splitAxis = axis
+            val secondaryTarget = if (firstSlot) editor.splitSwapped else !editor.splitSwapped
+            editor.focusPane(if (secondaryTarget) com.xnotes.ui.Pane.SECONDARY else com.xnotes.ui.Pane.PRIMARY)
+            activateTab(uri, secondary = secondaryTarget)
             return
         }
         val companion = noteTabs.selectedUri(false)?.takeUnless { it == uri }
             ?: noteTabs.tabs.firstOrNull { it.uri != uri }?.uri
             ?: return // a single tab cannot display the same document twice
         guardedAll {
-            if (onRight) openSplit(companion, uri) else openSplit(uri, companion)
+            if (firstSlot) openSplit(uri, companion, axis) else openSplit(companion, uri, axis)
         }
     }
 
@@ -1454,8 +1468,12 @@ private fun SplitHost(editor: Editor, actions: PaneActions, openingSplit: Boolea
     }
     if (!editor.noteOpen && second?.noteOpen != true && !openingSplit) return
 
-    val sideBySide = LocalConfiguration.current.orientation ==
-        android.content.res.Configuration.ORIENTATION_LANDSCAPE
+    val sideBySide = when (editor.splitAxis) {
+        SplitAxis.HORIZONTAL -> true
+        SplitAxis.VERTICAL -> false
+        SplitAxis.AUTO -> LocalConfiguration.current.orientation ==
+            android.content.res.Configuration.ORIENTATION_LANDSCAPE
+    }
     val ratio = editor.splitRatio.coerceIn(MIN_PANE_RATIO, 1f - MIN_PANE_RATIO)
     BoxWithConstraints(Modifier.fillMaxSize().then(SwallowTouches).imePadding()) {
         val fullW = maxWidth
