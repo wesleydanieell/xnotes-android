@@ -1737,13 +1737,13 @@ private fun EditorPane(
     app: Editor,
     actions: PaneActions,
     closable: Boolean,
+    modifier: Modifier = Modifier,
     onSwapPreview: (Offset?) -> Unit = {},
     onDrop: ((SplitSide) -> Unit)? = null,
     onGhost: (Offset?) -> Unit = {},
     hostOrigin: Offset = Offset.Zero,
     hostPixels: IntSize = IntSize.Zero,
     gripRootOrigin: Offset = Offset.Zero,
-    modifier: Modifier = Modifier,
 ) {
     val palette = LocalPalette.current
     val focusRequester = remember { FocusRequester() }

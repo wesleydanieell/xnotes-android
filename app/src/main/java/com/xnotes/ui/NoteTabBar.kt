@@ -32,6 +32,7 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.key
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
@@ -160,6 +161,9 @@ fun NoteTabBar(
     ) {
         tabs.tabs.forEach { tab ->
             key(tab.uri) {
+            DisposableEffect(tab.uri) {
+                onDispose { tabOrigins.remove(tab.uri) }
+            }
             val tabTint by animateColorAsState(
                 targetValue = if (tab.uri == activeUri) palette.selectionForeground.toComposeColor()
                     else palette.textDim.toComposeColor(),
