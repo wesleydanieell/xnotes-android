@@ -94,7 +94,6 @@ import androidx.compose.ui.input.key.KeyEventType
 import androidx.compose.ui.input.key.onPreviewKeyEvent
 import androidx.compose.ui.input.key.type
 import androidx.compose.ui.input.pointer.PointerEventPass
-import androidx.compose.ui.input.pointer.PointerEventType
 import androidx.compose.ui.input.pointer.PointerType
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalConfiguration
@@ -1858,10 +1857,13 @@ private fun EditorPane(
     val takeFocus = Modifier.pointerInput(editor) {
         awaitPointerEventScope {
             while (true) {
-                // Final pass: the native canvas receives ACTION_DOWN before the focus change
-                // recomposes floating toolbars. Do not consume the pen's first event.
+                // Never change Compose focus during an active ink/pan gesture. Even when
+                // ACTION_DOWN reached the native canvas, rebuilding a floating toolbar
+                // during MOVE could cancel its touch target. Focus after the last lift.
                 val event = awaitPointerEvent(PointerEventPass.Final)
-                if (event.type == PointerEventType.Press && app.active !== editor) app.focusPane(editor.pane)
+                if (com.xnotes.ui.shouldFocusPaneAfterEvent(event.type,
+                        anyPointerPressed = event.changes.any { it.pressed },
+                        alreadyFocused = app.active === editor)) app.focusPane(editor.pane)
             }
         }
     }
