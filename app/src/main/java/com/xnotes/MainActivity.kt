@@ -1570,6 +1570,8 @@ private fun SplitHost(editor: Editor, actions: PaneActions, openingSplit: Boolea
         )
 
         val swapped = split && editor.splitSwapped
+        val toolbarLook = com.xnotes.ui.LocalToolbarLook.current
+        val gripTopInset = com.xnotes.ui.paneGripTopInset(toolbarLook)
         val density = LocalDensity.current
         // Compute each grip's actual screen slot from the split layout, independent of where
         // its EditorPane was originally composed or which document it currently displays.
@@ -1577,7 +1579,7 @@ private fun SplitHost(editor: Editor, actions: PaneActions, openingSplit: Boolea
             val (x, y) = paneGripOffset(sideBySide,
                 with(density) { firstExtent.toPx() }, with(density) { secondExtent.toPx() },
                 with(density) { fullW.toPx() }, firstSlot, with(density) { 48.dp.toPx() })
-            return hostRootOrigin + Offset(x, y)
+            return hostRootOrigin + Offset(x, y + with(density) { gripTopInset.toPx() })
         }
         if (editor.noteOpen) {
             EditorPane(
@@ -1595,6 +1597,7 @@ private fun SplitHost(editor: Editor, actions: PaneActions, openingSplit: Boolea
                 hostOrigin = hostRootOrigin,
                 hostPixels = hostPixels,
                 gripRootOrigin = gripRootOrigin(!swapped),
+                gripTopInset = gripTopInset,
                 modifier = (if (swapped) paneOffset(firstExtent).then(paneSize(secondExtent))
                     else paneSize(firstExtent)),
             )
@@ -1615,6 +1618,7 @@ private fun SplitHost(editor: Editor, actions: PaneActions, openingSplit: Boolea
                 hostOrigin = hostRootOrigin,
                 hostPixels = hostPixels,
                 gripRootOrigin = gripRootOrigin(swapped),
+                gripTopInset = gripTopInset,
                 modifier = (if (swapped) paneSize(firstExtent)
                     else paneOffset(if (split) firstExtent else 0.dp).then(paneSize(secondExtent))),
             )
@@ -1744,6 +1748,7 @@ private fun EditorPane(
     hostOrigin: Offset = Offset.Zero,
     hostPixels: IntSize = IntSize.Zero,
     gripRootOrigin: Offset = Offset.Zero,
+    gripTopInset: Dp = 4.dp,
 ) {
     val palette = LocalPalette.current
     val focusRequester = remember { FocusRequester() }
@@ -1903,6 +1908,7 @@ private fun EditorPane(
             var previewTarget by remember { mutableStateOf<SplitSide?>(null) }
             Box(
                 Modifier.align(Alignment.TopCenter)
+                    .offset(y = gripTopInset)
                     .size(width = 48.dp, height = 16.dp)
                     .pointerInput(Unit) {
                         detectDragGesturesAfterLongPress(

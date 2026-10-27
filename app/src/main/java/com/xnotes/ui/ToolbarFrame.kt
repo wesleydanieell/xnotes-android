@@ -64,6 +64,12 @@ internal fun barMetrics(size: ToolbarSize): BarMetrics = when (size) {
     ToolbarSize.COMFORTABLE -> BarMetrics(50.dp, 40.dp, 26.dp, 34.dp, 30.dp, 13.sp)
 }
 
+/** Keep pane drag handles clear of the document toolbar at every configured size. */
+internal fun paneGripTopInset(look: ToolbarLook): Dp =
+    if (look.position == ToolbarPosition.TOP) {
+        barMetrics(look.size).thickness + (if (look.floating) 16.dp else 4.dp)
+    } else 4.dp
+
 internal val LocalBar = staticCompositionLocalOf { barMetrics(ToolbarSize.REGULAR) }
 
 /** Where a menu opens from its anchor; a side rail sets it so its menus open beside the rail. */
