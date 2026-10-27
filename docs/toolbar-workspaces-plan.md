@@ -2,6 +2,21 @@
 
 Baseline: upstream `master` (0.9.6). Feature branch: `feat/customizable-toolbars`.
 
+## Isolated tablet debug build
+
+- This branch's debug application ID is `com.xnotes.toolbarsdebug`, with launcher label
+  `XNotes Toolbars`. It coexists with `com.xnotes`, `com.xnotes.community` and
+  `com.xnotes.debug` without touching their installed data.
+- Locally signed debug APKs use `~/.android/xnotes-toolbars-debug.keystore` when present,
+  with alias `xnotes-toolbars-debug`. This key is deliberately outside Git. Preserve the same
+  keystore for future updates; losing it requires reinstalling this *debug variant*.
+- Without that local keystore, Gradle falls back to the usual Android debug signing so CI
+  and contributors can build; that fallback APK cannot update an APK signed by the separate
+  local key without reinstalling.
+- This change applies only to `debug`; do not install this branch's `release` on top of
+  the regular XNotes installation. Before opening an upstream PR, review whether to keep
+  these branch-specific packaging details.
+
 ## Goals
 
 Allow users to create several independently positioned and styled toolbars, build compact

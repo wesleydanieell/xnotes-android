@@ -1,3 +1,4 @@
+import java.io.File
 import java.util.Properties
 
 plugins {
@@ -14,6 +15,11 @@ val hasReleaseSigning = keystorePropertiesFile.exists()
 val keystoreProperties = Properties().apply {
     if (hasReleaseSigning) keystorePropertiesFile.inputStream().use { load(it) }
 }
+
+// An optional, machine-local key keeps Toolbar Lab debug updates separate from other XNotes
+// builds. CI and other contributors can still build with the normal Android debug key.
+val toolbarDebugKeystore = File(System.getProperty("user.home"), ".android/xnotes-toolbars-debug.keystore")
+val hasToolbarDebugSigning = toolbarDebugKeystore.isFile
 
 android {
     namespace = "com.xnotes"
@@ -67,12 +73,21 @@ android {
                 keyPassword = keystoreProperties.getProperty("keyPassword")
             }
         }
+        if (hasToolbarDebugSigning) {
+            create("toolbarDebug") {
+                storeFile = toolbarDebugKeystore
+                storePassword = "android"
+                keyAlias = "xnotes-toolbars-debug"
+                keyPassword = "android"
+            }
+        }
     }
 
     buildTypes {
         debug {
-            applicationIdSuffix = ".debug"
-            versionNameSuffix = "-debug"
+            applicationIdSuffix = ".toolbarsdebug"
+            versionNameSuffix = "-toolbars-debug"
+            if (hasToolbarDebugSigning) signingConfig = signingConfigs.getByName("toolbarDebug")
         }
         release {
             if (hasReleaseSigning) signingConfig = signingConfigs.getByName("release")
