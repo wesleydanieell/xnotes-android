@@ -116,6 +116,8 @@ import com.xnotes.ui.theme.XnotesTheme
 import com.xnotes.ui.theme.toComposeColor
 import com.xnotes.core.workspace.NoteTabs
 import com.xnotes.core.workspace.SplitSide
+import com.xnotes.core.workspace.paneDropSide
+import com.xnotes.core.workspace.panePlacementChanges
 import com.xnotes.ui.SplitAxis
 import com.xnotes.platform.NoteTabsStore
 import kotlin.math.roundToInt
@@ -1461,6 +1463,29 @@ private val SwallowTouches = Modifier.pointerInput(Unit) {
     }
 }
 
+/** The four edges are drop targets; releasing outside the workspace cancels the gesture. */
+private fun resolvePaneDrop(point: Offset, origin: Offset, size: IntSize): SplitSide? {
+    return paneDropSide(point.x - origin.x, point.y - origin.y,
+        size.width.toFloat(), size.height.toFloat())
+}
+
+/** Move the dragged editor to an explicit screen half; dropping in its current half is a no-op. */
+private fun placeSplitPane(editor: Editor, pane: com.xnotes.ui.Pane, side: SplitSide,
+    currentlyHorizontal: Boolean) {
+    if (!editor.inSplit) return
+    val nextAxis = when (side) {
+        SplitSide.LEFT, SplitSide.RIGHT -> SplitAxis.HORIZONTAL
+        SplitSide.TOP, SplitSide.BOTTOM -> SplitAxis.VERTICAL
+    }
+    if (!panePlacementChanges(pane == com.xnotes.ui.Pane.PRIMARY,
+            currentlyHorizontal, editor.splitSwapped, side)) return
+    val firstSlot = side == SplitSide.LEFT || side == SplitSide.TOP
+    val swapped = if (pane == com.xnotes.ui.Pane.PRIMARY) !firstSlot else firstSlot
+    if (editor.splitAxis != nextAxis) editor.splitRatio = 0.5f
+    editor.splitAxis = nextAxis
+    editor.splitSwapped = swapped
+}
+
 /**
  * Lays the open panes over the backstage. Both open is a split: side by side in landscape, stacked
  * in portrait, with a draggable divider between them. One open is that pane full-screen, and none
@@ -1472,7 +1497,9 @@ private val SwallowTouches = Modifier.pointerInput(Unit) {
  */
 @Composable
 private fun SplitHost(editor: Editor, actions: PaneActions, openingSplit: Boolean = false) {
-    var swapPreview by remember { mutableStateOf<Pair<com.xnotes.ui.Pane, Float>?>(null) }
+    var swapPreview by remember { mutableStateOf<Pair<com.xnotes.ui.Pane, SplitSide>?>(null) }
+    var hostOrigin by remember { mutableStateOf(Offset.Zero) }
+    var hostPixels by remember { mutableStateOf(IntSize.Zero) }
     val second = editor.secondary
     val split = editor.noteOpen && second?.noteOpen == true
     // A pane that closed on its own leaves the other one full-screen; once neither is open the
@@ -1489,7 +1516,11 @@ private fun SplitHost(editor: Editor, actions: PaneActions, openingSplit: Boolea
             android.content.res.Configuration.ORIENTATION_LANDSCAPE
     }
     val ratio = editor.splitRatio.coerceIn(MIN_PANE_RATIO, 1f - MIN_PANE_RATIO)
-    BoxWithConstraints(Modifier.fillMaxSize().then(SwallowTouches).imePadding()) {
+    BoxWithConstraints(Modifier.fillMaxSize().then(SwallowTouches).imePadding()
+        .onGloballyPositioned { coordinates ->
+            hostOrigin = coordinates.positionInWindow()
+            hostPixels = coordinates.size
+        }) {
         val fullW = maxWidth
         val fullH = maxHeight
         val full = if (sideBySide) fullW else fullH
@@ -1518,9 +1549,15 @@ private fun SplitHost(editor: Editor, actions: PaneActions, openingSplit: Boolea
                 app = editor,
                 actions = actions,
                 closable = split,
-                onSwap = if (split) editor::swapSplitPanes else null,
-                onSwapPreview = { distance -> swapPreview = distance?.let { editor.pane to it } },
+                onSwapPreview = { position ->
+                    swapPreview = position?.let { point ->
+                        resolvePaneDrop(point, hostOrigin, hostPixels)?.let { editor.pane to it }
+                    }
+                },
+                onDrop = { side -> placeSplitPane(editor, editor.pane, side, sideBySide) },
                 sideBySide = sideBySide,
+                hostOrigin = hostOrigin,
+                hostPixels = hostPixels,
                 modifier = (if (swapped) paneOffset(firstExtent).then(paneSize(secondExtent))
                     else paneSize(firstExtent)),
             )
@@ -1531,9 +1568,15 @@ private fun SplitHost(editor: Editor, actions: PaneActions, openingSplit: Boolea
                 app = editor,
                 actions = actions,
                 closable = split,
-                onSwap = if (split) editor::swapSplitPanes else null,
-                onSwapPreview = { distance -> swapPreview = distance?.let { second.pane to it } },
+                onSwapPreview = { position ->
+                    swapPreview = position?.let { point ->
+                        resolvePaneDrop(point, hostOrigin, hostPixels)?.let { second.pane to it }
+                    }
+                },
+                onDrop = { side -> placeSplitPane(editor, second.pane, side, sideBySide) },
                 sideBySide = sideBySide,
+                hostOrigin = hostOrigin,
+                hostPixels = hostPixels,
                 modifier = (if (swapped) paneSize(firstExtent)
                     else paneOffset(if (split) firstExtent else 0.dp).then(paneSize(secondExtent))),
             )
@@ -1549,24 +1592,39 @@ private fun SplitHost(editor: Editor, actions: PaneActions, openingSplit: Boolea
                     .then(paneSize(DIVIDER)),
             )
         }
-        if (split) swapPreview?.let { (sourcePane, distance) ->
-            // Preview the OTHER slot while a pane handle is held. Nothing moves until release.
-            val sourceInFirstSlot = (sourcePane == com.xnotes.ui.Pane.PRIMARY) != swapped
-            val destination = if (sourceInFirstSlot) paneOffset(firstExtent).then(paneSize(secondExtent))
-                else paneSize(firstExtent)
-            val ready = kotlin.math.abs(distance) >= with(LocalDensity.current) { 72.dp.toPx() }
-            val opacity by androidx.compose.animation.core.animateFloatAsState(
-                if (ready) 0.20f else 0.09f, tween(140), label = "swapTargetOpacity",
+        if (split) swapPreview?.let { (sourcePane, side) ->
+            val sourceFirst = (sourcePane == com.xnotes.ui.Pane.PRIMARY) != swapped
+            val currentSide = if (sideBySide) {
+                if (sourceFirst) SplitSide.LEFT else SplitSide.RIGHT
+            } else {
+                if (sourceFirst) SplitSide.TOP else SplitSide.BOTTOM
+            }
+            val effective = side != currentSide
+            val previewW by androidx.compose.animation.core.animateDpAsState(
+                if (side == SplitSide.LEFT || side == SplitSide.RIGHT) fullW / 2 else fullW,
+                tween(150), label = "gripPreviewWidth",
+            )
+            val previewH by androidx.compose.animation.core.animateDpAsState(
+                if (side == SplitSide.TOP || side == SplitSide.BOTTOM) fullH / 2 else fullH,
+                tween(150), label = "gripPreviewHeight",
+            )
+            val previewX by androidx.compose.animation.core.animateDpAsState(
+                if (side == SplitSide.RIGHT) fullW / 2 else 0.dp,
+                tween(150), label = "gripPreviewX",
+            )
+            val previewY by androidx.compose.animation.core.animateDpAsState(
+                if (side == SplitSide.BOTTOM) fullH / 2 else 0.dp,
+                tween(150), label = "gripPreviewY",
             )
             val palette = LocalPalette.current
-            Box(destination.padding(6.dp)
+            Box(Modifier.offset(previewX, previewY).size(previewW, previewH).padding(6.dp)
                 .clip(RoundedCornerShape(14.dp))
-                .background(palette.selectionBackground.toComposeColor().copy(alpha = opacity))
-                .border(2.dp, palette.border.toComposeColor().copy(alpha = if (ready) 0.9f else 0.5f),
+                .background(palette.selectionBackground.toComposeColor().copy(alpha = if (effective) 0.20f else 0.08f))
+                .border(2.dp, palette.border.toComposeColor().copy(alpha = if (effective) 0.9f else 0.35f),
                     RoundedCornerShape(14.dp)),
                 contentAlignment = Alignment.Center,
             ) {
-                Text(if (ready) "Release to swap" else "Drag farther to swap",
+                Text(if (effective) "Release to position" else "Current position",
                     color = palette.text.toComposeColor())
             }
         }
@@ -1598,9 +1656,11 @@ private fun EditorPane(
     app: Editor,
     actions: PaneActions,
     closable: Boolean,
-    onSwap: (() -> Unit)? = null,
-    onSwapPreview: (Float?) -> Unit = {},
+    onSwapPreview: (Offset?) -> Unit = {},
+    onDrop: ((SplitSide) -> Unit)? = null,
     sideBySide: Boolean = true,
+    hostOrigin: Offset = Offset.Zero,
+    hostPixels: IntSize = IntSize.Zero,
     modifier: Modifier = Modifier,
 ) {
     val palette = LocalPalette.current
@@ -1748,48 +1808,51 @@ private fun EditorPane(
         com.xnotes.ui.ColorDropOverlay(if (editor.canvasOpen) editor.infinite else editor)
         // Hold and drag the small pane grip across the split to exchange positions. A simple
         // tap or short move never swaps editors, preventing accidental changes while inking.
-        if (onSwap != null) {
-            val swapNow by rememberUpdatedState(onSwap)
+        if (onDrop != null) {
+            val dropNow by rememberUpdatedState(onDrop)
             val previewNow by rememberUpdatedState(onSwapPreview)
             val gripOrigin = remember { arrayOf(Offset.Zero) }
             var dragStartOrigin by remember { mutableStateOf(Offset.Zero) }
-            var dragDistance by remember { mutableStateOf(0f) }
             var ghostOffset by remember { mutableStateOf(Offset.Zero) }
             var isDragging by remember { mutableStateOf(false) }
-            val density = LocalDensity.current
-            val threshold = with(density) { 72.dp.toPx() }
-            val confirmed = kotlin.math.abs(dragDistance) >= threshold
+            val threshold = with(LocalDensity.current) { 48.dp.toPx() }
+            val hostOriginNow by rememberUpdatedState(hostOrigin)
+            val hostPixelsNow by rememberUpdatedState(hostPixels)
+            var previewTarget by remember { mutableStateOf<SplitSide?>(null) }
+            val confirmed = previewTarget != null
             Box(
                 Modifier.align(Alignment.TopCenter)
                     .size(width = 48.dp, height = 20.dp)
                     .onGloballyPositioned { gripOrigin[0] = it.positionInWindow() }
                     .clip(RoundedCornerShape(bottomStart = 10.dp, bottomEnd = 10.dp))
                     .background(palette.panel.toComposeColor().copy(alpha = if (isDragging) 0.55f else 0.88f))
-                    .pointerInput(onSwap, sideBySide) {
+                    .pointerInput(Unit) {
                         detectDragGesturesAfterLongPress(
                             onDragStart = {
                                 dragStartOrigin = gripOrigin[0]
                                 isDragging = true
-                                dragDistance = 0f
                                 ghostOffset = Offset.Zero
-                                previewNow(0f)
+                                previewTarget = null
+                                previewNow(null)
                             },
                             onDrag = { change, delta ->
                                 change.consume()
-                                dragDistance += if (sideBySide) delta.x else delta.y
                                 ghostOffset += delta
-                                previewNow(dragDistance)
+                                val point = dragStartOrigin + Offset(24.dp.toPx(), 10.dp.toPx()) + ghostOffset
+                                val target = if (ghostOffset.getDistance() >= threshold) point else null
+                                previewNow(target)
+                                previewTarget = target?.let { resolvePaneDrop(it, hostOriginNow, hostPixelsNow) }
                             },
                             onDragEnd = {
-                                val shouldSwap = kotlin.math.abs(dragDistance) >= threshold
+                                val target = previewTarget
                                 previewNow(null)
                                 isDragging = false
-                                dragDistance = 0f
-                                if (shouldSwap) swapNow()
+                                previewTarget = null
+                                if (target != null) dropNow(target)
                             },
                             onDragCancel = {
                                 previewNow(null)
-                                dragDistance = 0f
+                                previewTarget = null
                                 isDragging = false
                             },
                         )
