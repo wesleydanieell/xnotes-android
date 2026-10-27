@@ -76,6 +76,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.layout.positionInWindow
+import androidx.compose.ui.layout.positionInRoot
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.IntRect
 import androidx.compose.ui.unit.IntSize
@@ -1500,9 +1501,15 @@ private fun SplitHost(editor: Editor, actions: PaneActions, openingSplit: Boolea
     var swapPreview by remember { mutableStateOf<Pair<com.xnotes.ui.Pane, SplitSide>?>(null) }
     var dragGhost by remember { mutableStateOf<Pair<com.xnotes.ui.Pane, Offset>?>(null) }
     var hostOrigin by remember { mutableStateOf(Offset.Zero) }
+    var hostRootOrigin by remember { mutableStateOf(Offset.Zero) }
     var hostPixels by remember { mutableStateOf(IntSize.Zero) }
     val second = editor.secondary
     val split = editor.noteOpen && second?.noteOpen == true
+    // A document switch or split rearrangement invalidates any in-flight drag preview.
+    LaunchedEffect(editor.splitAxis, editor.splitSwapped, editor.title, second?.title, split) {
+        swapPreview = null
+        dragGhost = null
+    }
     // A pane that closed on its own leaves the other one full-screen; once neither is open the
     // second editor is released, freeing its canvas and GL surfaces.
     LaunchedEffect(editor.noteOpen, second?.noteOpen) {
@@ -1520,6 +1527,7 @@ private fun SplitHost(editor: Editor, actions: PaneActions, openingSplit: Boolea
     BoxWithConstraints(Modifier.fillMaxSize().then(SwallowTouches).imePadding()
         .onGloballyPositioned { coordinates ->
             hostOrigin = coordinates.positionInWindow()
+            hostRootOrigin = coordinates.positionInRoot()
             hostPixels = coordinates.size
         }) {
         val fullW = maxWidth
@@ -1552,13 +1560,13 @@ private fun SplitHost(editor: Editor, actions: PaneActions, openingSplit: Boolea
                 closable = split,
                 onSwapPreview = { position ->
                     swapPreview = position?.let { point ->
-                        resolvePaneDrop(point, hostOrigin, hostPixels)?.let { editor.pane to it }
+                        resolvePaneDrop(point, hostRootOrigin, hostPixels)?.let { editor.pane to it }
                     }
                 },
                 onDrop = { side -> placeSplitPane(editor, editor.pane, side, sideBySide) },
                 onGhost = { point -> dragGhost = point?.let { editor.pane to it } },
                 sideBySide = sideBySide,
-                hostOrigin = hostOrigin,
+                hostOrigin = hostRootOrigin,
                 hostPixels = hostPixels,
                 modifier = (if (swapped) paneOffset(firstExtent).then(paneSize(secondExtent))
                     else paneSize(firstExtent)),
@@ -1572,13 +1580,13 @@ private fun SplitHost(editor: Editor, actions: PaneActions, openingSplit: Boolea
                 closable = split,
                 onSwapPreview = { position ->
                     swapPreview = position?.let { point ->
-                        resolvePaneDrop(point, hostOrigin, hostPixels)?.let { second.pane to it }
+                        resolvePaneDrop(point, hostRootOrigin, hostPixels)?.let { second.pane to it }
                     }
                 },
                 onDrop = { side -> placeSplitPane(editor, second.pane, side, sideBySide) },
                 onGhost = { point -> dragGhost = point?.let { second.pane to it } },
                 sideBySide = sideBySide,
-                hostOrigin = hostOrigin,
+                hostOrigin = hostRootOrigin,
                 hostPixels = hostPixels,
                 modifier = (if (swapped) paneSize(firstExtent)
                     else paneOffset(if (split) firstExtent else 0.dp).then(paneSize(secondExtent))),
@@ -1657,15 +1665,12 @@ private fun SplitHost(editor: Editor, actions: PaneActions, openingSplit: Boolea
             val title = if (source == com.xnotes.ui.Pane.PRIMARY) editor.title else second?.title.orEmpty()
             val targetReady = swapPreview?.first == source
             val density = LocalDensity.current
-            val ghostPosition = remember(point, density) {
+            val ghostPosition = remember(hostOrigin) {
                 object : PopupPositionProvider {
                     override fun calculatePosition(
                         anchorBounds: IntRect, windowSize: IntSize,
                         layoutDirection: LayoutDirection, popupContentSize: IntSize,
-                    ): IntOffset = IntOffset(
-                        (point.x - with(density) { 24.dp.toPx() }).roundToInt(),
-                        (point.y - with(density) { 8.dp.toPx() }).roundToInt(),
-                    )
+                    ): IntOffset = IntOffset(hostOrigin.x.roundToInt(), hostOrigin.y.roundToInt())
                 }
             }
             Popup(
@@ -1676,7 +1681,14 @@ private fun SplitHost(editor: Editor, actions: PaneActions, openingSplit: Boolea
                     dismissOnBackPress = false, dismissOnClickOutside = false,
                 ),
             ) {
-                Row(Modifier
+                Box(Modifier.size(fullW, fullH)) {
+                    Row(Modifier
+                    .offset {
+                        IntOffset(
+                            (point.x - hostRootOrigin.x - with(density) { 24.dp.toPx() }).roundToInt(),
+                            (point.y - hostRootOrigin.y - with(density) { 8.dp.toPx() }).roundToInt(),
+                        )
+                    }
                     .clip(RoundedCornerShape(12.dp))
                     .background(palette.panel.toComposeColor())
                     .border(1.dp, if (targetReady) palette.accent.toComposeColor().copy(alpha = 0.7f)
@@ -1687,6 +1699,7 @@ private fun SplitHost(editor: Editor, actions: PaneActions, openingSplit: Boolea
                 ) {
                     PaneGripDots()
                     Text(title.take(24), fontSize = 11.sp, color = palette.text.toComposeColor())
+                    }
                 }
             }
         }
@@ -1875,7 +1888,7 @@ private fun EditorPane(
             val dropNow by rememberUpdatedState(onDrop)
             val previewNow by rememberUpdatedState(onSwapPreview)
             val ghostNow by rememberUpdatedState(onGhost)
-            val gripOrigin = remember { arrayOf(Offset.Zero) }
+            val gripCoordinates = remember { arrayOf<androidx.compose.ui.layout.LayoutCoordinates?>(null) }
             var dragStartOrigin by remember { mutableStateOf(Offset.Zero) }
             var ghostOffset by remember { mutableStateOf(Offset.Zero) }
             val threshold = with(LocalDensity.current) { 48.dp.toPx() }
@@ -1885,11 +1898,12 @@ private fun EditorPane(
             Box(
                 Modifier.align(Alignment.TopCenter)
                     .size(width = 48.dp, height = 16.dp)
-                    .onGloballyPositioned { gripOrigin[0] = it.positionInWindow() }
+                    .onGloballyPositioned { gripCoordinates[0] = it }
                     .pointerInput(Unit) {
                         detectDragGesturesAfterLongPress(
                             onDragStart = { touchInGrip ->
-                                dragStartOrigin = gripOrigin[0] + touchInGrip
+                                dragStartOrigin = gripCoordinates[0]?.takeIf { it.isAttached }
+                                    ?.localToRoot(touchInGrip) ?: Offset.Zero
                                 ghostOffset = Offset.Zero
                                 ghostNow(dragStartOrigin)
                                 previewTarget = null
