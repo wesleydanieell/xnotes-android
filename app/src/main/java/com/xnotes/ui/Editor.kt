@@ -111,6 +111,8 @@ import com.xnotes.core.tools.InkPalette
 import com.xnotes.core.tools.ShapeConfig
 import com.xnotes.core.tools.Tool
 import com.xnotes.core.tools.ToolDefaults
+import com.xnotes.core.tools.ToolbarAnchor
+import com.xnotes.core.tools.ToolbarContext
 import com.xnotes.core.tools.ToolbarLayout
 import com.xnotes.core.util.DocumentKind
 import com.xnotes.core.util.FileStamp
@@ -2857,6 +2859,31 @@ class Editor(context: Context, val pane: Pane = Pane.PRIMARY) : ToolPopupHost, S
         toolbarWorkspaces = workspaces
         settings = settings.copy(toolbarWorkspaces = workspaces)
         settingsRepo.save(settings)
+    }
+
+    /** Hold-drag any toolbar, including the docked primary, to a persisted floating anchor. */
+    fun moveToolbarBar(context: ToolbarContext, id: String, anchor: ToolbarAnchor) {
+        val profiles = toolbarWorkspaces
+        val workspace = if (context == ToolbarContext.NOTE || profiles.shared) profiles.note else profiles.canvas
+        val bar = workspace.bars.firstOrNull { it.id == id && it.geometry.movable } ?: return
+        val isPrimary = workspace.bars.firstOrNull()?.id == id
+        // An edge drop keeps a docked primary docked. Center/corner drops float it.
+        val dockPosition = if (isPrimary && !bar.geometry.floating) when (anchor) {
+            ToolbarAnchor.TOP_CENTER -> com.xnotes.settings.ToolbarPosition.TOP
+            ToolbarAnchor.BOTTOM_CENTER -> com.xnotes.settings.ToolbarPosition.BOTTOM
+            ToolbarAnchor.CENTER_LEFT -> com.xnotes.settings.ToolbarPosition.LEFT
+            ToolbarAnchor.CENTER_RIGHT -> com.xnotes.settings.ToolbarPosition.RIGHT
+            else -> null
+        } else null
+        if (bar.geometry.anchor == anchor && (bar.geometry.floating || dockPosition != null && toolbarLook.position == dockPosition)) return
+        val moved = bar.copy(geometry = bar.geometry.copy(anchor = anchor, floating = dockPosition == null))
+        val changed = workspace.replaceBar(moved)
+        if (dockPosition != null) {
+            applyHomePreferences(settings.prefs.copy(toolbarLook = toolbarLook.copy(floating = false, position = dockPosition)))
+        }
+        applyToolbarWorkspaces(
+            if (context == ToolbarContext.NOTE || profiles.shared) profiles.copy(note = changed) else profiles.copy(canvas = changed),
+        )
     }
 
     /** Set how many colour swatches the toolbar shows (1-15) and persist. */
