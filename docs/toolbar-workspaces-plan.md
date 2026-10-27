@@ -87,6 +87,13 @@ can replace it atomically.
   render as floating overlays in each pane and stack when assigned the same anchor.
 - First preferences UI: add, duplicate, remove, select, show/hide tools, change bar
   anchor and size. The existing primary bar and tool dispatch remain unchanged.
+- Dedicated toolbar configuration view accessible from Preferences, with profile/bar selection
+  before properties, rename, per-bar visibility, secondary-bar ordering, and the existing
+  tool/section drag editor. Main-toolbar legacy appearance stays in its own inspector.
+- Desktop QA: Small_Tablet Android emulator boots in the user's Niri session via
+  `QT_QPA_PLATFORM=xcb`; the debug APK installs and launches there. The Wacom CTL-472
+  uses OpenTabletDriver Artist Mode with a pressure-capable virtual tablet. Direct Android
+  stylus forwarding is not yet implemented; emulator gRPC requires authenticated access.
 - Next: movable handles, robust overlap/viewport-cover handling, docking, and
   explicit edit mode; currently additional bars are positioned via Preferences.
 

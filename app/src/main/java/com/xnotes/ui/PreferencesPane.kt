@@ -147,6 +147,8 @@ fun PreferencesPane(
     LaunchedEffect(editor.prefsVersion) { prefs = editor.preferences }
 
     val scrollState = rememberScrollState()
+    var toolbarEditorOpen by remember { mutableStateOf(false) }
+    LaunchedEffect(toolbarEditorOpen) { scrollState.scrollTo(0) }
     // Which bar the toolbar section is arranging. The two are separate layouts, so the drag state
     // below always belongs to whichever is on screen.
     var canvasTab by remember { mutableStateOf(false) }
@@ -183,6 +185,11 @@ fun PreferencesPane(
             val changed = workspace.replaceBar(bar.copy(layout = next))
             editor.applyToolbarWorkspaces(if (canvasTab) profiles.copy(canvas = changed) else profiles.copy(note = changed))
         }
+    }
+    fun updateSelectedBar(transform: (ToolbarBar) -> ToolbarBar) {
+        val profiles = editor.toolbarWorkspaces
+        val changed = editedWorkspace().replaceBar(transform(selectedBar()))
+        editor.applyToolbarWorkspaces(if (canvasTab) profiles.copy(canvas = changed) else profiles.copy(note = changed))
     }
     fun retarget() {
         dropTarget = toolbarDropTarget(editedLayout(), dragFinger, chipBounds, sectionBounds)
@@ -226,24 +233,34 @@ fun PreferencesPane(
         // Leading button inline with the title, at a constant row height so toggling the sidebar never
         // shifts the settings below: a back arrow to Home on compact, else a hamburger when hidden.
         Row(Modifier.fillMaxWidth().heightIn(min = 48.dp), verticalAlignment = Alignment.CenterVertically) {
-            if (compact) {
-                Tooltip(stringResource(R.string.back_to_home)) {
-                    IconButton(onClick = onBackToHome) {
-                        Icon(XnotesIcons.prev, stringResource(R.string.back_to_home), tint = palette.text.toComposeColor(), modifier = Modifier.size(24.dp))
+            if (toolbarEditorOpen) {
+                Tooltip(stringResource(R.string.preferences)) {
+                    IconButton(onClick = { toolbarEditorOpen = false }) {
+                        Icon(XnotesIcons.prev, stringResource(R.string.preferences), tint = palette.text.toComposeColor(), modifier = Modifier.size(24.dp))
                     }
                 }
                 Spacer(Modifier.width(4.dp))
-            } else if (!sidebarOpen) {
-                Tooltip(stringResource(R.string.show_sidebar)) {
-                    IconButton(onClick = onShowSidebar) {
-                        Icon(XnotesIcons.menu, stringResource(R.string.show_sidebar), tint = palette.text.toComposeColor(), modifier = Modifier.size(24.dp))
+                Text(stringResource(R.string.pref_toolbar), color = palette.text.toComposeColor(), fontWeight = FontWeight.Bold, fontSize = 20.sp)
+            } else {
+                if (compact) {
+                    Tooltip(stringResource(R.string.back_to_home)) {
+                        IconButton(onClick = onBackToHome) {
+                            Icon(XnotesIcons.prev, stringResource(R.string.back_to_home), tint = palette.text.toComposeColor(), modifier = Modifier.size(24.dp))
+                        }
                     }
+                    Spacer(Modifier.width(4.dp))
+                } else if (!sidebarOpen) {
+                    Tooltip(stringResource(R.string.show_sidebar)) {
+                        IconButton(onClick = onShowSidebar) {
+                            Icon(XnotesIcons.menu, stringResource(R.string.show_sidebar), tint = palette.text.toComposeColor(), modifier = Modifier.size(24.dp))
+                        }
+                    }
+                    Spacer(Modifier.width(4.dp))
                 }
-                Spacer(Modifier.width(4.dp))
+                Text(stringResource(R.string.preferences), color = palette.text.toComposeColor(), fontWeight = FontWeight.Bold, fontSize = 20.sp)
+                Spacer(Modifier.weight(1f))
+                TextButton(onClick = { update(Preferences()) }) { Text(stringResource(R.string.reset_to_defaults), fontSize = 13.sp) }
             }
-            Text(stringResource(R.string.preferences), color = palette.text.toComposeColor(), fontWeight = FontWeight.Bold, fontSize = 20.sp)
-            Spacer(Modifier.weight(1f))
-            TextButton(onClick = { update(Preferences()) }) { Text(stringResource(R.string.reset_to_defaults), fontSize = 13.sp) }
         }
         Spacer(Modifier.height(12.dp))
         Column(
@@ -252,6 +269,7 @@ fun PreferencesPane(
                 .onGloballyPositioned { viewport = it.boundsInRoot() },
             verticalArrangement = Arrangement.spacedBy(14.dp),
         ) {
+            if (!toolbarEditorOpen) {
             SectionTitle(stringResource(R.string.pref_general))
             FieldLabel(stringResource(R.string.pref_ui_theme))
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -578,44 +596,16 @@ fun PreferencesPane(
                 }
             }
 
-            HorizontalDivider(color = palette.border.toComposeColor())
-            SectionTitle(stringResource(R.string.pref_toolbar))
-            // The look, like the swatch count below, is one setting for both bars.
-            val look = prefs.toolbarLook
-            FieldLabel(stringResource(R.string.pref_toolbar_style))
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                Chip(stringResource(R.string.toolbar_docked), !look.floating) { updateHome(prefs.copy(toolbarLook = look.copy(floating = false))) }
-                Chip(stringResource(R.string.toolbar_floating), look.floating) { updateHome(prefs.copy(toolbarLook = look.copy(floating = true))) }
             }
-            FieldLabel(stringResource(R.string.pref_toolbar_position))
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                for ((position, label) in listOf(
-                    ToolbarPosition.TOP to R.string.edge_top,
-                    ToolbarPosition.BOTTOM to R.string.edge_bottom,
-                    ToolbarPosition.LEFT to R.string.edge_left,
-                    ToolbarPosition.RIGHT to R.string.edge_right,
-                )) {
-                    Chip(stringResource(label), look.position == position) { updateHome(prefs.copy(toolbarLook = look.copy(position = position))) }
-                }
-            }
-            FieldLabel(stringResource(R.string.pref_toolbar_size))
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                for ((size, label) in listOf(
-                    ToolbarSize.COMPACT to R.string.toolbar_size_compact,
-                    ToolbarSize.REGULAR to R.string.toolbar_size_regular,
-                    ToolbarSize.COMFORTABLE to R.string.toolbar_size_comfortable,
-                )) {
-                    Chip(stringResource(label), look.size == size) { updateHome(prefs.copy(toolbarLook = look.copy(size = size))) }
-                }
-            }
-            FieldLabel(stringResource(R.string.pref_toolbar_colours_n, editor.toolbarColorCount))
-            Slider(
-                value = editor.toolbarColorCount.toFloat(),
-                onValueChange = { editor.applyToolbarColorCount(Math.round(it)) },
-                valueRange = 1f..InkPalette.MAX_SWATCHES.toFloat(),
-                steps = InkPalette.MAX_SWATCHES - 2,
-                modifier = Modifier.width(280.dp),
-            )
+            if (!toolbarEditorOpen) {
+                HorizontalDivider(color = palette.border.toComposeColor())
+                SectionTitle(stringResource(R.string.pref_toolbar))
+                Text(
+                    stringResource(R.string.toolbar_workspace_intro),
+                    color = palette.textDim.toComposeColor(), fontSize = 13.sp,
+                )
+                TextButton(onClick = { toolbarEditorOpen = true }) { Text(stringResource(R.string.toolbar_configure)) }
+            } else {
             Row(
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(6.dp),
@@ -632,12 +622,13 @@ fun PreferencesPane(
             val barLabel = stringResource(R.string.pref_toolbar)
             val workspace = editedWorkspace()
             val currentBar = selectedBar()
+            FieldLabel(stringResource(R.string.toolbar_select))
             FlowRow(
                 horizontalArrangement = Arrangement.spacedBy(6.dp),
                 verticalArrangement = Arrangement.spacedBy(6.dp),
             ) {
                 workspace.bars.forEachIndexed { index, bar ->
-                    Chip("$barLabel ${index + 1}", bar.id == currentBar.id) { showBar(bar.id) }
+                    Chip("${index + 1}. ${bar.name}", bar.id == currentBar.id) { showBar(bar.id) }
                 }
             }
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -688,7 +679,43 @@ fun PreferencesPane(
                     }) { Text(stringResource(R.string.remove)) }
                 }
             }
+            HorizontalDivider(color = palette.border.toComposeColor())
+            FieldLabel(stringResource(R.string.toolbar_selected))
+            OutlinedTextField(
+                value = currentBar.name,
+                onValueChange = { name -> updateSelectedBar { it.copy(name = name.take(48)) } },
+                label = { Text(stringResource(R.string.toolbar_name)) },
+                singleLine = true,
+                modifier = Modifier.width(320.dp),
+            )
             if (currentBar.id != workspace.bars.first().id) {
+                val barIndex = workspace.bars.indexOfFirst { it.id == currentBar.id }
+                FlowRow(
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalArrangement = Arrangement.spacedBy(4.dp),
+                ) {
+                    Chip(stringResource(R.string.toolbar_visible), currentBar.visible) {
+                        updateSelectedBar { it.copy(visible = !it.visible) }
+                    }
+                    if (barIndex > 1) {
+                        TextButton(onClick = {
+                            val profiles = editor.toolbarWorkspaces
+                            val updated = editedWorkspace().moveBar(currentBar.id, barIndex - 1)
+                            editor.applyToolbarWorkspaces(
+                                if (canvasTab) profiles.copy(canvas = updated) else profiles.copy(note = updated),
+                            )
+                        }) { Text(stringResource(R.string.toolbar_move_up)) }
+                    }
+                    if (barIndex in 1 until workspace.bars.lastIndex) {
+                        TextButton(onClick = {
+                            val profiles = editor.toolbarWorkspaces
+                            val updated = editedWorkspace().moveBar(currentBar.id, barIndex + 1)
+                            editor.applyToolbarWorkspaces(
+                                if (canvasTab) profiles.copy(canvas = updated) else profiles.copy(note = updated),
+                            )
+                        }) { Text(stringResource(R.string.toolbar_move_down)) }
+                    }
+                }
                 FieldLabel(stringResource(R.string.pref_toolbar_position))
                 FlowRow(
                     horizontalArrangement = Arrangement.spacedBy(4.dp),
@@ -734,7 +761,49 @@ fun PreferencesPane(
                         }
                     }
                 }
+            } else {
+                FieldLabel(stringResource(R.string.toolbar_primary_appearance))
+                val look = prefs.toolbarLook
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Chip(stringResource(R.string.toolbar_docked), !look.floating) { updateHome(prefs.copy(toolbarLook = look.copy(floating = false))) }
+                    Chip(stringResource(R.string.toolbar_floating), look.floating) { updateHome(prefs.copy(toolbarLook = look.copy(floating = true))) }
+                }
+                FieldLabel(stringResource(R.string.pref_toolbar_position))
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    for ((position, label) in listOf(
+                        ToolbarPosition.TOP to R.string.edge_top,
+                        ToolbarPosition.BOTTOM to R.string.edge_bottom,
+                        ToolbarPosition.LEFT to R.string.edge_left,
+                        ToolbarPosition.RIGHT to R.string.edge_right,
+                    )) {
+                        Chip(stringResource(label), look.position == position) {
+                            updateHome(prefs.copy(toolbarLook = look.copy(position = position)))
+                        }
+                    }
+                }
+                FieldLabel(stringResource(R.string.pref_toolbar_size))
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    for ((size, label) in listOf(
+                        ToolbarSize.COMPACT to R.string.toolbar_size_compact,
+                        ToolbarSize.REGULAR to R.string.toolbar_size_regular,
+                        ToolbarSize.COMFORTABLE to R.string.toolbar_size_comfortable,
+                    )) {
+                        Chip(stringResource(label), look.size == size) {
+                            updateHome(prefs.copy(toolbarLook = look.copy(size = size)))
+                        }
+                    }
+                }
+                FieldLabel(stringResource(R.string.pref_toolbar_colours_n, editor.toolbarColorCount))
+                Slider(
+                    value = editor.toolbarColorCount.toFloat(),
+                    onValueChange = { editor.applyToolbarColorCount(Math.round(it)) },
+                    valueRange = 1f..InkPalette.MAX_SWATCHES.toFloat(),
+                    steps = InkPalette.MAX_SWATCHES - 2,
+                    modifier = Modifier.width(280.dp),
+                )
             }
+            HorizontalDivider(color = palette.border.toComposeColor())
+            FieldLabel(stringResource(R.string.toolbar_tools_groups))
             Text(
                 stringResource(R.string.pref_toolbar_help),
                 color = palette.textDim.toComposeColor(),
@@ -802,7 +871,9 @@ fun PreferencesPane(
                     sectionDropTarget = null
                 },
             )
+            }
 
+            if (!toolbarEditorOpen) {
             HorizontalDivider(color = palette.border.toComposeColor())
             SectionTitle(stringResource(R.string.pref_backup))
             Text(stringResource(R.string.pref_backup_help), color = palette.textDim.toComposeColor(), fontSize = 12.sp)
@@ -811,6 +882,7 @@ fun PreferencesPane(
                 TextButton(onClick = { onBackup(false) }) { Text(stringResource(R.string.import_settings), fontSize = 13.sp) }
             }
             Spacer(Modifier.size(8.dp))
+            }
         }
     }
         // The dragged chip/section's floating copy: a pane-root sibling so the scroll never clips it.
@@ -821,8 +893,7 @@ fun PreferencesPane(
         if (ghostChip != null) {
             Box(Modifier.offset { IntOffset(gx, gy) }) { ToolbarDragGhost(ghostChip) }
         } else if (ghostSecIdx != null) {
-            val sectionG = (if (canvasTab) editor.canvasToolbarLayout else editor.toolbarLayout)
-                .sections.getOrNull(ghostSecIdx)
+            val sectionG = editedLayout().sections.getOrNull(ghostSecIdx)
             val widthG = sectionBounds[ghostSecIdx]?.width
             if (sectionG != null && widthG != null) {
                 Box(Modifier.offset { IntOffset(gx, gy) }) { SectionCardGhost(sectionG, widthG) }
