@@ -249,7 +249,6 @@ fun NoteTabBar(
     // separate Popup windows on each edge change could miss frames during fast transitions.
     if (draggingUri != null) {
         val side = (previewDrop as? TabDrop.Split)?.side
-        val vertical = side == SplitSide.TOP || side == SplitSide.BOTTOM
         val screen = LocalConfiguration.current
         val screenWidth = screen.screenWidthDp.dp
         val screenHeight = screen.screenHeightDp.dp
@@ -258,10 +257,11 @@ fun NoteTabBar(
         val previewWidth = dropArea?.let { with(density) { it.size.width.toDp() } } ?: maxWidth
         val previewHeight = dropArea?.let { with(density) { it.size.height.toDp() } }
             ?: (screenHeight - previewTop - 8.dp).coerceAtLeast(180.dp)
-        val targetX = previewLeft + if (side == SplitSide.RIGHT) previewWidth / 2 else 0.dp
-        val targetY = previewTop + if (side == SplitSide.BOTTOM) previewHeight / 2 else 0.dp
-        val targetWidth = if (vertical) previewWidth else previewWidth / 2
-        val targetHeight = if (vertical) previewHeight / 2 else previewHeight
+        val bounds = splitPreviewRect(side ?: SplitSide.LEFT, previewWidth, previewHeight)
+        val targetX = previewLeft + bounds.x
+        val targetY = previewTop + bounds.y
+        val targetWidth = bounds.width
+        val targetHeight = bounds.height
         val x by animateDpAsState(targetX, tween(130), label = "splitPreviewX")
         val y by animateDpAsState(targetY, tween(130), label = "splitPreviewY")
         val w by animateDpAsState(targetWidth, tween(130), label = "splitPreviewWidth")

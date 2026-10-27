@@ -96,6 +96,7 @@ internal class ToolbarTabExtension(
     val expanded: Boolean,
     val onToggle: () -> Unit,
     val content: @Composable () -> Unit,
+    val showToggle: Boolean = true,
 )
 
 internal val LocalToolbarTabExtension = compositionLocalOf<ToolbarTabExtension?> { null }
@@ -257,7 +258,7 @@ internal fun ToolbarFrame(
                     verticalAlignment = Alignment.CenterVertically,
                 ) { content() }
                 trailing?.invoke()
-                if (tabExtension != null) {
+                if (tabExtension?.showToggle == true) {
                     IconButton(onClick = tabExtension.onToggle, modifier = Modifier.size(bar.button)) {
                         Icon(
                             if (tabExtension.expanded) Icons.Filled.KeyboardArrowUp else Icons.Filled.KeyboardArrowDown,

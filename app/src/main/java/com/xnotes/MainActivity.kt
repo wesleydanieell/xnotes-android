@@ -1064,9 +1064,8 @@ private fun EditorScreen(
     var tabHostArea by remember { mutableStateOf<com.xnotes.ui.DocumentDropArea?>(null) }
     val tabsMode = editor.preferences.documentTabsMode
     val toolbarPlacement = com.xnotes.ui.tabBarPlacement(editor.toolbarLook)
-    val tabPlacement = if (tabsMode == "compact" &&
-        toolbarPlacement == com.xnotes.ui.TabBarPlacement.DOCKED_TOP)
-        com.xnotes.ui.TabBarPlacement.FLOATING_SELECTOR else toolbarPlacement
+    // Docking determines placement; the tab preference only selects its initial expansion.
+    val tabPlacement = toolbarPlacement
     LaunchedEffect(tabsMode, toolbarPlacement) {
         tabsExpanded = tabsMode == "expanded"
     }
@@ -1643,17 +1642,24 @@ private fun SplitHost(editor: Editor, actions: PaneActions, openingSplit: Boolea
         val swapped = split && editor.splitSwapped
         val toolbarLook = com.xnotes.ui.LocalToolbarLook.current
         val floatingTabExtension = com.xnotes.ui.LocalToolbarTabExtension.current
-        val gripTopInset = com.xnotes.ui.paneGripTopInset(toolbarLook) +
+        val baseGripInset = com.xnotes.ui.paneGripTopInset(toolbarLook)
+        fun gripInset(pane: com.xnotes.ui.Pane): Dp = baseGripInset +
             if (toolbarLook.floating && toolbarLook.position == com.xnotes.settings.ToolbarPosition.TOP &&
-                floatingTabExtension?.expanded == true) 42.dp else 0.dp
+                floatingTabExtension?.expanded == true && editor.active.pane == pane) 42.dp else 0.dp
+        val primaryGripInset by androidx.compose.animation.core.animateDpAsState(
+            gripInset(editor.pane), tween(190), label = "primaryGripPosition",
+        )
+        val secondaryGripInset by androidx.compose.animation.core.animateDpAsState(
+            gripInset(second?.pane ?: com.xnotes.ui.Pane.SECONDARY), tween(190), label = "secondaryGripPosition",
+        )
         val density = LocalDensity.current
         // Compute each grip's actual screen slot from the split layout, independent of where
         // its EditorPane was originally composed or which document it currently displays.
-        fun gripRootOrigin(firstSlot: Boolean): Offset {
+        fun gripRootOrigin(firstSlot: Boolean, inset: Dp): Offset {
             val (x, y) = paneGripOffset(sideBySide,
                 with(density) { firstExtent.toPx() }, with(density) { secondExtent.toPx() },
                 with(density) { fullW.toPx() }, firstSlot, with(density) { 48.dp.toPx() })
-            return hostRootOrigin + Offset(x, y + with(density) { gripTopInset.toPx() })
+            return hostRootOrigin + Offset(x, y + with(density) { inset.toPx() })
         }
         if (editor.noteOpen) {
             EditorPane(
@@ -1670,8 +1676,8 @@ private fun SplitHost(editor: Editor, actions: PaneActions, openingSplit: Boolea
                 onGhost = { point -> dragGhost = point?.let { editor.pane to it } },
                 hostOrigin = hostRootOrigin,
                 hostPixels = hostPixels,
-                gripRootOrigin = gripRootOrigin(!swapped),
-                gripTopInset = gripTopInset,
+                gripRootOrigin = gripRootOrigin(!swapped, primaryGripInset),
+                gripTopInset = primaryGripInset,
                 modifier = (if (swapped) paneOffset(firstExtent).then(paneSize(secondExtent))
                     else paneSize(firstExtent)),
             )
@@ -1691,8 +1697,8 @@ private fun SplitHost(editor: Editor, actions: PaneActions, openingSplit: Boolea
                 onGhost = { point -> dragGhost = point?.let { second.pane to it } },
                 hostOrigin = hostRootOrigin,
                 hostPixels = hostPixels,
-                gripRootOrigin = gripRootOrigin(swapped),
-                gripTopInset = gripTopInset,
+                gripRootOrigin = gripRootOrigin(swapped, secondaryGripInset),
+                gripTopInset = secondaryGripInset,
                 modifier = (if (swapped) paneSize(firstExtent)
                     else paneOffset(if (split) firstExtent else 0.dp).then(paneSize(secondExtent))),
             )
@@ -1716,21 +1722,23 @@ private fun SplitHost(editor: Editor, actions: PaneActions, openingSplit: Boolea
                 if (sourceFirst) SplitSide.TOP else SplitSide.BOTTOM
             }
             val effective = side != currentSide
+            val previewClearance = baseGripInset +
+                if (floatingTabExtension?.expanded == true &&
+                    toolbarLook.floating && toolbarLook.position == com.xnotes.settings.ToolbarPosition.TOP) 42.dp
+                else 0.dp
+            val bounds = com.xnotes.ui.splitPreviewRect(side, fullW, fullH,
+                if (toolbarLook.position == com.xnotes.settings.ToolbarPosition.TOP) previewClearance else 0.dp)
             val previewW by androidx.compose.animation.core.animateDpAsState(
-                if (side == SplitSide.LEFT || side == SplitSide.RIGHT) fullW / 2 else fullW,
-                tween(150), label = "gripPreviewWidth",
+                bounds.width, tween(150), label = "gripPreviewWidth",
             )
             val previewH by androidx.compose.animation.core.animateDpAsState(
-                if (side == SplitSide.TOP || side == SplitSide.BOTTOM) fullH / 2 else fullH,
-                tween(150), label = "gripPreviewHeight",
+                bounds.height, tween(150), label = "gripPreviewHeight",
             )
             val previewX by androidx.compose.animation.core.animateDpAsState(
-                if (side == SplitSide.RIGHT) fullW / 2 else 0.dp,
-                tween(150), label = "gripPreviewX",
+                bounds.x, tween(150), label = "gripPreviewX",
             )
             val previewY by androidx.compose.animation.core.animateDpAsState(
-                if (side == SplitSide.BOTTOM) fullH / 2 else 0.dp,
-                tween(150), label = "gripPreviewY",
+                bounds.y, tween(150), label = "gripPreviewY",
             )
             val palette = LocalPalette.current
             Popup(
@@ -1827,7 +1835,15 @@ private fun EditorPane(
     val palette = LocalPalette.current
     val focusRequester = remember { FocusRequester() }
     val focused = app.active === editor
-    val paneTabs = if (focused) com.xnotes.ui.LocalToolbarTabExtension.current else null
+    val sharedTabs = com.xnotes.ui.LocalToolbarTabExtension.current
+    val paneTabs = sharedTabs?.let {
+        com.xnotes.ui.ToolbarTabExtension(
+            expanded = it.expanded && focused,
+            onToggle = it.onToggle,
+            content = it.content,
+            showToggle = focused,
+        )
+    }
     SideEffect { editor.openInPane = { uri -> actions.onOpenFile(editor, uri) } }
     // This pane owns the keyboard while it is the focused one; (re)grab it as that changes.
     LaunchedEffect(focused, editor.noteOpen) {
@@ -2028,16 +2044,13 @@ private fun EditorPane(
 /** Three-dot pane grip, styled from the active theme rather than a directional arrow. */
 @Composable
 private fun PaneGripDots() {
-    // Each dot has opposing light/dark layers, remaining legible over white paper,
-    // dark canvas, or a custom page background without a visible handle backing.
+    // A single opaque fill is cleaner at this size than a light/dark outline.
     val brightBackground = LocalPalette.current.bg.toComposeColor().luminance() > 0.5f
     val ink = if (brightBackground) androidx.compose.ui.graphics.Color.Black else androidx.compose.ui.graphics.Color.White
-    val rim = if (brightBackground) androidx.compose.ui.graphics.Color.White else androidx.compose.ui.graphics.Color.Black
     Row(horizontalArrangement = Arrangement.spacedBy(3.dp), verticalAlignment = Alignment.CenterVertically) {
         repeat(3) {
-            androidx.compose.foundation.Canvas(Modifier.size(8.dp)) {
-                drawCircle(rim, radius = size.minDimension / 2f)
-                drawCircle(ink, radius = size.minDimension * 0.34f)
+            androidx.compose.foundation.Canvas(Modifier.size(6.dp)) {
+                drawCircle(ink, radius = size.minDimension * 0.46f)
             }
         }
     }
