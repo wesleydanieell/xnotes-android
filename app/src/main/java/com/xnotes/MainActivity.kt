@@ -1822,10 +1822,8 @@ private fun EditorPane(
             val confirmed = previewTarget != null
             Box(
                 Modifier.align(Alignment.TopCenter)
-                    .size(width = 48.dp, height = 20.dp)
+                    .size(width = 48.dp, height = 16.dp)
                     .onGloballyPositioned { gripOrigin[0] = it.positionInWindow() }
-                    .clip(RoundedCornerShape(bottomStart = 10.dp, bottomEnd = 10.dp))
-                    .background(palette.panel.toComposeColor().copy(alpha = if (isDragging) 0.55f else 0.88f))
                     .pointerInput(Unit) {
                         detectDragGesturesAfterLongPress(
                             onDragStart = {
@@ -1838,7 +1836,7 @@ private fun EditorPane(
                             onDrag = { change, delta ->
                                 change.consume()
                                 ghostOffset += delta
-                                val point = dragStartOrigin + Offset(24.dp.toPx(), 10.dp.toPx()) + ghostOffset
+                                val point = dragStartOrigin + Offset(24.dp.toPx(), 8.dp.toPx()) + ghostOffset
                                 val target = if (ghostOffset.getDistance() >= threshold) point else null
                                 previewNow(target)
                                 previewTarget = target?.let { resolvePaneDrop(it, hostOriginNow, hostPixelsNow) }
@@ -1902,9 +1900,9 @@ private fun EditorPane(
 /** Three-dot pane grip, styled from the active theme rather than a directional arrow. */
 @Composable
 private fun PaneGripDots() {
-    val color = LocalPalette.current.textDim.toComposeColor()
+    val color = LocalPalette.current.text.toComposeColor()
     Row(horizontalArrangement = Arrangement.spacedBy(4.dp), verticalAlignment = Alignment.CenterVertically) {
-        repeat(3) { Box(Modifier.size(4.dp).clip(CircleShape).background(color)) }
+        repeat(3) { Box(Modifier.size(5.dp).clip(CircleShape).background(color.copy(alpha = 0.92f))) }
     }
 }
 
