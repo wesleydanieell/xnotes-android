@@ -2823,7 +2823,12 @@ class Editor(context: Context, val pane: Pane = Pane.PRIMARY) : ToolPopupHost, S
     /** Apply an edited toolbar layout live and persist (used by the toolbar customiser). */
     fun applyToolbarLayout(layout: ToolbarLayout) {
         toolbarLayout = layout
-        settings = settings.copy(toolbarLayout = layout)
+        settings = settings.copy(
+            toolbarLayout = layout,
+            toolbarWorkspaces = settings.toolbarWorkspaces?.let {
+                it.copy(note = it.note.replacePrimaryLayout(layout))
+            },
+        )
         settingsRepo.save(settings)
     }
 
@@ -2831,7 +2836,12 @@ class Editor(context: Context, val pane: Pane = Pane.PRIMARY) : ToolPopupHost, S
     fun applyCanvasToolbarLayout(layout: ToolbarLayout) {
         canvasToolbarLayout = layout
         infiniteOrNull?.toolbarLayout = layout
-        settings = settings.copy(canvasToolbarLayout = layout)
+        settings = settings.copy(
+            canvasToolbarLayout = layout,
+            toolbarWorkspaces = settings.toolbarWorkspaces?.let {
+                it.copy(canvas = it.canvas.replacePrimaryLayout(layout))
+            },
+        )
         settingsRepo.save(settings)
     }
 

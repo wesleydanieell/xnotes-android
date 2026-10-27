@@ -15,9 +15,12 @@ enum class ToolbarAnchor {
 
 enum class ToolbarContext { NOTE, CANVAS }
 
+enum class ToolbarScale { COMPACT, REGULAR, COMFORTABLE }
+
 /** Geometry is kept in logical dp; null dimensions mean wrap-content/automatic size. */
 data class ToolbarGeometry(
     val anchor: ToolbarAnchor = ToolbarAnchor.TOP_CENTER,
+    val scale: ToolbarScale = ToolbarScale.REGULAR,
     val floating: Boolean = false,
     val movable: Boolean = true,
     val widthDp: Int? = null,
@@ -65,6 +68,10 @@ data class ToolbarWorkspace(val bars: List<ToolbarBar>) {
         if (index < 0) return this
         return copy(bars = bars.toMutableList().also { it[index] = bar })
     }
+
+    /** Keep legacy single-bar edits in sync after secondary bars have been added. */
+    fun replacePrimaryLayout(layout: ToolbarLayout): ToolbarWorkspace =
+        bars.firstOrNull()?.let { replaceBar(it.copy(layout = layout)) } ?: this
 
     fun moveBar(id: String, toIndex: Int): ToolbarWorkspace {
         val index = bars.indexOfFirst { it.id == id }

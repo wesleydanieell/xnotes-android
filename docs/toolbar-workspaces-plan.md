@@ -62,6 +62,14 @@ can replace it atomically.
 - Performance on Xiaomi Redmi Pad 2: compare pen latency and layout recompositions
   before/after enabling several floating bars.
 
+## Progress — 2026-10-27
+
+- Phase 1: pure multi-bar workspace model and JVM tests complete.
+- Phase 2: versioned JSON codec, lazy migration from legacy layouts/look, and
+  compatibility with existing toolbar editor writes complete; JSON fallback and
+  round-trip tests pass. Workspaces are not rendered or edited in the UI yet.
+- Next: phase 3, render multiple bars while keeping tool dispatch and canvas cover correct.
+
 ## Scope boundaries
 
 Do not add toolbar state to .xnotes/.xcanvas files. Do not merge unrelated branches or
