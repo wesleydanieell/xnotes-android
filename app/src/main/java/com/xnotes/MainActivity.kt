@@ -1465,6 +1465,23 @@ private val SwallowTouches = Modifier.pointerInput(Unit) {
     }
 }
 
+/** Both drag overlays use the same window origin and never intercept stylus or touch input. */
+private val SPLIT_DRAG_POPUP = PopupProperties(
+    flags = WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or
+        WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE,
+    dismissOnBackPress = false, dismissOnClickOutside = false,
+)
+
+@Composable
+private fun rememberSplitPopupOrigin(origin: Offset): PopupPositionProvider = remember(origin) {
+    object : PopupPositionProvider {
+        override fun calculatePosition(
+            anchorBounds: IntRect, windowSize: IntSize,
+            layoutDirection: LayoutDirection, popupContentSize: IntSize,
+        ): IntOffset = IntOffset(origin.x.roundToInt(), origin.y.roundToInt())
+    }
+}
+
 /** The four edges are drop targets; releasing outside the workspace cancels the gesture. */
 private fun resolvePaneDrop(point: Offset, origin: Offset, size: IntSize): SplitSide? {
     return paneDropSide(point.x - origin.x, point.y - origin.y,
@@ -1575,7 +1592,6 @@ private fun SplitHost(editor: Editor, actions: PaneActions, openingSplit: Boolea
                 },
                 onDrop = { side -> placeSplitPane(editor, editor.pane, side, sideBySide) },
                 onGhost = { point -> dragGhost = point?.let { editor.pane to it } },
-                sideBySide = sideBySide,
                 hostOrigin = hostRootOrigin,
                 hostPixels = hostPixels,
                 gripRootOrigin = gripRootOrigin(!swapped),
@@ -1596,7 +1612,6 @@ private fun SplitHost(editor: Editor, actions: PaneActions, openingSplit: Boolea
                 },
                 onDrop = { side -> placeSplitPane(editor, second.pane, side, sideBySide) },
                 onGhost = { point -> dragGhost = point?.let { second.pane to it } },
-                sideBySide = sideBySide,
                 hostOrigin = hostRootOrigin,
                 hostPixels = hostPixels,
                 gripRootOrigin = gripRootOrigin(swapped),
@@ -1640,32 +1655,22 @@ private fun SplitHost(editor: Editor, actions: PaneActions, openingSplit: Boolea
                 tween(150), label = "gripPreviewY",
             )
             val palette = LocalPalette.current
-            val overlayPosition = remember(hostOrigin) {
-                object : PopupPositionProvider {
-                    override fun calculatePosition(
-                        anchorBounds: IntRect, windowSize: IntSize,
-                        layoutDirection: LayoutDirection, popupContentSize: IntSize,
-                    ) = IntOffset(hostOrigin.x.roundToInt(), hostOrigin.y.roundToInt())
-                }
-            }
             Popup(
-                popupPositionProvider = overlayPosition,
-                properties = PopupProperties(
-                    flags = WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or
-                        WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE,
-                    dismissOnBackPress = false, dismissOnClickOutside = false,
-                ),
+                popupPositionProvider = rememberSplitPopupOrigin(hostOrigin),
+                properties = SPLIT_DRAG_POPUP,
             ) {
                 Box(Modifier.size(fullW, fullH)) {
-                    Box(Modifier.offset(previewX, previewY).size(previewW, previewH).padding(6.dp)
-                .clip(RoundedCornerShape(14.dp))
-                .background(palette.selectionBackground.toComposeColor().copy(alpha = if (effective) 0.20f else 0.08f))
-                .border(2.dp, palette.border.toComposeColor().copy(alpha = if (effective) 0.9f else 0.35f),
-                    RoundedCornerShape(14.dp)),
-                contentAlignment = Alignment.Center,
-            ) {
-                Text(if (effective) "Release to position" else "Current position",
-                    color = palette.text.toComposeColor())
+                    Box(
+                        Modifier.offset(previewX, previewY).size(previewW, previewH).padding(6.dp)
+                            .clip(RoundedCornerShape(14.dp))
+                            .background(palette.selectionBackground.toComposeColor()
+                                .copy(alpha = if (effective) 0.20f else 0.08f))
+                            .border(2.dp, palette.border.toComposeColor()
+                                .copy(alpha = if (effective) 0.9f else 0.35f), RoundedCornerShape(14.dp)),
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        Text(if (effective) "Release to position" else "Current position",
+                            color = palette.text.toComposeColor())
                     }
                 }
             }
@@ -1677,40 +1682,29 @@ private fun SplitHost(editor: Editor, actions: PaneActions, openingSplit: Boolea
             val title = if (source == com.xnotes.ui.Pane.PRIMARY) editor.title else second?.title.orEmpty()
             val targetReady = swapPreview?.first == source
             val density = LocalDensity.current
-            val ghostPosition = remember(hostOrigin) {
-                object : PopupPositionProvider {
-                    override fun calculatePosition(
-                        anchorBounds: IntRect, windowSize: IntSize,
-                        layoutDirection: LayoutDirection, popupContentSize: IntSize,
-                    ): IntOffset = IntOffset(hostOrigin.x.roundToInt(), hostOrigin.y.roundToInt())
-                }
-            }
             Popup(
-                popupPositionProvider = ghostPosition,
-                properties = PopupProperties(
-                    flags = WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or
-                        WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE,
-                    dismissOnBackPress = false, dismissOnClickOutside = false,
-                ),
+                popupPositionProvider = rememberSplitPopupOrigin(hostOrigin),
+                properties = SPLIT_DRAG_POPUP,
             ) {
                 Box(Modifier.size(fullW, fullH)) {
-                    Row(Modifier
-                    .offset {
-                        IntOffset(
-                            (point.x - hostRootOrigin.x - with(density) { 24.dp.toPx() }).roundToInt(),
-                            (point.y - hostRootOrigin.y - with(density) { 8.dp.toPx() }).roundToInt(),
-                        )
-                    }
-                    .clip(RoundedCornerShape(12.dp))
-                    .background(palette.panel.toComposeColor())
-                    .border(1.dp, if (targetReady) palette.accent.toComposeColor().copy(alpha = 0.7f)
-                        else palette.border.toComposeColor(), RoundedCornerShape(12.dp))
-                    .padding(horizontal = 12.dp, vertical = 8.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                ) {
-                    PaneGripDots()
-                    Text(title.take(24), fontSize = 11.sp, color = palette.text.toComposeColor())
+                    Row(
+                        Modifier
+                            .offset {
+                                IntOffset(
+                                    (point.x - hostRootOrigin.x - with(density) { 24.dp.toPx() }).roundToInt(),
+                                    (point.y - hostRootOrigin.y - with(density) { 8.dp.toPx() }).roundToInt(),
+                                )
+                            }
+                            .clip(RoundedCornerShape(12.dp))
+                            .background(palette.panel.toComposeColor())
+                            .border(1.dp, if (targetReady) palette.accent.toComposeColor().copy(alpha = 0.7f)
+                                else palette.border.toComposeColor(), RoundedCornerShape(12.dp))
+                            .padding(horizontal = 12.dp, vertical = 8.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    ) {
+                        PaneGripDots()
+                        Text(title.take(24), fontSize = 11.sp, color = palette.text.toComposeColor())
                     }
                 }
             }
@@ -1746,7 +1740,6 @@ private fun EditorPane(
     onSwapPreview: (Offset?) -> Unit = {},
     onDrop: ((SplitSide) -> Unit)? = null,
     onGhost: (Offset?) -> Unit = {},
-    sideBySide: Boolean = true,
     hostOrigin: Offset = Offset.Zero,
     hostPixels: IntSize = IntSize.Zero,
     gripRootOrigin: Offset = Offset.Zero,
