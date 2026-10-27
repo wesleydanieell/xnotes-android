@@ -117,7 +117,6 @@ import com.xnotes.ui.theme.toComposeColor
 import com.xnotes.core.workspace.NoteTabs
 import com.xnotes.core.workspace.SplitSide
 import com.xnotes.core.workspace.paneDropSide
-import com.xnotes.core.workspace.paneGhostPosition
 import com.xnotes.core.workspace.panePlacementChanges
 import com.xnotes.ui.SplitAxis
 import com.xnotes.platform.NoteTabsStore
@@ -1621,7 +1620,24 @@ private fun SplitHost(editor: Editor, actions: PaneActions, openingSplit: Boolea
                 tween(150), label = "gripPreviewY",
             )
             val palette = LocalPalette.current
-            Box(Modifier.offset(previewX, previewY).size(previewW, previewH).padding(6.dp)
+            val overlayPosition = remember(hostOrigin) {
+                object : PopupPositionProvider {
+                    override fun calculatePosition(
+                        anchorBounds: IntRect, windowSize: IntSize,
+                        layoutDirection: LayoutDirection, popupContentSize: IntSize,
+                    ) = IntOffset(hostOrigin.x.roundToInt(), hostOrigin.y.roundToInt())
+                }
+            }
+            Popup(
+                popupPositionProvider = overlayPosition,
+                properties = PopupProperties(
+                    flags = WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or
+                        WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE,
+                    dismissOnBackPress = false, dismissOnClickOutside = false,
+                ),
+            ) {
+                Box(Modifier.size(fullW, fullH)) {
+                    Box(Modifier.offset(previewX, previewY).size(previewW, previewH).padding(6.dp)
                 .clip(RoundedCornerShape(14.dp))
                 .background(palette.selectionBackground.toComposeColor().copy(alpha = if (effective) 0.20f else 0.08f))
                 .border(2.dp, palette.border.toComposeColor().copy(alpha = if (effective) 0.9f else 0.35f),
@@ -1630,32 +1646,48 @@ private fun SplitHost(editor: Editor, actions: PaneActions, openingSplit: Boolea
             ) {
                 Text(if (effective) "Release to position" else "Current position",
                     color = palette.text.toComposeColor())
+                    }
+                }
             }
         }
-        // Draw the drag ghost in the common workspace coordinate system, not inside either pane.
-        // Popups anchored to a nested, offset pane can inherit its offset a second time.
+        // A touch-through popup anchored to the shared host follows the real pointer position.
+        // Drawing it as a regular sibling intercepts touches and can freeze the other editor.
         if (split) dragGhost?.let { (source, point) ->
             val palette = LocalPalette.current
             val title = if (source == com.xnotes.ui.Pane.PRIMARY) editor.title else second?.title.orEmpty()
             val targetReady = swapPreview?.first == source
             val density = LocalDensity.current
-            Row(Modifier
-                .offset {
-                    val (x, y) = paneGhostPosition(point.x, point.y,
-                        hostOrigin.x, hostOrigin.y,
-                        with(density) { 24.dp.toPx() }, with(density) { 8.dp.toPx() })
-                    IntOffset(x.roundToInt(), y.roundToInt())
+            val ghostPosition = remember(point, density) {
+                object : PopupPositionProvider {
+                    override fun calculatePosition(
+                        anchorBounds: IntRect, windowSize: IntSize,
+                        layoutDirection: LayoutDirection, popupContentSize: IntSize,
+                    ): IntOffset = IntOffset(
+                        (point.x - with(density) { 24.dp.toPx() }).roundToInt(),
+                        (point.y - with(density) { 8.dp.toPx() }).roundToInt(),
+                    )
                 }
-                .clip(RoundedCornerShape(12.dp))
-                .background(palette.panel.toComposeColor())
-                .border(1.dp, if (targetReady) palette.accent.toComposeColor().copy(alpha = 0.7f)
-                    else palette.border.toComposeColor(), RoundedCornerShape(12.dp))
-                .padding(horizontal = 12.dp, vertical = 8.dp),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
+            }
+            Popup(
+                popupPositionProvider = ghostPosition,
+                properties = PopupProperties(
+                    flags = WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or
+                        WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE,
+                    dismissOnBackPress = false, dismissOnClickOutside = false,
+                ),
             ) {
-                PaneGripDots()
-                Text(title.take(24), fontSize = 11.sp, color = palette.text.toComposeColor())
+                Row(Modifier
+                    .clip(RoundedCornerShape(12.dp))
+                    .background(palette.panel.toComposeColor())
+                    .border(1.dp, if (targetReady) palette.accent.toComposeColor().copy(alpha = 0.7f)
+                        else palette.border.toComposeColor(), RoundedCornerShape(12.dp))
+                    .padding(horizontal = 12.dp, vertical = 8.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                ) {
+                    PaneGripDots()
+                    Text(title.take(24), fontSize = 11.sp, color = palette.text.toComposeColor())
+                }
             }
         }
         // Both documents load asynchronously. Mask the transient one-pane arrangement until
@@ -1856,17 +1888,17 @@ private fun EditorPane(
                     .onGloballyPositioned { gripOrigin[0] = it.positionInWindow() }
                     .pointerInput(Unit) {
                         detectDragGesturesAfterLongPress(
-                            onDragStart = {
-                                dragStartOrigin = gripOrigin[0]
+                            onDragStart = { touchInGrip ->
+                                dragStartOrigin = gripOrigin[0] + touchInGrip
                                 ghostOffset = Offset.Zero
-                                ghostNow(dragStartOrigin + Offset(24.dp.toPx(), 8.dp.toPx()))
+                                ghostNow(dragStartOrigin)
                                 previewTarget = null
                                 previewNow(null)
                             },
                             onDrag = { change, delta ->
                                 change.consume()
                                 ghostOffset += delta
-                                val point = dragStartOrigin + Offset(24.dp.toPx(), 8.dp.toPx()) + ghostOffset
+                                val point = dragStartOrigin + ghostOffset
                                 ghostNow(point)
                                 val target = if (ghostOffset.getDistance() >= threshold) point else null
                                 previewNow(target)

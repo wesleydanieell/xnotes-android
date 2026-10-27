@@ -6,13 +6,6 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class PanePlacementTest {
-    @Test fun ghostUsesCommonHostCoordinatesForEitherSourcePane() {
-        // A grip on the right pane may have a large window X, but the ghost's position
-        // must depend only on its pointer and the workspace origin, not source-pane offsets.
-        assertEquals(76f to 32f, paneGhostPosition(400f, 200f, 300f, 160f, 24f, 8f))
-        assertEquals(76f to 32f, paneGhostPosition(100f, 40f, 0f, 0f, 24f, 8f))
-    }
-
     @Test fun allFourDropTargetsAndOutOfBounds() {
         assertEquals(SplitSide.LEFT, paneDropSide(5f, 50f, 100f, 100f))
         assertEquals(SplitSide.RIGHT, paneDropSide(95f, 50f, 100f, 100f))
