@@ -118,6 +118,7 @@ import com.xnotes.ui.theme.toComposeColor
 import com.xnotes.core.workspace.NoteTabs
 import com.xnotes.core.workspace.SplitSide
 import com.xnotes.core.workspace.paneDropSide
+import com.xnotes.core.workspace.paneGripOffset
 import com.xnotes.core.workspace.panePlacementChanges
 import com.xnotes.ui.SplitAxis
 import com.xnotes.platform.NoteTabsStore
@@ -1552,6 +1553,15 @@ private fun SplitHost(editor: Editor, actions: PaneActions, openingSplit: Boolea
         )
 
         val swapped = split && editor.splitSwapped
+        val density = LocalDensity.current
+        // Compute each grip's actual screen slot from the split layout, independent of where
+        // its EditorPane was originally composed or which document it currently displays.
+        fun gripRootOrigin(firstSlot: Boolean): Offset {
+            val (x, y) = paneGripOffset(sideBySide,
+                with(density) { firstExtent.toPx() }, with(density) { secondExtent.toPx() },
+                with(density) { fullW.toPx() }, firstSlot, with(density) { 48.dp.toPx() })
+            return hostRootOrigin + Offset(x, y)
+        }
         if (editor.noteOpen) {
             EditorPane(
                 editor = editor,
@@ -1568,6 +1578,7 @@ private fun SplitHost(editor: Editor, actions: PaneActions, openingSplit: Boolea
                 sideBySide = sideBySide,
                 hostOrigin = hostRootOrigin,
                 hostPixels = hostPixels,
+                gripRootOrigin = gripRootOrigin(!swapped),
                 modifier = (if (swapped) paneOffset(firstExtent).then(paneSize(secondExtent))
                     else paneSize(firstExtent)),
             )
@@ -1588,6 +1599,7 @@ private fun SplitHost(editor: Editor, actions: PaneActions, openingSplit: Boolea
                 sideBySide = sideBySide,
                 hostOrigin = hostRootOrigin,
                 hostPixels = hostPixels,
+                gripRootOrigin = gripRootOrigin(swapped),
                 modifier = (if (swapped) paneSize(firstExtent)
                     else paneOffset(if (split) firstExtent else 0.dp).then(paneSize(secondExtent))),
             )
@@ -1737,6 +1749,7 @@ private fun EditorPane(
     sideBySide: Boolean = true,
     hostOrigin: Offset = Offset.Zero,
     hostPixels: IntSize = IntSize.Zero,
+    gripRootOrigin: Offset = Offset.Zero,
     modifier: Modifier = Modifier,
 ) {
     val palette = LocalPalette.current
@@ -1888,7 +1901,7 @@ private fun EditorPane(
             val dropNow by rememberUpdatedState(onDrop)
             val previewNow by rememberUpdatedState(onSwapPreview)
             val ghostNow by rememberUpdatedState(onGhost)
-            val gripCoordinates = remember { arrayOf<androidx.compose.ui.layout.LayoutCoordinates?>(null) }
+            val gripOriginNow by rememberUpdatedState(gripRootOrigin)
             var dragStartOrigin by remember { mutableStateOf(Offset.Zero) }
             var ghostOffset by remember { mutableStateOf(Offset.Zero) }
             val threshold = with(LocalDensity.current) { 48.dp.toPx() }
@@ -1898,12 +1911,10 @@ private fun EditorPane(
             Box(
                 Modifier.align(Alignment.TopCenter)
                     .size(width = 48.dp, height = 16.dp)
-                    .onGloballyPositioned { gripCoordinates[0] = it }
                     .pointerInput(Unit) {
                         detectDragGesturesAfterLongPress(
                             onDragStart = { touchInGrip ->
-                                dragStartOrigin = gripCoordinates[0]?.takeIf { it.isAttached }
-                                    ?.localToRoot(touchInGrip) ?: Offset.Zero
+                                dragStartOrigin = gripOriginNow + touchInGrip
                                 ghostOffset = Offset.Zero
                                 ghostNow(dragStartOrigin)
                                 previewTarget = null

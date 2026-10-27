@@ -15,6 +15,18 @@ fun paneDropSide(x: Float, y: Float, width: Float, height: Float): SplitSide? {
     }
 }
 
+/** Grip position from the currently visible split slot, never from a cached editor origin. */
+fun paneGripOffset(
+    horizontal: Boolean, firstExtent: Float, secondExtent: Float,
+    crossWidth: Float, firstSlot: Boolean, gripWidth: Float,
+): Pair<Float, Float> {
+    val centerX = if (horizontal) {
+        if (firstSlot) firstExtent / 2f else firstExtent + secondExtent / 2f
+    } else crossWidth / 2f
+    val top = if (!horizontal && !firstSlot) firstExtent else 0f
+    return (centerX - gripWidth / 2f) to top
+}
+
 /** True when changing the pane's half or the split orientation is necessary. */
 fun panePlacementChanges(
     sourcePrimary: Boolean,
