@@ -1060,12 +1060,15 @@ private fun EditorScreen(
     // the snackbar; Home stays put and the keyboard slides over it. A floating keyboard reports no
     // inset. Insets are consumed below so inner imePadding only adds what the bars don't cover.
     val contentInsets = if (fullscreen) WindowInsets(0, 0, 0, 0) else WindowInsets.systemBars
+    var tabsExpanded by remember { mutableStateOf(false) }
+    val tabPlacement = com.xnotes.ui.tabBarPlacement(editor.toolbarLook)
     Scaffold(
         snackbarHost = { SnackbarHost(snackbar, Modifier.windowInsetsPadding(WindowInsets.ime.exclude(contentInsets))) },
         contentWindowInsets = contentInsets,
     ) { inner ->
         Column(modifier = Modifier.fillMaxSize().padding(inner).consumeWindowInsets(contentInsets)) {
-            if (noteTabs.tabs.isNotEmpty() && editor.openPanes.isNotEmpty()) {
+            if (tabPlacement == com.xnotes.ui.TabBarPlacement.DOCKED_TOP &&
+                noteTabs.tabs.isNotEmpty() && editor.openPanes.isNotEmpty()) {
                 NoteTabBar(
                     tabs = noteTabs,
                     // Selection follows workspace state immediately on close, even while
@@ -1215,7 +1218,45 @@ private fun EditorScreen(
                     insertPdfLauncher.launch(arrayOf("application/pdf"))
                 },
             )
-            SplitHost(editor, actions, openingSplit = splitOpening)
+            // The top floating toolbar owns its tabs, sharing one rounded surface.
+            // Keep this independent of the editor panels so either pane can be focused.
+            val toolbarTabs = if (tabPlacement == com.xnotes.ui.TabBarPlacement.ATTACHED_TOP &&
+                noteTabs.tabs.isNotEmpty() && editor.openPanes.isNotEmpty()) {
+                com.xnotes.ui.ToolbarTabExtension(
+                    expanded = tabsExpanded,
+                    onToggle = { tabsExpanded = !tabsExpanded },
+                    content = {
+                        NoteTabBar(
+                            tabs = noteTabs,
+                            activeUri = noteTabs.selectedUri(editor.active.pane == com.xnotes.ui.Pane.SECONDARY),
+                            onSelect = { uri -> activateTab(uri); tabsExpanded = false },
+                            onClose = ::closeTab,
+                            onReorder = { from, to -> noteTabs = noteTabs.move(from, to) },
+                            onSplit = ::splitFromTab,
+                            floatingSurface = true,
+                        )
+                    },
+                )
+            } else null
+            androidx.compose.runtime.CompositionLocalProvider(com.xnotes.ui.LocalToolbarTabExtension provides toolbarTabs) {
+                SplitHost(editor, actions, openingSplit = splitOpening)
+            }
+            if (tabPlacement == com.xnotes.ui.TabBarPlacement.FLOATING_SELECTOR &&
+                noteTabs.tabs.isNotEmpty() && editor.openPanes.isNotEmpty()) {
+                // Overlay, not a Column child: expanding tabs must not resize the canvas.
+                val topInset = 8.dp
+                com.xnotes.ui.FloatingDocumentTabs(
+                    tabs = noteTabs,
+                    activeUri = noteTabs.selectedUri(editor.active.pane == com.xnotes.ui.Pane.SECONDARY),
+                    expanded = tabsExpanded,
+                    onExpandedChange = { tabsExpanded = it },
+                    onSelect = { uri -> activateTab(uri) },
+                    onClose = ::closeTab,
+                    onReorder = { from, to -> noteTabs = noteTabs.move(from, to) },
+                    onSplit = ::splitFromTab,
+                    modifier = Modifier.align(Alignment.TopStart).padding(start = 8.dp, top = topInset),
+                )
+            }
             }
         }
     }
@@ -1753,6 +1794,7 @@ private fun EditorPane(
     val palette = LocalPalette.current
     val focusRequester = remember { FocusRequester() }
     val focused = app.active === editor
+    val paneTabs = if (focused) com.xnotes.ui.LocalToolbarTabExtension.current else null
     SideEffect { editor.openInPane = { uri -> actions.onOpenFile(editor, uri) } }
     // This pane owns the keyboard while it is the focused one; (re)grab it as that changes.
     LaunchedEffect(focused, editor.noteOpen) {
@@ -1804,7 +1846,7 @@ private fun EditorPane(
                         onTakePhoto = { actions.onTakePhoto(editor) },
                     )
                 }
-                ToolbarAround(bar, onCover = canvas::setToolbarCover) { floatingBar ->
+                ToolbarAround(bar, onCover = canvas::setToolbarCover, tabExtension = paneTabs) { floatingBar ->
                     Box(modifier = Modifier.fillMaxSize().clipToBounds()) {
                         AndroidView(
                             factory = { detached(canvas.surfaces) },
@@ -1842,7 +1884,7 @@ private fun EditorPane(
                         onTakePhoto = { actions.onTakePhoto(editor) },
                     ) }
                 }
-                ToolbarAround(bar, onCover = editor::setToolbarCover) { floatingBar ->
+                ToolbarAround(bar, onCover = editor::setToolbarCover, tabExtension = paneTabs) { floatingBar ->
                     Row(modifier = Modifier.fillMaxSize()) {
                         if (editor.sidebarVisible) {
                             com.xnotes.ui.SidePanel(
