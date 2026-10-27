@@ -75,8 +75,14 @@ import com.xnotes.core.model.PageSize
 import com.xnotes.core.model.Rgba
 import com.xnotes.settings.ExplorerLayout
 import com.xnotes.core.tools.InkPalette
+import com.xnotes.core.tools.ToolbarAnchor
+import com.xnotes.core.tools.ToolbarBar
+import com.xnotes.core.tools.ToolbarEntry
+import com.xnotes.core.tools.ToolbarGeometry
 import com.xnotes.core.tools.ToolbarItem
 import com.xnotes.core.tools.ToolbarLayout
+import com.xnotes.core.tools.ToolbarSection
+import com.xnotes.core.tools.ToolbarWorkspace
 import com.xnotes.core.util.NameTemplate
 import com.xnotes.settings.Preferences
 import com.xnotes.settings.MaterialStyle
@@ -144,7 +150,12 @@ fun PreferencesPane(
     // Which bar the toolbar section is arranging. The two are separate layouts, so the drag state
     // below always belongs to whichever is on screen.
     var canvasTab by remember { mutableStateOf(false) }
-    val layout = if (canvasTab) editor.canvasToolbarLayout else editor.toolbarLayout
+    var selectedBarId by remember { mutableStateOf<String?>(null) }
+    fun editedWorkspace(): ToolbarWorkspace =
+        if (canvasTab) editor.toolbarWorkspaces.canvas else editor.toolbarWorkspaces.note
+    fun selectedBar(): ToolbarBar = editedWorkspace().bars.firstOrNull { it.id == selectedBarId }
+        ?: editedWorkspace().bars.first()
+    val layout = selectedBar().layout
     // Toolbar drag state, hoisted here so the floating "ghost" chip can be drawn at the pane
     // root (above and outside the scroll, so it is never clipped). Bounds are plain maps read
     // only at drag time; observable state is just the dragged item, finger, and drop slot.
@@ -161,9 +172,17 @@ fun PreferencesPane(
     var sectionDropTarget by remember { mutableStateOf<Int?>(null) }
     var paneTopLeft by remember { mutableStateOf(Offset.Zero) }
     var viewport by remember { mutableStateOf(Rect.Zero) }
-    fun editedLayout(): ToolbarLayout = if (canvasTab) editor.canvasToolbarLayout else editor.toolbarLayout
+    fun editedLayout(): ToolbarLayout = selectedBar().layout
     fun applyEdited(next: ToolbarLayout) {
-        if (canvasTab) editor.applyCanvasToolbarLayout(next) else editor.applyToolbarLayout(next)
+        val workspace = editedWorkspace()
+        val bar = selectedBar()
+        if (bar.id == workspace.bars.first().id) {
+            if (canvasTab) editor.applyCanvasToolbarLayout(next) else editor.applyToolbarLayout(next)
+        } else {
+            val profiles = editor.toolbarWorkspaces
+            val changed = workspace.replaceBar(bar.copy(layout = next))
+            editor.applyToolbarWorkspaces(if (canvasTab) profiles.copy(canvas = changed) else profiles.copy(note = changed))
+        }
     }
     fun retarget() {
         dropTarget = toolbarDropTarget(editedLayout(), dragFinger, chipBounds, sectionBounds)
@@ -174,8 +193,20 @@ fun PreferencesPane(
     fun showTab(canvas: Boolean) {
         if (canvasTab == canvas) return
         canvasTab = canvas
+        selectedBarId = null
         // The bounds maps are keyed by item and the two bars share most items, so stale entries
         // from the other tab would aim a drop at a chip that is no longer there.
+        chipBounds.clear()
+        sectionBounds.clear()
+        sectionGrabBounds.clear()
+        dragItem = null
+        dragSection = null
+        dropTarget = null
+        sectionDropTarget = null
+    }
+    fun showBar(id: String) {
+        if (selectedBarId == id) return
+        selectedBarId = id
         chipBounds.clear()
         sectionBounds.clear()
         sectionGrabBounds.clear()
@@ -597,6 +628,112 @@ fun PreferencesPane(
                         applyEdited(if (canvasTab) ToolbarLayout.CANVAS_DEFAULT else ToolbarLayout.DEFAULT)
                     },
                 ) { Text(stringResource(R.string.reset), fontSize = 13.sp) }
+            }
+            val barLabel = stringResource(R.string.pref_toolbar)
+            val workspace = editedWorkspace()
+            val currentBar = selectedBar()
+            FlowRow(
+                horizontalArrangement = Arrangement.spacedBy(6.dp),
+                verticalArrangement = Arrangement.spacedBy(6.dp),
+            ) {
+                workspace.bars.forEachIndexed { index, bar ->
+                    Chip("$barLabel ${index + 1}", bar.id == currentBar.id) { showBar(bar.id) }
+                }
+            }
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                TextButton(onClick = {
+                    val old = editedWorkspace()
+                    val id = generateSequence(1) { it + 1 }.map { "bar-$it" }
+                        .first { key -> old.bars.none { it.id == key } }
+                    val defaults = if (canvasTab) ToolbarLayout.CANVAS_DEFAULT else ToolbarLayout.DEFAULT
+                    val compact = ToolbarLayout(defaults.sections.map { section ->
+                        section.copy(entries = section.entries.map { entry ->
+                            entry.copy(visible = entry.item == ToolbarItem.COLORS)
+                        })
+                    })
+                    val bar = ToolbarBar(
+                        id = id,
+                        name = "$barLabel ${old.bars.size + 1}",
+                        layout = compact,
+                        geometry = ToolbarGeometry(anchor = ToolbarAnchor.BOTTOM_RIGHT, floating = true),
+                    )
+                    val profiles = editor.toolbarWorkspaces
+                    val changed = old.addBar(bar)
+                    editor.applyToolbarWorkspaces(
+                        if (canvasTab) profiles.copy(canvas = changed) else profiles.copy(note = changed),
+                    )
+                    showBar(id)
+                }) { Text(stringResource(R.string.add) + " " + barLabel) }
+                TextButton(onClick = {
+                    val old = editedWorkspace()
+                    val bar = selectedBar()
+                    val id = generateSequence(1) { it + 1 }.map { "bar-$it" }
+                        .first { key -> old.bars.none { it.id == key } }
+                    val changed = old.duplicateBar(bar.id, id, "$barLabel ${old.bars.size + 1}")
+                    val profiles = editor.toolbarWorkspaces
+                    editor.applyToolbarWorkspaces(
+                        if (canvasTab) profiles.copy(canvas = changed) else profiles.copy(note = changed),
+                    )
+                    showBar(id)
+                }) { Text(stringResource(R.string.duplicate)) }
+                if (workspace.bars.size > 1 && currentBar.id != workspace.bars.first().id) {
+                    TextButton(onClick = {
+                        val old = editedWorkspace()
+                        val changed = old.removeBar(selectedBar().id)
+                        val profiles = editor.toolbarWorkspaces
+                        editor.applyToolbarWorkspaces(
+                            if (canvasTab) profiles.copy(canvas = changed) else profiles.copy(note = changed),
+                        )
+                        showBar(changed.bars.first().id)
+                    }) { Text(stringResource(R.string.remove)) }
+                }
+            }
+            if (currentBar.id != workspace.bars.first().id) {
+                FieldLabel(stringResource(R.string.pref_toolbar_position))
+                FlowRow(
+                    horizontalArrangement = Arrangement.spacedBy(4.dp),
+                    verticalArrangement = Arrangement.spacedBy(4.dp),
+                ) {
+                    for ((anchor, mark) in listOf(
+                        ToolbarAnchor.TOP_LEFT to "↖",
+                        ToolbarAnchor.TOP_CENTER to "↑",
+                        ToolbarAnchor.TOP_RIGHT to "↗",
+                        ToolbarAnchor.CENTER_LEFT to "←",
+                        ToolbarAnchor.CENTER to "●",
+                        ToolbarAnchor.CENTER_RIGHT to "→",
+                        ToolbarAnchor.BOTTOM_LEFT to "↙",
+                        ToolbarAnchor.BOTTOM_CENTER to "↓",
+                        ToolbarAnchor.BOTTOM_RIGHT to "↘",
+                    )) {
+                        Chip(mark, currentBar.geometry.anchor == anchor) {
+                            val profiles = editor.toolbarWorkspaces
+                            val updated = editedWorkspace().replaceBar(
+                                selectedBar().copy(geometry = selectedBar().geometry.copy(anchor = anchor)),
+                            )
+                            editor.applyToolbarWorkspaces(
+                                if (canvasTab) profiles.copy(canvas = updated) else profiles.copy(note = updated),
+                            )
+                        }
+                    }
+                }
+                FieldLabel(stringResource(R.string.pref_toolbar_size))
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    for ((scale, label) in listOf(
+                        com.xnotes.core.tools.ToolbarScale.COMPACT to R.string.toolbar_size_compact,
+                        com.xnotes.core.tools.ToolbarScale.REGULAR to R.string.toolbar_size_regular,
+                        com.xnotes.core.tools.ToolbarScale.COMFORTABLE to R.string.toolbar_size_comfortable,
+                    )) {
+                        Chip(stringResource(label), currentBar.geometry.scale == scale) {
+                            val profiles = editor.toolbarWorkspaces
+                            val updated = editedWorkspace().replaceBar(
+                                selectedBar().copy(geometry = selectedBar().geometry.copy(scale = scale)),
+                            )
+                            editor.applyToolbarWorkspaces(
+                                if (canvasTab) profiles.copy(canvas = updated) else profiles.copy(note = updated),
+                            )
+                        }
+                    }
+                }
             }
             Text(
                 stringResource(R.string.pref_toolbar_help),

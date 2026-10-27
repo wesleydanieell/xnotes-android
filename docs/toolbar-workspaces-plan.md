@@ -67,10 +67,13 @@ can replace it atomically.
 - Phase 1: pure multi-bar workspace model and JVM tests complete.
 - Phase 2: versioned JSON codec, lazy migration from legacy layouts/look, and
   compatibility with existing toolbar editor writes complete; JSON fallback and
-  round-trip tests pass. Workspaces are not rendered or edited in the UI yet.
-- Phase 3 started: note and canvas toolbar renderers now accept an explicit layout,
-  leaving the old editor-owned layout as the default for backward compatibility.
-- Next: multi-bar host with independent placement, cover and overflow handling.
+  round-trip tests pass.
+- Phase 3 MVP: note and canvas renderers accept per-bar layouts; additional bars
+  render as floating overlays in each pane and stack when assigned the same anchor.
+- First preferences UI: add, duplicate, remove, select, show/hide tools, change bar
+  anchor and size. The existing primary bar and tool dispatch remain unchanged.
+- Next: movable handles, robust overlap/viewport-cover handling, docking, and
+  explicit edit mode; currently additional bars are positioned via Preferences.
 
 ## Scope boundaries
 
