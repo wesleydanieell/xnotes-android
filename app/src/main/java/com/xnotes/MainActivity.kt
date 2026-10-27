@@ -1671,7 +1671,7 @@ private fun SplitHost(editor: Editor, actions: PaneActions, openingSplit: Boolea
                         resolvePaneDrop(point, hostRootOrigin, hostPixels)?.let { editor.pane to it }
                     }
                 },
-                onDrop = { side -> placeSplitPane(editor, editor.pane, side, sideBySide) },
+                onDrop = if (split) ({ side -> placeSplitPane(editor, editor.pane, side, sideBySide) }) else null,
                 onGhost = { point -> dragGhost = point?.let { editor.pane to it } },
                 hostOrigin = hostRootOrigin,
                 hostPixels = hostPixels,
@@ -1692,7 +1692,7 @@ private fun SplitHost(editor: Editor, actions: PaneActions, openingSplit: Boolea
                         resolvePaneDrop(point, hostRootOrigin, hostPixels)?.let { second.pane to it }
                     }
                 },
-                onDrop = { side -> placeSplitPane(editor, second.pane, side, sideBySide) },
+                onDrop = if (split) ({ side -> placeSplitPane(editor, second.pane, side, sideBySide) }) else null,
                 onGhost = { point -> dragGhost = point?.let { second.pane to it } },
                 hostOrigin = hostRootOrigin,
                 hostPixels = hostPixels,
