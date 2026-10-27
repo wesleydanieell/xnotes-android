@@ -1834,13 +1834,20 @@ private fun EditorPane(
     val palette = LocalPalette.current
     val focusRequester = remember { FocusRequester() }
     val focused = app.active === editor
+    // Animate toolbar ownership one frame after the pen-down dispatch. This keeps a
+    // focus change from rebuilding the toolbar while the canvas receives its first stroke.
+    var toolbarFocused by remember(editor) { mutableStateOf(focused) }
+    LaunchedEffect(focused) {
+        androidx.compose.runtime.withFrameNanos { }
+        toolbarFocused = focused
+    }
     val sharedTabs = com.xnotes.ui.LocalToolbarTabExtension.current
     val paneTabs = sharedTabs?.let {
         com.xnotes.ui.ToolbarTabExtension(
-            expanded = it.expanded && focused,
+            expanded = it.expanded && toolbarFocused,
             onToggle = it.onToggle,
             content = it.content,
-            showToggle = focused,
+            showToggle = toolbarFocused,
         )
     }
     SideEffect { editor.openInPane = { uri -> actions.onOpenFile(editor, uri) } }
@@ -1851,9 +1858,10 @@ private fun EditorPane(
     val takeFocus = Modifier.pointerInput(editor) {
         awaitPointerEventScope {
             while (true) {
-                // Initial pass and never consumed: the pane notices the touch, the canvas still gets it.
-                val event = awaitPointerEvent(PointerEventPass.Initial)
-                if (event.type == PointerEventType.Press) app.focusPane(editor.pane)
+                // Final pass: the native canvas receives ACTION_DOWN before the focus change
+                // recomposes floating toolbars. Do not consume the pen's first event.
+                val event = awaitPointerEvent(PointerEventPass.Final)
+                if (event.type == PointerEventType.Press && app.active !== editor) app.focusPane(editor.pane)
             }
         }
     }
