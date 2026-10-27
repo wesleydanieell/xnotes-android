@@ -565,6 +565,9 @@ class Editor(context: Context, val pane: Pane = Pane.PRIMARY) : ToolPopupHost, S
     /** The infinite canvas's own bar. Its own layout: the two surfaces hold different items. */
     var canvasToolbarLayout by mutableStateOf(ToolbarLayout.CANVAS_DEFAULT)
         private set
+    /** Device-wide toolbar profiles; observed by every pane's Compose renderer. */
+    var toolbarWorkspaces by mutableStateOf(settings.effectiveToolbarWorkspaces())
+        private set
     var renderScale by mutableStateOf(1.0)
         private set
     var sidebarVisible by mutableStateOf(false)
@@ -2663,6 +2666,7 @@ class Editor(context: Context, val pane: Pane = Pane.PRIMARY) : ToolPopupHost, S
         toolbarColorCount = settings.toolbarColorCount
         toolbarLayout = settings.toolbarLayout
         canvasToolbarLayout = settings.canvasToolbarLayout
+        toolbarWorkspaces = settings.effectiveToolbarWorkspaces()
         activeColorIndex = settings.activeColor.coerceIn(0, toolbarColorCount - 1)
         // Render always at 1x (the DPI/supersampling control was removed).
         renderScale = 1.0
@@ -2816,6 +2820,7 @@ class Editor(context: Context, val pane: Pane = Pane.PRIMARY) : ToolPopupHost, S
         settings = settings.copy(prefs = p)
         cornerStyle = p.cornerStyle
         toolbarLook = p.toolbarLook
+        toolbarWorkspaces = settings.effectiveToolbarWorkspaces()
         saveSettingsSoon()
         prefsVersion++
     }
@@ -2829,6 +2834,7 @@ class Editor(context: Context, val pane: Pane = Pane.PRIMARY) : ToolPopupHost, S
                 it.copy(note = it.note.replacePrimaryLayout(layout))
             },
         )
+        toolbarWorkspaces = settings.effectiveToolbarWorkspaces()
         settingsRepo.save(settings)
     }
 
@@ -2842,6 +2848,14 @@ class Editor(context: Context, val pane: Pane = Pane.PRIMARY) : ToolPopupHost, S
                 it.copy(canvas = it.canvas.replacePrimaryLayout(layout))
             },
         )
+        toolbarWorkspaces = settings.effectiveToolbarWorkspaces()
+        settingsRepo.save(settings)
+    }
+
+    /** Save a new multi-bar profile without changing the legacy toolbar fields. */
+    fun applyToolbarWorkspaces(workspaces: com.xnotes.core.tools.ToolbarWorkspaces) {
+        toolbarWorkspaces = workspaces
+        settings = settings.copy(toolbarWorkspaces = workspaces)
         settingsRepo.save(settings)
     }
 

@@ -92,9 +92,11 @@ import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.WindowInsetsControllerCompat
 import com.xnotes.R
 import com.xnotes.canvas.StylusButtonLatch
+import com.xnotes.core.tools.ToolbarContext
 import com.xnotes.ui.Editor
 import com.xnotes.ui.Toolbar
 import com.xnotes.ui.ToolbarAround
+import com.xnotes.ui.WorkspaceFloatingBars
 import com.xnotes.ui.icons.XnotesIcons
 import com.xnotes.ui.theme.LocalPalette
 import com.xnotes.ui.theme.XnotesTheme
@@ -1484,6 +1486,17 @@ private fun EditorPane(
                             com.xnotes.ui.TextEditorOverlay(canvas, field)
                         }
                         floatingBar()
+                        WorkspaceFloatingBars(app.toolbarWorkspaces.forContext(ToolbarContext.CANVAS)) { extraBar ->
+                            com.xnotes.ui.InfiniteToolbar(
+                                canvas,
+                                onOpenBackstage = actions.onOpenBackstage,
+                                onInsertImage = { actions.onInsertCanvasImage(editor, null) },
+                                onInsertAudio = { actions.onInsertAudio(editor) },
+                                onRecordAudio = { actions.onRecordAudio(editor) },
+                                onTakePhoto = { actions.onTakePhoto(editor) },
+                                layout = extraBar.layout,
+                            )
+                        }
                         com.xnotes.ui.SelectionMenu(
                             canvas,
                             onSaveAudio = { actions.onSaveAudio(editor, it) },
@@ -1534,6 +1547,20 @@ private fun EditorPane(
                                 com.xnotes.ui.TextEditorOverlay(editor, field)
                             }
                             floatingBar()
+                            WorkspaceFloatingBars(app.toolbarWorkspaces.forContext(ToolbarContext.NOTE)) { extraBar ->
+                                Toolbar(
+                                    editor,
+                                    onToggleFullscreen = actions.onToggleFullscreen,
+                                    onOpenBackstage = actions.onOpenBackstage,
+                                    onInsertImage = { actions.onInsertImage(editor, null) },
+                                    onAddStickers = actions.onAddStickers,
+                                    onImportTemplate = actions.onImportTemplate,
+                                    onInsertAudio = { actions.onInsertAudio(editor) },
+                                    onRecordAudio = { actions.onRecordAudio(editor) },
+                                    onTakePhoto = { actions.onTakePhoto(editor) },
+                                    layout = extraBar.layout,
+                                )
+                            }
                             com.xnotes.ui.SelectionMenu(
                                 editor,
                                 onSaveAudio = { actions.onSaveAudio(editor, it) },
