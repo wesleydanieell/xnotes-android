@@ -73,7 +73,6 @@ import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.foundation.focusable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
-import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.layout.positionInWindow
 import androidx.compose.ui.layout.positionInRoot
@@ -2044,9 +2043,9 @@ private fun EditorPane(
 /** Three-dot pane grip, styled from the active theme rather than a directional arrow. */
 @Composable
 private fun PaneGripDots() {
-    // A single opaque fill is cleaner at this size than a light/dark outline.
-    val brightBackground = LocalPalette.current.bg.toComposeColor().luminance() > 0.5f
-    val ink = if (brightBackground) androidx.compose.ui.graphics.Color.Black else androidx.compose.ui.graphics.Color.White
+    // The page can be white even in dark app mode (or dark in light app mode).
+    // A neutral midtone remains visible on both without adding an outline.
+    val ink = androidx.compose.ui.graphics.Color(0xFF757575)
     Row(horizontalArrangement = Arrangement.spacedBy(3.dp), verticalAlignment = Alignment.CenterVertically) {
         repeat(3) {
             androidx.compose.foundation.Canvas(Modifier.size(6.dp)) {
