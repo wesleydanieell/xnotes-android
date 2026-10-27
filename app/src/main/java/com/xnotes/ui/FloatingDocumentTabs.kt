@@ -1,6 +1,7 @@
 package com.xnotes.ui
 
 import androidx.compose.animation.animateContentSize
+import androidx.compose.animation.core.spring
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -13,7 +14,6 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.outlined.Article
 import androidx.compose.material.icons.filled.KeyboardArrowDown
@@ -21,6 +21,7 @@ import androidx.compose.material.icons.filled.KeyboardArrowUp
 import androidx.compose.material.icons.outlined.Gesture
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -46,10 +47,11 @@ fun FloatingDocumentTabs(
     onClose: (String) -> Unit,
     onReorder: (Int, Int) -> Unit,
     onSplit: (String, SplitSide) -> Unit,
+    dropArea: DocumentDropArea? = null,
     modifier: Modifier = Modifier,
 ) {
     val palette = LocalPalette.current
-    val shape = RoundedCornerShape(18.dp)
+    val shape = MaterialTheme.shapes.extraLarge
     val active = tabs.tabs.firstOrNull { it.uri == activeUri } ?: tabs.tabs.firstOrNull()
     val title = active?.title?.replace(Regex("(?i)\\.(xnote|xcanvas)$"), "") ?: "Documents"
     val canvas = active?.uri?.substringBefore('?')?.endsWith(".xcanvas", true) == true
@@ -58,17 +60,18 @@ fun FloatingDocumentTabs(
         modifier.shadow(5.dp, shape).clip(shape)
             .background(palette.panel.toComposeColor())
             .border(1.dp, palette.border.toComposeColor(), shape)
-            .animateContentSize(),
+            .animateContentSize(animationSpec = spring(stiffness = androidx.compose.animation.core.Spring.StiffnessMediumLow)),
     ) {
         if (expanded) {
             Box(Modifier.width(maxWidth).height(42.dp)) {
                 NoteTabBar(tabs, activeUri,
-                    onSelect = { uri -> onSelect(uri); onExpandedChange(false) },
+                    onSelect = onSelect,
                     onClose = onClose,
                     onReorder = onReorder,
-                    onSplit = { uri, side -> onSplit(uri, side); onExpandedChange(false) },
+                    onSplit = onSplit,
                     modifier = Modifier.padding(end = 36.dp),
                     floatingSurface = true,
+                    dropArea = dropArea,
                 )
                 Box(
                     Modifier.align(Alignment.CenterEnd).size(36.dp)

@@ -1,5 +1,11 @@
 package com.xnotes.ui
 
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.expandVertically
+import androidx.compose.animation.shrinkVertically
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.horizontalScroll
@@ -156,7 +162,11 @@ internal fun ColumnScope.ToolbarAround(
                                 .border(1.dp, palette.border.toComposeColor(), shape),
                             horizontalAlignment = Alignment.CenterHorizontally,
                         ) {
-                            if (tabExtension.expanded) {
+                            AnimatedVisibility(
+                                visible = tabExtension.expanded,
+                                enter = expandVertically(animationSpec = tween(200)) + fadeIn(tween(150)),
+                                exit = shrinkVertically(animationSpec = tween(180)) + fadeOut(tween(120)),
+                            ) {
                                 Box(Modifier.width(availableTabWidth)) { tabExtension.content() }
                             }
                             CompositionLocalProvider(
