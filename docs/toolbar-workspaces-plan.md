@@ -68,7 +68,9 @@ can replace it atomically.
 - Phase 2: versioned JSON codec, lazy migration from legacy layouts/look, and
   compatibility with existing toolbar editor writes complete; JSON fallback and
   round-trip tests pass. Workspaces are not rendered or edited in the UI yet.
-- Next: phase 3, render multiple bars while keeping tool dispatch and canvas cover correct.
+- Phase 3 started: note and canvas toolbar renderers now accept an explicit layout,
+  leaving the old editor-owned layout as the default for backward compatibility.
+- Next: multi-bar host with independent placement, cover and overflow handling.
 
 ## Scope boundaries
 
