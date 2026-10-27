@@ -117,6 +117,7 @@ import com.xnotes.ui.theme.toComposeColor
 import com.xnotes.core.workspace.NoteTabs
 import com.xnotes.core.workspace.SplitSide
 import com.xnotes.core.workspace.paneDropSide
+import com.xnotes.core.workspace.paneGhostPosition
 import com.xnotes.core.workspace.panePlacementChanges
 import com.xnotes.ui.SplitAxis
 import com.xnotes.platform.NoteTabsStore
@@ -1498,6 +1499,7 @@ private fun placeSplitPane(editor: Editor, pane: com.xnotes.ui.Pane, side: Split
 @Composable
 private fun SplitHost(editor: Editor, actions: PaneActions, openingSplit: Boolean = false) {
     var swapPreview by remember { mutableStateOf<Pair<com.xnotes.ui.Pane, SplitSide>?>(null) }
+    var dragGhost by remember { mutableStateOf<Pair<com.xnotes.ui.Pane, Offset>?>(null) }
     var hostOrigin by remember { mutableStateOf(Offset.Zero) }
     var hostPixels by remember { mutableStateOf(IntSize.Zero) }
     val second = editor.secondary
@@ -1555,6 +1557,7 @@ private fun SplitHost(editor: Editor, actions: PaneActions, openingSplit: Boolea
                     }
                 },
                 onDrop = { side -> placeSplitPane(editor, editor.pane, side, sideBySide) },
+                onGhost = { point -> dragGhost = point?.let { editor.pane to it } },
                 sideBySide = sideBySide,
                 hostOrigin = hostOrigin,
                 hostPixels = hostPixels,
@@ -1574,6 +1577,7 @@ private fun SplitHost(editor: Editor, actions: PaneActions, openingSplit: Boolea
                     }
                 },
                 onDrop = { side -> placeSplitPane(editor, second.pane, side, sideBySide) },
+                onGhost = { point -> dragGhost = point?.let { second.pane to it } },
                 sideBySide = sideBySide,
                 hostOrigin = hostOrigin,
                 hostPixels = hostPixels,
@@ -1628,6 +1632,32 @@ private fun SplitHost(editor: Editor, actions: PaneActions, openingSplit: Boolea
                     color = palette.text.toComposeColor())
             }
         }
+        // Draw the drag ghost in the common workspace coordinate system, not inside either pane.
+        // Popups anchored to a nested, offset pane can inherit its offset a second time.
+        if (split) dragGhost?.let { (source, point) ->
+            val palette = LocalPalette.current
+            val title = if (source == com.xnotes.ui.Pane.PRIMARY) editor.title else second?.title.orEmpty()
+            val targetReady = swapPreview?.first == source
+            val density = LocalDensity.current
+            Row(Modifier
+                .offset {
+                    val (x, y) = paneGhostPosition(point.x, point.y,
+                        hostOrigin.x, hostOrigin.y,
+                        with(density) { 24.dp.toPx() }, with(density) { 8.dp.toPx() })
+                    IntOffset(x.roundToInt(), y.roundToInt())
+                }
+                .clip(RoundedCornerShape(12.dp))
+                .background(palette.panel.toComposeColor())
+                .border(1.dp, if (targetReady) palette.accent.toComposeColor().copy(alpha = 0.7f)
+                    else palette.border.toComposeColor(), RoundedCornerShape(12.dp))
+                .padding(horizontal = 12.dp, vertical = 8.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                PaneGripDots()
+                Text(title.take(24), fontSize = 11.sp, color = palette.text.toComposeColor())
+            }
+        }
         // Both documents load asynchronously. Mask the transient one-pane arrangement until
         // the final split exists, instead of flashing the dragged note full-screen.
         if (openingSplit) {
@@ -1658,6 +1688,7 @@ private fun EditorPane(
     closable: Boolean,
     onSwapPreview: (Offset?) -> Unit = {},
     onDrop: ((SplitSide) -> Unit)? = null,
+    onGhost: (Offset?) -> Unit = {},
     sideBySide: Boolean = true,
     hostOrigin: Offset = Offset.Zero,
     hostPixels: IntSize = IntSize.Zero,
@@ -1811,15 +1842,14 @@ private fun EditorPane(
         if (onDrop != null) {
             val dropNow by rememberUpdatedState(onDrop)
             val previewNow by rememberUpdatedState(onSwapPreview)
+            val ghostNow by rememberUpdatedState(onGhost)
             val gripOrigin = remember { arrayOf(Offset.Zero) }
             var dragStartOrigin by remember { mutableStateOf(Offset.Zero) }
             var ghostOffset by remember { mutableStateOf(Offset.Zero) }
-            var isDragging by remember { mutableStateOf(false) }
             val threshold = with(LocalDensity.current) { 48.dp.toPx() }
             val hostOriginNow by rememberUpdatedState(hostOrigin)
             val hostPixelsNow by rememberUpdatedState(hostPixels)
             var previewTarget by remember { mutableStateOf<SplitSide?>(null) }
-            val confirmed = previewTarget != null
             Box(
                 Modifier.align(Alignment.TopCenter)
                     .size(width = 48.dp, height = 16.dp)
@@ -1828,8 +1858,8 @@ private fun EditorPane(
                         detectDragGesturesAfterLongPress(
                             onDragStart = {
                                 dragStartOrigin = gripOrigin[0]
-                                isDragging = true
                                 ghostOffset = Offset.Zero
+                                ghostNow(dragStartOrigin + Offset(24.dp.toPx(), 8.dp.toPx()))
                                 previewTarget = null
                                 previewNow(null)
                             },
@@ -1837,6 +1867,7 @@ private fun EditorPane(
                                 change.consume()
                                 ghostOffset += delta
                                 val point = dragStartOrigin + Offset(24.dp.toPx(), 8.dp.toPx()) + ghostOffset
+                                ghostNow(point)
                                 val target = if (ghostOffset.getDistance() >= threshold) point else null
                                 previewNow(target)
                                 previewTarget = target?.let { resolvePaneDrop(it, hostOriginNow, hostPixelsNow) }
@@ -1844,54 +1875,20 @@ private fun EditorPane(
                             onDragEnd = {
                                 val target = previewTarget
                                 previewNow(null)
-                                isDragging = false
+                                ghostNow(null)
                                 previewTarget = null
                                 if (target != null) dropNow(target)
                             },
                             onDragCancel = {
                                 previewNow(null)
+                                ghostNow(null)
                                 previewTarget = null
-                                isDragging = false
                             },
                         )
                     },
                 contentAlignment = Alignment.Center,
             ) {
                 PaneGripDots()
-            }
-            if (isDragging) {
-                val floatingPosition = remember(dragStartOrigin, ghostOffset) {
-                    object : PopupPositionProvider {
-                        override fun calculatePosition(
-                            anchorBounds: IntRect, windowSize: IntSize,
-                            layoutDirection: LayoutDirection, popupContentSize: IntSize,
-                        ): IntOffset = IntOffset(
-                            (dragStartOrigin.x + ghostOffset.x).roundToInt(),
-                            (dragStartOrigin.y + ghostOffset.y).roundToInt(),
-                        )
-                    }
-                }
-                Popup(
-                    popupPositionProvider = floatingPosition,
-                    properties = PopupProperties(
-                        flags = WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or
-                            WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE,
-                        dismissOnBackPress = false, dismissOnClickOutside = false,
-                    ),
-                ) {
-                    Row(Modifier
-                        .clip(RoundedCornerShape(12.dp))
-                        .background(palette.panel.toComposeColor())
-                        .border(1.dp, if (confirmed) palette.accent.toComposeColor().copy(alpha = 0.7f)
-                            else palette.border.toComposeColor(), RoundedCornerShape(12.dp))
-                        .padding(horizontal = 12.dp, vertical = 8.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(8.dp),
-                    ) {
-                        PaneGripDots()
-                        Text(editor.title.take(24), fontSize = 11.sp, color = palette.text.toComposeColor())
-                    }
-                }
             }
         }
     }

@@ -15,6 +15,13 @@ fun paneDropSide(x: Float, y: Float, width: Float, height: Float): SplitSide? {
     }
 }
 
+/** Position a drag ghost in the common host, independently of its source pane. */
+fun paneGhostPosition(
+    pointerX: Float, pointerY: Float,
+    hostX: Float, hostY: Float,
+    anchorX: Float, anchorY: Float,
+): Pair<Float, Float> = (pointerX - hostX - anchorX) to (pointerY - hostY - anchorY)
+
 /** True when changing the pane's half or the split orientation is necessary. */
 fun panePlacementChanges(
     sourcePrimary: Boolean,
