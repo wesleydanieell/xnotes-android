@@ -36,6 +36,8 @@ import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.boundsInRoot
 import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.xnotes.core.tools.ToolbarAnchor
@@ -175,7 +177,7 @@ private fun PreviewBar(
 @Composable
 private fun PreviewTool(item: ToolbarItem) {
     val palette = LocalPalette.current
-    Box(Modifier.size(21.dp), contentAlignment = Alignment.Center) {
+    Box(Modifier.size(21.dp).semantics { contentDescription = item.id }, contentAlignment = Alignment.Center) {
         if (item == ToolbarItem.COLORS) {
             Row(horizontalArrangement = Arrangement.spacedBy(1.dp)) {
                 for (color in listOf(0xFF222222, 0xFF4986D4, 0xFFEF727A)) {
@@ -183,7 +185,7 @@ private fun PreviewTool(item: ToolbarItem) {
                 }
             }
         } else {
-            Icon(itemIcon(item), contentDescription = null, modifier = Modifier.size(14.dp),
+            Icon(itemIcon(item), contentDescription = item.id, modifier = Modifier.size(14.dp),
                 tint = palette.text.toComposeColor())
         }
     }
