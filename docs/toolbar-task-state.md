@@ -402,6 +402,11 @@ usuário encontradas no worktree e não invente sucesso nem background jobs.
   e install -r passaram no emulator-5554. Resize on-canvas fora do configurador
   e validação visual do gesto ainda pendentes.
 
+- 28/10/2026: `connectedDebugAndroidTest` após bca0e63f concluiu
+  `BUILD SUCCESSFUL` no emulator-5554; a tentativa de navegação automatizada
+  não alcançou o configurador nesta rodada, portanto o handle não foi marcado
+  como validado visualmente. Nenhum dado foi limpo.
+
 - 28/10/2026: QA ADB no emulator-5554 abriu `Preferences > Configure toolbars`
   e confirmou a prévia com overflow explícito (`+28`), os perfis `xnote`,
   `xcanvas` e `Shared`, além dos botões `Undo`, `Redo`, `Cancel` e `Apply`.
