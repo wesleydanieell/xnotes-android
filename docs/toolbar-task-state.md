@@ -163,11 +163,23 @@ usuário encontradas no worktree e não invente sucesso nem background jobs.
   instrumentado automatizado desse gesto; cancelamento, outros controles,
   scroll normal, secundárias e stylus permanecem por validar. Não marcar P0.
 
+- 27/10/2026: no emulator-5554, swipe curto na barra vertical rolou os
+  itens; DOWN/hold/MOVE/CANCEL deixou a barra na âncora esquerda. ADB não
+  comprova todos os tipos de cancelamento. A prévia mostrava duas barras na
+  mesma âncora sobrepostas; commit b42734c2 agrupa-as em pilha rolável.
+  Gradle testDebugUnitTest + assembleDebug passou (13 executadas, 37
+  up-to-date), diff --check e install -r passaram. Prévia com duas barras
+  mostrou-as separadas e toque selecionou a segunda; duplicação até quatro e
+  swipe alcançaram as barras inferiores. As duas duplicatas de teste foram
+  removidas. Faltam indicação explícita de overflow, comparação geométrica
+  com renderer real, testes automatizados de UI e demais âncoras; M3 segue
+  parcial. A sobreposição real da barra longa com secundárias continua aberta.
+
 ## Próxima ação (uma por vez)
 
-Validar scroll normal, cancelamento, ferramentas e barras secundárias após
-a mudança de prioridade do gesto; investigar e corrigir colisões entre barras
-flutuantes e controles do canvas,
+Validar outras ferramentas e barras secundárias após a mudança de prioridade
+do gesto; investigar e corrigir colisões e overflow de barras flutuantes no
+renderer real,
 com testes para regiões centrais e bordas. Continuar os testes de gestos e
 docks da barra principal e secundárias no emulador; reservar pressão, hover,
 latência e primeiro traço com stylus para o Redmi Pad 2.
