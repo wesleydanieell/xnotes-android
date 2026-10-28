@@ -1,6 +1,8 @@
 package com.xnotes.ui
 
-import androidx.compose.foundation.gestures.detectDragGesturesAfterLongPress
+import androidx.compose.foundation.gestures.awaitEachGesture
+import androidx.compose.foundation.gestures.awaitFirstDown
+import androidx.compose.foundation.gestures.awaitLongPressOrCancellation
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxScope
@@ -21,7 +23,9 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Rect
+import androidx.compose.ui.input.pointer.PointerEventPass
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.input.pointer.positionChange
 import androidx.compose.ui.layout.boundsInRoot
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.unit.IntOffset
@@ -54,24 +58,39 @@ fun ToolbarDragSurface(
     var barBounds by remember(id) { mutableStateOf(Rect.Zero) }
     var dragStart by remember(id) { mutableStateOf(Offset.Zero) }
     val gesture = if (!movable) Modifier else Modifier.pointerInput(id, anchor, paneBounds) {
-        detectDragGesturesAfterLongPress(
-            onDragStart = { start -> drag = Offset.Zero; dragStart = start },
-            onDrag = { change, distance ->
-                change.consume()
-                drag += distance
-            },
-            onDragEnd = {
+        awaitEachGesture {
+            val down = awaitFirstDown(requireUnconsumed = false)
+            val held = awaitLongPressOrCancellation(down.id) ?: return@awaitEachGesture
+            dragStart = held.position
+            drag = Offset.Zero
+            var released = false
+            try {
+                while (true) {
+                    // Claim movement before the nested toolbar scroll sees it. Before the hold,
+                    // ordinary taps, scrolls and controls' own gestures keep their normal priority.
+                    val event = awaitPointerEvent(PointerEventPass.Initial)
+                    val change = event.changes.firstOrNull { it.id == held.id } ?: break
+                    if (change.isConsumed) break
+                    val delta = change.positionChange()
+                    if (!change.pressed) {
+                        released = true
+                        change.consume()
+                        break
+                    }
+                    drag += delta
+                    change.consume()
+                }
                 val moved = drag
-                drag = Offset.Zero
-                if (moved.getDistance() >= 12f && barBounds != Rect.Zero && paneBounds != Rect.Zero) {
+                if (released && moved.getDistance() >= 12f && barBounds != Rect.Zero && paneBounds != Rect.Zero) {
                     val drop = barBounds.topLeft + dragStart + moved - paneBounds.topLeft
                     toolbarDropTarget(drop.x, drop.y, paneBounds.width, paneBounds.height)?.let {
                         onMoveBar(id, it)
                     }
                 }
-            },
-            onDragCancel = { drag = Offset.Zero },
-        )
+            } finally {
+                drag = Offset.Zero
+            }
+        }
     }
     Box(
         Modifier
