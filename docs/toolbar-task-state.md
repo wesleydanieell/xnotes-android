@@ -251,11 +251,26 @@ usuário encontradas no worktree e não invente sucesso nem background jobs.
   edição desses tokens ainda não estão expostos na PreferencesPane; não marcar
   M4 concluído.
 
+- 28/10/2026: commit 8286ae38 expõe no editor de barras controles para opacidade,
+  borda, largura/altura manual ou automática, raio e padding, aplicando-os ao
+  workspace selecionado. O fluxo continua gravação imediata (rascunho/undo/
+  cancelar ainda pendentes). `ANDROID_HOME=/home/wesley/Android/Sdk ./gradlew :app:testDebugUnitTest :app:assembleDebug --console=plain`
+  passou e install -r no emulator-5554 retornou Success. Não foi possível
+  validar toque visual no configurador nesta rodada; a Activity foi instalada
+  sem limpar os dados isolados.
+
+- 28/10/2026: commit 612e4296 adiciona histórico limitado de undo/redo para
+  alterações de workspaces e botões Cancel/Apply no editor de barras. Cancel
+  restaura o snapshot capturado ao abrir o configurador; Apply fecha mantendo
+  as alterações persistidas. A gravação ainda é imediata durante a edição, mas
+  o histórico permite reversão. `ANDROID_HOME=/home/wesley/Android/Sdk ./gradlew :app:testDebugUnitTest :app:assembleDebug --console=plain`
+  passou e install -r retornou Success no emulator-5554. Falta QA de toque
+  efetivo dos botões e teste de reinício/cancelamento pelo ADB.
+
 ## Próxima ação (uma por vez)
 
-Implementar modelo/persistência de aparência por barra (fundo/alfa/borda/raio/
-padding com fallback de blur) e expor controles no editor; depois criar rascunho
-com undo/redo/cancelar/aplicar. Em paralelo, usar o preview no emulador para
-validar grade 3×3, dimensões manuais e comparação com a barra real. Continuar
-matriz de gestos/docks/overflow no canvas e reservar pressão, hover, latência e
-primeiro traço para o Redmi Pad 2.
+Validar no ADB o configurador, os botões Undo/Redo/Cancel/Apply e a persistência
+de dimensões/aparência após reinício. Em seguida concluir preview/grade 3×3,
+overflow e matriz de gestos/docks no canvas; implementar grupos/grades de
+elementos, cores por barra e caneta unificada. Reservar pressão, hover, latência
+e primeiro traço para o Redmi Pad 2.
