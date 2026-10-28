@@ -63,7 +63,7 @@ fun ToolbarDragSurface(
     var drag by remember(id) { mutableStateOf(Offset.Zero) }
     var barBounds by remember(id) { mutableStateOf(Rect.Zero) }
     var dragStart by remember(id) { mutableStateOf(Offset.Zero) }
-    val gesture = if (!movable) Modifier else Modifier.pointerInput(id, anchor, paneBounds) {
+    val gesture = Modifier.pointerInput(id, anchor, paneBounds, movable) {
         awaitEachGesture {
             val down = awaitFirstDown(requireUnconsumed = false)
             val held = awaitLongPressOrCancellation(down.id) ?: return@awaitEachGesture
@@ -87,7 +87,7 @@ fun ToolbarDragSurface(
                     change.consume()
                 }
                 val moved = drag
-                if (released && moved.getDistance() >= 12f && barBounds != Rect.Zero && paneBounds != Rect.Zero) {
+                if (movable && released && moved.getDistance() >= 12f && barBounds != Rect.Zero && paneBounds != Rect.Zero) {
                     val drop = barBounds.topLeft + dragStart + moved - paneBounds.topLeft
                     toolbarDropTarget(drop.x, drop.y, paneBounds.width, paneBounds.height)?.let {
                         onMoveBar(id, it)
