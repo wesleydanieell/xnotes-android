@@ -553,11 +553,20 @@ usuário encontradas no worktree e não invente sucesso nem background jobs.
   up-to-date). A confirmação visual do menu, persistência após restart e QA de
   orientação/split continuam pendentes por falta de dispositivo ADB online.
 
+- 28/10/2026: AVD `Small_Tablet` foi iniciado sem limpar estado. Após o boot,
+  `adb -s emulator-5554 install -r app/build/outputs/apk/debug/app-debug.apk`
+  retornou `Success`; `am start -n com.xnotes.toolbarsdebug/com.xnotes.MainActivity`
+  iniciou a Activity e `pidof` confirmou processo ativo. `connectedDebugAndroidTest`
+  concluiu `BUILD SUCCESSFUL` (70 tasks; sem testes instrumentados específicos).
+  UIAutomator e screenshot foram coletados em `app/build/qa/window-latest.xml`
+  e `app/build/qa/screen-latest.png`; a tela inicial isolada ficou estável e
+  não houve exceção fatal do app nos logs consultados. A matriz de gestos,
+  configurador, resize e persistência ainda não foi marcada como PASS.
+
 ## Próxima ação (uma por vez)
 
-Validar no ADB a grade 3×2 de cores, a persistência após reinício e a matriz de
-gestos/docks assim que um dispositivo autorizado estiver online. Em paralelo,
-implementar acesso acionável aos itens excedentes do overflow e validar grids
-mistos/auto-fit sem clipping. Depois executar a matriz ADB completa, incluindo
-resize, docks, split e persistência. Reservar pressão, hover, latência e
-primeiro traço para o Redmi Pad 2.
+Com o `emulator-5554` online, abrir o configurador via UIAutomator e validar a
+grade 3×2, persistência, menu `Resize`, docks e long-press; depois executar
+split/orientação. Em paralelo, implementar acesso acionável aos itens
+excedentes do overflow e validar grids mistos/auto-fit sem clipping. Reservar
+pressão, hover, latência e primeiro traço para o Redmi Pad 2.
