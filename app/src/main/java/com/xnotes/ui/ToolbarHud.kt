@@ -83,11 +83,7 @@ fun ToolbarHudScreen(
     var draggedItem by remember { mutableStateOf<String?>(null) }
     var movingBar by remember { mutableStateOf<Int?>(null) }
     var barDropTarget by remember { mutableStateOf<HudAnchor?>(null) }
-    var editPanelX by remember { mutableStateOf(0f) }
-    var editPanelY by remember { mutableStateOf(0f) }
-    var editPanelDragging by remember { mutableStateOf(false) }
     var editPanelExpanded by remember { mutableStateOf(false) }
-    var editPanelPinned by remember { mutableStateOf(true) }
     var filter by remember { mutableStateOf("") }
     val bars = remember {
         mutableStateListOf(
@@ -138,27 +134,8 @@ fun ToolbarHudScreen(
             onOpenCatalog = { catalogOpen = true },
             catalogOpen = catalogOpen,
             onCloseCatalog = { catalogOpen = false },
-            panelOffsetX = editPanelX,
-            panelOffsetY = editPanelY,
-            panelDragging = editPanelDragging,
-            onPanelDragStart = { editPanelDragging = true },
-            onPanelDrag = { dx, dy ->
-                if (!editPanelPinned) {
-                    editPanelX = (editPanelX + dx).coerceIn(-700f, 700f)
-                    editPanelY = (editPanelY + dy).coerceIn(-20f, 620f)
-                }
-            },
-            onPanelDragEnd = { editPanelDragging = false },
             expanded = editPanelExpanded,
             onToggleExpanded = { editPanelExpanded = !editPanelExpanded },
-            pinned = editPanelPinned,
-            onTogglePinned = {
-                editPanelPinned = !editPanelPinned
-                if (editPanelPinned) {
-                    editPanelX = 0f
-                    editPanelY = 0f
-                }
-            },
             selectedBar = bars[selectedBar],
             selectedItem = selectedItem,
             onChangeBar = { bars[selectedBar] = it },
@@ -167,6 +144,14 @@ fun ToolbarHudScreen(
                 items.remove(item)
                 bars[selectedBar] = bars[selectedBar].copy(items = items)
                 selectedItem = null
+            },
+            onDeleteBar = {
+                if (bars.size > 1) {
+                    bars.removeAt(selectedBar)
+                    selectedBar = selectedBar.coerceAtMost(bars.lastIndex)
+                    selectedItem = null
+                    editPanelExpanded = false
+                }
             },
             onClose = onClose,
         )
@@ -286,25 +271,16 @@ private fun HudTopBar(
     onOpenCatalog: () -> Unit,
     catalogOpen: Boolean,
     onCloseCatalog: () -> Unit,
-    panelOffsetX: Float,
-    panelOffsetY: Float,
-    panelDragging: Boolean,
-    onPanelDragStart: () -> Unit,
-    onPanelDrag: (Float, Float) -> Unit,
-    onPanelDragEnd: () -> Unit,
     expanded: Boolean,
     onToggleExpanded: () -> Unit,
-    pinned: Boolean,
-    onTogglePinned: () -> Unit,
     selectedBar: HudBar,
     selectedItem: String?,
     onChangeBar: (HudBar) -> Unit,
     onRemoveItem: (String) -> Unit,
+    onDeleteBar: () -> Unit,
     onClose: () -> Unit,
 ) {
     val palette = LocalPalette.current
-    val density = LocalDensity.current.density
-    val panelScale by animateFloatAsState(if (panelDragging) 1.04f else 1f, spring(), label = "editPanelScale")
     Box(
         modifier.fillMaxWidth().background(palette.panel.toComposeColor().copy(alpha = 0.88f))
             .padding(horizontal = 10.dp, vertical = 8.dp),
@@ -317,27 +293,16 @@ private fun HudTopBar(
             TextButton(onClick = onClose) { Text("Aplicar") }
         }
         HudFloatingPanel(
-            Modifier.align(Alignment.TopCenter).offset(x = panelOffsetX.dp, y = panelOffsetY.dp)
-                .graphicsLayer { scaleX = panelScale; scaleY = panelScale }
-                .pointerInput(Unit) {
-                    detectDragGestures(
-                        onDragStart = { onPanelDragStart() },
-                        onDragCancel = onPanelDragEnd,
-                        onDragEnd = onPanelDragEnd,
-                        onDrag = { change, amount -> change.consume(); onPanelDrag(amount.x / density, amount.y / density) },
-                    )
-                },
+            Modifier.align(Alignment.TopCenter)
         ) {
             Row(Modifier.padding(horizontal = 6.dp, vertical = 4.dp), verticalAlignment = Alignment.Top) {
                 Column(verticalArrangement = Arrangement.spacedBy(5.dp)) {
                     Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(5.dp)) {
-                        Icon(XnotesIcons.grip, "Arrastar painel", Modifier.size(18.dp), tint = palette.textDim.toComposeColor())
                         HudChip(profile, selected = true, onClick = onProfile)
                         HudChip("Compartilhado", selected = false, onClick = {})
                         HudChip("+ Componente", selected = false, onClick = onOpenCatalog)
                         if (catalogOpen) HudChip("Fechar catálogo", selected = true, onClick = onCloseCatalog)
                         HudChip("+ Barra", selected = false, onClick = onAddBar)
-                        HudIconButton(if (pinned) XnotesIcons.pin else XnotesIcons.unlock, if (pinned) "Desafixar painel" else "Fixar no topo", onClick = onTogglePinned)
                         HudIconButton(XnotesIcons.undo, "Desfazer", onClick = {})
                         HudIconButton(XnotesIcons.redo, "Refazer", onClick = {})
                         HudChip(if (expanded) "Recolher propriedades" else "Editar seleção", selected = expanded, onClick = onToggleExpanded)
@@ -349,6 +314,7 @@ private fun HudTopBar(
                         selectedItem = selectedItem,
                         onChangeBar = onChangeBar,
                         onRemoveItem = onRemoveItem,
+                        onDeleteBar = onDeleteBar,
                         onCollapse = onToggleExpanded,
                     )
                 }
@@ -763,6 +729,7 @@ private fun HudProperties(
     selectedItem: String?,
     onChangeBar: (HudBar) -> Unit,
     onRemoveItem: (String) -> Unit,
+    onDeleteBar: () -> Unit,
     onCollapse: () -> Unit,
 ) {
     val palette = LocalPalette.current
@@ -837,6 +804,7 @@ private fun HudProperties(
             TextButton(onClick = { onRemoveItem(selectedItem) }) { Text("Remover da barra") }
             Text("Selecione a barra para editar seu nome e espaçamento.", color = palette.textDim.toComposeColor(), fontSize = 12.sp)
         }
+        TextButton(onClick = onDeleteBar) { Text("Apagar barra") }
     }
 }
 
