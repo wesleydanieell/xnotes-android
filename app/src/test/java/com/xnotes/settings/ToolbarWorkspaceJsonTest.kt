@@ -255,5 +255,11 @@ class ToolbarWorkspaceJsonTest {
         ).moveNodeBefore("move", "target")
         assertEquals(listOf(ToolbarItem.PEN, ToolbarItem.TEXT), cross[1].flattenItems())
         assertTrue(cross[0].flattenItems().isEmpty())
+        val rootTarget = listOf(
+            ToolbarNode.Group("nested", listOf(ToolbarNode.Tool("nested-tool", ToolbarItem.PEN))),
+            ToolbarNode.Tool("root-target", ToolbarItem.TEXT),
+        ).moveNodeBefore("nested-tool", "root-target")
+        assertTrue(rootTarget.first() is ToolbarNode.Group && rootTarget.first().flattenItems().isEmpty())
+        assertEquals(ToolbarItem.PEN, rootTarget[1].flattenItems().single())
     }
 }

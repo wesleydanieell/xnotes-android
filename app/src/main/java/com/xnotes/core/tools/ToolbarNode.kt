@@ -225,10 +225,32 @@ fun List<ToolbarNode>.moveNodeBefore(nodeId: String, targetId: String): List<Too
         val index = if (source?.parentId == target.parentId && source.index < target.index) target.index - 1 else target.index
         return moveNode(nodeId, target.parentId, index)
     }
-    val without = filterNot { it.id == nodeId }
-    if (without.size == size) return this
+    fun remove(nodes: List<ToolbarNode>): Pair<List<ToolbarNode>, ToolbarNode?> {
+        var removed: ToolbarNode? = null
+        val kept = nodes.mapNotNull { node ->
+            if (node.id == nodeId) {
+                removed = node
+                null
+            } else when (node) {
+                is ToolbarNode.Group -> {
+                    val (children, child) = remove(node.children)
+                    if (child != null) removed = child
+                    node.copy(children = children)
+                }
+                is ToolbarNode.Grid -> {
+                    val (children, child) = remove(node.children)
+                    if (child != null) removed = child
+                    node.copy(children = children)
+                }
+                else -> node
+            }
+        }
+        return kept to removed
+    }
+    val (without, extracted) = remove(this)
+    if (extracted == null) return this
     val targetIndex = without.indexOfFirst { it.id == targetId }
-    return without.toMutableList().also { it.add(targetIndex.coerceAtLeast(0), moving) }
+    return without.toMutableList().also { it.add(targetIndex.coerceAtLeast(0), extracted) }
 }
 
 fun ToolbarNode.findTool(item: ToolbarItem): ToolbarNode.Tool? = when (this) {
