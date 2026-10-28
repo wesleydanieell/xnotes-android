@@ -602,6 +602,10 @@ usuário encontradas no worktree e não invente sucesso nem background jobs.
   `:app:testDebugUnitTest`, `:app:assembleDebug` e
   `:app:connectedDebugAndroidTest` passaram; o último concluiu 70 tasks sem
   testes instrumentados específicos.
+  O APK foi instalado no `emulator-5554` com retorno `Success`, a Activity
+  iniciou com PID `11007` e os logs recentes não mostraram `FATAL EXCEPTION`.
+  O popup `+N` não foi exercitado visualmente porque o estado persistido do
+  emulador ainda não contém uma grade oversized.
 
 ## Próxima ação (uma por vez)
 
