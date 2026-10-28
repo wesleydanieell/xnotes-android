@@ -272,7 +272,12 @@ private fun ToolbarItemView(
 
         ToolbarItem.FULLSCREEN -> ToolbarIcon(XnotesIcons.fullscreen, stringResource(R.string.toolbar_fullscreen), shortcut = Keys.FULLSCREEN) { onToggleFullscreen() }
 
-        ToolbarItem.COLORS -> editor.toolbarColors.take(LocalToolbarColorCount.current ?: editor.toolbarColorCount).forEachIndexed { i, color ->
+        ToolbarItem.COLORS -> ToolbarColorGrid(
+            count = (LocalToolbarColorCount.current ?: editor.toolbarColorCount).coerceAtMost(editor.toolbarColors.size),
+            columns = LocalToolbarColorColumns.current,
+            vertical = LocalBar.current.vertical,
+        ) { i ->
+            val color = editor.toolbarColors[i]
             Box {
                 Swatch(
                     color = color.toComposeColor(),

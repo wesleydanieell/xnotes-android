@@ -226,7 +226,8 @@ class ToolbarWorkspaceJsonTest {
         val palette = ToolbarNode.Group("palette-group", listOf(ToolbarNode.ColorPalette("palette", columns = 2)))
         val updatedPalette = palette.updateColorPalette { it.copy(columns = 3) }
         assertEquals(3, (updatedPalette as ToolbarNode.Group).children.single().let { (it as ToolbarNode.ColorPalette).columns })
-        assertEquals(3, ToolbarBar("palette", "Palette", ToolbarLayout.DEFAULT, nodes = listOf(updatedPalette)).effectiveColumns())
+        assertEquals(1, ToolbarBar("palette", "Palette", ToolbarLayout.DEFAULT, nodes = listOf(updatedPalette)).effectiveColumns())
+        assertEquals(3, ToolbarBar("palette", "Palette", ToolbarLayout.DEFAULT, nodes = listOf(updatedPalette)).effectiveColorColumns())
         val grid = ToolbarNode.Grid("grid", emptyList(), columns = 2, rows = 2)
         val updatedGrid = grid.updateGrid { it.copy(columns = 3, rows = 2) }
         assertEquals(3, (updatedGrid as ToolbarNode.Grid).columns)

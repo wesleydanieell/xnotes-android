@@ -145,15 +145,19 @@ fun InfiniteToolbar(
                         onRecord = onRecordAudio,
                     )
 
-                    ToolbarItem.COLORS ->
-                        editor.toolbarColors.take(LocalToolbarColorCount.current ?: editor.toolbarColorCount).forEachIndexed { i, color ->
-                            Box {
-                                Swatch(color.toComposeColor(), active = editor.activeColorIndex == i, drag = editor, ink = color) {
-                                    if (editor.activeColorIndex == i) switcherIndex = i else editor.pickColor(i)
-                                }
-                                if (switcherIndex == i) ColorSwitcherPopup(editor, i) { switcherIndex = null }
+                    ToolbarItem.COLORS -> ToolbarColorGrid(
+                        count = (LocalToolbarColorCount.current ?: editor.toolbarColorCount).coerceAtMost(editor.toolbarColors.size),
+                        columns = LocalToolbarColorColumns.current,
+                        vertical = LocalBar.current.vertical,
+                    ) { i ->
+                        val color = editor.toolbarColors[i]
+                        Box {
+                            Swatch(color.toComposeColor(), active = editor.activeColorIndex == i, drag = editor, ink = color) {
+                                if (editor.activeColorIndex == i) switcherIndex = i else editor.pickColor(i)
                             }
+                            if (switcherIndex == i) ColorSwitcherPopup(editor, i) { switcherIndex = null }
                         }
+                    }
 
                     ToolbarItem.UNDO ->
                         ToolbarIcon(XnotesIcons.undo, stringResource(R.string.undo), enabled = editor.canUndo, shortcut = Keys.UNDO) { editor.undo() }

@@ -90,7 +90,7 @@ data class ToolbarBar(
                     val count = node.children.sumOf { it.flattenItems().size }.coerceAtLeast(1)
                     node.rows?.let { ceil(count / it.toDouble()).toInt() } ?: ceil(sqrt(count.toDouble())).toInt()
                 } else node.columns
-                is ToolbarNode.ColorPalette -> node.columns
+                is ToolbarNode.ColorPalette -> null
                 is ToolbarNode.Group -> find(node.children)
                 else -> null
             }
@@ -107,6 +107,18 @@ data class ToolbarBar(
             }
         }
         return nodes?.let(::find)?.coerceIn(1, 6)
+    }
+
+    fun effectiveColorColumns(): Int {
+        fun find(nodes: List<ToolbarNode>): Int? = nodes.firstNotNullOfOrNull { node ->
+            when (node) {
+                is ToolbarNode.ColorPalette -> node.columns
+                is ToolbarNode.Group -> find(node.children)
+                is ToolbarNode.Grid -> find(node.children)
+                else -> null
+            }
+        }
+        return (nodes?.let(::find) ?: 1).coerceIn(1, 6)
     }
 
     fun toolMetrics(): Map<Tool, ToolbarNode.Tool> = nodes?.fold(LinkedHashMap<Tool, ToolbarNode.Tool>()) { acc, node ->
