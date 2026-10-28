@@ -148,6 +148,7 @@ fun PreferencesPane(
 
     val scrollState = rememberScrollState()
     var toolbarEditorOpen by remember { mutableStateOf(false) }
+    var toolbarEditorSnapshot by remember { mutableStateOf<com.xnotes.core.tools.ToolbarWorkspaces?>(null) }
     LaunchedEffect(toolbarEditorOpen) { scrollState.scrollTo(0) }
     // Which bar the toolbar section is arranging. The two are separate layouts, so the drag state
     // below always belongs to whichever is on screen.
@@ -604,8 +605,28 @@ fun PreferencesPane(
                     stringResource(R.string.toolbar_workspace_intro),
                     color = palette.textDim.toComposeColor(), fontSize = 13.sp,
                 )
-                TextButton(onClick = { toolbarEditorOpen = true }) { Text(stringResource(R.string.toolbar_configure)) }
+                TextButton(onClick = {
+                    toolbarEditorSnapshot = editor.toolbarWorkspaces
+                    toolbarEditorOpen = true
+                }) { Text(stringResource(R.string.toolbar_configure)) }
             } else {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(6.dp),
+            ) {
+                TextButton(onClick = { editor.undoToolbarEdit() }, enabled = editor.canUndoToolbarEdit()) { Text("Undo") }
+                TextButton(onClick = { editor.redoToolbarEdit() }, enabled = editor.canRedoToolbarEdit()) { Text("Redo") }
+                Spacer(Modifier.weight(1f))
+                TextButton(onClick = {
+                    toolbarEditorSnapshot?.let { editor.applyToolbarWorkspaces(it) }
+                    toolbarEditorSnapshot = null
+                    toolbarEditorOpen = false
+                }) { Text("Cancel") }
+                TextButton(onClick = {
+                    toolbarEditorSnapshot = null
+                    toolbarEditorOpen = false
+                }) { Text("Apply") }
+            }
             Row(
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(6.dp),

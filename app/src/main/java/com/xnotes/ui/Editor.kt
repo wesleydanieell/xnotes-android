@@ -570,6 +570,8 @@ class Editor(context: Context, val pane: Pane = Pane.PRIMARY) : ToolPopupHost, S
     /** Device-wide toolbar profiles; observed by every pane's Compose renderer. */
     var toolbarWorkspaces by mutableStateOf(settings.effectiveToolbarWorkspaces())
         private set
+    private val toolbarUndo = ArrayDeque<com.xnotes.core.tools.ToolbarWorkspaces>()
+    private val toolbarRedo = ArrayDeque<com.xnotes.core.tools.ToolbarWorkspaces>()
     var renderScale by mutableStateOf(1.0)
         private set
     var sidebarVisible by mutableStateOf(false)
@@ -2856,9 +2858,32 @@ class Editor(context: Context, val pane: Pane = Pane.PRIMARY) : ToolPopupHost, S
 
     /** Save a new multi-bar profile without changing the legacy toolbar fields. */
     fun applyToolbarWorkspaces(workspaces: com.xnotes.core.tools.ToolbarWorkspaces) {
+        if (workspaces == toolbarWorkspaces) return
+        toolbarUndo.addLast(toolbarWorkspaces)
+        while (toolbarUndo.size > 50) toolbarUndo.removeFirst()
+        toolbarRedo.clear()
+        persistToolbarWorkspaces(workspaces)
+    }
+
+    private fun persistToolbarWorkspaces(workspaces: com.xnotes.core.tools.ToolbarWorkspaces) {
         toolbarWorkspaces = workspaces
         settings = settings.copy(toolbarWorkspaces = workspaces)
         settingsRepo.save(settings)
+    }
+
+    fun canUndoToolbarEdit(): Boolean = toolbarUndo.isNotEmpty()
+    fun canRedoToolbarEdit(): Boolean = toolbarRedo.isNotEmpty()
+
+    fun undoToolbarEdit() {
+        val previous = toolbarUndo.removeLastOrNull() ?: return
+        toolbarRedo.addLast(toolbarWorkspaces)
+        persistToolbarWorkspaces(previous)
+    }
+
+    fun redoToolbarEdit() {
+        val next = toolbarRedo.removeLastOrNull() ?: return
+        toolbarUndo.addLast(toolbarWorkspaces)
+        persistToolbarWorkspaces(next)
     }
 
     /** Hold-drag any toolbar, including the docked primary, to a persisted floating anchor. */
