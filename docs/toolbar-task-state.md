@@ -418,6 +418,12 @@ usuário encontradas no worktree e não invente sucesso nem background jobs.
   limpar dados; a recuperação visual ainda precisa de uma barra ocultada
   intencionalmente para validação manual dedicada.
 
+- 28/10/2026: QA ADB manual completou a recuperação: no configurador, a barra
+  `Toolbar 2` foi selecionada, `Visible` desmarcado fez aparecer
+  `Restore hidden (1)`, e tocar nessa ação restaurou o estado para
+  `Restore hidden` sem contador. A alteração foi cancelada antes de sair; não
+  houve limpeza de dados nem alteração do app original.
+
 - 28/10/2026: QA ADB no emulator-5554 abriu `Preferences > Configure toolbars`
   e confirmou a prévia com overflow explícito (`+28`), os perfis `xnote`,
   `xcanvas` e `Shared`, além dos botões `Undo`, `Redo`, `Cancel` e `Apply`.
