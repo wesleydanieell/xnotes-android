@@ -129,6 +129,71 @@ fun ToolbarNode.findGrid(): ToolbarNode.Grid? = when (this) {
     else -> null
 }
 
+/** Move one node between Group/Grid parents without creating duplicate IDs. */
+fun List<ToolbarNode>.moveNode(nodeId: String, targetParentId: String, targetIndex: Int): List<ToolbarNode> {
+    if (nodeId.isBlank() || targetParentId.isBlank() || nodeId == targetParentId) return this
+
+    fun extract(nodes: List<ToolbarNode>): Pair<List<ToolbarNode>, ToolbarNode?> {
+        var found: ToolbarNode? = null
+        val kept = nodes.mapNotNull { node ->
+            if (node.id == nodeId) {
+                found = node
+                null
+            } else {
+                when (node) {
+                    is ToolbarNode.Group -> {
+                        val (children, child) = extract(node.children)
+                        if (child != null) found = child
+                        node.copy(children = children)
+                    }
+                    is ToolbarNode.Grid -> {
+                        val (children, child) = extract(node.children)
+                        if (child != null) found = child
+                        node.copy(children = children)
+                    }
+                    else -> node
+                }
+            }
+        }
+        return kept to found
+    }
+
+    fun insert(nodes: List<ToolbarNode>, moving: ToolbarNode): Pair<List<ToolbarNode>, Boolean> {
+        var inserted = false
+        val updated = nodes.map { node ->
+            if (node.id == targetParentId && node is ToolbarNode.Group) {
+                inserted = true
+                val index = targetIndex.coerceIn(0, node.children.size)
+                node.copy(children = node.children.toMutableList().also { it.add(index, moving) })
+            } else if (node.id == targetParentId && node is ToolbarNode.Grid) {
+                inserted = true
+                val index = targetIndex.coerceIn(0, node.children.size)
+                node.copy(children = node.children.toMutableList().also { it.add(index, moving) })
+            } else {
+                when (node) {
+                    is ToolbarNode.Group -> {
+                        val (children, didInsert) = insert(node.children, moving)
+                        inserted = inserted || didInsert
+                        node.copy(children = children)
+                    }
+                    is ToolbarNode.Grid -> {
+                        val (children, didInsert) = insert(node.children, moving)
+                        inserted = inserted || didInsert
+                        node.copy(children = children)
+                    }
+                    else -> node
+                }
+            }
+        }
+        return updated to inserted
+    }
+
+    val (without, moving) = extract(this)
+    if (moving == null) return this
+    val (updated, inserted) = insert(without, moving)
+    return if (inserted) updated else this
+}
+
 fun ToolbarNode.findTool(item: ToolbarItem): ToolbarNode.Tool? = when (this) {
     is ToolbarNode.Tool -> takeIf { it.item == item }
     is ToolbarNode.Group -> children.firstNotNullOfOrNull { it.findTool(item) }

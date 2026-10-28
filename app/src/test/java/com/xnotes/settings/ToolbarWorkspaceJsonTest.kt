@@ -10,6 +10,7 @@ import com.xnotes.core.tools.toolbarNodesFromLayout
 import com.xnotes.core.tools.updateTool
 import com.xnotes.core.tools.updateColorPalette
 import com.xnotes.core.tools.updateGrid
+import com.xnotes.core.tools.moveNode
 import com.xnotes.core.tools.ToolbarBar
 import com.xnotes.core.tools.ToolbarContext
 import com.xnotes.core.tools.ToolbarEntry
@@ -230,5 +231,12 @@ class ToolbarWorkspaceJsonTest {
         assertEquals(3, (updatedGrid as ToolbarNode.Grid).columns)
         assertEquals(2, updatedGrid.rows)
         assertEquals(2, ToolbarBar("grid", "Grid", ToolbarLayout.DEFAULT, nodes = listOf(updatedGrid)).effectiveRows())
+        val moved = listOf(
+            ToolbarNode.Group("a", listOf(ToolbarNode.Tool("one", ToolbarItem.PEN), ToolbarNode.Tool("two", ToolbarItem.ERASER))),
+            ToolbarNode.Grid("b", emptyList(), columns = 2),
+        ).moveNode("one", "b", 0)
+        assertEquals(listOf(ToolbarItem.ERASER), (moved[0] as ToolbarNode.Group).flattenItems())
+        assertEquals(listOf(ToolbarItem.PEN), (moved[1] as ToolbarNode.Grid).flattenItems())
+        assertEquals(moved, moved.moveNode("one", "missing", 0))
     }
 }
