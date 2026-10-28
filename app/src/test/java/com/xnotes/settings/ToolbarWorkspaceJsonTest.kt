@@ -210,5 +210,11 @@ class ToolbarWorkspaceJsonTest {
             nodes = listOf(ToolbarNode.Group("g", listOf(ToolbarNode.Grid("grid-node", emptyList(), columns = 3)))),
         )
         assertEquals(3, gridBar.effectiveColumns())
+        val metrics = ToolbarBar(
+            "metric", "Metric", ToolbarLayout.DEFAULT,
+            nodes = listOf(ToolbarNode.Tool("pen-metric", ToolbarItem.PEN, visualDp = 30, hitboxDp = 56)),
+        ).toolMetrics()
+        assertEquals(30, metrics[com.xnotes.core.tools.Tool.PEN]?.visualDp)
+        assertEquals(56, metrics[com.xnotes.core.tools.Tool.PEN]?.hitboxDp)
     }
 }

@@ -103,6 +103,7 @@ import com.xnotes.ui.ToolbarDragSurface
 import com.xnotes.ui.LocalToolbarLook
 import com.xnotes.ui.LocalToolbarGeometry
 import com.xnotes.ui.LocalToolbarColorCount
+import com.xnotes.ui.LocalToolbarNodeMetrics
 import com.xnotes.ui.WorkspaceFloatingBars
 import com.xnotes.ui.toolbarLookFor
 import com.xnotes.ui.icons.XnotesIcons
@@ -1483,6 +1484,7 @@ private fun EditorPane(
                     CompositionLocalProvider(
                         LocalToolbarGeometry provides primary?.let { it.geometry.copy(columns = it.effectiveColumns()) },
                         LocalToolbarColorCount provides primary?.colorCount,
+                        LocalToolbarNodeMetrics provides (primary?.toolMetrics() ?: emptyMap()),
                     ) {
                         com.xnotes.ui.InfiniteToolbar(
                             canvas,
@@ -1551,6 +1553,7 @@ private fun EditorPane(
                                     CompositionLocalProvider(
                                         LocalToolbarGeometry provides primary?.let { it.geometry.copy(columns = it.effectiveColumns()) },
                                         LocalToolbarColorCount provides primary?.colorCount,
+                                        LocalToolbarNodeMetrics provides (primary?.toolMetrics() ?: emptyMap()),
                                     ) {
                         Box(Modifier.endsPageSelection(editor)) { Toolbar(
                             editor,

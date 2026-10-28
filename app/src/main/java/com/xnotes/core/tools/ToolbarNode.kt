@@ -85,6 +85,37 @@ fun ToolbarNode.flattenItems(out: MutableList<ToolbarItem> = ArrayList()): List<
     return out
 }
 
+fun ToolbarNode.toolMetrics(out: MutableMap<Tool, ToolbarNode.Tool> = LinkedHashMap()): Map<Tool, ToolbarNode.Tool> {
+    when (this) {
+        is ToolbarNode.Tool -> item.toTool()?.let { out[it] = this }
+        is ToolbarNode.UnifiedPen -> Unit
+        is ToolbarNode.Group -> children.forEach { it.toolMetrics(out) }
+        is ToolbarNode.Grid -> children.forEach { it.toolMetrics(out) }
+        is ToolbarNode.ColorPalette, is ToolbarNode.Spacer, is ToolbarNode.Separator -> Unit
+    }
+    return out
+}
+
+private fun ToolbarItem.toTool(): Tool? = when (this) {
+    ToolbarItem.PEN -> Tool.PEN
+    ToolbarItem.DASHED -> Tool.DASHED
+    ToolbarItem.CALLIGRAPHY -> Tool.CALLIGRAPHY
+    ToolbarItem.SPEED -> Tool.SPEED
+    ToolbarItem.TAPER -> Tool.TAPER
+    ToolbarItem.HIGHLIGHTER -> Tool.HIGHLIGHTER
+    ToolbarItem.ERASER -> Tool.ERASER
+    ToolbarItem.PAN -> Tool.PAN
+    ToolbarItem.SELECT -> Tool.SELECT
+    ToolbarItem.LASSO -> Tool.LASSO
+    ToolbarItem.SCREENSHOT -> Tool.SCREENSHOT
+    ToolbarItem.SHAPE -> Tool.SHAPE
+    ToolbarItem.TEXT -> Tool.TEXT
+    ToolbarItem.TEXT_BOX -> Tool.TEXT_BOX
+    ToolbarItem.MARKUP -> Tool.MARKUP
+    ToolbarItem.TAPE -> Tool.TAPE
+    else -> null
+}
+
 fun toolbarNodesFromLayout(layout: ToolbarLayout): List<ToolbarNode> = layout.sections.mapIndexed { sectionIndex, section ->
     ToolbarNode.Group(
         id = "section-$sectionIndex",

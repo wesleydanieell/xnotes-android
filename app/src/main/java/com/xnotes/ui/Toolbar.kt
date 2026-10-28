@@ -501,6 +501,7 @@ internal fun ToolbarIcon(
 ) {
     val palette = LocalPalette.current
     val bar = LocalBar.current
+    val metric = (glideKey as? Tool)?.let { LocalToolbarNodeMetrics.current[it] }
     val glide = if (glideKey != null) LocalToolGlide.current else null
     val tint by animateColorAsState(
         when {
@@ -519,8 +520,8 @@ internal fun ToolbarIcon(
     val pressed by interaction.collectIsPressedAsState()
     val press by animateFloatAsState(if (pressed) 0.85f else 1f, spring(dampingRatio = 0.5f, stiffness = Spring.StiffnessMedium), label = "toolPress")
     Tooltip(contentDescription, hint = hint, shortcut = shortcut) {
-        Box(
-            Modifier.size(bar.button).clickable(interaction, indication = null, enabled = enabled, role = Role.Button, onClick = onClick),
+            Box(
+            Modifier.size(metric?.hitboxDp?.dp ?: bar.button).clickable(interaction, indication = null, enabled = enabled, role = Role.Button, onClick = onClick),
             contentAlignment = Alignment.Center,
         ) {
             Box(
@@ -535,7 +536,7 @@ internal fun ToolbarIcon(
                     .drawBehind { if (fill > 0f) drawCircle(circle.copy(alpha = circle.alpha * fill)) },
                 contentAlignment = Alignment.Center,
             ) {
-                Icon(icon, contentDescription = contentDescription, tint = tint, modifier = Modifier.size(bar.icon).graphicsLayer { scaleX = press; scaleY = press })
+                Icon(icon, contentDescription = contentDescription, tint = tint, modifier = Modifier.size(metric?.visualDp?.dp ?: bar.icon).graphicsLayer { scaleX = press; scaleY = press })
             }
         }
     }
