@@ -11,6 +11,7 @@ import com.xnotes.core.tools.updateTool
 import com.xnotes.core.tools.updateColorPalette
 import com.xnotes.core.tools.updateGrid
 import com.xnotes.core.tools.moveNode
+import com.xnotes.core.tools.moveNodeBefore
 import com.xnotes.core.tools.ToolbarBar
 import com.xnotes.core.tools.ToolbarContext
 import com.xnotes.core.tools.ToolbarEntry
@@ -248,5 +249,11 @@ class ToolbarWorkspaceJsonTest {
         )))
         val nestedMoved = nested.moveNode("first", "parent", 1)
         assertEquals(listOf(ToolbarItem.TEXT, ToolbarItem.PEN), nestedMoved.single().flattenItems())
+        val cross = listOf(
+            ToolbarNode.Group("left", listOf(ToolbarNode.Tool("move", ToolbarItem.PEN))),
+            ToolbarNode.Group("right", listOf(ToolbarNode.Tool("target", ToolbarItem.TEXT))),
+        ).moveNodeBefore("move", "target")
+        assertEquals(listOf(ToolbarItem.PEN, ToolbarItem.TEXT), cross[1].flattenItems())
+        assertTrue(cross[0].flattenItems().isEmpty())
     }
 }

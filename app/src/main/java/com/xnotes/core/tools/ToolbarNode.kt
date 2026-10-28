@@ -195,6 +195,42 @@ fun List<ToolbarNode>.moveNode(nodeId: String, targetParentId: String, targetInd
     return if (inserted) updated else this
 }
 
+/** Move [nodeId] immediately before [targetId], including across nested parents. */
+fun List<ToolbarNode>.moveNodeBefore(nodeId: String, targetId: String): List<ToolbarNode> {
+    if (nodeId.isBlank() || targetId.isBlank() || nodeId == targetId) return this
+    data class Location(val parentId: String?, val index: Int)
+    fun locate(nodes: List<ToolbarNode>, wantedId: String, parentId: String?): Location? {
+        nodes.forEachIndexed { index, node ->
+            if (node.id == wantedId) return Location(parentId, index)
+            val children = when (node) {
+                is ToolbarNode.Group -> node.children
+                is ToolbarNode.Grid -> node.children
+                else -> null
+            }
+            if (children != null) locate(children, wantedId, node.id)?.let { return it }
+        }
+        return null
+    }
+    fun find(nodes: List<ToolbarNode>): ToolbarNode? = nodes.firstNotNullOfOrNull { node ->
+        if (node.id == nodeId) node else when (node) {
+            is ToolbarNode.Group -> find(node.children)
+            is ToolbarNode.Grid -> find(node.children)
+            else -> null
+        }
+    }
+    val moving = find(this) ?: return this
+    val target = locate(this, targetId, null) ?: return this
+    if (target.parentId != null) {
+        val source = locate(this, nodeId, null)
+        val index = if (source?.parentId == target.parentId && source.index < target.index) target.index - 1 else target.index
+        return moveNode(nodeId, target.parentId, index)
+    }
+    val without = filterNot { it.id == nodeId }
+    if (without.size == size) return this
+    val targetIndex = without.indexOfFirst { it.id == targetId }
+    return without.toMutableList().also { it.add(targetIndex.coerceAtLeast(0), moving) }
+}
+
 fun ToolbarNode.findTool(item: ToolbarItem): ToolbarNode.Tool? = when (this) {
     is ToolbarNode.Tool -> takeIf { it.item == item }
     is ToolbarNode.Group -> children.firstNotNullOfOrNull { it.findTool(item) }
