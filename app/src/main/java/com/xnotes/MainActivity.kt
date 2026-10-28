@@ -50,6 +50,8 @@ import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
@@ -66,6 +68,7 @@ import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.geometry.Rect
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.layout.boundsInRoot
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.draw.clip
@@ -96,6 +99,8 @@ import androidx.core.view.WindowInsetsControllerCompat
 import com.xnotes.R
 import com.xnotes.canvas.StylusButtonLatch
 import com.xnotes.core.tools.ToolbarContext
+import com.xnotes.core.tools.ToolbarBar
+import com.xnotes.core.tools.resizeToolbarGeometry
 import com.xnotes.ui.Editor
 import com.xnotes.ui.Toolbar
 import com.xnotes.ui.ToolbarAround
@@ -1502,9 +1507,11 @@ private fun EditorPane(
                 }
                 val bar: @Composable () -> Unit = {
                     if (primary != null && !primary.geometry.floating) {
-                        ToolbarDragSurface(
-                            primary.id, primary.geometry.anchor, primary.geometry.movable,
-                            paneBounds, { id, anchor -> app.moveToolbarBar(ToolbarContext.CANVAS, id, anchor) },
+                        DockedToolbarSurface(
+                            bar = primary,
+                            paneBounds = paneBounds,
+                            onMoveBar = { id, anchor -> app.moveToolbarBar(ToolbarContext.CANVAS, id, anchor) },
+                            onUpdateBar = { app.updateToolbarBar(ToolbarContext.CANVAS, it) },
                         ) { bareBar() }
                     } else bareBar()
                 }
@@ -1575,9 +1582,11 @@ private fun EditorPane(
                 }
                 val bar: @Composable () -> Unit = {
                     if (primary != null && !primary.geometry.floating) {
-                        ToolbarDragSurface(
-                            primary.id, primary.geometry.anchor, primary.geometry.movable,
-                            paneBounds, { id, anchor -> app.moveToolbarBar(ToolbarContext.NOTE, id, anchor) },
+                        DockedToolbarSurface(
+                            bar = primary,
+                            paneBounds = paneBounds,
+                            onMoveBar = { id, anchor -> app.moveToolbarBar(ToolbarContext.NOTE, id, anchor) },
+                            onUpdateBar = { app.updateToolbarBar(ToolbarContext.NOTE, it) },
                         ) { bareBar() }
                     } else bareBar()
                 }
@@ -1663,6 +1672,52 @@ private fun EditorPane(
  * middle. Only the line is painted — the margin either side of it is what the finger catches, and it
  * stays transparent so the panes it lies over show through.
  */
+@Composable
+private fun DockedToolbarSurface(
+    bar: ToolbarBar,
+    paneBounds: Rect,
+    onMoveBar: (String, com.xnotes.core.tools.ToolbarAnchor) -> Unit,
+    onUpdateBar: (ToolbarBar) -> Unit,
+    content: @Composable () -> Unit,
+) {
+    var menuOpen by remember(bar.id) { mutableStateOf(false) }
+    var resizing by remember(bar.id) { mutableStateOf(false) }
+    Box {
+        ToolbarDragSurface(
+            id = bar.id,
+            anchor = bar.geometry.anchor,
+            movable = bar.geometry.movable && !resizing,
+            paneBounds = paneBounds,
+            onMoveBar = onMoveBar,
+            resizing = resizing,
+            onResize = { _, delta ->
+                onUpdateBar(bar.copy(geometry = resizeToolbarGeometry(bar.geometry, delta.x, delta.y)))
+            },
+            onLongPress = { menuOpen = true },
+            content = content,
+        )
+        DropdownMenu(
+            expanded = menuOpen,
+            onDismissRequest = { menuOpen = false },
+        ) {
+            DropdownMenuItem(
+                text = { Text(if (bar.geometry.movable) "Lock" else "Unlock") },
+                onClick = {
+                    menuOpen = false
+                    resizing = false
+                    onUpdateBar(bar.copy(geometry = bar.geometry.copy(movable = !bar.geometry.movable)))
+                },
+            )
+            if (bar.geometry.movable) {
+                DropdownMenuItem(
+                    text = { Text(if (resizing) "Finish resize" else "Resize") },
+                    onClick = { menuOpen = false; resizing = !resizing },
+                )
+            }
+        }
+    }
+}
+
 @Composable
 private fun SplitDivider(
     sideBySide: Boolean,
