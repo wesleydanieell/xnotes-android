@@ -1,5 +1,7 @@
 package com.xnotes.ui
 
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.gestures.awaitEachGesture
 import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.foundation.gestures.awaitLongPressOrCancellation
@@ -9,6 +11,7 @@ import androidx.compose.foundation.layout.BoxScope
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.runtime.Composable
@@ -35,6 +38,7 @@ import com.xnotes.core.tools.ToolbarBar
 import com.xnotes.core.tools.ToolbarScale
 import com.xnotes.core.tools.ToolbarWorkspace
 import com.xnotes.core.tools.toolbarDropTarget
+import com.xnotes.core.tools.toolbarStackBarLimit
 import com.xnotes.settings.ToolbarLook
 import com.xnotes.settings.ToolbarPosition
 import com.xnotes.settings.ToolbarSize
@@ -117,8 +121,14 @@ fun BoxScope.WorkspaceFloatingBars(
                 bar.visible && bar.geometry.anchor == anchor && (index > 0 || bar.geometry.floating)
             }
             if (bars.isEmpty()) continue
+            // Keep a long vertical toolbar from consuming all space before later bars
+            // are measured. The outer scroll exposes further bars if the stack is taller
+            // than the pane; each bar retains its own bounded tool scroll.
+            val availableHeight = (maxHeight - 16.dp).coerceAtLeast(0.dp)
+            val barMaxHeight = toolbarStackBarLimit(availableHeight.value, bars.size, 8f).dp
             Column(
-                modifier = Modifier.align(anchor.alignment()).padding(8.dp),
+                modifier = Modifier.align(anchor.alignment()).padding(8.dp)
+                    .heightIn(max = availableHeight).verticalScroll(rememberScrollState()),
                 verticalArrangement = Arrangement.spacedBy(8.dp),
                 horizontalAlignment = Alignment.CenterHorizontally,
             ) {
@@ -133,15 +143,17 @@ fun BoxScope.WorkspaceFloatingBars(
                             },
                             floating = true,
                         )
-                        ToolbarDragSurface(
-                            id = bar.id,
-                            anchor = anchor,
-                            movable = bar.geometry.movable,
-                            paneBounds = paneBounds,
-                            onMoveBar = onMoveBar,
-                        ) {
-                            CompositionLocalProvider(LocalToolbarLook provides look) {
-                                if (index == 0) primaryContent() else content(bar)
+                        Box(Modifier.heightIn(max = barMaxHeight)) {
+                            ToolbarDragSurface(
+                                id = bar.id,
+                                anchor = anchor,
+                                movable = bar.geometry.movable,
+                                paneBounds = paneBounds,
+                                onMoveBar = onMoveBar,
+                            ) {
+                                CompositionLocalProvider(LocalToolbarLook provides look) {
+                                    if (index == 0) primaryContent() else content(bar)
+                                }
                             }
                         }
                     }
