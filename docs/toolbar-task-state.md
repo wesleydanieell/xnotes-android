@@ -134,9 +134,20 @@ usuário encontradas no worktree e não invente sucesso nem background jobs.
   conflito de long-press ou stylus. A configuração de teste foi alterada no
   app isolado; a nota de teste untitled_2 permanece nele.
 
+- 27/10/2026: no emulator-5554, após retornar a barra flutuante ao topo,
+  DOWN no ícone da caneta, espera de 1s, MOVE até o centro e UP moveu a
+  barra ao centro; os controles laterais de desfazer/refazer ficaram cobertos.
+  ToolbarAround usa cobertura por borda e, com primary flutuante do workspace,
+  zera onCover; uma região central não é representada por esse contrato.
+  Falta projetar e testar a gestão de colisões/oclusão, inclusive secundárias,
+  antes de afirmar que a interação ou a geometria passou. Não houve teste
+  físico de pressão, hover, latência ou primeiro traço nesta rodada.
+
 ## Próxima ação (uma por vez)
 
-Reproduzir e corrigir o fluxo segurar/arrastar o contêiner da barra principal
-e secundárias (touch/stylus), antes de expandir renderização de grupos.
+Investigar e corrigir colisões entre barras flutuantes e controles do canvas,
+com testes para regiões centrais e bordas. Continuar os testes de gestos e
+docks da barra principal e secundárias no emulador; reservar pressão, hover,
+latência e primeiro traço com stylus para o Redmi Pad 2.
 Inspecionar a tela de preview no emulador, testar a grade 3×3 e comparar
 com a barra real. Usar o playbook ADB e documentar evidências.
