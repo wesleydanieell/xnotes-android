@@ -436,6 +436,12 @@ usuário encontradas no worktree e não invente sucesso nem background jobs.
   assembleDebug e install -r passaram no emulator-5554. Reordenação aninhada,
   drag/drop visual entre grupos e QA da tela ainda pendentes.
 
+- 28/10/2026: commit 13ee0200 estende o editor de composição para mostrar nós
+  aninhados indentados e reordená-los dentro de `Group`/`Grid`; o teste JVM
+  cobre a movimentação de irmãos aninhados. `testDebugUnitTest`, assembleDebug
+  (build anterior sem alteração de produção adicional) e install -r passaram.
+  Drag/drop por gesto e movimentação entre pais diferentes ainda pendentes.
+
 - 28/10/2026: QA ADB no emulator-5554 abriu `Preferences > Configure toolbars`
   e confirmou a prévia com overflow explícito (`+28`), os perfis `xnote`,
   `xcanvas` e `Shared`, além dos botões `Undo`, `Redo`, `Cancel` e `Apply`.
