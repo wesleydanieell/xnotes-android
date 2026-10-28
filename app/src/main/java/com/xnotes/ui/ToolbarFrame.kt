@@ -11,6 +11,7 @@ import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowColumn
 import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -20,6 +21,7 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.SideEffect
@@ -208,7 +210,22 @@ internal fun ToolbarFrame(
                         .padding(horizontal = (appearance?.paddingHorizontalDp ?: 4).dp, vertical = (appearance?.paddingVerticalDp ?: 4).dp)
                         .toolGlide(glide, armed),
                     horizontalAlignment = Alignment.CenterHorizontally,
-                ) { content() }
+                ) {
+                    if (columns > 1) {
+                        FlowColumn(maxItemsInEachColumn = columns) {
+                            content()
+                        }
+                    } else content()
+                    val overflow = LocalToolbarGridOverflow.current
+                    if (overflow > 0) {
+                        Text(
+                            "+$overflow",
+                            color = palette.textDim.toComposeColor(),
+                            fontSize = bar.label,
+                            modifier = Modifier.padding(vertical = 6.dp),
+                        )
+                    }
+                }
                 trailing?.invoke()
             }
         } else {
@@ -229,6 +246,15 @@ internal fun ToolbarFrame(
                             content()
                         }
                     } else content()
+                    val overflow = LocalToolbarGridOverflow.current
+                    if (overflow > 0) {
+                        Text(
+                            "+$overflow",
+                            color = palette.textDim.toComposeColor(),
+                            fontSize = bar.label,
+                            modifier = Modifier.padding(horizontal = 6.dp),
+                        )
+                    }
                 }
                 trailing?.invoke()
             }

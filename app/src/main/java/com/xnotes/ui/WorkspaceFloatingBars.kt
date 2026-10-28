@@ -169,6 +169,7 @@ fun BoxScope.WorkspaceFloatingBars(
                                         LocalToolbarGridRows provides bar.effectiveRows(),
                                         LocalToolbarColorCount provides bar.colorCount,
                                         LocalToolbarColorColumns provides bar.effectiveColorColumns(),
+                                        LocalToolbarGridOverflow provides bar.effectiveGridOverflowCount(),
                                         LocalToolbarNodeMetrics provides bar.toolMetrics(),
                                     ) {
                                         if (index == 0) primaryContent() else content(bar)

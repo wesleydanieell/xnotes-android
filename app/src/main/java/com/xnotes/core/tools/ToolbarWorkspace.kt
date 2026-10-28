@@ -117,6 +117,23 @@ data class ToolbarBar(
         return nodes?.let(::find)?.coerceIn(1, 6)
     }
 
+    /** Number of grid items that cannot fit in the renderer's bounded 6×6 viewport. */
+    fun effectiveGridOverflowCount(): Int {
+        fun find(nodes: List<ToolbarNode>): Int? = nodes.firstNotNullOfOrNull { node ->
+            when (node) {
+                is ToolbarNode.Grid -> {
+                    val count = node.children.sumOf { it.flattenItems().size }
+                    val columns = effectiveColumns().coerceAtLeast(1)
+                    val rows = effectiveRows() ?: 1
+                    (count - columns * rows).coerceAtLeast(0)
+                }
+                is ToolbarNode.Group -> find(node.children)
+                else -> null
+            }
+        }
+        return nodes?.let(::find) ?: 0
+    }
+
     fun effectiveColorColumns(): Int {
         fun find(nodes: List<ToolbarNode>): Int? = nodes.firstNotNullOfOrNull { node ->
             when (node) {
