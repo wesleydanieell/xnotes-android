@@ -9,6 +9,7 @@ import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectDragGesturesAfterLongPress
 import androidx.compose.foundation.gestures.detectDragGestures
+import androidx.compose.foundation.gestures.detectTransformGestures
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -412,56 +413,92 @@ private fun HudViewport(
     modifier: Modifier,
 ) {
     val palette = LocalPalette.current
-    Column(modifier.background(palette.paper.toComposeColor()).padding(20.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-        Text("Nota de teste · o papel é cenário, somente as barras recebem edição", color = palette.textDim.toComposeColor(), fontSize = 12.sp)
+    var zoom by remember { mutableStateOf(0.55f) }
+    var panX by remember { mutableStateOf(0f) }
+    var panY by remember { mutableStateOf(0f) }
+    val density = LocalDensity.current.density
+    val worldWidth = 1600.dp
+    val worldHeight = 1200.dp
+
+    Column(modifier.background(palette.bg.toComposeColor()).padding(20.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Text("Nota infinita · ajuste em escala real", color = palette.textDim.toComposeColor(), fontSize = 12.sp)
+            Spacer(Modifier.weight(1f))
+            Text("${(zoom * 100).toInt()}%", color = palette.text.toComposeColor(), fontSize = 12.sp)
+        }
         Box(
             Modifier.fillMaxWidth().weight(1f).clip(RoundedCornerShape(18.dp))
                 .background(palette.paper.toComposeColor())
-                .drawBehind {
-                    val rule = palette.paperBorder.toComposeColor().copy(alpha = 0.22f)
-                    var y = 44f
-                    while (y < size.height) {
-                        drawLine(rule, androidx.compose.ui.geometry.Offset(0f, y), androidx.compose.ui.geometry.Offset(size.width, y), 1f)
-                        y += 44f
+                .pointerInput(Unit) {
+                    detectTransformGestures { _, pan, zoomChange, _ ->
+                        zoom = (zoom * zoomChange).coerceIn(0.35f, 1.5f)
+                        panX = (panX + pan.x / density).coerceIn(-720f, 720f)
+                        panY = (panY + pan.y / density).coerceIn(-560f, 560f)
                     }
-                    var x = 44f
-                    while (x < size.width) {
-                        drawLine(rule.copy(alpha = 0.10f), androidx.compose.ui.geometry.Offset(x, 0f), androidx.compose.ui.geometry.Offset(x, size.height), 1f)
-                        x += 44f
+                },
+        ) {
+            Box(
+                Modifier.align(Alignment.Center).size(worldWidth, worldHeight)
+                    .graphicsLayer {
+                        scaleX = zoom
+                        scaleY = zoom
+                        translationX = panX * density
+                        translationY = panY * density
+                    }
+                    .drawBehind {
+                        val rule = palette.paperBorder.toComposeColor().copy(alpha = 0.20f)
+                        val step = 44.dp.toPx()
+                        var y = 0f
+                        while (y < size.height) {
+                            drawLine(rule, androidx.compose.ui.geometry.Offset(0f, y), androidx.compose.ui.geometry.Offset(size.width, y), 1f)
+                            y += step
+                        }
+                        var x = 0f
+                        while (x < size.width) {
+                            drawLine(rule.copy(alpha = 0.09f), androidx.compose.ui.geometry.Offset(x, 0f), androidx.compose.ui.geometry.Offset(x, size.height), 1f)
+                            x += step
+                        }
+                    },
+            ) {
+                if (movingBar != null && barDropTarget != null) HudAnchorHints(barDropTarget)
+                Column(Modifier.padding(58.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                    Text("Nota sem bordas", color = palette.text.toComposeColor().copy(alpha = 0.40f), fontSize = 18.sp)
+                    Text("O canvas continua para além da área visível. Arraste o fundo para navegar e use dois dedos para ajustar a escala.", color = palette.textDim.toComposeColor().copy(alpha = 0.48f), fontSize = 13.sp)
+                    Spacer(Modifier.height(110.dp))
+                    repeat(5) { line ->
+                        Box(Modifier.fillMaxWidth(if (line == 2) 0.62f else 0.82f).height(8.dp).clip(RoundedCornerShape(4.dp)).background(palette.textDim.toComposeColor().copy(alpha = 0.08f)))
                     }
                 }
-                .border(1.dp, palette.paperBorder.toComposeColor(), RoundedCornerShape(18.dp)),
-        ) {
-            if (movingBar != null && barDropTarget != null) HudAnchorHints(barDropTarget)
-            Column(Modifier.padding(34.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                Text("Rascunho de nota", color = palette.text.toComposeColor().copy(alpha = 0.45f), fontSize = 18.sp)
-                Text("Este espaço simula o documento e não aceita escrita, pan ou zoom.", color = palette.textDim.toComposeColor().copy(alpha = 0.5f), fontSize = 13.sp)
-                Spacer(Modifier.height(110.dp))
-                repeat(4) { line ->
-                    Box(Modifier.fillMaxWidth(if (line == 2) 0.62f else 0.82f).height(8.dp).clip(RoundedCornerShape(4.dp)).background(palette.textDim.toComposeColor().copy(alpha = 0.08f)))
+                bars.forEachIndexed { index, bar ->
+                    val stackIndex = bars.take(index).count { it.anchor == bar.anchor }
+                    HudComposedBar(
+                        bar = bar,
+                        selected = selectedBar == index,
+                        selectedItem = selectedItem,
+                        onSelectBar = { onSelectBar(index) },
+                        onSelectItem = onSelectItem,
+                        onMoveItem = onMoveItem,
+                        onDragItem = onDragItem,
+                        dragging = movingBar == index,
+                        onBarDragStart = { onBarDragStart(index) },
+                        onBarDrag = { dx, dy -> onBarDrag(index, dx, dy) },
+                        onBarDrop = { onBarDrop(index) },
+                        modifier = hudAnchorModifier(bar.anchor, stackIndex)
+                            .offset(x = bar.offsetXDp.dp, y = bar.offsetYDp.dp)
+                            .then(if (bar.fillWidth) Modifier.fillMaxWidth().padding(horizontal = 28.dp) else Modifier),
+                    )
                 }
             }
-            bars.forEachIndexed { index, bar ->
-                val stackIndex = bars.take(index).count { it.anchor == bar.anchor }
-                HudComposedBar(
-                    bar = bar,
-                    selected = selectedBar == index,
-                    selectedItem = selectedItem,
-                    onSelectBar = { onSelectBar(index) },
-                    onSelectItem = onSelectItem,
-                    onMoveItem = onMoveItem,
-                    onDragItem = onDragItem,
-                    dragging = movingBar == index,
-                    onBarDragStart = { onBarDragStart(index) },
-                    onBarDrag = { dx, dy -> onBarDrag(index, dx, dy) },
-                    onBarDrop = { onBarDrop(index) },
-                    modifier = hudAnchorModifier(bar.anchor, stackIndex)
-                        .offset(x = bar.offsetXDp.dp, y = bar.offsetYDp.dp)
-                        .then(if (bar.fillWidth) Modifier.fillMaxWidth().padding(horizontal = 28.dp) else Modifier),
-                )
+            HudFloatingPanel(Modifier.align(Alignment.BottomEnd).padding(12.dp)) {
+                Row(Modifier.padding(5.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                    HudIconButton(XnotesIcons.zoomOut, "Reduzir", onClick = { zoom = (zoom - 0.05f).coerceAtLeast(0.35f) })
+                    HudChip("${(zoom * 100).toInt()}%", selected = false, onClick = { zoom = 0.55f; panX = 0f; panY = 0f })
+                    HudIconButton(XnotesIcons.zoomIn, "Ampliar", onClick = { zoom = (zoom + 0.05f).coerceAtMost(1.5f) })
+                    HudIconButton(XnotesIcons.fit, "Centralizar", onClick = { zoom = 0.55f; panX = 0f; panY = 0f })
+                }
             }
         }
-        Text("Toque no contorno vazio para selecionar a barra; toque no widget para selecionar sua instância.", color = palette.textDim.toComposeColor(), fontSize = 12.sp)
+        Text("Arraste o fundo para navegar pelo canvas. Toque no contorno da barra para selecioná-la; toque no widget para selecionar sua instância.", color = palette.textDim.toComposeColor(), fontSize = 12.sp)
     }
 }
 

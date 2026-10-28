@@ -149,6 +149,12 @@ Também foram corrigidos os problemas apontados na revisão seguinte:
 - painel superior é expansível: no modo aberto atua como inspector contextual da barra/instância
   selecionada, com edição de nome, padding, gap e remoção do item; o painel lateral duplicado é
   ocultado enquanto esse inspector está aberto.
+- a viewport agora funciona como um canvas de nota: o mundo é maior que a janela, não possui
+  borda de página visível e é recortado pela viewport, com grade e conteúdo deslocáveis;
+- pan de um dedo no fundo e zoom por gesto de transformação mantêm a escala da nota e das barras
+  juntas, com controles de zoom, percentual e recentralização para ajustes precisos;
+- o padrão visual da barra principal usa posição, tamanho e Docked/Floating configurados no app;
+  uma nova barra nasce vazia, em tamanho Regular e com largura total do mundo da nota.
 
 Essas alterações ainda são estado local do protótipo M1. A identidade persistente das instâncias,
 destinos de drop por célula, undo/redo e Aplicar/Cancelar transacional continuam sendo escopo do
