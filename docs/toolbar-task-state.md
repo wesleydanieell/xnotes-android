@@ -155,6 +155,10 @@ Também foram corrigidos os problemas apontados na revisão seguinte:
   seleção, arraste e edição ficam restritos às barras e seus componentes;
 - o padrão visual da barra principal usa posição, tamanho e Docked/Floating configurados no app;
   uma nova barra nasce vazia, em tamanho Regular e com largura total do mundo da nota.
+- o preview ocupa a camada de fundo do editor e o painel de edição superior é desenhado como
+  overlay central acima da nota, evitando que o canvas passe por cima dele;
+- o inspector de propriedades deixou de ser lateral independente: quando expandido, fica acoplado
+  ao mesmo painel flutuante central.
 
 Essas alterações ainda são estado local do protótipo M1. A identidade persistente das instâncias,
 destinos de drop por célula, undo/redo e Aplicar/Cancelar transacional continuam sendo escopo do

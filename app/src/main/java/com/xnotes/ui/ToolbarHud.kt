@@ -56,6 +56,7 @@ import androidx.compose.ui.res.vectorResource
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.zIndex
 import com.xnotes.R
 import com.xnotes.core.tools.ToolbarItem
 import com.xnotes.ui.icons.XnotesIcons
@@ -75,8 +76,7 @@ fun ToolbarHudScreen(
     onClose: () -> Unit,
 ) {
     val palette = LocalPalette.current
-    var catalogOpen by remember { mutableStateOf(true) }
-    var propertiesOpen by remember { mutableStateOf(true) }
+    var catalogOpen by remember { mutableStateOf(false) }
     var profile by remember { mutableStateOf("xnote") }
     var selectedBar by remember { mutableStateOf(0) }
     var selectedItem by remember { mutableStateOf<String?>(null) }
@@ -115,8 +115,9 @@ fun ToolbarHudScreen(
     }
 
     BackHandler(onBack = onClose)
-    Column(Modifier.fillMaxSize().background(palette.bg.toComposeColor())) {
+    Box(Modifier.fillMaxSize().background(palette.bg.toComposeColor())) {
         HudTopBar(
+            modifier = Modifier.align(Alignment.TopCenter).zIndex(20f),
             profile = profile,
             onProfile = { profile = if (profile == "xnote") "xcanvas" else "xnote" },
             onAddBar = {
@@ -155,7 +156,7 @@ fun ToolbarHudScreen(
             },
             onClose = onClose,
         )
-        Box(Modifier.weight(1f).fillMaxWidth()) {
+        Box(Modifier.fillMaxSize()) {
             HudViewport(
                 bars = bars,
                 selectedBar = selectedBar,
@@ -201,24 +202,6 @@ fun ToolbarHudScreen(
                         onCollapse = { catalogOpen = false },
                     )
                 }
-            }
-            if (propertiesOpen && !editPanelExpanded) {
-                HudFloatingPanel(Modifier.align(Alignment.TopEnd).padding(16.dp)) {
-                    HudProperties(
-                        bar = bars[selectedBar],
-                        selectedItem = selectedItem,
-                        onChangeBar = { bars[selectedBar] = it },
-                        onRemoveItem = { item ->
-                            val items = bars[selectedBar].items.toMutableList()
-                            items.remove(item)
-                            bars[selectedBar] = bars[selectedBar].copy(items = items)
-                            selectedItem = null
-                        },
-                        onCollapse = { propertiesOpen = false },
-                    )
-                }
-            } else {
-                HudRail("Propriedades", XnotesIcons.sliders) { propertiesOpen = true }
             }
         }
     }
@@ -275,6 +258,7 @@ private fun ToolbarSize.toHudBarSize(): HudBarSize = when (this) {
 
 @Composable
 private fun HudTopBar(
+    modifier: Modifier,
     profile: String,
     onProfile: () -> Unit,
     onAddBar: () -> Unit,
@@ -296,15 +280,19 @@ private fun HudTopBar(
     val palette = LocalPalette.current
     val density = LocalDensity.current.density
     val panelScale by animateFloatAsState(if (panelDragging) 1.04f else 1f, spring(), label = "editPanelScale")
-    Row(
-        Modifier.fillMaxWidth().background(palette.panel.toComposeColor()).padding(horizontal = 10.dp, vertical = 8.dp),
-        verticalAlignment = Alignment.CenterVertically,
+    Box(
+        modifier.fillMaxWidth().background(palette.panel.toComposeColor().copy(alpha = 0.88f))
+            .padding(horizontal = 10.dp, vertical = 8.dp),
     ) {
-        HudIconButton(XnotesIcons.prev, "Voltar", onClose)
-        Text("Editor de barras", color = palette.text.toComposeColor(), fontSize = 18.sp)
-        Spacer(Modifier.width(16.dp))
+        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+            HudIconButton(XnotesIcons.prev, "Voltar", onClose)
+            Text("Editor de barras", color = palette.text.toComposeColor(), fontSize = 18.sp)
+            Spacer(Modifier.weight(1f))
+            TextButton(onClick = onClose) { Text("Cancelar") }
+            TextButton(onClick = onClose) { Text("Aplicar") }
+        }
         HudFloatingPanel(
-            Modifier.padding(horizontal = 4.dp).offset(x = panelOffsetX.dp, y = panelOffsetY.dp)
+            Modifier.align(Alignment.TopCenter).offset(x = panelOffsetX.dp, y = panelOffsetY.dp)
                 .graphicsLayer { scaleX = panelScale; scaleY = panelScale }
                 .pointerInput(Unit) {
                     detectDragGestures(
@@ -315,31 +303,30 @@ private fun HudTopBar(
                     )
                 },
         ) {
-            Column(Modifier.padding(horizontal = 6.dp, vertical = 4.dp), verticalArrangement = Arrangement.spacedBy(5.dp)) {
-              Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(5.dp)) {
-                Icon(XnotesIcons.grip, "Arrastar painel", Modifier.size(18.dp), tint = palette.textDim.toComposeColor())
-                HudChip(profile, selected = true, onClick = onProfile)
-                HudChip("Compartilhado", selected = false, onClick = {})
-                HudChip("+ Componente", selected = false, onClick = onOpenCatalog)
-                HudChip("+ Barra", selected = false, onClick = onAddBar)
-                HudIconButton(XnotesIcons.undo, "Desfazer", onClick = {})
-                HudIconButton(XnotesIcons.redo, "Refazer", onClick = {})
-                HudChip(if (expanded) "Recolher propriedades" else "Editar seleção", selected = expanded, onClick = onToggleExpanded)
-              }
-              if (expanded) {
-                  HudProperties(
-                      bar = selectedBar,
-                      selectedItem = selectedItem,
-                      onChangeBar = onChangeBar,
-                      onRemoveItem = onRemoveItem,
-                      onCollapse = onToggleExpanded,
-                  )
-              }
+            Row(Modifier.padding(horizontal = 6.dp, vertical = 4.dp), verticalAlignment = Alignment.Top) {
+                Column(verticalArrangement = Arrangement.spacedBy(5.dp)) {
+                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(5.dp)) {
+                        Icon(XnotesIcons.grip, "Arrastar painel", Modifier.size(18.dp), tint = palette.textDim.toComposeColor())
+                        HudChip(profile, selected = true, onClick = onProfile)
+                        HudChip("Compartilhado", selected = false, onClick = {})
+                        HudChip("+ Componente", selected = false, onClick = onOpenCatalog)
+                        HudChip("+ Barra", selected = false, onClick = onAddBar)
+                        HudIconButton(XnotesIcons.undo, "Desfazer", onClick = {})
+                        HudIconButton(XnotesIcons.redo, "Refazer", onClick = {})
+                        HudChip(if (expanded) "Recolher propriedades" else "Editar seleção", selected = expanded, onClick = onToggleExpanded)
+                    }
+                }
+                if (expanded) {
+                    HudProperties(
+                        bar = selectedBar,
+                        selectedItem = selectedItem,
+                        onChangeBar = onChangeBar,
+                        onRemoveItem = onRemoveItem,
+                        onCollapse = onToggleExpanded,
+                    )
+                }
             }
         }
-        Spacer(Modifier.weight(1f))
-        TextButton(onClick = onClose) { Text("Cancelar") }
-        TextButton(onClick = onClose) { Text("Aplicar") }
     }
 }
 
