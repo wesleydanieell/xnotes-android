@@ -185,10 +185,21 @@ usuário encontradas no worktree e não invente sucesso nem background jobs.
   Faltam QA de pilhas maiores, indicação explícita de overflow, âncoras
   distintas, telas pequenas, canvas e testes instrumentados; não marcar M2.
 
+- 27/10/2026: commit be3ca074 compartilha controles de rolagem de pilha
+  entre preview e renderer, com ícones contrastantes e labels acessíveis.
+  Primeira compilação falhou por import ausente de animateScrollBy; corrigida.
+  testDebugUnitTest + assembleDebug final passou (14 executadas, 36
+  up-to-date), diff --check e install -r passaram. No emulator-5554, duas
+  barras na prévia mostraram seta e o toque revelou a segunda; com quatro
+  barras, a seta avançou a pilha na prévia e na nota. Duas duplicatas criadas
+  para QA foram removidas. Faltam testes instrumentados, confirmação de
+  acessibilidade por leitor, orientação, canvas e telas pequenas; o resolvedor
+  de geometria e colisões entre âncoras seguem pendentes.
+
 ## Próxima ação (uma por vez)
 
-Validar pilhas maiores e overflow explícito no renderer e na prévia; testar
-outras ferramentas e barras secundárias após a mudança de prioridade do
+Validar overflow em canvas, telas pequenas e acessibilidade; testar outras
+ferramentas e barras secundárias após a mudança de prioridade do
 gesto; investigar colisões entre âncoras e controles do canvas,
 com testes para regiões centrais e bordas. Continuar os testes de gestos e
 docks da barra principal e secundárias no emulador; reservar pressão, hover,
