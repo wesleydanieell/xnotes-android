@@ -693,6 +693,68 @@ fun PreferencesPane(
                 }
             }
             HorizontalDivider(color = palette.border.toComposeColor())
+            FieldLabel("Toolbar appearance")
+            val geometry = currentBar.geometry
+            val appearance = geometry.appearance
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                Text("Opacity ${(appearance.opacity * 100).toInt()}%", color = palette.textDim.toComposeColor(), fontSize = 12.sp)
+                Slider(
+                    value = appearance.opacity,
+                    onValueChange = { value ->
+                        updateSelectedBar { bar -> bar.copy(geometry = bar.geometry.copy(appearance = bar.geometry.appearance.copy(opacity = value))) }
+                    },
+                    valueRange = 0.1f..1f,
+                    modifier = Modifier.width(220.dp),
+                )
+            }
+            CheckRow("Border", appearance.borderEnabled) {
+                updateSelectedBar { bar -> bar.copy(geometry = bar.geometry.copy(appearance = bar.geometry.appearance.copy(borderEnabled = it))) }
+            }
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                OutlinedTextField(
+                    value = geometry.widthDp?.toString() ?: "",
+                    onValueChange = { raw ->
+                        updateSelectedBar { bar -> bar.copy(geometry = bar.geometry.copy(widthDp = raw.toIntOrNull())) }
+                    },
+                    label = { Text("Width dp") },
+                    singleLine = true,
+                    modifier = Modifier.width(130.dp),
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                )
+                OutlinedTextField(
+                    value = geometry.heightDp?.toString() ?: "",
+                    onValueChange = { raw ->
+                        updateSelectedBar { bar -> bar.copy(geometry = bar.geometry.copy(heightDp = raw.toIntOrNull())) }
+                    },
+                    label = { Text("Height dp") },
+                    singleLine = true,
+                    modifier = Modifier.width(130.dp),
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                )
+            }
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                OutlinedTextField(
+                    value = appearance.cornerRadiusDp.toString(),
+                    onValueChange = { raw ->
+                        raw.toIntOrNull()?.let { value -> updateSelectedBar { bar -> bar.copy(geometry = bar.geometry.copy(appearance = bar.geometry.appearance.copy(cornerRadiusDp = value))) } }
+                    },
+                    label = { Text("Radius dp") },
+                    singleLine = true,
+                    modifier = Modifier.width(130.dp),
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                )
+                OutlinedTextField(
+                    value = appearance.paddingHorizontalDp.toString(),
+                    onValueChange = { raw ->
+                        raw.toIntOrNull()?.let { value -> updateSelectedBar { bar -> bar.copy(geometry = bar.geometry.copy(appearance = bar.geometry.appearance.copy(paddingHorizontalDp = value))) } }
+                    },
+                    label = { Text("Padding dp") },
+                    singleLine = true,
+                    modifier = Modifier.width(130.dp),
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                )
+            }
+            HorizontalDivider(color = palette.border.toComposeColor())
             FieldLabel(stringResource(R.string.toolbar_selected))
             OutlinedTextField(
                 value = currentBar.name,
