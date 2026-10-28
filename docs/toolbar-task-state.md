@@ -330,6 +330,13 @@ usuário encontradas no worktree e não invente sucesso nem background jobs.
   principal. Testes JVM, assembleDebug e install -r passaram no emulator-5554;
   falta QA visual com uma árvore v3 efetivamente criada na UI.
 
+- 28/10/2026: commit 362774ef adiciona ação `Compose v3`/`Use flat layout` no
+  editor. A conversão gera IDs estáveis por seção/item, trata `COLORS` como
+  ColorPalette e sincroniza alterações posteriores do layout com a árvore v3;
+  a barra primária e secundária usam a mesma projeção. Testes JVM, assembleDebug
+  e install -r passaram no emulator-5554. Ainda falta drag/drop visual entre
+  grupos e edição direta de propriedades de cada nó.
+
 ## Próxima ação (uma por vez)
 
 Validar no ADB o configurador, os botões Undo/Redo/Cancel/Apply e a persistência
