@@ -83,6 +83,7 @@ import com.xnotes.core.tools.ToolbarItem
 import com.xnotes.core.tools.ToolbarLayout
 import com.xnotes.core.tools.ToolbarSection
 import com.xnotes.core.tools.ToolbarWorkspace
+import com.xnotes.core.tools.toolbarNodesFromLayout
 import com.xnotes.core.util.NameTemplate
 import com.xnotes.settings.Preferences
 import com.xnotes.settings.MaterialStyle
@@ -183,13 +184,15 @@ fun PreferencesPane(
             if (canvasTab) editor.applyCanvasToolbarLayout(next) else editor.applyToolbarLayout(next)
         } else {
             val profiles = editor.toolbarWorkspaces
-            val changed = workspace.replaceBar(bar.copy(layout = next))
+            val changed = workspace.replaceBar(bar.copy(layout = next, nodes = bar.nodes?.let { toolbarNodesFromLayout(next) }))
             editor.applyToolbarWorkspaces(if (canvasTab) profiles.copy(canvas = changed) else profiles.copy(note = changed))
         }
     }
     fun updateSelectedBar(transform: (ToolbarBar) -> ToolbarBar) {
         val profiles = editor.toolbarWorkspaces
-        val changed = editedWorkspace().replaceBar(transform(selectedBar()))
+        val transformed = transform(selectedBar())
+        val synced = if (transformed.nodes != null) transformed.copy(nodes = toolbarNodesFromLayout(transformed.layout)) else transformed
+        val changed = editedWorkspace().replaceBar(synced)
         editor.applyToolbarWorkspaces(if (canvasTab) profiles.copy(canvas = changed) else profiles.copy(note = changed))
     }
     fun retarget() {
@@ -835,6 +838,11 @@ fun PreferencesPane(
                 singleLine = true,
                 modifier = Modifier.width(320.dp),
             )
+            TextButton(onClick = {
+                updateSelectedBar { bar ->
+                    bar.copy(nodes = if (bar.nodes == null) toolbarNodesFromLayout(bar.layout) else null)
+                }
+            }) { Text(if (currentBar.nodes == null) "Compose v3" else "Use flat layout") }
             Chip(stringResource(R.string.toolbar_movable), currentBar.geometry.movable) {
                 updateSelectedBar { bar -> bar.copy(geometry = bar.geometry.copy(movable = !bar.geometry.movable)) }
             }

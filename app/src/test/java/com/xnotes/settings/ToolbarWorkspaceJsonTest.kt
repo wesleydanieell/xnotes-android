@@ -6,6 +6,7 @@ import com.xnotes.core.tools.ToolbarAppearance
 import com.xnotes.core.tools.ToolbarNode
 import com.xnotes.core.tools.flattenItems
 import com.xnotes.core.tools.sanitized
+import com.xnotes.core.tools.toolbarNodesFromLayout
 import com.xnotes.core.tools.ToolbarBar
 import com.xnotes.core.tools.ToolbarContext
 import com.xnotes.core.tools.ToolbarEntry
@@ -178,6 +179,12 @@ class ToolbarWorkspaceJsonTest {
             listOf(ToolbarItem.PEN, ToolbarItem.COLORS),
             ToolbarBar("primary", "Primary", ToolbarLayout.DEFAULT, nodes = restored).effectiveLayout()
                 .sections.single().entries.map { it.item },
+        )
+        assertEquals(
+            listOf(ToolbarItem.PEN, ToolbarItem.COLORS),
+            toolbarNodesFromLayout(ToolbarLayout(listOf(ToolbarSection(listOf(
+                ToolbarEntry(ToolbarItem.PEN), ToolbarEntry(ToolbarItem.COLORS),
+            ))))).flatMap { it.flattenItems() },
         )
         val tooDeep = ToolbarNode.Group("d0", listOf(
             ToolbarNode.Group("d1", listOf(

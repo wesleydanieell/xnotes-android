@@ -114,6 +114,7 @@ import com.xnotes.core.tools.ToolDefaults
 import com.xnotes.core.tools.ToolbarAnchor
 import com.xnotes.core.tools.ToolbarContext
 import com.xnotes.core.tools.ToolbarLayout
+import com.xnotes.core.tools.toolbarNodesFromLayout
 import com.xnotes.core.util.DocumentKind
 import com.xnotes.core.util.FileStamp
 import com.xnotes.core.util.NameTemplate
@@ -2835,7 +2836,11 @@ class Editor(context: Context, val pane: Pane = Pane.PRIMARY) : ToolPopupHost, S
         settings = settings.copy(
             toolbarLayout = layout,
             toolbarWorkspaces = settings.toolbarWorkspaces?.let {
-                it.copy(note = it.note.replacePrimaryLayout(layout))
+                it.copy(note = it.note.replacePrimaryLayout(layout).let { workspace ->
+                    workspace.bars.firstOrNull()?.let { primary ->
+                        if (primary.nodes != null) workspace.replaceBar(primary.copy(nodes = toolbarNodesFromLayout(layout))) else workspace
+                    } ?: workspace
+                })
             },
         )
         toolbarWorkspaces = settings.effectiveToolbarWorkspaces()
@@ -2849,7 +2854,11 @@ class Editor(context: Context, val pane: Pane = Pane.PRIMARY) : ToolPopupHost, S
         settings = settings.copy(
             canvasToolbarLayout = layout,
             toolbarWorkspaces = settings.toolbarWorkspaces?.let {
-                it.copy(canvas = it.canvas.replacePrimaryLayout(layout))
+                it.copy(canvas = it.canvas.replacePrimaryLayout(layout).let { workspace ->
+                    workspace.bars.firstOrNull()?.let { primary ->
+                        if (primary.nodes != null) workspace.replaceBar(primary.copy(nodes = toolbarNodesFromLayout(layout))) else workspace
+                    } ?: workspace
+                })
             },
         )
         toolbarWorkspaces = settings.effectiveToolbarWorkspaces()

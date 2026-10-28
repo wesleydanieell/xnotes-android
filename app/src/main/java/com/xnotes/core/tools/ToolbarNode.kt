@@ -75,3 +75,16 @@ fun ToolbarNode.flattenItems(out: MutableList<ToolbarItem> = ArrayList()): List<
     }
     return out
 }
+
+fun toolbarNodesFromLayout(layout: ToolbarLayout): List<ToolbarNode> = layout.sections.mapIndexed { sectionIndex, section ->
+    ToolbarNode.Group(
+        id = "section-$sectionIndex",
+        children = section.entries.mapIndexed { entryIndex, entry ->
+            if (entry.item == ToolbarItem.COLORS) {
+                ToolbarNode.ColorPalette("section-$sectionIndex-colors-$entryIndex", visible = entry.visible)
+            } else {
+                ToolbarNode.Tool("section-$sectionIndex-${entry.item.id}-$entryIndex", entry.item, entry.visible)
+            }
+        },
+    )
+}
