@@ -154,10 +154,20 @@ usuário encontradas no worktree e não invente sucesso nem background jobs.
   conflito com scroll segue pendente. Persistência após restart e demais
   posições não foram verificadas nesta rodada; não marcar P0 concluído.
 
+- 27/10/2026: commit eea7815d dá prioridade ao drag após hold no passe
+  Initial, antes do scroll interno. testDebugUnitTest + assembleDebug passou
+  (14 executadas, 36 up-to-date); diff --check passou e install -r no
+  emulator-5554 retornou Success. Hold e MOVE diagonal da barra vertical
+  esquerda para o rodapé e do rodapé para a esquerda moveram a barra;
+  dois toques na caneta selecionaram-na e abriram suas opções. Não há teste
+  instrumentado automatizado desse gesto; cancelamento, outros controles,
+  scroll normal, secundárias e stylus permanecem por validar. Não marcar P0.
+
 ## Próxima ação (uma por vez)
 
-Investigar o conflito entre scroll horizontal e hold-drag na barra; depois
-investigar e corrigir colisões entre barras flutuantes e controles do canvas,
+Validar scroll normal, cancelamento, ferramentas e barras secundárias após
+a mudança de prioridade do gesto; investigar e corrigir colisões entre barras
+flutuantes e controles do canvas,
 com testes para regiões centrais e bordas. Continuar os testes de gestos e
 docks da barra principal e secundárias no emulador; reservar pressão, hover,
 latência e primeiro traço com stylus para o Redmi Pad 2.
