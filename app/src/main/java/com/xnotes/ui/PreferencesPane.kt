@@ -785,6 +785,20 @@ fun PreferencesPane(
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                 )
             }
+            val swatchCount = currentBar.colorCount ?: editor.toolbarColorCount
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                Text("Swatches $swatchCount", color = palette.textDim.toComposeColor(), fontSize = 12.sp)
+                Slider(
+                    value = swatchCount.toFloat(),
+                    onValueChange = { value ->
+                        updateSelectedBar { bar -> bar.copy(colorCount = Math.round(value).coerceIn(1, InkPalette.MAX_SWATCHES)) }
+                    },
+                    valueRange = 1f..InkPalette.MAX_SWATCHES.toFloat(),
+                    steps = InkPalette.MAX_SWATCHES - 2,
+                    modifier = Modifier.width(220.dp),
+                )
+                TextButton(onClick = { updateSelectedBar { it.copy(colorCount = null) } }) { Text("Shared") }
+            }
             HorizontalDivider(color = palette.border.toComposeColor())
             FieldLabel(stringResource(R.string.toolbar_selected))
             OutlinedTextField(

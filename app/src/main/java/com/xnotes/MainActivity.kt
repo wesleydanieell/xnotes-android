@@ -102,6 +102,7 @@ import com.xnotes.ui.ToolbarAround
 import com.xnotes.ui.ToolbarDragSurface
 import com.xnotes.ui.LocalToolbarLook
 import com.xnotes.ui.LocalToolbarGeometry
+import com.xnotes.ui.LocalToolbarColorCount
 import com.xnotes.ui.WorkspaceFloatingBars
 import com.xnotes.ui.toolbarLookFor
 import com.xnotes.ui.icons.XnotesIcons
@@ -1479,7 +1480,10 @@ private fun EditorPane(
                 val canvas = editor.infinite
                 val primary = app.toolbarWorkspaces.forContext(ToolbarContext.CANVAS).bars.firstOrNull()
                 val bareBar: @Composable () -> Unit = {
-                    CompositionLocalProvider(LocalToolbarGeometry provides primary?.geometry) {
+                    CompositionLocalProvider(
+                        LocalToolbarGeometry provides primary?.geometry,
+                        LocalToolbarColorCount provides primary?.colorCount,
+                    ) {
                         com.xnotes.ui.InfiniteToolbar(
                             canvas,
                             onOpenBackstage = actions.onOpenBackstage,
@@ -1540,7 +1544,10 @@ private fun EditorPane(
             } else {
                 val primary = app.toolbarWorkspaces.forContext(ToolbarContext.NOTE).bars.firstOrNull()
                 val bareBar: @Composable () -> Unit = {
-                    CompositionLocalProvider(LocalToolbarGeometry provides primary?.geometry) {
+                                    CompositionLocalProvider(
+                                        LocalToolbarGeometry provides primary?.geometry,
+                                        LocalToolbarColorCount provides primary?.colorCount,
+                                    ) {
                         Box(Modifier.endsPageSelection(editor)) { Toolbar(
                             editor,
                             onToggleFullscreen = actions.onToggleFullscreen,

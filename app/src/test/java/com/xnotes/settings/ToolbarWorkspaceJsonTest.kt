@@ -66,6 +66,20 @@ class ToolbarWorkspaceJsonTest {
         assertEquals(2, restored.effectiveToolbarWorkspaces().note.bars.size)
         assertEquals(2, restored.effectiveToolbarWorkspaces().forContext(ToolbarContext.CANVAS).bars.size)
         assertEquals(245, restored.toolbarWorkspaces!!.note.bars[1].geometry.widthDp)
+        assertEquals(null, restored.toolbarWorkspaces!!.note.bars[0].colorCount)
+    }
+
+    @Test fun perBarColourCountRoundTripsAndClamps() {
+        val profiles = ToolbarWorkspaces.fromLegacy(ToolbarLayout.DEFAULT, ToolbarLayout.CANVAS_DEFAULT)
+            .copy(note = ToolbarWorkspace(listOf(
+                ToolbarBar("primary", "Primary", ToolbarLayout.DEFAULT, colorCount = 99),
+            )))
+        val json = Settings(toolbarWorkspaces = profiles).toJson()
+        val raw = json.getJSONObject("toolbar_workspaces").getJSONObject("note")
+            .getJSONArray("bars").getJSONObject(0)
+        raw.put("color_count", 99)
+        val parsed = Settings.fromJson(json).toolbarWorkspaces!!.note.bars.single()
+        assertEquals(com.xnotes.core.tools.InkPalette.MAX_SWATCHES, parsed.colorCount)
     }
 
     @Test fun unsupportedSchemaFallsBackToLegacySettingsSafely() {

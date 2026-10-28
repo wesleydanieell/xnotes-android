@@ -44,6 +44,7 @@ internal object ToolbarWorkspaceJson {
                 .put("id", bar.id)
                 .put("name", bar.name)
                 .put("visible", bar.visible)
+                .put("color_count", bar.colorCount)
         .put("geometry", writeGeometry(bar.geometry))
                 .put("sections", JSONArray().apply {
                     for (section in bar.layout.sections) put(JSONArray().apply {
@@ -95,6 +96,7 @@ internal object ToolbarWorkspaceJson {
                 layout = ToolbarLayout(sections.ifEmpty { listOf(ToolbarSection(emptyList())) }),
                 visible = raw.optBoolean("visible", true),
                 geometry = readGeometry(raw.optJSONObject("geometry")),
+                colorCount = raw.optInt("color_count").takeIf { raw.has("color_count") }?.coerceIn(1, com.xnotes.core.tools.InkPalette.MAX_SWATCHES),
             ))
         }
         return bars.takeIf { it.isNotEmpty() }?.let(::ToolbarWorkspace)

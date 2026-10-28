@@ -155,6 +155,7 @@ fun BoxScope.WorkspaceFloatingBars(
                                     CompositionLocalProvider(
                                         LocalToolbarLook provides look,
                                         LocalToolbarGeometry provides bar.geometry.constrained(),
+                                        LocalToolbarColorCount provides bar.colorCount,
                                     ) {
                                         if (index == 0) primaryContent() else content(bar)
                                     }

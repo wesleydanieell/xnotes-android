@@ -69,6 +69,8 @@ data class ToolbarBar(
     val layout: ToolbarLayout,
     val visible: Boolean = true,
     val geometry: ToolbarGeometry = ToolbarGeometry(),
+    /** Null means use the existing workspace-wide palette count. */
+    val colorCount: Int? = null,
 )
 
 /**
