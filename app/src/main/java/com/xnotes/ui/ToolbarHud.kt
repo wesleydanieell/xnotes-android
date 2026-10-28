@@ -489,7 +489,7 @@ private fun HudViewport(
                         onBarDrop = { onBarDrop(index) },
                         modifier = hudAnchorModifier(bar.anchor, stackIndex)
                             .offset(x = bar.offsetXDp.dp, y = bar.offsetYDp.dp)
-                            .then(if (bar.fillWidth) Modifier.fillMaxWidth().padding(horizontal = 28.dp) else Modifier),
+                            .then(if (bar.fillWidth && bar.orientation == HudOrientation.HORIZONTAL) Modifier.fillMaxWidth().padding(horizontal = 28.dp) else Modifier),
                     )
                 }
             }
