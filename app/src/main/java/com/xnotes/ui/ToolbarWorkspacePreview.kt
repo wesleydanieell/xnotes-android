@@ -15,7 +15,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.offset
+import androidx.compose.foundation.layout.absoluteOffset
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -27,6 +27,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
+import androidx.compose.ui.AbsoluteAlignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.Rect
@@ -95,7 +96,7 @@ internal fun ToolbarWorkspacePreview(
             val bars = placedBars.filter { it.second == anchor }
             if (bars.isEmpty()) continue
             val region = regions[anchor] ?: continue
-            Box(Modifier.offset(region.x.dp, region.y.dp).size(region.width.dp, region.height.dp)) {
+            Box(Modifier.align(AbsoluteAlignment.TopLeft).absoluteOffset(region.x.dp, region.y.dp).size(region.width.dp, region.height.dp)) {
                 // Like the live workspace, bars sharing an anchor occupy a stable vertical stack.
                 // The stage is bounded; scrolling keeps every preview selectable when it overflows.
                 ToolbarStackScroll(

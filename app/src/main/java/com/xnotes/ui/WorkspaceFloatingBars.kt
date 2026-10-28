@@ -8,7 +8,7 @@ import androidx.compose.foundation.layout.BoxScope
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.heightIn
-import androidx.compose.foundation.layout.offset
+import androidx.compose.foundation.layout.absoluteOffset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.runtime.Composable
@@ -96,7 +96,7 @@ fun ToolbarDragSurface(
     }
     Box(
         Modifier
-            .offset { IntOffset(drag.x.roundToInt(), drag.y.roundToInt()) }
+            .absoluteOffset { IntOffset(drag.x.roundToInt(), drag.y.roundToInt()) }
             .onGloballyPositioned { if (drag == Offset.Zero) barBounds = it.boundsInRoot() }
             .then(gesture),
     ) {
@@ -124,7 +124,7 @@ fun BoxScope.WorkspaceFloatingBars(
             }
             if (bars.isEmpty()) continue
             val region = regions[anchor] ?: continue
-            Box(Modifier.offset(region.x.dp, region.y.dp).size(region.width.dp, region.height.dp)) {
+            Box(Modifier.align(AbsoluteAlignment.TopLeft).absoluteOffset(region.x.dp, region.y.dp).size(region.width.dp, region.height.dp)) {
                 // Keep a long vertical toolbar from consuming all space before later bars
                 // are measured. The outer scroll exposes further bars if the stack is taller
                 // than the pane; each bar retains its own bounded tool scroll.
