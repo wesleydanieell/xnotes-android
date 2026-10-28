@@ -1,15 +1,11 @@
 package com.xnotes.ui
 
-import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.gestures.awaitEachGesture
 import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.foundation.gestures.awaitLongPressOrCancellation
-import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxScope
 import androidx.compose.foundation.layout.BoxWithConstraints
-import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.offset
@@ -126,11 +122,9 @@ fun BoxScope.WorkspaceFloatingBars(
             // than the pane; each bar retains its own bounded tool scroll.
             val availableHeight = (maxHeight - 16.dp).coerceAtLeast(0.dp)
             val barMaxHeight = toolbarStackBarLimit(availableHeight.value, bars.size, 8f).dp
-            Column(
-                modifier = Modifier.align(anchor.alignment()).padding(8.dp)
-                    .heightIn(max = availableHeight).verticalScroll(rememberScrollState()),
-                verticalArrangement = Arrangement.spacedBy(8.dp),
-                horizontalAlignment = Alignment.CenterHorizontally,
+            ToolbarStackScroll(
+                maxHeight = availableHeight,
+                modifier = Modifier.align(anchor.alignment()).padding(8.dp),
             ) {
                 for ((index, bar) in bars) {
                     key(bar.id) {

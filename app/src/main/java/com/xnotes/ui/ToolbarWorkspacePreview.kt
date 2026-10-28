@@ -4,8 +4,6 @@ import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
@@ -93,10 +91,10 @@ internal fun ToolbarWorkspacePreview(
             if (bars.isEmpty()) continue
             // Like the live workspace, bars sharing an anchor occupy a stable vertical stack.
             // The stage is bounded; scrolling keeps every preview selectable when it overflows.
-            Column(
-                Modifier.align(anchor.alignment()).padding(1.dp).verticalScroll(rememberScrollState()),
-                verticalArrangement = Arrangement.spacedBy(4.dp),
-                horizontalAlignment = Alignment.CenterHorizontally,
+            ToolbarStackScroll(
+                maxHeight = maxHeight - 2.dp,
+                modifier = Modifier.align(anchor.alignment()).padding(1.dp),
+                spacing = 4.dp,
             ) {
                 for ((bar, _, floating) in bars) {
                     Box(Modifier.padding(if (floating) 4.dp else 0.dp)) {
