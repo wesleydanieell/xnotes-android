@@ -621,11 +621,18 @@ usuário encontradas no worktree e não invente sucesso nem background jobs.
   `git diff --check` e o gate JVM/assemble passaram. O drag visual entre grupos,
   clipping e a validação ADB da tela continuam pendentes.
 
+- 28/10/2026: commit 029b1313 separa preview de resize sem histórico de
+  commit/cancel: amostras do arraste são persistidas sem inundar Undo, Finish
+  resize registra uma única operação baseada no snapshot inicial e Cancel
+  restaura sem criar uma operação adicional. A mudança cobre barras docked e
+  flutuantes. `git diff --check` e o gate JVM/assemble passaram; falta validar
+  no ADB que Undo depois de Finish volta diretamente à geometria anterior.
+
 ## Próxima ação (uma por vez)
 
-Com o `emulator-5554` online, instalar o APK de `7dae5ee3` e validar via
+Com o `emulator-5554` online, instalar o APK de `029b1313` e validar via
 UIAutomator o marcador `+N` e o menu de estilos da caneta unificada; criar uma
 grade oversized no configurador para exercitar o popup e depois executar
 split/orientação, verificando grids mistos/auto-fit sem clipping. A geometria
-quantitativa, Undo independente e testes de pressão, hover, latência e primeiro
+quantitativa, Undo após Finish, e testes de pressão, hover, latência e primeiro
 traço continuam reservados para as próximas rodadas e para o Redmi Pad 2.
