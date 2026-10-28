@@ -38,6 +38,8 @@ import androidx.compose.ui.unit.sp
 import com.xnotes.settings.ToolbarLook
 import com.xnotes.settings.ToolbarPosition
 import com.xnotes.settings.ToolbarSize
+import com.xnotes.core.tools.ToolbarGeometry
+import com.xnotes.core.tools.resolveToolbarSize
 import com.xnotes.ui.theme.LocalPalette
 import com.xnotes.ui.theme.toComposeColor
 
@@ -65,6 +67,9 @@ internal fun barMetrics(size: ToolbarSize): BarMetrics = when (size) {
 }
 
 internal val LocalBar = staticCompositionLocalOf { barMetrics(ToolbarSize.REGULAR) }
+
+/** Geometry of the bar currently being rendered; null keeps legacy automatic sizing. */
+internal val LocalToolbarGeometry = compositionLocalOf<ToolbarGeometry?> { null }
 
 /** Where a menu opens from its anchor; a side rail sets it so its menus open beside the rail. */
 internal val LocalMenuOffset = compositionLocalOf { DpOffset.Zero }
@@ -142,7 +147,9 @@ internal fun ToolbarFrame(
     content: @Composable () -> Unit,
 ) {
     val look = LocalToolbarLook.current
+    val geometry = LocalToolbarGeometry.current
     val bar = barMetrics(look.size).copy(vertical = look.position.vertical)
+    val resolvedSize = geometry?.let(::resolveToolbarSize)
     val glide = remember { ToolGlide() }
     val palette = LocalPalette.current
     val shape = MaterialTheme.shapes.extraLarge
@@ -156,6 +163,9 @@ internal fun ToolbarFrame(
             .background(palette.panel.toComposeColor())
             .border(1.dp, palette.border.toComposeColor(), shape)
     }
+    val dimensions = Modifier
+        .then(resolvedSize?.widthDp?.dp?.let { Modifier.width(it) } ?: Modifier)
+        .then(resolvedSize?.heightDp?.dp?.let { Modifier.height(it) } ?: Modifier)
     val stretch = when {
         look.floating -> Modifier
         bar.vertical -> Modifier.fillMaxHeight()
@@ -173,7 +183,7 @@ internal fun ToolbarFrame(
     CompositionLocalProvider(LocalToolGlide provides glide, LocalBar provides bar, LocalMenuOffset provides menuOffset, LocalTipSide provides tipSide) {
         if (bar.vertical) {
             Column(
-                stretch.width(bar.thickness).then(surface),
+                stretch.width(bar.thickness).then(surface).then(dimensions),
                 horizontalAlignment = Alignment.CenterHorizontally,
             ) {
                 Column(
@@ -188,7 +198,7 @@ internal fun ToolbarFrame(
             }
         } else {
             Row(
-                stretch.height(bar.thickness).then(surface),
+                stretch.height(bar.thickness).then(surface).then(dimensions),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 Row(

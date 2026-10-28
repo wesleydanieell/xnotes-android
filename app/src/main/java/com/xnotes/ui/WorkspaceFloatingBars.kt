@@ -152,7 +152,10 @@ fun BoxScope.WorkspaceFloatingBars(
                                     paneBounds = paneBounds,
                                     onMoveBar = onMoveBar,
                                 ) {
-                                    CompositionLocalProvider(LocalToolbarLook provides look) {
+                                    CompositionLocalProvider(
+                                        LocalToolbarLook provides look,
+                                        LocalToolbarGeometry provides bar.geometry.constrained(),
+                                    ) {
                                         if (index == 0) primaryContent() else content(bar)
                                     }
                                 }

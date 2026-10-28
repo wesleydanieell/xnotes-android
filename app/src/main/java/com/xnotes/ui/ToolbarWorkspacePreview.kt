@@ -17,6 +17,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.absoluteOffset
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Icon
@@ -41,6 +42,7 @@ import com.xnotes.core.tools.ToolbarBar
 import com.xnotes.core.tools.ToolbarItem
 import com.xnotes.core.tools.ToolbarWorkspace
 import com.xnotes.core.tools.toolbarAnchorRegions
+import com.xnotes.core.tools.resolveToolbarSize
 import com.xnotes.settings.ToolbarLook
 import com.xnotes.settings.ToolbarPosition
 import com.xnotes.ui.theme.LocalPalette
@@ -139,7 +141,10 @@ private fun PreviewBar(
     val entries = bar.layout.visibleSections.flatMap { it.visibleEntries }.map { it.item }
     val shown = entries.take(if (vertical) 5 else 9)
     val extras = entries.size - shown.size
+    val resolved = resolveToolbarSize(bar.geometry)
     val surface = Modifier
+        .then(resolved.widthDp?.let { Modifier.width(it.dp) } ?: Modifier)
+        .then(resolved.heightDp?.let { Modifier.height(it.dp) } ?: Modifier)
         .clip(RoundedCornerShape(9.dp))
         .background(palette.panel.toComposeColor())
         .border(

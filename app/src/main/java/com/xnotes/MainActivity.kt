@@ -101,6 +101,7 @@ import com.xnotes.ui.Toolbar
 import com.xnotes.ui.ToolbarAround
 import com.xnotes.ui.ToolbarDragSurface
 import com.xnotes.ui.LocalToolbarLook
+import com.xnotes.ui.LocalToolbarGeometry
 import com.xnotes.ui.WorkspaceFloatingBars
 import com.xnotes.ui.toolbarLookFor
 import com.xnotes.ui.icons.XnotesIcons
@@ -1478,15 +1479,17 @@ private fun EditorPane(
                 val canvas = editor.infinite
                 val primary = app.toolbarWorkspaces.forContext(ToolbarContext.CANVAS).bars.firstOrNull()
                 val bareBar: @Composable () -> Unit = {
-                    com.xnotes.ui.InfiniteToolbar(
-                        canvas,
-                        onOpenBackstage = actions.onOpenBackstage,
-                        onInsertImage = { actions.onInsertCanvasImage(editor, null) },
-                        onClosePane = onClose,
-                        onInsertAudio = { actions.onInsertAudio(editor) },
-                        onRecordAudio = { actions.onRecordAudio(editor) },
-                        onTakePhoto = { actions.onTakePhoto(editor) },
-                    )
+                    CompositionLocalProvider(LocalToolbarGeometry provides primary?.geometry) {
+                        com.xnotes.ui.InfiniteToolbar(
+                            canvas,
+                            onOpenBackstage = actions.onOpenBackstage,
+                            onInsertImage = { actions.onInsertCanvasImage(editor, null) },
+                            onClosePane = onClose,
+                            onInsertAudio = { actions.onInsertAudio(editor) },
+                            onRecordAudio = { actions.onRecordAudio(editor) },
+                            onTakePhoto = { actions.onTakePhoto(editor) },
+                        )
+                    }
                 }
                 val bar: @Composable () -> Unit = {
                     if (primary != null && !primary.geometry.floating) {
@@ -1537,18 +1540,20 @@ private fun EditorPane(
             } else {
                 val primary = app.toolbarWorkspaces.forContext(ToolbarContext.NOTE).bars.firstOrNull()
                 val bareBar: @Composable () -> Unit = {
-                    Box(Modifier.endsPageSelection(editor)) { Toolbar(
-                        editor,
-                        onToggleFullscreen = actions.onToggleFullscreen,
-                        onOpenBackstage = actions.onOpenBackstage,
-                        onInsertImage = { actions.onInsertImage(editor, null) },
-                        onAddStickers = actions.onAddStickers,
-                        onClosePane = onClose,
-                        onImportTemplate = actions.onImportTemplate,
-                        onInsertAudio = { actions.onInsertAudio(editor) },
-                        onRecordAudio = { actions.onRecordAudio(editor) },
-                        onTakePhoto = { actions.onTakePhoto(editor) },
-                    ) }
+                    CompositionLocalProvider(LocalToolbarGeometry provides primary?.geometry) {
+                        Box(Modifier.endsPageSelection(editor)) { Toolbar(
+                            editor,
+                            onToggleFullscreen = actions.onToggleFullscreen,
+                            onOpenBackstage = actions.onOpenBackstage,
+                            onInsertImage = { actions.onInsertImage(editor, null) },
+                            onAddStickers = actions.onAddStickers,
+                            onClosePane = onClose,
+                            onImportTemplate = actions.onImportTemplate,
+                            onInsertAudio = { actions.onInsertAudio(editor) },
+                            onRecordAudio = { actions.onRecordAudio(editor) },
+                            onTakePhoto = { actions.onTakePhoto(editor) },
+                        ) }
+                    }
                 }
                 val bar: @Composable () -> Unit = {
                     if (primary != null && !primary.geometry.floating) {
