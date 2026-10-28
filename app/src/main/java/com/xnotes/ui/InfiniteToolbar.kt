@@ -115,8 +115,10 @@ fun InfiniteToolbar(
                     in CANVAS_TOOL_OF -> {
                         val tool = CANVAS_TOOL_OF.getValue(item)
                         val icon = toolIcons[tool]
+                        val unifiedPen = LocalToolbarUnifiedPen.current
+                        val persistUnifiedPen = LocalToolbarUnifiedPenSelect.current
                         if (icon != null) {
-                            if (item == ToolbarItem.PEN && LocalToolbarUnifiedPen.current != null) {
+                            if (item == ToolbarItem.PEN && unifiedPen != null) {
                                 UnifiedPenButton(editor.tool, toolIcons, editor::armTool)
                             } else Box {
                                 // Tapping the armed tool again opens its settings, as the paged bar does.
@@ -135,7 +137,10 @@ fun InfiniteToolbar(
                                         tool == Tool.SELECT && editor.tool == tool -> selectOpen = true
                                         tool == Tool.TAPE && editor.tool == tool -> tapeOpen = true
                                         tool.isStroke && editor.tool == tool -> penOpen = tool
-                                        else -> editor.armTool(tool)
+                                        else -> {
+                                            editor.armTool(tool)
+                                            if (unifiedPen?.styles?.contains(tool) == true) persistUnifiedPen(tool)
+                                        }
                                     }
                                 }
                                 // The very popups the paged toolbar opens, not lookalikes: same

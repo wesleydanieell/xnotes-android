@@ -231,7 +231,18 @@ private fun ToolbarItemView(
         ToolbarItem.SELECT, ToolbarItem.LASSO, ToolbarItem.SCREENSHOT, ToolbarItem.SHAPE,
         ToolbarItem.TEXT, ToolbarItem.TEXT_BOX, ToolbarItem.TAPE -> {
             val tool = Tool.fromId(item.id)
-            if (tool != null) ToolButton(editor, tool, toolIcons[tool], configForTool, setConfigForTool)
+            val unifiedPen = LocalToolbarUnifiedPen.current
+            val persistUnifiedPen = LocalToolbarUnifiedPenSelect.current
+            if (tool != null) ToolButton(
+                editor,
+                tool,
+                toolIcons[tool],
+                configForTool,
+                setConfigForTool,
+                onArm = { selected ->
+                    if (unifiedPen?.styles?.contains(selected) == true) persistUnifiedPen(selected)
+                },
+            )
         }
 
         ToolbarItem.PEN -> {
@@ -331,6 +342,7 @@ private fun ToolButton(
     icon: ImageVector?,
     configForTool: Tool?,
     setConfigForTool: (Tool?) -> Unit,
+    onArm: (Tool) -> Unit = {},
 ) {
     if (icon == null) return
     val armed = editor.tool == tool
@@ -348,6 +360,7 @@ private fun ToolButton(
                 setConfigForTool(tool)
             } else {
                 editor.selectTool(tool)
+                onArm(tool)
                 setConfigForTool(null)
             }
         }
