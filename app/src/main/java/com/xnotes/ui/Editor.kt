@@ -2904,6 +2904,42 @@ class Editor(context: Context, val pane: Pane = Pane.PRIMARY) : ToolPopupHost, S
         }
     }
 
+    private fun toolbarStateWithBar(context: ToolbarContext, bar: com.xnotes.core.tools.ToolbarBar): com.xnotes.core.tools.ToolbarWorkspaces {
+        val profiles = toolbarWorkspaces
+        return if (context == ToolbarContext.CANVAS && !profiles.shared) {
+            profiles.copy(canvas = profiles.canvas.replaceBar(bar))
+        } else {
+            profiles.copy(note = profiles.note.replaceBar(bar))
+        }
+    }
+
+    /** Persist a resize preview without adding one history entry per pointer sample. */
+    fun previewToolbarBar(context: ToolbarContext, bar: com.xnotes.core.tools.ToolbarBar) {
+        val next = toolbarStateWithBar(context, bar)
+        if (next != toolbarWorkspaces) persistToolbarWorkspaces(next)
+    }
+
+    /** Commit a complete resize as one toolbar undo operation. */
+    fun commitToolbarResize(
+        context: ToolbarContext,
+        before: com.xnotes.core.tools.ToolbarBar,
+        after: com.xnotes.core.tools.ToolbarBar,
+    ) {
+        if (before == after) return
+        val previous = toolbarStateWithBar(context, before)
+        val next = toolbarStateWithBar(context, after)
+        toolbarUndo.addLast(previous)
+        while (toolbarUndo.size > 50) toolbarUndo.removeFirst()
+        toolbarRedo.clear()
+        if (next != toolbarWorkspaces) persistToolbarWorkspaces(next)
+    }
+
+    /** Restore a cancelled resize without creating an undo entry. */
+    fun restoreToolbarResize(context: ToolbarContext, before: com.xnotes.core.tools.ToolbarBar) {
+        val previous = toolbarStateWithBar(context, before)
+        if (previous != toolbarWorkspaces) persistToolbarWorkspaces(previous)
+    }
+
     fun duplicateToolbarBar(context: ToolbarContext, source: com.xnotes.core.tools.ToolbarBar) {
         val profiles = toolbarWorkspaces
         val workspace = if (context == ToolbarContext.NOTE || profiles.shared) profiles.note else profiles.canvas

@@ -1523,6 +1523,9 @@ private fun EditorPane(
                             paneBounds = paneBounds,
                             onMoveBar = { id, anchor -> app.moveToolbarBar(ToolbarContext.CANVAS, id, anchor) },
                             onUpdateBar = { app.updateToolbarBar(ToolbarContext.CANVAS, it) },
+                            onPreviewBar = { app.previewToolbarBar(ToolbarContext.CANVAS, it) },
+                            onCommitResize = { before, after -> app.commitToolbarResize(ToolbarContext.CANVAS, before, after) },
+                            onRestoreResize = { app.restoreToolbarResize(ToolbarContext.CANVAS, it) },
                         ) { bareBar() }
                     } else bareBar()
                 }
@@ -1541,6 +1544,9 @@ private fun EditorPane(
                             workspace = app.toolbarWorkspaces.forContext(ToolbarContext.CANVAS),
                             onMoveBar = { id, anchor -> app.moveToolbarBar(ToolbarContext.CANVAS, id, anchor) },
                             onUpdateBar = { bar -> app.updateToolbarBar(ToolbarContext.CANVAS, bar) },
+                            onPreviewBar = { bar -> app.previewToolbarBar(ToolbarContext.CANVAS, bar) },
+                            onCommitResize = { before, after -> app.commitToolbarResize(ToolbarContext.CANVAS, before, after) },
+                            onRestoreResize = { bar -> app.restoreToolbarResize(ToolbarContext.CANVAS, bar) },
                             onDuplicateBar = { bar -> app.duplicateToolbarBar(ToolbarContext.CANVAS, bar) },
                             onHideBar = { bar -> app.hideToolbarBar(ToolbarContext.CANVAS, bar) },
                             primaryContent = { bar() },
@@ -1603,6 +1609,9 @@ private fun EditorPane(
                             paneBounds = paneBounds,
                             onMoveBar = { id, anchor -> app.moveToolbarBar(ToolbarContext.NOTE, id, anchor) },
                             onUpdateBar = { app.updateToolbarBar(ToolbarContext.NOTE, it) },
+                            onPreviewBar = { app.previewToolbarBar(ToolbarContext.NOTE, it) },
+                            onCommitResize = { before, after -> app.commitToolbarResize(ToolbarContext.NOTE, before, after) },
+                            onRestoreResize = { app.restoreToolbarResize(ToolbarContext.NOTE, it) },
                         ) { bareBar() }
                     } else bareBar()
                 }
@@ -1633,6 +1642,9 @@ private fun EditorPane(
                             workspace = app.toolbarWorkspaces.forContext(ToolbarContext.NOTE),
                             onMoveBar = { id, anchor -> app.moveToolbarBar(ToolbarContext.NOTE, id, anchor) },
                             onUpdateBar = { bar -> app.updateToolbarBar(ToolbarContext.NOTE, bar) },
+                            onPreviewBar = { bar -> app.previewToolbarBar(ToolbarContext.NOTE, bar) },
+                            onCommitResize = { before, after -> app.commitToolbarResize(ToolbarContext.NOTE, before, after) },
+                            onRestoreResize = { bar -> app.restoreToolbarResize(ToolbarContext.NOTE, bar) },
                             onDuplicateBar = { bar -> app.duplicateToolbarBar(ToolbarContext.NOTE, bar) },
                             onHideBar = { bar -> app.hideToolbarBar(ToolbarContext.NOTE, bar) },
                             primaryContent = { bar() },
@@ -1694,6 +1706,9 @@ private fun DockedToolbarSurface(
     paneBounds: Rect,
     onMoveBar: (String, com.xnotes.core.tools.ToolbarAnchor) -> Unit,
     onUpdateBar: (ToolbarBar) -> Unit,
+    onPreviewBar: (ToolbarBar) -> Unit,
+    onCommitResize: (ToolbarBar, ToolbarBar) -> Unit,
+    onRestoreResize: (ToolbarBar) -> Unit,
     content: @Composable () -> Unit,
 ) {
     var menuOpen by remember(bar.id) { mutableStateOf(false) }
@@ -1708,7 +1723,7 @@ private fun DockedToolbarSurface(
             onMoveBar = onMoveBar,
             resizing = resizing,
             onResize = { _, delta ->
-                onUpdateBar(bar.copy(geometry = resizeToolbarGeometry(bar.geometry, delta.x, delta.y)))
+                onPreviewBar(bar.copy(geometry = resizeToolbarGeometry(bar.geometry, delta.x, delta.y)))
             },
             onLongPress = { menuOpen = true },
             content = content,
@@ -1732,6 +1747,7 @@ private fun DockedToolbarSurface(
                     onClick = {
                         menuOpen = false
                         if (resizing) {
+                            resizeSnapshot?.let { onCommitResize(it, bar) }
                             resizing = false
                             resizeSnapshot = null
                         } else {
@@ -1745,7 +1761,7 @@ private fun DockedToolbarSurface(
                         text = { Text("Cancel resize") },
                         onClick = {
                             menuOpen = false
-                            resizeSnapshot?.let(onUpdateBar)
+                            resizeSnapshot?.let(onRestoreResize)
                             resizing = false
                             resizeSnapshot = null
                         },

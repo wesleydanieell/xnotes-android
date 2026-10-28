@@ -124,6 +124,9 @@ fun BoxScope.WorkspaceFloatingBars(
     workspace: ToolbarWorkspace,
     onMoveBar: (id: String, anchor: ToolbarAnchor) -> Unit,
     onUpdateBar: (ToolbarBar) -> Unit = {},
+    onPreviewBar: (ToolbarBar) -> Unit = onUpdateBar,
+    onCommitResize: (ToolbarBar, ToolbarBar) -> Unit = { _, after -> onUpdateBar(after) },
+    onRestoreResize: (ToolbarBar) -> Unit = onUpdateBar,
     onDuplicateBar: (ToolbarBar) -> Unit = {},
     onHideBar: (ToolbarBar) -> Unit = {},
     primaryContent: @Composable () -> Unit,
@@ -175,7 +178,7 @@ fun BoxScope.WorkspaceFloatingBars(
                                     onMoveBar = onMoveBar,
                                     onResize = { id, delta ->
                                         if (id == bar.id) {
-                                            onUpdateBar(bar.copy(geometry = resizeToolbarGeometry(bar.geometry, delta.x, delta.y)))
+                                            onPreviewBar(bar.copy(geometry = resizeToolbarGeometry(bar.geometry, delta.x, delta.y)))
                                         }
                                     },
                                     onLongPress = { contextBarId = bar.id },
@@ -216,6 +219,7 @@ fun BoxScope.WorkspaceFloatingBars(
                                             onClick = {
                                                 contextBarId = null
                                                 if (resizeBarId == bar.id) {
+                                                    resizeSnapshot?.let { onCommitResize(it, bar) }
                                                     resizeBarId = null
                                                     resizeSnapshot = null
                                                 } else {
@@ -230,7 +234,7 @@ fun BoxScope.WorkspaceFloatingBars(
                                             text = { Text("Cancel resize") },
                                             onClick = {
                                                 contextBarId = null
-                                                resizeSnapshot?.let(onUpdateBar)
+                                                resizeSnapshot?.let(onRestoreResize)
                                                 resizeBarId = null
                                                 resizeSnapshot = null
                                             },
