@@ -506,6 +506,16 @@ usuário encontradas no worktree e não invente sucesso nem background jobs.
   online, portanto 3×2 visual, orientação e acionamento em dispositivo ainda
   não são PASS.
 
+- 28/10/2026: commit befa68c1 corrige a resolução de capacidade de `Grid`:
+  `effectiveRows()` agora calcula as linhas mínimas para os filhos visíveis,
+  respeitando colunas explícitas e `autoFit` até o limite 1..6, evitando que
+  `maxLines` descarte itens quando `columns × rows` era insuficiente. O caso
+  de seis itens em grade 2×1 está coberto por teste JVM. `git diff --check` e
+  `ANDROID_HOME=/home/wesley/Android/Sdk ./gradlew :app:testDebugUnitTest
+  :app:assembleDebug --console=plain` passaram (50 tasks; 14 executadas, 36
+  up-to-date). Overflow acima de 6 linhas e validação visual no emulador ainda
+  ficam pendentes; não houve serial ADB online.
+
 ## Próxima ação (uma por vez)
 
 Validar no ADB a grade 3×2 de cores, a persistência após reinício e a matriz de
