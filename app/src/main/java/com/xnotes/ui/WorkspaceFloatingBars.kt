@@ -132,6 +132,7 @@ fun BoxScope.WorkspaceFloatingBars(
     var paneBounds by remember { mutableStateOf(Rect.Zero) }
     var contextBarId by remember { mutableStateOf<String?>(null) }
     var resizeBarId by remember { mutableStateOf<String?>(null) }
+    var resizeSnapshot by remember { mutableStateOf<ToolbarBar?>(null) }
     BoxWithConstraints(Modifier.fillMaxSize().onGloballyPositioned { paneBounds = it.boundsInRoot() }) {
         val activeAnchors = workspace.bars.withIndex().filter { (index, bar) ->
             bar.visible && (index > 0 || bar.geometry.floating)
@@ -199,7 +200,10 @@ fun BoxScope.WorkspaceFloatingBars(
                                         text = { Text(if (bar.geometry.movable) "Lock" else "Unlock") },
                                         onClick = {
                                             contextBarId = null
-                                            if (resizeBarId == bar.id) resizeBarId = null
+                                            if (resizeBarId == bar.id) {
+                                                resizeBarId = null
+                                                resizeSnapshot = null
+                                            }
                                             onUpdateBar(bar.copy(geometry = bar.geometry.copy(movable = !bar.geometry.movable)))
                                         },
                                     )
@@ -208,7 +212,24 @@ fun BoxScope.WorkspaceFloatingBars(
                                             text = { Text(if (resizeBarId == bar.id) "Finish resize" else "Resize") },
                                             onClick = {
                                                 contextBarId = null
-                                                resizeBarId = if (resizeBarId == bar.id) null else bar.id
+                                                if (resizeBarId == bar.id) {
+                                                    resizeBarId = null
+                                                    resizeSnapshot = null
+                                                } else {
+                                                    resizeBarId = bar.id
+                                                    resizeSnapshot = bar
+                                                }
+                                            },
+                                        )
+                                    }
+                                    if (resizeBarId == bar.id) {
+                                        DropdownMenuItem(
+                                            text = { Text("Cancel resize") },
+                                            onClick = {
+                                                contextBarId = null
+                                                resizeSnapshot?.let(onUpdateBar)
+                                                resizeBarId = null
+                                                resizeSnapshot = null
                                             },
                                         )
                                     }

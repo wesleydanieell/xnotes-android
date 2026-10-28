@@ -1682,6 +1682,7 @@ private fun DockedToolbarSurface(
 ) {
     var menuOpen by remember(bar.id) { mutableStateOf(false) }
     var resizing by remember(bar.id) { mutableStateOf(false) }
+    var resizeSnapshot by remember(bar.id) { mutableStateOf<ToolbarBar?>(null) }
     Box {
         ToolbarDragSurface(
             id = bar.id,
@@ -1705,14 +1706,35 @@ private fun DockedToolbarSurface(
                 onClick = {
                     menuOpen = false
                     resizing = false
+                    resizeSnapshot = null
                     onUpdateBar(bar.copy(geometry = bar.geometry.copy(movable = !bar.geometry.movable)))
                 },
             )
             if (bar.geometry.movable) {
                 DropdownMenuItem(
                     text = { Text(if (resizing) "Finish resize" else "Resize") },
-                    onClick = { menuOpen = false; resizing = !resizing },
+                    onClick = {
+                        menuOpen = false
+                        if (resizing) {
+                            resizing = false
+                            resizeSnapshot = null
+                        } else {
+                            resizing = true
+                            resizeSnapshot = bar
+                        }
+                    },
                 )
+                if (resizing) {
+                    DropdownMenuItem(
+                        text = { Text("Cancel resize") },
+                        onClick = {
+                            menuOpen = false
+                            resizeSnapshot?.let(onUpdateBar)
+                            resizing = false
+                            resizeSnapshot = null
+                        },
+                    )
+                }
             }
         }
     }
