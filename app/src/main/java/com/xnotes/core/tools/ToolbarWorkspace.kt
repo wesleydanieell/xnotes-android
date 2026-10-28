@@ -1,6 +1,8 @@
 package com.xnotes.core.tools
 
 import com.xnotes.core.model.Rgba
+import kotlin.math.ceil
+import kotlin.math.sqrt
 
 /**
  * An interface workspace contains multiple independently configured toolbars. The existing
@@ -84,7 +86,10 @@ data class ToolbarBar(
     fun effectiveColumns(): Int {
         fun find(nodes: List<ToolbarNode>): Int? = nodes.firstNotNullOfOrNull { node ->
             when (node) {
-                is ToolbarNode.Grid -> node.columns
+                is ToolbarNode.Grid -> if (node.autoFit) {
+                    val count = node.children.sumOf { it.flattenItems().size }.coerceAtLeast(1)
+                    node.rows?.let { ceil(count / it.toDouble()).toInt() } ?: ceil(sqrt(count.toDouble())).toInt()
+                } else node.columns
                 is ToolbarNode.ColorPalette -> node.columns
                 is ToolbarNode.Group -> find(node.children)
                 else -> null

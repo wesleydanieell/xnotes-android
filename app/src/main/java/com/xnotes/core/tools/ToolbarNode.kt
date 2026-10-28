@@ -42,6 +42,7 @@ sealed interface ToolbarNode {
         val children: List<ToolbarNode>,
         val columns: Int = 2,
         val rows: Int? = null,
+        val autoFit: Boolean = false,
         override val visible: Boolean = true,
     ) : ToolbarNode
 

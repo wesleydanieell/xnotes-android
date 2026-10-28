@@ -175,7 +175,7 @@ internal object ToolbarWorkspaceJson {
                 put("children", JSONArray().apply { node.children.forEach { put(writeNode(it)) } })
             }
             is com.xnotes.core.tools.ToolbarNode.Grid -> {
-                put("type", "grid").put("columns", node.columns).put("rows", node.rows)
+                put("type", "grid").put("columns", node.columns).put("rows", node.rows).put("auto_fit", node.autoFit)
                 put("children", JSONArray().apply { node.children.forEach { put(writeNode(it)) } })
             }
             is com.xnotes.core.tools.ToolbarNode.Spacer -> put("type", "spacer").put("size_dp", node.sizeDp)
@@ -209,7 +209,7 @@ internal object ToolbarWorkspaceJson {
                 visible,
             )
             "group" -> com.xnotes.core.tools.ToolbarNode.Group(id, children(), raw.optBoolean("collapsible", false), raw.optBoolean("expanded", true), visible)
-            "grid" -> com.xnotes.core.tools.ToolbarNode.Grid(id, children(), raw.optInt("columns", 2), raw.optInt("rows").takeIf { raw.has("rows") }, visible)
+            "grid" -> com.xnotes.core.tools.ToolbarNode.Grid(id, children(), raw.optInt("columns", 2), raw.optInt("rows").takeIf { raw.has("rows") }, raw.optBoolean("auto_fit", false), visible)
             "spacer" -> com.xnotes.core.tools.ToolbarNode.Spacer(id, raw.optInt("size_dp", 8), visible)
             "separator" -> com.xnotes.core.tools.ToolbarNode.Separator(id, visible)
             else -> null

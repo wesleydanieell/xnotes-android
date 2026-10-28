@@ -860,6 +860,9 @@ fun PreferencesPane(
             }
             val gridNode = currentBar.nodes?.firstNotNullOfOrNull { it.findGrid() }
             if (gridNode != null) {
+                CheckRow("Grid auto-fit", gridNode.autoFit) {
+                    updateSelectedBar { bar -> bar.copy(nodes = bar.nodes?.map { node -> node.updateGrid { it.copy(autoFit = gridNode.autoFit.not()) } }) }
+                }
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     OutlinedTextField(
                         value = gridNode.columns.toString(),
