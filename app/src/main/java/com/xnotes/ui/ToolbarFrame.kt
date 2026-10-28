@@ -73,6 +73,7 @@ internal val LocalBar = staticCompositionLocalOf { barMetrics(ToolbarSize.REGULA
 
 /** Geometry of the bar currently being rendered; null keeps legacy automatic sizing. */
 internal val LocalToolbarGeometry = compositionLocalOf<ToolbarGeometry?> { null }
+internal val LocalToolbarGridRows = compositionLocalOf<Int?> { null }
 
 /** Where a menu opens from its anchor; a side rail sets it so its menus open beside the rail. */
 internal val LocalMenuOffset = compositionLocalOf { DpOffset.Zero }
@@ -156,6 +157,7 @@ internal fun ToolbarFrame(
     val resolvedSize = geometry?.let(::resolveToolbarSize)
     val appearance = geometry?.appearance?.constrained()
     val columns = geometry?.columns?.coerceIn(1, 6) ?: 1
+    val rows = LocalToolbarGridRows.current
     val glide = remember { ToolGlide() }
     val palette = LocalPalette.current
     val shape = RoundedCornerShape((appearance?.cornerRadiusDp ?: 24).dp)
@@ -223,7 +225,7 @@ internal fun ToolbarFrame(
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
                     if (columns > 1) {
-                        FlowRow(maxItemsInEachRow = columns, horizontalArrangement = Arrangement.spacedBy((appearance?.spacingDp ?: 0).dp)) {
+                        FlowRow(maxItemsInEachRow = columns, maxLines = rows ?: Int.MAX_VALUE, horizontalArrangement = Arrangement.spacedBy((appearance?.spacingDp ?: 0).dp)) {
                             content()
                         }
                     } else content()

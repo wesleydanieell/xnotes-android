@@ -229,5 +229,6 @@ class ToolbarWorkspaceJsonTest {
         val updatedGrid = grid.updateGrid { it.copy(columns = 3, rows = 2) }
         assertEquals(3, (updatedGrid as ToolbarNode.Grid).columns)
         assertEquals(2, updatedGrid.rows)
+        assertEquals(2, ToolbarBar("grid", "Grid", ToolbarLayout.DEFAULT, nodes = listOf(updatedGrid)).effectiveRows())
     }
 }

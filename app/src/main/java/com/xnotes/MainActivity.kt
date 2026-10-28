@@ -102,6 +102,7 @@ import com.xnotes.ui.ToolbarAround
 import com.xnotes.ui.ToolbarDragSurface
 import com.xnotes.ui.LocalToolbarLook
 import com.xnotes.ui.LocalToolbarGeometry
+import com.xnotes.ui.LocalToolbarGridRows
 import com.xnotes.ui.LocalToolbarColorCount
 import com.xnotes.ui.LocalToolbarNodeMetrics
 import com.xnotes.ui.WorkspaceFloatingBars
@@ -1483,6 +1484,7 @@ private fun EditorPane(
                 val bareBar: @Composable () -> Unit = {
                     CompositionLocalProvider(
                         LocalToolbarGeometry provides primary?.let { it.geometry.copy(columns = it.effectiveColumns()) },
+                        LocalToolbarGridRows provides primary?.effectiveRows(),
                         LocalToolbarColorCount provides primary?.colorCount,
                         LocalToolbarNodeMetrics provides (primary?.toolMetrics() ?: emptyMap()),
                     ) {
@@ -1552,6 +1554,7 @@ private fun EditorPane(
                 val bareBar: @Composable () -> Unit = {
                                     CompositionLocalProvider(
                                         LocalToolbarGeometry provides primary?.let { it.geometry.copy(columns = it.effectiveColumns()) },
+                                        LocalToolbarGridRows provides primary?.effectiveRows(),
                                         LocalToolbarColorCount provides primary?.colorCount,
                                         LocalToolbarNodeMetrics provides (primary?.toolMetrics() ?: emptyMap()),
                                     ) {

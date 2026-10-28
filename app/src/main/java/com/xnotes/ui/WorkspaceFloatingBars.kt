@@ -166,6 +166,7 @@ fun BoxScope.WorkspaceFloatingBars(
                                     CompositionLocalProvider(
                                         LocalToolbarLook provides look,
                                         LocalToolbarGeometry provides bar.geometry.constrained().copy(columns = bar.effectiveColumns()),
+                                        LocalToolbarGridRows provides bar.effectiveRows(),
                                         LocalToolbarColorCount provides bar.colorCount,
                                         LocalToolbarNodeMetrics provides bar.toolMetrics(),
                                     ) {

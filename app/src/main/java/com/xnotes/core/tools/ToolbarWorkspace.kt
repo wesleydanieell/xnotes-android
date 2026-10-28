@@ -93,6 +93,17 @@ data class ToolbarBar(
         return (nodes?.let(::find) ?: geometry.columns).coerceIn(1, 6)
     }
 
+    fun effectiveRows(): Int? {
+        fun find(nodes: List<ToolbarNode>): Int? = nodes.firstNotNullOfOrNull { node ->
+            when (node) {
+                is ToolbarNode.Grid -> node.rows
+                is ToolbarNode.Group -> find(node.children)
+                else -> null
+            }
+        }
+        return nodes?.let(::find)?.coerceIn(1, 6)
+    }
+
     fun toolMetrics(): Map<Tool, ToolbarNode.Tool> = nodes?.fold(LinkedHashMap<Tool, ToolbarNode.Tool>()) { acc, node ->
         node.toolMetrics(acc)
         acc
