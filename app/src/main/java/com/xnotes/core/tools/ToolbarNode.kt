@@ -117,6 +117,18 @@ fun ToolbarNode.findColorPalette(): ToolbarNode.ColorPalette? = when (this) {
     else -> null
 }
 
+fun ToolbarNode.updateGrid(transform: (ToolbarNode.Grid) -> ToolbarNode.Grid): ToolbarNode = when (this) {
+    is ToolbarNode.Grid -> transform(this)
+    is ToolbarNode.Group -> copy(children = children.map { it.updateGrid(transform) })
+    else -> this
+}
+
+fun ToolbarNode.findGrid(): ToolbarNode.Grid? = when (this) {
+    is ToolbarNode.Grid -> this
+    is ToolbarNode.Group -> children.firstNotNullOfOrNull { it.findGrid() }
+    else -> null
+}
+
 fun ToolbarNode.findTool(item: ToolbarItem): ToolbarNode.Tool? = when (this) {
     is ToolbarNode.Tool -> takeIf { it.item == item }
     is ToolbarNode.Group -> children.firstNotNullOfOrNull { it.findTool(item) }

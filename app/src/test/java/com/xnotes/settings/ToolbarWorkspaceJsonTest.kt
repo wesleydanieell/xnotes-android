@@ -9,6 +9,7 @@ import com.xnotes.core.tools.sanitized
 import com.xnotes.core.tools.toolbarNodesFromLayout
 import com.xnotes.core.tools.updateTool
 import com.xnotes.core.tools.updateColorPalette
+import com.xnotes.core.tools.updateGrid
 import com.xnotes.core.tools.ToolbarBar
 import com.xnotes.core.tools.ToolbarContext
 import com.xnotes.core.tools.ToolbarEntry
@@ -224,5 +225,9 @@ class ToolbarWorkspaceJsonTest {
         val updatedPalette = palette.updateColorPalette { it.copy(columns = 3) }
         assertEquals(3, (updatedPalette as ToolbarNode.Group).children.single().let { (it as ToolbarNode.ColorPalette).columns })
         assertEquals(3, ToolbarBar("palette", "Palette", ToolbarLayout.DEFAULT, nodes = listOf(updatedPalette)).effectiveColumns())
+        val grid = ToolbarNode.Grid("grid", emptyList(), columns = 2, rows = 2)
+        val updatedGrid = grid.updateGrid { it.copy(columns = 3, rows = 2) }
+        assertEquals(3, (updatedGrid as ToolbarNode.Grid).columns)
+        assertEquals(2, updatedGrid.rows)
     }
 }

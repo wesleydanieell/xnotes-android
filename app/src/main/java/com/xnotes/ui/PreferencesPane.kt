@@ -86,8 +86,10 @@ import com.xnotes.core.tools.ToolbarWorkspace
 import com.xnotes.core.tools.toolbarNodesFromLayout
 import com.xnotes.core.tools.findTool
 import com.xnotes.core.tools.findColorPalette
+import com.xnotes.core.tools.findGrid
 import com.xnotes.core.tools.updateTool
 import com.xnotes.core.tools.updateColorPalette
+import com.xnotes.core.tools.updateGrid
 import com.xnotes.core.util.NameTemplate
 import com.xnotes.settings.Preferences
 import com.xnotes.settings.MaterialStyle
@@ -835,6 +837,33 @@ fun PreferencesPane(
                     modifier = Modifier.width(150.dp),
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                 )
+            }
+            val gridNode = currentBar.nodes?.firstNotNullOfOrNull { it.findGrid() }
+            if (gridNode != null) {
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    OutlinedTextField(
+                        value = gridNode.columns.toString(),
+                        onValueChange = { raw ->
+                            raw.toIntOrNull()?.let { value ->
+                                updateSelectedBar { bar -> bar.copy(nodes = bar.nodes?.map { node -> node.updateGrid { it.copy(columns = value) } }) }
+                            }
+                        },
+                        label = { Text("Grid columns") },
+                        singleLine = true,
+                        modifier = Modifier.width(130.dp),
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                    )
+                    OutlinedTextField(
+                        value = gridNode.rows?.toString() ?: "",
+                        onValueChange = { raw ->
+                            updateSelectedBar { bar -> bar.copy(nodes = bar.nodes?.map { node -> node.updateGrid { it.copy(rows = raw.toIntOrNull()) } }) }
+                        },
+                        label = { Text("Grid rows") },
+                        singleLine = true,
+                        modifier = Modifier.width(130.dp),
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                    )
+                }
             }
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 OutlinedTextField(
