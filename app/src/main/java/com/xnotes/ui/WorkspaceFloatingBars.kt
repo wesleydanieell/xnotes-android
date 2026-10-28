@@ -103,7 +103,6 @@ fun ToolbarDragSurface(
         content()
     }
 }
-
 /** Secondary bars plus a relocated primary share exactly the same gesture and anchors. */
 @Composable
 fun BoxScope.WorkspaceFloatingBars(
@@ -176,11 +175,4 @@ internal fun ToolbarAnchor.alignment(): Alignment = when (this) {
     ToolbarAnchor.BOTTOM_LEFT -> AbsoluteAlignment.BottomLeft
     ToolbarAnchor.BOTTOM_CENTER -> Alignment.BottomCenter
     ToolbarAnchor.BOTTOM_RIGHT -> AbsoluteAlignment.BottomRight
-}
-
-internal fun ToolbarAnchor.toolbarPosition(): ToolbarPosition = when (this) {
-    ToolbarAnchor.CENTER_LEFT -> ToolbarPosition.LEFT
-    ToolbarAnchor.CENTER_RIGHT -> ToolbarPosition.RIGHT
-    ToolbarAnchor.BOTTOM_LEFT, ToolbarAnchor.BOTTOM_CENTER, ToolbarAnchor.BOTTOM_RIGHT -> ToolbarPosition.BOTTOM
-    else -> ToolbarPosition.TOP
 }

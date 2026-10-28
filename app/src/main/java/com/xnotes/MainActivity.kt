@@ -100,7 +100,9 @@ import com.xnotes.ui.Editor
 import com.xnotes.ui.Toolbar
 import com.xnotes.ui.ToolbarAround
 import com.xnotes.ui.ToolbarDragSurface
+import com.xnotes.ui.LocalToolbarLook
 import com.xnotes.ui.WorkspaceFloatingBars
+import com.xnotes.ui.toolbarLookFor
 import com.xnotes.ui.icons.XnotesIcons
 import com.xnotes.ui.theme.LocalPalette
 import com.xnotes.ui.theme.XnotesTheme
@@ -1445,18 +1447,23 @@ private fun EditorPane(
     }
     // The colour a swatch drag carries rides over the whole pane, toolbar and page alike.
     var paneBounds by remember { mutableStateOf(Rect.Zero) }
+    val toolbarWorkspace = app.toolbarWorkspaces.forContext(
+        if (editor.canvasOpen) ToolbarContext.CANVAS else ToolbarContext.NOTE,
+    )
+    val paneToolbarLook = toolbarLookFor(app.toolbarLook, toolbarWorkspace.bars.firstOrNull())
     Box(modifier.onGloballyPositioned { paneBounds = it.boundsInRoot() }) {
-        Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .background(palette.bg.toComposeColor())
-                .then(takeFocus)
-                .focusRequester(focusRequester)
-                .focusable()
-                .onPreviewKeyEvent { ke ->
-                    ke.type == KeyEventType.KeyDown && editor.handleKeyDown(ke.nativeKeyEvent)
-                },
-        ) {
+        CompositionLocalProvider(LocalToolbarLook provides paneToolbarLook) {
+            Column(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .background(palette.bg.toComposeColor())
+                    .then(takeFocus)
+                    .focusRequester(focusRequester)
+                    .focusable()
+                    .onPreviewKeyEvent { ke ->
+                        ke.type == KeyEventType.KeyDown && editor.handleKeyDown(ke.nativeKeyEvent)
+                    },
+            ) {
             val onClose = if (closable) ({ actions.onClosePane(editor) }) else null
             // In a split, a hairline over the toolbar marks the pane the pen and the keyboard are in.
             if (closable) {
@@ -1618,6 +1625,7 @@ private fun EditorPane(
                 // Last child of the resized column: rides directly above the soft keyboard.
                 com.xnotes.ui.TextFormatBar(editor)
             }
+        }
         }
         com.xnotes.ui.ColorDropOverlay(if (editor.canvasOpen) editor.infinite else editor)
     }
