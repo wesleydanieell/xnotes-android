@@ -122,6 +122,7 @@ fun PreferencesPane(
     onImportCodeTheme: () -> Unit = {},
     onImportFont: () -> Unit = {},
     onBackup: (export: Boolean) -> Unit = {},
+    onOpenToolbarHud: () -> Unit = {},
 ) {
     val palette = LocalPalette.current
     val focusManager = LocalFocusManager.current
@@ -603,6 +604,9 @@ fun PreferencesPane(
                 color = palette.textDim.toComposeColor(),
                 fontSize = 12.sp,
             )
+            TextButton(onClick = onOpenToolbarHud) {
+                Text("Abrir editor visual de barras")
+            }
             ToolbarCustomizerBody(
                 layout = layout,
                 dragItem = dragItem,

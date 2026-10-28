@@ -957,6 +957,7 @@ private fun EditorScreen(
                     if (export) exportSettingsLauncher.launch("xnotes-settings-${java.time.LocalDate.now()}.zip")
                     else importSettingsLauncher.launch(arrayOf("application/zip", "application/octet-stream"))
                 },
+                onOpenToolbarHud = { backstageView = com.xnotes.ui.BackstageView.TOOLBAR_HUD },
                 onImportPdf = { importPdfLauncher.launch(arrayOf("application/pdf")) },
                 onOpenFile = { uri -> guarded(editor) { openTreeFile(uri) } },
                 onPickRoot = { pickRootLauncher.launch(null) },

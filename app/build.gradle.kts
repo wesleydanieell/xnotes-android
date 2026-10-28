@@ -71,8 +71,8 @@ android {
 
     buildTypes {
         debug {
-            applicationIdSuffix = ".debug"
-            versionNameSuffix = "-debug"
+            applicationIdSuffix = ".toolbarv2debug"
+            versionNameSuffix = "-toolbar-v2-debug"
         }
         release {
             if (hasReleaseSigning) signingConfig = signingConfigs.getByName("release")

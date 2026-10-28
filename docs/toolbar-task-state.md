@@ -92,12 +92,36 @@ conceitos de layout linear/legacy e deve ser auditada antes de qualquer reaprove
 7. **Build isolado:** antes de instalar em ADB, conferir `applicationId` de debug exclusivo para
    não substituir a instalação normal do XNotes.
 
-### Próxima ação — M1
+## Checkpoint M1 — esqueleto visual do editor HUD
 
-Definir e implementar o esqueleto visual do editor HUD dedicado: fundo estático, barra superior,
-catálogo recolhível, painel de propriedades recolhível, lista compacta de barras e seleção de
-workspace/barra. Antes de adicionar engine de grid, validar a hierarquia de seleção e o fluxo de
-entrada/saída com screenshots do emulador.
+Implementado em `ui/ToolbarHud.kt` e integrado ao backstage por `BackstageView.TOOLBAR_HUD`.
+
+- A entrada fica disponível em Preferências → Toolbar → “Abrir editor visual de barras”.
+- O HUD ocupa a janela inteira e tem retorno por Back/voltar.
+- O fundo central é explicitamente não interativo e separado do documento.
+- A barra superior mostra voltar, perfil `xnote`/`xcanvas`, compartilhamento, undo/redo e
+  Cancelar/Aplicar como affordances visuais do protótipo.
+- O catálogo é pesquisável, recolhível e adiciona itens ao preview transitório.
+- O preview mostra duas barras, seleção de barra e seleção de instância de item.
+- O painel de propriedades é contextual e recolhível; as propriedades ainda são somente protótipo,
+  sem persistência ou alteração do documento.
+- O debug desta branch usa `com.xnotes.toolbarv2debug`, coexistindo com `com.xnotes.debug` e
+  `com.xnotes.toolbarsdebug`.
+
+### Evidência M1
+
+- APK debug compilado e instalado no `emulator-5554`.
+- Capturas reais revisadas em `app/build/qa/m1-ready-fullscreen.png` e
+  `app/build/qa/m1-hud-full.png`.
+- A captura final mostra o editor em tela cheia, catálogo à esquerda, preview no centro e
+  propriedades à direita com uma instância selecionada.
+- Não foi executada escrita, pan ou zoom no fundo do preview.
+
+### Próxima ação — M2
+
+Extrair o modelo puro de composição e o layout resolver determinístico: Row/Column/Grid, slots,
+spans, padding/gap, validação de IDs/ciclos e fixture da barra de referência do guia. O HUD M1
+deve continuar sendo apenas uma camada visual até esse motor existir.
 
 ### Evidência do checkpoint
 

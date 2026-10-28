@@ -164,7 +164,7 @@ import kotlinx.coroutines.withTimeout
 import kotlin.math.roundToInt
 
 /** Which pane the backstage shows on the right. */
-enum class BackstageView { HOME, PREFERENCES, ABOUT, TRASH }
+enum class BackstageView { HOME, PREFERENCES, ABOUT, TRASH, TOOLBAR_HUD }
 
 /** Whether the Home explorer is awaiting a new file/folder name. */
 private enum class CreateMode { NONE, FILE, CANVAS, FOLDER }
@@ -200,6 +200,8 @@ fun Backstage(
     onImportFont: () -> Unit = {},
     /** Preferences asked to export the settings ([export]) or import them. */
     onBackup: (export: Boolean) -> Unit = {},
+    /** Opens the dedicated V2 toolbar HUD prototype from Preferences. */
+    onOpenToolbarHud: () -> Unit = {},
     /** Two picked files are to be opened together, one per pane of a split view. */
     onOpenSplit: (String, String) -> Unit = { _, _ -> },
     /** Several files are to be shared at once, as they are. */
@@ -232,7 +234,7 @@ fun Backstage(
     )
     // The backstage is the root of the stack — ordinary base content, not a dialog. The activity
     // window already runs edge-to-edge with the system bars hidden (MainActivity.applyFullscreen).
-    BackstageContent(editor, compact, view, onSelectView, calls, onExitApp, onImportCodeTheme, onImportFont, onBackup)
+    BackstageContent(editor, compact, view, onSelectView, calls, onExitApp, onImportCodeTheme, onImportFont, onBackup, onOpenToolbarHud)
 }
 
 /** Width at or above which the sidebar is a persistent pane rather than a drawer. */
@@ -262,6 +264,7 @@ private fun BackstageContent(
     onImportCodeTheme: () -> Unit,
     onImportFont: () -> Unit,
     onBackup: (Boolean) -> Unit,
+    onOpenToolbarHud: () -> Unit,
 ) {
     val palette = LocalPalette.current
     var createMode by remember { mutableStateOf(CreateMode.NONE) }
@@ -347,11 +350,16 @@ private fun BackstageContent(
         }
     }
 
+    if (view == BackstageView.TOOLBAR_HUD) {
+        ToolbarHudScreen(editor, onClose = { selectView(BackstageView.HOME) })
+        return
+    }
+
     if (compact) {
         Box(Modifier.fillMaxSize().background(palette.bg.toComposeColor())) {
             BackstageMain(
                 Modifier.fillMaxSize(), editor, view, compact, drawerOpen, { animateClose = true; drawerOpen = true }, { selectView(BackstageView.HOME) },
-                calls, createMode, { createMode = it }, onImportCodeTheme, onImportFont, onBackup, link, { selectView(BackstageView.PREFERENCES) },
+                calls, createMode, { createMode = it }, onImportCodeTheme, onImportFont, onBackup, link, { selectView(BackstageView.PREFERENCES) }, onOpenToolbarHud,
             )
             AnimatedVisibility(
                 visible = drawerOpen,
@@ -384,7 +392,7 @@ private fun BackstageContent(
                     layout(constraints.maxWidth, placeable.height) { placeable.place(inset, 0) }
                 },
                 editor, view, compact, true, { setRailed(false) }, { selectView(BackstageView.HOME) },
-                calls, createMode, { createMode = it }, onImportCodeTheme, onImportFont, onBackup, link, { selectView(BackstageView.PREFERENCES) },
+                calls, createMode, { createMode = it }, onImportCodeTheme, onImportFont, onBackup, link, { selectView(BackstageView.PREFERENCES) }, onOpenToolbarHud,
             )
             // Both stay composed so a fold never pays to build one; only the current one is measured and placed.
             Layout(
@@ -549,6 +557,7 @@ private fun BackstageMain(
     onBackup: (Boolean) -> Unit,
     link: ExplorerLink,
     onOpenPreferences: () -> Unit,
+    onOpenToolbarHud: () -> Unit,
 ) {
     val palette = LocalPalette.current
     Column(modifier) {
@@ -577,9 +586,10 @@ private fun BackstageMain(
         Box(Modifier.weight(1f).fillMaxWidth().padding(start = PANE_GUTTER, end = PANE_GUTTER, top = 4.dp, bottom = 12.dp)) {
             when (view) {
                 BackstageView.HOME -> HomePane(editor, calls, createMode, onCreateMode, sidebarOpen, onShowSidebar, link)
-                BackstageView.PREFERENCES -> PreferencesPane(editor, compact, sidebarOpen, onShowSidebar, onBackToHome, onImportCodeTheme, onImportFont, onBackup)
+                BackstageView.PREFERENCES -> PreferencesPane(editor, compact, sidebarOpen, onShowSidebar, onBackToHome, onImportCodeTheme, onImportFont, onBackup, onOpenToolbarHud)
                 BackstageView.TRASH -> TrashPane(editor, sidebarOpen, onShowSidebar, onOpenPreferences)
                 BackstageView.ABOUT -> AboutPane()
+                BackstageView.TOOLBAR_HUD -> ToolbarHudScreen(editor, onClose = onBackToHome)
             }
         }
     }
