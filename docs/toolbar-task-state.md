@@ -424,6 +424,12 @@ usuário encontradas no worktree e não invente sucesso nem background jobs.
   `Restore hidden` sem contador. A alteração foi cancelada antes de sair; não
   houve limpeza de dados nem alteração do app original.
 
+- 28/10/2026: commit ac3a30b4 adiciona `autoFit` ao nó `Grid` v3, persiste o
+  campo no JSON, calcula colunas pela capacidade dos filhos (ou pelas linhas
+  explícitas) e expõe `Grid auto-fit` no editor. Testes JVM, assembleDebug,
+  install -r e `connectedDebugAndroidTest` passaram no emulator-5554. Grids
+  mistos e validação visual específica do auto-fit continuam pendentes.
+
 - 28/10/2026: QA ADB no emulator-5554 abriu `Preferences > Configure toolbars`
   e confirmou a prévia com overflow explícito (`+28`), os perfis `xnote`,
   `xcanvas` e `Shared`, além dos botões `Undo`, `Redo`, `Cancel` e `Apply`.
