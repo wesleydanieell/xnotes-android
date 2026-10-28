@@ -25,12 +25,12 @@ docs/toolbar-adb-test-playbook.md.
 | M0 Clone/branch/debug | FEITO | Clone isolado, commits importados e build/testes/instalação ADB aprovados em 28/10 |
 | M1 Modelos/migração | PARCIAL | ToolbarWorkspace, codec JSON e testes JVM existem; rever casos extremos |
 | M2 Renderer/gestos | PARCIAL | Barras extra; principal pode mover; container longpress; sem QA de conflitos |
-| M3 Editor/preview | PARCIAL | Config view, CRUD, grade 3x3, preview, undo/redo/apply/cancel; QA completa pendente |
+| M3 Editor/preview | PARCIAL | Config view, CRUD, grade 3x3 e rascunho transacional com undo/redo/apply/cancel; QA completa pendente |
 | M4 Aparência/tamanho | PARCIAL | Resolver, dimensões, aparência e controles implementados; blur real/snapshots/QA visual pendentes |
 | M5 Elementos/cores | PARCIAL | Contagem por barra, colunas e tokens individuais básicos; hitbox por elemento e grid dedicado pendentes |
 | M6 Grupos/grades | PARCIAL | Schema v3 Group/Grid/ColorPalette e projeção implementados; editor direto/drag-drop/auto-fit pendentes |
 | M7 Caneta unificada | PARCIAL | UnifiedPen persistente e launcher compatível; menu/último estilo/QA física pendentes |
-| M8 Contextual/resize | PARCIAL | Menu contextual e Lock/Unlock implementados; resize transacional pendente |
+| M8 Contextual/resize | PARCIAL | Menu contextual, Lock/Unlock e resize transacional implementados; QA numérica de Undo pendente |
 | M9 Perfis/QA/performance | PARCIAL | Perfis Shared/independent e labels implementados; TalkBack/performance/Redmi Pad pendentes |
 | M10 PRs upstream | PENDENTE | Só branch de integração no fork; nenhum PR desta feature aberto |
 
@@ -69,7 +69,7 @@ não substitui o Git como fonte de verdade.
 
 - [x] [M1] Revisar persistência versionada, invalidação de IDs e migração legado
       (28/10/2026; c09da34a; codec limitado e testes de fallback/IDs/schema).
-- [ ] [M3] Criar view-model de edição em rascunho com undo/redo, aplicar/cancelar.
+- [x] [M3] Criar rascunho de edição com undo/redo, aplicar/cancelar (7604be19; estado só é persistido em Apply).
 - [x] [M4] Definir GeometryResolver puro e testes; width/height auto/manual (20a4be4d).
 - [x] [M4] Adicionar cores, fundo, opacidade, borda, raio, padding, blur/fallback (81aeba23, 8286ae38, dc52b5f1).
 - [x] [M3/M4] Fazer preview utilizar o MESMO resolvedor de geometria do renderer (20a4be4d).
@@ -82,7 +82,7 @@ não substitui o Git como fonte de verdade.
 - [ ] [M6] Grid 2x2, 3x2, auto fit e drag/drop entre grupos.
 - [x] [M7] Caneta unificada usando tipos existentes (aee8a604; QA física pendente).
 - [x] [M8] Menu de contexto em longpress sem deslocamento (53bfc890, 607341a0).
-- [ ] [M8] Lock/Unlock e resize on-canvas em modo edit transacional.
+- [x] [M8] Lock/Unlock e resize on-canvas em modo edit transacional (a14c8702, 029b1313, 68b384d5; validação numérica de Undo pendente).
 - [x] [M9] UI de compartilhamento/independência xnote/xcanvas (7cd3305d).
 
 ### P3 — Lançamento e PRs
@@ -641,11 +641,19 @@ usuário encontradas no worktree e não invente sucesso nem background jobs.
   falhou apenas por leitura de CompositionLocal dentro de callback não-
   composable, corrigida capturando os valores no escopo Compose.
 
+- 28/10/2026: commit 7604be19 transforma o configurador em rascunho local:
+  alterações de barras, perfis, geometria, composição v3 e aparência entram em
+  uma pilha própria de Undo/Redo; `Cancel` descarta o rascunho sem persistir e
+  `Apply` grava todos os perfis como uma única edição de toolbar. O ajuste de
+  propriedades também deixou de regenerar nós v3 automaticamente. O gate
+  `git diff --check` + `:app:testDebugUnitTest :app:assembleDebug --console=plain`
+  passou (50 tasks; 13 executadas). Falta validar Cancel/Apply no emulador.
+
 ## Próxima ação (uma por vez)
 
-Com o `emulator-5554` online, instalar o APK de `029b1313` e validar via
-UIAutomator o marcador `+N` e o menu de estilos da caneta unificada; criar uma
-grade oversized no configurador para exercitar o popup e depois executar
-split/orientação, verificando grids mistos/auto-fit sem clipping. A geometria
-quantitativa, Undo após Finish, e testes de pressão, hover, latência e primeiro
-traço continuam reservados para as próximas rodadas e para o Redmi Pad 2.
+Com o `emulator-5554` online, instalar o APK atual e validar via UIAutomator
+Cancel/Apply/Undo/Redo do rascunho; depois criar uma grade oversized para
+exercitar o popup `+N` e executar split/orientação, verificando grids mistos e
+auto-fit sem clipping. A geometria quantitativa, Undo após Finish, e testes de
+pressão, hover, latência e primeiro traço continuam reservados para as próximas
+rodadas e para o Redmi Pad 2.
