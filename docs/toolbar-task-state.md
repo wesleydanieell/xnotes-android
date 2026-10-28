@@ -367,6 +367,11 @@ usuário encontradas no worktree e não invente sucesso nem background jobs.
   `assembleDebug` e `install -r` passaram no emulator-5554. Edição de múltiplos
   palettes/grids mistos e validação visual 3×2 continuam pendentes.
 
+- 28/10/2026: `connectedDebugAndroidTest` também concluiu `BUILD SUCCESSFUL`
+  no emulator-5554 após c1477cc2 (70 tasks; sem testes instrumentados
+  específicos reportados). Isso não substitui a matriz manual de gestos nem a
+  validação de pressão/hover com caneta.
+
 - 28/10/2026: QA ADB no emulator-5554 abriu `Preferences > Configure toolbars`
   e confirmou a prévia com overflow explícito (`+28`), os perfis `xnote`,
   `xcanvas` e `Shared`, além dos botões `Undo`, `Redo`, `Cancel` e `Apply`.
