@@ -1,6 +1,7 @@
 package com.xnotes.ui
 
 import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -33,9 +34,11 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.geometry.Rect
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.boundsInRoot
 import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
@@ -63,6 +66,7 @@ internal fun ToolbarWorkspacePreview(
     selectedId: String,
     onSelectBar: (String) -> Unit,
     onMoveBar: (String, ToolbarAnchor) -> Unit,
+    onResizeBar: (String, Offset) -> Unit = { _, _ -> },
 ) {
     val palette = LocalPalette.current
     var stageBounds by remember { mutableStateOf(Rect.Zero) }
@@ -123,6 +127,7 @@ internal fun ToolbarWorkspacePreview(
                                     selected = bar.id == selectedId,
                                     vertical = anchor == ToolbarAnchor.CENTER_LEFT || anchor == ToolbarAnchor.CENTER_RIGHT,
                                     onSelect = { onSelectBar(bar.id) },
+                                    onResize = { onResizeBar(bar.id, it) },
                                 )
                             }
                         }
@@ -139,6 +144,7 @@ private fun PreviewBar(
     selected: Boolean,
     vertical: Boolean,
     onSelect: () -> Unit,
+    onResize: (Offset) -> Unit,
 ) {
     val palette = LocalPalette.current
     val entries = bar.layout.visibleSections.flatMap { it.visibleEntries }.map { it.item }
@@ -161,15 +167,33 @@ private fun PreviewBar(
         )
         .clickable(onClick = onSelect)
         .padding(horizontal = appearance.paddingHorizontalDp.dp, vertical = appearance.paddingVerticalDp.dp)
-    if (vertical) {
-        Column(surface, horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(3.dp)) {
-            for (item in shown) PreviewTool(item)
-            if (extras > 0) Text("+$extras", fontSize = 9.sp, color = palette.textDim.toComposeColor())
+    Box {
+        if (vertical) {
+            Column(surface, horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(3.dp)) {
+                for (item in shown) PreviewTool(item)
+                if (extras > 0) Text("+$extras", fontSize = 9.sp, color = palette.textDim.toComposeColor())
+            }
+        } else {
+            Row(surface.horizontalScroll(rememberScrollState()), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(3.dp)) {
+                for (item in shown) PreviewTool(item)
+                if (extras > 0) Text("+$extras", fontSize = 9.sp, color = palette.textDim.toComposeColor())
+            }
         }
-    } else {
-        Row(surface.horizontalScroll(rememberScrollState()), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(3.dp)) {
-            for (item in shown) PreviewTool(item)
-            if (extras > 0) Text("+$extras", fontSize = 9.sp, color = palette.textDim.toComposeColor())
+        if (selected) {
+            var delta by remember(bar.id) { mutableStateOf(Offset.Zero) }
+            Box(
+                Modifier
+                    .align(Alignment.BottomEnd)
+                    .size(18.dp)
+                    .semantics { contentDescription = "Resize toolbar ${bar.id}" }
+                    .pointerInput(bar.id) {
+                        detectDragGestures(
+                            onDrag = { change, amount -> change.consume(); delta += amount },
+                            onDragEnd = { onResize(delta); delta = Offset.Zero },
+                            onDragCancel = { delta = Offset.Zero },
+                        )
+                    },
+            )
         }
     }
 }

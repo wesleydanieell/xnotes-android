@@ -667,6 +667,14 @@ fun PreferencesPane(
                         id, anchor,
                     )
                 },
+                onResizeBar = { id, delta ->
+                    val context = if (canvasTab) com.xnotes.core.tools.ToolbarContext.CANVAS else com.xnotes.core.tools.ToolbarContext.NOTE
+                    editor.toolbarWorkspaces.forContext(context).bars.firstOrNull { it.id == id }?.let { bar ->
+                        val width = ((bar.geometry.widthDp ?: 160) + delta.x.toInt()).coerceIn(48, 2048)
+                        val height = ((bar.geometry.heightDp ?: 64) + delta.y.toInt()).coerceIn(48, 2048)
+                        editor.updateToolbarBar(context, bar.copy(geometry = bar.geometry.copy(widthDp = width, heightDp = height)))
+                    }
+                },
             )
             FieldLabel(stringResource(R.string.toolbar_select))
             FlowRow(
