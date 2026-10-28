@@ -22,6 +22,7 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.rememberUpdatedState
@@ -39,12 +40,15 @@ import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.res.vectorResource
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.xnotes.R
 import com.xnotes.core.tools.ToolbarItem
 import com.xnotes.core.tools.ToolbarLayout
 import com.xnotes.core.tools.ToolbarSection
+import com.xnotes.core.tools.ToolbarNode
 import com.xnotes.ui.icons.XnotesIcons
 import com.xnotes.ui.theme.LocalPalette
 import com.xnotes.ui.theme.toComposeColor
@@ -360,6 +364,44 @@ fun ToolbarDragGhost(item: ToolbarItem) {
         Icon(itemIcon(item), null, tint = palette.accent.toComposeColor(), modifier = Modifier.size(14.dp))
         Spacer(Modifier.width(4.dp))
         Text(stringResource(item.labelRes), color = palette.accent.toComposeColor(), fontSize = 12.sp)
+    }
+}
+
+/** Compact editor for the top level of a v3 composition tree. Nested groups keep their own order. */
+@Composable
+fun ToolbarNodeTreeEditor(nodes: List<ToolbarNode>, onChange: (List<ToolbarNode>) -> Unit) {
+    val palette = LocalPalette.current
+    Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+        nodes.forEachIndexed { index, node ->
+            Row(
+                Modifier.fillMaxWidth().clip(MaterialTheme.shapes.small)
+                    .background(palette.surface.toComposeColor())
+                    .border(1.dp, palette.border.toComposeColor(), MaterialTheme.shapes.small)
+                    .padding(horizontal = 8.dp, vertical = 4.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Text(
+                    text = when (node) {
+                        is ToolbarNode.Tool -> "Tool: ${node.item.id}"
+                        is ToolbarNode.ColorPalette -> "Colors (${node.columns} cols)"
+                        is ToolbarNode.UnifiedPen -> "Unified pen"
+                        is ToolbarNode.Group -> "Group: ${node.id}"
+                        is ToolbarNode.Grid -> "Grid: ${node.columns}×${node.rows ?: "auto"}"
+                        is ToolbarNode.Spacer -> "Spacer"
+                        is ToolbarNode.Separator -> "Separator"
+                    },
+                    color = palette.text.toComposeColor(),
+                    fontSize = 12.sp,
+                    modifier = Modifier.weight(1f).semantics { contentDescription = "Toolbar node ${node.id}" },
+                )
+                TextButton(enabled = index > 0, onClick = {
+                    onChange(nodes.toMutableList().also { it.add(index - 1, it.removeAt(index)) })
+                }) { Text("↑") }
+                TextButton(enabled = index < nodes.lastIndex, onClick = {
+                    onChange(nodes.toMutableList().also { it.add(index + 1, it.removeAt(index)) })
+                }) { Text("↓") }
+            }
+        }
     }
 }
 

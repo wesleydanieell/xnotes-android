@@ -948,6 +948,12 @@ fun PreferencesPane(
                     bar.copy(nodes = if (bar.nodes == null) toolbarNodesFromLayout(bar.layout) else null)
                 }
             }) { Text(if (currentBar.nodes == null) "Compose v3" else "Use flat layout") }
+            currentBar.nodes?.let { nodes ->
+                FieldLabel("Composition nodes")
+                ToolbarNodeTreeEditor(nodes) { reordered ->
+                    updateSelectedBar { it.copy(nodes = reordered) }
+                }
+            }
             Chip(stringResource(R.string.toolbar_movable), currentBar.geometry.movable) {
                 updateSelectedBar { bar -> bar.copy(geometry = bar.geometry.copy(movable = !bar.geometry.movable)) }
             }
