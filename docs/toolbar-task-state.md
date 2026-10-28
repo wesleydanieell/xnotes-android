@@ -208,9 +208,24 @@ usuário encontradas no worktree e não invente sucesso nem background jobs.
   QA de regiões pequenas, nove âncoras, preview, canvas, split e oclusões de
   outros overlays. Não equivale ao GeometryResolver completo nem conclui M2/M4.
 
+- 27/10/2026: no emulator-5554 foi criado o canvas de teste untitled_3.
+  Hold-drag da barra fixa do topo para a esquerda manteve-a vertical e reservou
+  espaço; após rotacionar para retrato ela permaneceu à esquerda. Configurações
+  do emulador restauradas: user_rotation=0 e accelerometer_rotation=1.
+- 27/10/2026: commit ac4ef5ee usa posicionamento absoluto físico para regiões
+  e arraste em RTL. Gradle testDebugUnitTest + assembleDebug passou (13
+  executadas, 37 up-to-date), diff --check e install -r passaram. Com locale
+  temporário ar no app isolado, uma secundária arrastada da esquerda para a
+  direita apareceu na borda física direita; devolvida à esquerda e locale
+  restaurado para lista vazia. A tela inicial em RTL apresentou sobreposição
+  de sidebar e conteúdo, fora desta correção; prévia RTL, teste automatizado,
+  demais âncoras e gestos continuam pendentes. Canvas multi-barra, 9 âncoras,
+  split e teste físico com stylus não foram validados nesta rodada.
+
 ## Próxima ação (uma por vez)
 
-Validar regiões e overflow em preview, canvas, telas pequenas e acessibilidade; testar outras
+Validar regiões e overflow em preview, canvas com múltiplas barras, telas
+pequenas e acessibilidade; testar outras
 ferramentas e barras secundárias após a mudança de prioridade do
 gesto; investigar colisões entre âncoras e controles do canvas,
 com testes para regiões centrais e bordas. Continuar os testes de gestos e
