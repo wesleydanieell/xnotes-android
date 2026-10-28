@@ -533,10 +533,21 @@ usuário encontradas no worktree e não invente sucesso nem background jobs.
   :app:assembleDebug --console=plain` passaram. ADB segue sem dispositivo
   online nesta sessão.
 
+- 28/10/2026: commit 5034c575 adiciona resize explícito para barras flutuantes:
+  a ação `Resize` do menu contextual arma um modo separado, e somente um
+  hold-drag posterior altera largura/altura em dp; o gesto comum continua
+  movendo a barra. A matemática pura converte auto-size em dimensões manuais,
+  limita 48..2048 dp e tem testes JVM. O callback usa o estado mais recente e
+  sair por `Lock` cancela o modo. `git diff --check` e o gate completo
+  `ANDROID_HOME=/home/wesley/Android/Sdk ./gradlew :app:testDebugUnitTest
+  :app:assembleDebug --console=plain` passaram. A validação visual/ADB e a
+  extensão para barras docked ainda estão pendentes; nenhum dispositivo ficou
+  online nesta sessão.
+
 ## Próxima ação (uma por vez)
 
 Validar no ADB a grade 3×2 de cores, a persistência após reinício e a matriz de
 gestos/docks assim que um dispositivo autorizado estiver online. Em paralelo,
-implementar acesso acionável aos itens excedentes do overflow e validar grids
-mistos/auto-fit sem clipping. Reservar pressão, hover, latência e primeiro
-traço para o Redmi Pad 2.
+implementar acesso acionável aos itens excedentes do overflow e resize explícito
+também para a barra principal docked, além de validar grids mistos/auto-fit sem
+clipping. Reservar pressão, hover, latência e primeiro traço para o Redmi Pad 2.
