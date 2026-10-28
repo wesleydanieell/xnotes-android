@@ -84,7 +84,25 @@ fun InfiniteToolbar(
     var switcherIndex by remember { mutableStateOf<Int?>(null) }
 
     // Pinned outside the scrolling strip so closing a split pane is always one tap away.
-    ToolbarFrame(armed = editor.tool, trailing = onClosePane?.let { { ClosePaneButton(it) } }) {
+    ToolbarFrame(
+        armed = editor.tool,
+        trailing = onClosePane?.let { { ClosePaneButton(it) } },
+        onOverflowItem = { item ->
+            when (item) {
+                ToolbarItem.HOME -> onOpenBackstage()
+                ToolbarItem.WAND -> editor.toggleWand()
+                ToolbarItem.IMAGE -> onInsertImage()
+                ToolbarItem.UNDO -> editor.undo()
+                ToolbarItem.REDO -> editor.redo()
+                ToolbarItem.ZOOM -> editor.zoomBy(InfiniteEditor.ZOOM_STEP)
+                ToolbarItem.FIT -> editor.zoomToFit()
+                ToolbarItem.ZOOM_LOCK -> editor.toggleZoomLock()
+                ToolbarItem.COLORS -> editor.pickColor(editor.activeColorIndex)
+                ToolbarItem.MINIMAP -> editor.toggleMinimap()
+                else -> item.overflowTool()?.let(editor::armTool)
+            }
+        },
+    ) {
         val sections = layout.visibleSections
         sections.forEachIndexed { index, section ->
             if (index > 0) Separator()

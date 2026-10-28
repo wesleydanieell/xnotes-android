@@ -20,13 +20,19 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.foundation.clickable
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.compositionLocalOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
 import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.AbsoluteAlignment
 import androidx.compose.ui.Alignment
@@ -38,6 +44,7 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.DpOffset
 import androidx.compose.ui.unit.TextUnit
 import androidx.compose.ui.unit.dp
+import com.xnotes.core.tools.ToolbarItem
 import androidx.compose.ui.unit.sp
 import androidx.compose.foundation.shape.RoundedCornerShape
 import com.xnotes.settings.ToolbarLook
@@ -151,6 +158,7 @@ internal fun ColumnScope.ToolbarAround(
 internal fun ToolbarFrame(
     armed: Any?,
     trailing: (@Composable () -> Unit)? = null,
+    onOverflowItem: (ToolbarItem) -> Unit = {},
     content: @Composable () -> Unit,
 ) {
     val look = LocalToolbarLook.current
@@ -197,6 +205,8 @@ internal fun ToolbarFrame(
         ToolbarPosition.LEFT -> TipSide.RIGHT
         ToolbarPosition.RIGHT -> TipSide.LEFT
     }
+    val overflowItems = LocalToolbarGridOverflowItems.current
+    var overflowOpen by remember { mutableStateOf(false) }
     CompositionLocalProvider(LocalToolGlide provides glide, LocalBar provides bar, LocalMenuOffset provides menuOffset, LocalTipSide provides tipSide) {
         if (bar.vertical) {
             Column(
@@ -218,12 +228,27 @@ internal fun ToolbarFrame(
                     } else content()
                     val overflow = LocalToolbarGridOverflow.current
                     if (overflow > 0) {
-                        Text(
-                            "+$overflow",
-                            color = palette.textDim.toComposeColor(),
-                            fontSize = bar.label,
-                            modifier = Modifier.padding(vertical = 6.dp),
-                        )
+                        Box {
+                            Text(
+                                "+$overflow",
+                                color = palette.textDim.toComposeColor(),
+                                fontSize = bar.label,
+                                modifier = Modifier
+                                    .clickable(enabled = overflowItems.isNotEmpty()) { overflowOpen = true }
+                                    .padding(vertical = 6.dp),
+                            )
+                            DropdownMenu(expanded = overflowOpen, onDismissRequest = { overflowOpen = false }) {
+                                overflowItems.forEach { item ->
+                                    DropdownMenuItem(
+                                        text = { Text(item.id) },
+                                        onClick = {
+                                            overflowOpen = false
+                                            onOverflowItem(item)
+                                        },
+                                    )
+                                }
+                            }
+                        }
                     }
                 }
                 trailing?.invoke()
@@ -248,12 +273,27 @@ internal fun ToolbarFrame(
                     } else content()
                     val overflow = LocalToolbarGridOverflow.current
                     if (overflow > 0) {
-                        Text(
-                            "+$overflow",
-                            color = palette.textDim.toComposeColor(),
-                            fontSize = bar.label,
-                            modifier = Modifier.padding(horizontal = 6.dp),
-                        )
+                        Box {
+                            Text(
+                                "+$overflow",
+                                color = palette.textDim.toComposeColor(),
+                                fontSize = bar.label,
+                                modifier = Modifier
+                                    .clickable(enabled = overflowItems.isNotEmpty()) { overflowOpen = true }
+                                    .padding(horizontal = 6.dp),
+                            )
+                            DropdownMenu(expanded = overflowOpen, onDismissRequest = { overflowOpen = false }) {
+                                overflowItems.forEach { item ->
+                                    DropdownMenuItem(
+                                        text = { Text(item.id) },
+                                        onClick = {
+                                            overflowOpen = false
+                                            onOverflowItem(item)
+                                        },
+                                    )
+                                }
+                            }
+                        }
                     }
                 }
                 trailing?.invoke()

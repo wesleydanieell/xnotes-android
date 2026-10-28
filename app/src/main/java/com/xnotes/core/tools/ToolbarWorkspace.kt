@@ -134,6 +134,22 @@ data class ToolbarBar(
         return nodes?.let(::find) ?: 0
     }
 
+    /** Items beyond the bounded grid viewport, in their persisted display order. */
+    fun effectiveGridOverflowItems(): List<ToolbarItem> {
+        fun find(nodes: List<ToolbarNode>): List<ToolbarItem>? = nodes.firstNotNullOfOrNull { node ->
+            when (node) {
+                is ToolbarNode.Grid -> {
+                    val items = node.children.flatMap { it.flattenItems() }
+                    val capacity = effectiveColumns() * (effectiveRows() ?: 1)
+                    items.drop(capacity)
+                }
+                is ToolbarNode.Group -> find(node.children)
+                else -> null
+            }
+        }
+        return nodes?.let(::find)?.orEmpty() ?: emptyList()
+    }
+
     fun effectiveColorColumns(): Int {
         fun find(nodes: List<ToolbarNode>): Int? = nodes.firstNotNullOfOrNull { node ->
             when (node) {

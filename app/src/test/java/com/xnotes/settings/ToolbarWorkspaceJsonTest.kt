@@ -243,6 +243,10 @@ class ToolbarWorkspaceJsonTest {
             ToolbarNode.Tool("extra-$index", ToolbarItem.PEN)
         })
         assertEquals(4, ToolbarBar("oversized", "Oversized", ToolbarLayout.DEFAULT, nodes = listOf(oversizedGrid)).effectiveGridOverflowCount())
+        assertEquals(
+            listOf(ToolbarItem.PEN, ToolbarItem.PEN, ToolbarItem.PEN, ToolbarItem.PEN),
+            ToolbarBar("oversized", "Oversized", ToolbarLayout.DEFAULT, nodes = listOf(oversizedGrid)).effectiveGridOverflowItems(),
+        )
         val autoGrid = ToolbarNode.Grid("auto", listOf(
             ToolbarNode.Tool("a1", ToolbarItem.PEN), ToolbarNode.Tool("a2", ToolbarItem.ERASER),
             ToolbarNode.Tool("a3", ToolbarItem.TEXT), ToolbarNode.Tool("a4", ToolbarItem.SELECT),

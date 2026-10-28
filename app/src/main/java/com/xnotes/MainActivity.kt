@@ -110,6 +110,9 @@ import com.xnotes.ui.LocalToolbarGeometry
 import com.xnotes.ui.LocalToolbarGridRows
 import com.xnotes.ui.LocalToolbarColorCount
 import com.xnotes.ui.LocalToolbarNodeMetrics
+import com.xnotes.ui.LocalToolbarColorColumns
+import com.xnotes.ui.LocalToolbarGridOverflow
+import com.xnotes.ui.LocalToolbarGridOverflowItems
 import com.xnotes.ui.WorkspaceFloatingBars
 import com.xnotes.ui.toolbarLookFor
 import com.xnotes.ui.icons.XnotesIcons
@@ -1491,6 +1494,9 @@ private fun EditorPane(
                         LocalToolbarGeometry provides primary?.let { it.geometry.copy(columns = it.effectiveColumns()) },
                         LocalToolbarGridRows provides primary?.effectiveRows(),
                         LocalToolbarColorCount provides primary?.colorCount,
+                        LocalToolbarColorColumns provides (primary?.effectiveColorColumns() ?: 1),
+                        LocalToolbarGridOverflow provides (primary?.effectiveGridOverflowCount() ?: 0),
+                        LocalToolbarGridOverflowItems provides (primary?.effectiveGridOverflowItems() ?: emptyList()),
                         LocalToolbarNodeMetrics provides (primary?.toolMetrics() ?: emptyMap()),
                     ) {
                         com.xnotes.ui.InfiniteToolbar(
@@ -1563,6 +1569,9 @@ private fun EditorPane(
                                         LocalToolbarGeometry provides primary?.let { it.geometry.copy(columns = it.effectiveColumns()) },
                                         LocalToolbarGridRows provides primary?.effectiveRows(),
                                         LocalToolbarColorCount provides primary?.colorCount,
+                                        LocalToolbarColorColumns provides (primary?.effectiveColorColumns() ?: 1),
+                                        LocalToolbarGridOverflow provides (primary?.effectiveGridOverflowCount() ?: 0),
+                                        LocalToolbarGridOverflowItems provides (primary?.effectiveGridOverflowItems() ?: emptyList()),
                                         LocalToolbarNodeMetrics provides (primary?.toolMetrics() ?: emptyMap()),
                                     ) {
                         Box(Modifier.endsPageSelection(editor)) { Toolbar(

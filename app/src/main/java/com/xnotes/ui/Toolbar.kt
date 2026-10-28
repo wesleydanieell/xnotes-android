@@ -125,7 +125,28 @@ fun Toolbar(
     var switcherIndex by remember { mutableStateOf<Int?>(null) }
     var renaming by remember { mutableStateOf(false) }
     // Pinned outside the scrolling strip so closing a split pane is always one tap away.
-    ToolbarFrame(armed = editor.tool, trailing = onClosePane?.let { { ClosePaneButton(it) } }) {
+    ToolbarFrame(
+        armed = editor.tool,
+        trailing = onClosePane?.let { { ClosePaneButton(it) } },
+        onOverflowItem = { item ->
+            when (item) {
+                ToolbarItem.HOME -> onOpenBackstage()
+                ToolbarItem.SIDEBAR -> editor.toggleSidebar()
+                ToolbarItem.WAND -> editor.toggleWand()
+                ToolbarItem.RULER -> editor.toggleRuler()
+                ToolbarItem.IMAGE -> onInsertImage()
+                ToolbarItem.UNDO -> editor.undo()
+                ToolbarItem.REDO -> editor.redo()
+                ToolbarItem.PAGE_NAV -> editor.nextPage()
+                ToolbarItem.ZOOM -> editor.zoomIn()
+                ToolbarItem.FIT -> editor.fitPage()
+                ToolbarItem.ZOOM_LOCK -> editor.toggleZoomLock()
+                ToolbarItem.FULLSCREEN -> onToggleFullscreen()
+                ToolbarItem.COLORS -> editor.pickColor(editor.activeColorIndex)
+                else -> item.overflowTool()?.let(editor::selectTool)
+            }
+        },
+    ) {
         // The bar is driven by the user-customisable layout; separators sit between non-empty
         // sections, and each item dispatches to its renderer (see ToolbarItemView).
         layout.visibleSections.forEachIndexed { si, section ->
