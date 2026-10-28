@@ -77,7 +77,7 @@ não substitui o Git como fonte de verdade.
 ### P2 — Customização estrutural e ações
 
 - [x] [M5] Tamanho/espaço/hitbox por elemento (fb50bae7; nós explícitos aplicados ao renderer).
-- [ ] [M5] Número de cores por barra e grade de swatches.
+- [x] [M5] Número de cores por barra e grade de swatches (2595956a; QA visual pendente).
 - [x] [M6] Schema ToolbarNode v3 com Group/Grid e migração + testes (fd9c8a89, aee8a604).
 - [ ] [M6] Grid 2x2, 3x2, auto fit e drag/drop entre grupos.
 - [x] [M7] Caneta unificada usando tipos existentes (aee8a604; QA física pendente).
@@ -494,11 +494,22 @@ usuário encontradas no worktree e não invente sucesso nem background jobs.
   pendentes. A alteração local não commitada em `PreferencesPane.kt` foi
   preservada fora do commit.
 
+- 28/10/2026: commit 2595956a conecta `ColorPalette.columns` ao renderer real
+  de note e canvas por uma grade dedicada, horizontal ou vertical conforme a
+  orientação. A grade geral da barra deixou de interpretar colunas da paleta,
+  evitando transformar ferramentas não relacionadas em uma grade. O contador
+  por barra continua limitado pela paleta compartilhada e os índices de cor,
+  popup e drag permanecem os mesmos. `git diff --check` e o gate completo
+  `ANDROID_HOME=/home/wesley/Android/Sdk ./gradlew :app:testDebugUnitTest
+  :app:assembleDebug --console=plain` passaram (50 tasks; 14 executadas, 36
+  up-to-date). Não houve ADB nesta rodada: `adb devices -l` segue sem serial
+  online, portanto 3×2 visual, orientação e acionamento em dispositivo ainda
+  não são PASS.
+
 ## Próxima ação (uma por vez)
 
-Validar no ADB a persistência de dimensões/aparência após reinício e a matriz de
-gestos/docks (incluindo toque em ferramenta e long-press no contêiner) assim
-que um dispositivo autorizado estiver online. Em paralelo, implementar o
-próximo item funcional desbloqueado: grade dedicada de cores por barra com
-layout NxM e validação de capacidade. Reservar pressão, hover, latência e
-primeiro traço para o Redmi Pad 2.
+Validar no ADB a grade 3×2 de cores, a persistência após reinício e a matriz de
+gestos/docks assim que um dispositivo autorizado estiver online. Em paralelo,
+implementar o próximo item funcional desbloqueado: validação de capacidade e
+auto-fit para grids mistos, com overflow explícito e sem clipping. Reservar
+pressão, hover, latência e primeiro traço para o Redmi Pad 2.
