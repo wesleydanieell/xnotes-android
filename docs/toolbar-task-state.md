@@ -124,6 +124,16 @@ usuário encontradas no worktree e não invente sucesso nem background jobs.
   conflito com detector do contêiner ainda precisam ser investigados. Nenhum
   cenário P0 completo; nenhum teste de stylus físico foi executado.
 
+- 27/10/2026: em 6a5d6d64, conferido ToolButton: opções de caneta
+  abrem ao tocar novamente na ferramenta selecionada, e foram observadas no
+  emulador. O hold sem menu não comprova falha desse controle. Com eventos
+  ADB motionevent DOWN, espera de 1s, MOVE e UP, arrastar o separador da
+  barra principal do topo para o centro a tornou flutuante; houve sobreposição
+  com desfazer/refazer. Outro arraste levou-a ao topo ainda flutuante. Esses
+  são testes parciais de dedo, não validam os quatro docks, demais controles,
+  conflito de long-press ou stylus. A configuração de teste foi alterada no
+  app isolado; a nota de teste untitled_2 permanece nele.
+
 ## Próxima ação (uma por vez)
 
 Reproduzir e corrigir o fluxo segurar/arrastar o contêiner da barra principal
