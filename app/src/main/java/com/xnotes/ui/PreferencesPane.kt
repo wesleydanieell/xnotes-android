@@ -83,6 +83,7 @@ import com.xnotes.core.tools.ToolbarItem
 import com.xnotes.core.tools.ToolbarLayout
 import com.xnotes.core.tools.ToolbarSection
 import com.xnotes.core.tools.ToolbarWorkspace
+import com.xnotes.core.tools.ToolbarWorkspaces
 import com.xnotes.core.tools.toolbarNodesFromLayout
 import com.xnotes.core.tools.findTool
 import com.xnotes.core.tools.findColorPalette
@@ -156,15 +157,62 @@ fun PreferencesPane(
     val scrollState = rememberScrollState()
     var toolbarEditorOpen by remember { mutableStateOf(false) }
     var toolbarEditorSnapshot by remember { mutableStateOf<com.xnotes.core.tools.ToolbarWorkspaces?>(null) }
+    var toolbarDraft by remember { mutableStateOf<ToolbarWorkspaces?>(null) }
+    var toolbarDraftUndo by remember { mutableStateOf<List<ToolbarWorkspaces>>(emptyList()) }
+    var toolbarDraftRedo by remember { mutableStateOf<List<ToolbarWorkspaces>>(emptyList()) }
     LaunchedEffect(toolbarEditorOpen) { scrollState.scrollTo(0) }
     // Which bar the toolbar section is arranging. The two are separate layouts, so the drag state
     // below always belongs to whichever is on screen.
     var canvasTab by remember { mutableStateOf(false) }
     var selectedBarId by remember { mutableStateOf<String?>(null) }
+    fun editedWorkspaces(): ToolbarWorkspaces = toolbarDraft ?: editor.toolbarWorkspaces
     fun editedWorkspace(): ToolbarWorkspace =
-        if (canvasTab) editor.toolbarWorkspaces.canvas else editor.toolbarWorkspaces.note
+        if (canvasTab) editedWorkspaces().canvas else editedWorkspaces().note
     fun selectedBar(): ToolbarBar = editedWorkspace().bars.firstOrNull { it.id == selectedBarId }
         ?: editedWorkspace().bars.first()
+
+    fun updateDraft(next: ToolbarWorkspaces) {
+        val current = editedWorkspaces()
+        if (next == current) return
+        toolbarDraftUndo = toolbarDraftUndo + current
+        toolbarDraftRedo = emptyList()
+        toolbarDraft = next
+    }
+
+    fun undoDraft() {
+        val previous = toolbarDraftUndo.lastOrNull() ?: return
+        toolbarDraftUndo = toolbarDraftUndo.dropLast(1)
+        toolbarDraftRedo = toolbarDraftRedo + editedWorkspaces()
+        toolbarDraft = previous
+    }
+
+    fun redoDraft() {
+        val next = toolbarDraftRedo.lastOrNull() ?: return
+        toolbarDraftRedo = toolbarDraftRedo.dropLast(1)
+        toolbarDraftUndo = toolbarDraftUndo + editedWorkspaces()
+        toolbarDraft = next
+    }
+
+    fun updateEditedWorkspace(next: ToolbarWorkspace) {
+        val profiles = editedWorkspaces()
+        updateDraft(if (canvasTab) profiles.copy(canvas = next) else profiles.copy(note = next))
+    }
+
+    fun moveEditedBar(id: String, anchor: com.xnotes.core.tools.ToolbarAnchor) {
+        val workspace = editedWorkspace()
+        val bar = workspace.bars.firstOrNull { it.id == id && it.geometry.movable } ?: return
+        val isPrimary = workspace.bars.firstOrNull()?.id == id
+        val dockPosition = if (isPrimary && !bar.geometry.floating) when (anchor) {
+            ToolbarAnchor.TOP_CENTER -> ToolbarPosition.TOP
+            ToolbarAnchor.BOTTOM_CENTER -> ToolbarPosition.BOTTOM
+            ToolbarAnchor.CENTER_LEFT -> ToolbarPosition.LEFT
+            ToolbarAnchor.CENTER_RIGHT -> ToolbarPosition.RIGHT
+            else -> null
+        } else null
+        updateEditedWorkspace(workspace.replaceBar(bar.copy(
+            geometry = bar.geometry.copy(anchor = anchor, floating = dockPosition == null),
+        )))
+    }
     val layout = selectedBar().layout
     // Toolbar drag state, hoisted here so the floating "ghost" chip can be drawn at the pane
     // root (above and outside the scroll, so it is never clipped). Bounds are plain maps read
@@ -186,20 +234,13 @@ fun PreferencesPane(
     fun applyEdited(next: ToolbarLayout) {
         val workspace = editedWorkspace()
         val bar = selectedBar()
-        if (bar.id == workspace.bars.first().id) {
-            if (canvasTab) editor.applyCanvasToolbarLayout(next) else editor.applyToolbarLayout(next)
-        } else {
-            val profiles = editor.toolbarWorkspaces
-            val changed = workspace.replaceBar(bar.copy(layout = next, nodes = bar.nodes?.let { toolbarNodesFromLayout(next) }))
-            editor.applyToolbarWorkspaces(if (canvasTab) profiles.copy(canvas = changed) else profiles.copy(note = changed))
-        }
+        val changed = workspace.replaceBar(bar.copy(layout = next, nodes = bar.nodes?.let { toolbarNodesFromLayout(next) }))
+        updateEditedWorkspace(changed)
     }
     fun updateSelectedBar(transform: (ToolbarBar) -> ToolbarBar) {
-        val profiles = editor.toolbarWorkspaces
         val transformed = transform(selectedBar())
-        val synced = if (transformed.nodes != null) transformed.copy(nodes = toolbarNodesFromLayout(transformed.layout)) else transformed
-        val changed = editedWorkspace().replaceBar(synced)
-        editor.applyToolbarWorkspaces(if (canvasTab) profiles.copy(canvas = changed) else profiles.copy(note = changed))
+        val changed = editedWorkspace().replaceBar(transformed)
+        updateEditedWorkspace(changed)
     }
     fun retarget() {
         dropTarget = toolbarDropTarget(editedLayout(), dragFinger, chipBounds, sectionBounds)
@@ -616,6 +657,9 @@ fun PreferencesPane(
                 )
                 TextButton(onClick = {
                     toolbarEditorSnapshot = editor.toolbarWorkspaces
+                    toolbarDraft = editor.toolbarWorkspaces
+                    toolbarDraftUndo = emptyList()
+                    toolbarDraftRedo = emptyList()
                     toolbarEditorOpen = true
                 }) { Text(stringResource(R.string.toolbar_configure)) }
             } else {
@@ -623,15 +667,21 @@ fun PreferencesPane(
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(6.dp),
             ) {
-                TextButton(onClick = { editor.undoToolbarEdit() }, enabled = editor.canUndoToolbarEdit()) { Text("Undo") }
-                TextButton(onClick = { editor.redoToolbarEdit() }, enabled = editor.canRedoToolbarEdit()) { Text("Redo") }
+                TextButton(onClick = { undoDraft() }, enabled = toolbarDraftUndo.isNotEmpty()) { Text("Undo") }
+                TextButton(onClick = { redoDraft() }, enabled = toolbarDraftRedo.isNotEmpty()) { Text("Redo") }
                 Spacer(Modifier.weight(1f))
                 TextButton(onClick = {
-                    toolbarEditorSnapshot?.let { editor.applyToolbarWorkspaces(it) }
+                    toolbarDraft = null
+                    toolbarDraftUndo = emptyList()
+                    toolbarDraftRedo = emptyList()
                     toolbarEditorSnapshot = null
                     toolbarEditorOpen = false
                 }) { Text("Cancel") }
                 TextButton(onClick = {
+                    toolbarDraft?.let(editor::applyToolbarEditorDraft)
+                    toolbarDraft = null
+                    toolbarDraftUndo = emptyList()
+                    toolbarDraftRedo = emptyList()
                     toolbarEditorSnapshot = null
                     toolbarEditorOpen = false
                 }) { Text("Apply") }
@@ -642,8 +692,8 @@ fun PreferencesPane(
             ) {
                 Chip("xnote", selected = !canvasTab) { showTab(false) }
                 Chip("xcanvas", selected = canvasTab) { showTab(true) }
-                Chip("Shared", selected = editor.toolbarWorkspaces.shared) {
-                    editor.applyToolbarWorkspaces(editor.toolbarWorkspaces.copy(shared = !editor.toolbarWorkspaces.shared))
+                Chip("Shared", selected = editedWorkspaces().shared) {
+                    updateDraft(editedWorkspaces().copy(shared = !editedWorkspaces().shared))
                 }
                 Spacer(Modifier.weight(1f))
                 TextButton(
@@ -651,15 +701,15 @@ fun PreferencesPane(
                         applyEdited(if (canvasTab) ToolbarLayout.CANVAS_DEFAULT else ToolbarLayout.DEFAULT)
                     },
                 ) { Text(stringResource(R.string.reset), fontSize = 13.sp) }
-                val activeWorkspace = editor.toolbarWorkspaces.forContext(
+                val activeWorkspace = editedWorkspaces().forContext(
                     if (canvasTab) com.xnotes.core.tools.ToolbarContext.CANVAS else com.xnotes.core.tools.ToolbarContext.NOTE,
                 )
                 val hiddenCount = activeWorkspace.bars.count { !it.visible }
                 TextButton(
                     onClick = {
                         val restored = activeWorkspace.copy(bars = activeWorkspace.bars.map { it.copy(visible = true) })
-                        val profiles = editor.toolbarWorkspaces
-                        editor.applyToolbarWorkspaces(if (canvasTab && !profiles.shared) profiles.copy(canvas = restored) else profiles.copy(note = restored))
+                        val profiles = editedWorkspaces()
+                        updateDraft(if (canvasTab && !profiles.shared) profiles.copy(canvas = restored) else profiles.copy(note = restored))
                     },
                     enabled = hiddenCount > 0,
                 ) { Text("Restore hidden${if (hiddenCount > 0) " ($hiddenCount)" else ""}", fontSize = 13.sp) }
@@ -674,17 +724,13 @@ fun PreferencesPane(
                 selectedId = currentBar.id,
                 onSelectBar = { showBar(it) },
                 onMoveBar = { id, anchor ->
-                    editor.moveToolbarBar(
-                        if (canvasTab) com.xnotes.core.tools.ToolbarContext.CANVAS else com.xnotes.core.tools.ToolbarContext.NOTE,
-                        id, anchor,
-                    )
+                    moveEditedBar(id, anchor)
                 },
                 onResizeBar = { id, delta ->
-                    val context = if (canvasTab) com.xnotes.core.tools.ToolbarContext.CANVAS else com.xnotes.core.tools.ToolbarContext.NOTE
-                    editor.toolbarWorkspaces.forContext(context).bars.firstOrNull { it.id == id }?.let { bar ->
+                    editedWorkspace().bars.firstOrNull { it.id == id }?.let { bar ->
                         val width = ((bar.geometry.widthDp ?: 160) + delta.x.toInt()).coerceIn(48, 2048)
                         val height = ((bar.geometry.heightDp ?: 64) + delta.y.toInt()).coerceIn(48, 2048)
-                        editor.updateToolbarBar(context, bar.copy(geometry = bar.geometry.copy(widthDp = width, heightDp = height)))
+                        updateEditedWorkspace(editedWorkspace().replaceBar(bar.copy(geometry = bar.geometry.copy(widthDp = width, heightDp = height))))
                     }
                 },
             )
@@ -714,11 +760,8 @@ fun PreferencesPane(
                         layout = compact,
                         geometry = ToolbarGeometry(anchor = ToolbarAnchor.BOTTOM_RIGHT, floating = true),
                     )
-                    val profiles = editor.toolbarWorkspaces
                     val changed = old.addBar(bar)
-                    editor.applyToolbarWorkspaces(
-                        if (canvasTab) profiles.copy(canvas = changed) else profiles.copy(note = changed),
-                    )
+                    updateEditedWorkspace(changed)
                     showBar(id)
                 }) { Text(stringResource(R.string.add) + " " + barLabel) }
                 TextButton(onClick = {
@@ -727,20 +770,14 @@ fun PreferencesPane(
                     val id = generateSequence(1) { it + 1 }.map { "bar-$it" }
                         .first { key -> old.bars.none { it.id == key } }
                     val changed = old.duplicateBar(bar.id, id, "$barLabel ${old.bars.size + 1}")
-                    val profiles = editor.toolbarWorkspaces
-                    editor.applyToolbarWorkspaces(
-                        if (canvasTab) profiles.copy(canvas = changed) else profiles.copy(note = changed),
-                    )
+                    updateEditedWorkspace(changed)
                     showBar(id)
                 }) { Text(stringResource(R.string.duplicate)) }
                 if (workspace.bars.size > 1 && currentBar.id != workspace.bars.first().id) {
                     TextButton(onClick = {
                         val old = editedWorkspace()
                         val changed = old.removeBar(selectedBar().id)
-                        val profiles = editor.toolbarWorkspaces
-                        editor.applyToolbarWorkspaces(
-                            if (canvasTab) profiles.copy(canvas = changed) else profiles.copy(note = changed),
-                        )
+                        updateEditedWorkspace(changed)
                         showBar(changed.bars.first().id)
                     }) { Text(stringResource(R.string.remove)) }
                 }
@@ -749,8 +786,8 @@ fun PreferencesPane(
             FieldLabel("Toolbar appearance")
             val geometry = currentBar.geometry
             val appearance = geometry.appearance
-            val metricItem = currentBar.layout.visibleSections.flatMap { it.visibleEntries }.firstOrNull()?.item
-            val metricNode = metricItem?.let { item -> currentBar.nodes?.firstNotNullOfOrNull { it.findTool(item) } }
+            val metric = currentBar.layout.visibleSections.flatMap { it.visibleEntries }.firstOrNull()?.item
+                ?.let { item -> currentBar.nodes?.firstNotNullOfOrNull { it.findTool(item) }?.let { node -> item to node } }
             var backgroundPickerOpen by remember(currentBar.id) { mutableStateOf(false) }
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
                 TextButton(onClick = { backgroundPickerOpen = true }) { Text("Background") }
@@ -811,7 +848,7 @@ fun PreferencesPane(
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                 )
             }
-            if (metricNode != null && metricItem != null) {
+            metric?.let { (metricItem, metricNode) ->
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     OutlinedTextField(
                         value = metricNode.visualDp?.toString() ?: "",
@@ -968,20 +1005,14 @@ fun PreferencesPane(
                     }
                     if (barIndex > 1) {
                         TextButton(onClick = {
-                            val profiles = editor.toolbarWorkspaces
                             val updated = editedWorkspace().moveBar(currentBar.id, barIndex - 1)
-                            editor.applyToolbarWorkspaces(
-                                if (canvasTab) profiles.copy(canvas = updated) else profiles.copy(note = updated),
-                            )
+                            updateEditedWorkspace(updated)
                         }) { Text(stringResource(R.string.toolbar_move_up)) }
                     }
                     if (barIndex in 1 until workspace.bars.lastIndex) {
                         TextButton(onClick = {
-                            val profiles = editor.toolbarWorkspaces
                             val updated = editedWorkspace().moveBar(currentBar.id, barIndex + 1)
-                            editor.applyToolbarWorkspaces(
-                                if (canvasTab) profiles.copy(canvas = updated) else profiles.copy(note = updated),
-                            )
+                            updateEditedWorkspace(updated)
                         }) { Text(stringResource(R.string.toolbar_move_down)) }
                     }
                 }
@@ -1000,13 +1031,10 @@ fun PreferencesPane(
                         com.xnotes.core.tools.ToolbarScale.COMFORTABLE to R.string.toolbar_size_comfortable,
                     )) {
                         Chip(stringResource(label), currentBar.geometry.scale == scale) {
-                            val profiles = editor.toolbarWorkspaces
                             val updated = editedWorkspace().replaceBar(
                                 selectedBar().copy(geometry = selectedBar().geometry.copy(scale = scale)),
                             )
-                            editor.applyToolbarWorkspaces(
-                                if (canvasTab) profiles.copy(canvas = updated) else profiles.copy(note = updated),
-                            )
+                            updateEditedWorkspace(updated)
                         }
                     }
                 }

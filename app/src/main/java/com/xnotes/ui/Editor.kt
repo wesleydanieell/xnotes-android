@@ -2874,6 +2874,26 @@ class Editor(context: Context, val pane: Pane = Pane.PRIMARY) : ToolPopupHost, S
         persistToolbarWorkspaces(workspaces)
     }
 
+    /** Commit a configurator draft once, keeping legacy primary layouts in sync. */
+    fun applyToolbarEditorDraft(workspaces: com.xnotes.core.tools.ToolbarWorkspaces) {
+        if (workspaces == toolbarWorkspaces) return
+        toolbarUndo.addLast(toolbarWorkspaces)
+        while (toolbarUndo.size > 50) toolbarUndo.removeFirst()
+        toolbarRedo.clear()
+        val noteLayout = workspaces.note.bars.firstOrNull()?.layout ?: toolbarLayout
+        val canvasLayout = workspaces.canvas.bars.firstOrNull()?.layout ?: canvasToolbarLayout
+        toolbarLayout = noteLayout
+        canvasToolbarLayout = canvasLayout
+        infiniteOrNull?.toolbarLayout = canvasLayout
+        settings = settings.copy(
+            toolbarLayout = noteLayout,
+            canvasToolbarLayout = canvasLayout,
+            toolbarWorkspaces = workspaces,
+        )
+        toolbarWorkspaces = workspaces
+        settingsRepo.save(settings)
+    }
+
     private fun persistToolbarWorkspaces(workspaces: com.xnotes.core.tools.ToolbarWorkspaces) {
         toolbarWorkspaces = workspaces
         settings = settings.copy(toolbarWorkspaces = workspaces)
