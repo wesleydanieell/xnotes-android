@@ -86,6 +86,16 @@ fun ToolbarNode.flattenItems(out: MutableList<ToolbarItem> = ArrayList()): List<
     return out
 }
 
+/** Project a composition tree for a context without mutating the persisted inactive profile. */
+fun ToolbarNode.onlyItems(allowed: Set<ToolbarItem>): ToolbarNode? = when (this) {
+    is ToolbarNode.Tool -> takeIf { it.item in allowed }
+    is ToolbarNode.ColorPalette -> takeIf { ToolbarItem.COLORS in allowed }
+    is ToolbarNode.UnifiedPen -> takeIf { ToolbarItem.PEN in allowed }
+    is ToolbarNode.Group -> copy(children = children.mapNotNull { it.onlyItems(allowed) })
+    is ToolbarNode.Grid -> copy(children = children.mapNotNull { it.onlyItems(allowed) })
+    is ToolbarNode.Spacer, is ToolbarNode.Separator -> this
+}
+
 fun ToolbarNode.toolMetrics(out: MutableMap<Tool, ToolbarNode.Tool> = LinkedHashMap()): Map<Tool, ToolbarNode.Tool> {
     when (this) {
         is ToolbarNode.Tool -> item.toTool()?.let { out[it] = this }

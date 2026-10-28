@@ -197,7 +197,7 @@ data class ToolbarWorkspace(val bars: List<ToolbarBar>) {
         bars = bars.map { bar ->
             bar.copy(layout = ToolbarLayout(bar.layout.sections.map { section ->
                 section.copy(entries = section.entries.filter { it.item in allowed })
-            }))
+            }), nodes = bar.nodes?.mapNotNull { it.onlyItems(allowed) })
         },
     )
 

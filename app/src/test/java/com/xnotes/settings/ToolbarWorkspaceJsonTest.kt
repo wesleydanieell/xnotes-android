@@ -291,4 +291,19 @@ class ToolbarWorkspaceJsonTest {
         val parsed = ToolbarWorkspaceJson.read(workspace)!!
         assertTrue(parsed.note.bars.single().nodes!!.single().flattenItems().isEmpty())
     }
+
+    @Test fun contextProjectionFiltersV3NodesWithoutMutatingStoredProfile() {
+        val mixed = listOf<ToolbarNode>(
+            ToolbarNode.Group("mixed", listOf(
+                ToolbarNode.Tool("pen", ToolbarItem.PEN),
+                ToolbarNode.Tool("page", ToolbarItem.PAGE_NAV),
+                ToolbarNode.Tool("waypoints", ToolbarItem.WAYPOINTS),
+            )),
+        )
+        val profiles = ToolbarWorkspaces.fromLegacy(ToolbarLayout.DEFAULT, ToolbarLayout.CANVAS_DEFAULT)
+            .copy(note = ToolbarWorkspace(listOf(ToolbarBar("primary", "Primary", ToolbarLayout.DEFAULT, nodes = mixed))), shared = true)
+        val projected = profiles.forContext(ToolbarContext.CANVAS).bars.single().nodes!!
+        assertEquals(listOf(ToolbarItem.PEN, ToolbarItem.WAYPOINTS), projected.flatMap { it.flattenItems() })
+        assertEquals(listOf(ToolbarItem.PEN, ToolbarItem.PAGE_NAV, ToolbarItem.WAYPOINTS), profiles.note.bars.single().nodes!!.flatMap { it.flattenItems() })
+    }
 }
