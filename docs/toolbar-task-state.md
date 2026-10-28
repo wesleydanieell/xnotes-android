@@ -589,6 +589,11 @@ usuário encontradas no worktree e não invente sucesso nem background jobs.
   e, no modo ativo, `Finish resize`/`Cancel resize`. A confirmação numérica da
   largura após arraste e Undo separado continuam pendentes.
 
+- 28/10/2026: no mesmo teste ADB, tocar `Cancel resize` e abrir novamente o
+  menu retornou a opção `Resize` (sem `Finish resize`/`Cancel resize`),
+  confirmando a saída do modo sem deixar a barra presa em edição. A geometria
+  visual quantitativa e Undo independente ainda permanecem pendentes.
+
 ## Próxima ação (uma por vez)
 
 Com o `emulator-5554` online, abrir o configurador via UIAutomator e validar a
