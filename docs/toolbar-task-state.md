@@ -628,6 +628,11 @@ usuário encontradas no worktree e não invente sucesso nem background jobs.
   flutuantes. `git diff --check` e o gate JVM/assemble passaram; falta validar
   no ADB que Undo depois de Finish volta diretamente à geometria anterior.
 
+- 28/10/2026: commit 68b384d5 corrige a saída por `Lock` durante Resize:
+  o snapshot é restaurado sem histórico e o bloqueio é gravado como a única
+  alteração, evitando confirmar acidentalmente a geometria intermediária.
+  `git diff --check` e o gate JVM/assemble passaram.
+
 ## Próxima ação (uma por vez)
 
 Com o `emulator-5554` online, instalar o APK de `029b1313` e validar via
