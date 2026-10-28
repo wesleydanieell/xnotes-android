@@ -309,6 +309,12 @@ usuário encontradas no worktree e não invente sucesso nem background jobs.
   navegação sem toque visual. `testDebugUnitTest`, assembleDebug e install -r
   passaram; validação com TalkBack/leitor real permanece pendente.
 
+- 28/10/2026: commit 7cd3305d expõe o toggle Shared/independent no editor de
+  workspaces. A alternância usa o campo persistido existente e não substitui o
+  perfil canvas oculto; o filtro por contexto continua aplicado no renderer.
+  JVM/assembleDebug/install -r passaram no emulator-5554. QA visual do toggle
+  e alternância com perfis distintos ainda pendentes.
+
 ## Próxima ação (uma por vez)
 
 Validar no ADB o configurador, os botões Undo/Redo/Cancel/Apply e a persistência
