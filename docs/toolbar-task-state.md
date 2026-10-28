@@ -324,6 +324,12 @@ usuário encontradas no worktree e não invente sucesso nem background jobs.
   assembleDebug/install -r passaram no emulator-5554. Editor visual de nós,
   drag/drop entre grupos e grids de cores dedicados ainda pendentes.
 
+- 28/10/2026: commit 1f8e7692 faz a projeção v3 ser usada também pela barra
+  primária de note/canvas (secundárias já usavam `effectiveLayout`). Assim uma
+  barra com nós explícitos não fica limitada ao layout plano apenas por ser a
+  principal. Testes JVM, assembleDebug e install -r passaram no emulator-5554;
+  falta QA visual com uma árvore v3 efetivamente criada na UI.
+
 ## Próxima ação (uma por vez)
 
 Validar no ADB o configurador, os botões Undo/Redo/Cancel/Apply e a persistência
