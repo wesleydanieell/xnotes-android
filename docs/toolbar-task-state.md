@@ -337,6 +337,13 @@ usuário encontradas no worktree e não invente sucesso nem background jobs.
   e install -r passaram no emulator-5554. Ainda falta drag/drop visual entre
   grupos e edição direta de propriedades de cada nó.
 
+- 28/10/2026: commit aee8a604 adiciona `UnifiedPen` ao schema v3. O nó
+  persiste estilos stroke válidos e `lastStyle`, projeta um único item PEN no
+  renderer e reutiliza o popup/configuração existente sem inventar novos IDs de
+  ferramenta. Round-trip/sanitização JVM, assembleDebug e install -r passaram
+  no emulator-5554. Alternância visual de estilos e latência com caneta física
+  continuam pendentes.
+
 ## Próxima ação (uma por vez)
 
 Validar no ADB o configurador, os botões Undo/Redo/Cancel/Apply e a persistência
