@@ -389,6 +389,12 @@ usuário encontradas no worktree e não invente sucesso nem background jobs.
   específicos). O APK já havia sido instalado com `install -r` e a Activity
   reiniciada sem limpar dados.
 
+- 28/10/2026: commit 9d2f33d0 adiciona `moveNode` puro para drag/drop v3 entre
+  `Group` e `Grid`, com extração/inserção limitada, preservação de IDs e
+  rejeição de destino inexistente/auto-destino. Testes JVM, assembleDebug e
+  install -r passaram. A UI ainda usa o editor plano; integração visual do
+  arraste entre grupos permanece pendente.
+
 - 28/10/2026: QA ADB no emulator-5554 abriu `Preferences > Configure toolbars`
   e confirmou a prévia com overflow explícito (`+28`), os perfis `xnote`,
   `xcanvas` e `Shared`, além dos botões `Undo`, `Redo`, `Cancel` e `Apply`.
