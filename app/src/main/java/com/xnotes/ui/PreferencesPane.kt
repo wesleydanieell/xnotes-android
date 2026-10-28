@@ -633,6 +633,9 @@ fun PreferencesPane(
             ) {
                 Chip("xnote", selected = !canvasTab) { showTab(false) }
                 Chip("xcanvas", selected = canvasTab) { showTab(true) }
+                Chip("Shared", selected = editor.toolbarWorkspaces.shared) {
+                    editor.applyToolbarWorkspaces(editor.toolbarWorkspaces.copy(shared = !editor.toolbarWorkspaces.shared))
+                }
                 Spacer(Modifier.weight(1f))
                 TextButton(
                     onClick = {
