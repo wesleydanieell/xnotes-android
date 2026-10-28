@@ -143,9 +143,21 @@ usuário encontradas no worktree e não invente sucesso nem background jobs.
   antes de afirmar que a interação ou a geometria passou. Não houve teste
   físico de pressão, hover, latência ou primeiro traço nesta rodada.
 
+- 27/10/2026: commit 088b2a3d calcula a âncora pela posição de soltura
+  em vez do centro da barra; testes JVM cobrem as nove regiões e entradas
+  inválidas. Gradle testDebugUnitTest + assembleDebug: BUILD SUCCESSFUL
+  (16 executadas, 34 up-to-date); git diff --check passou; install -r no
+  emulator-5554 retornou Success após reiniciar o AVD desconectado. Na nota
+  de teste, hold seguido de MOVE vertical e depois MOVE para x=100, y=600
+  posicionou a barra flutuante na lateral esquerda. Duas tentativas de MOVE
+  diagonal direto rolaram o conteúdo horizontal em vez de mover a barra:
+  conflito com scroll segue pendente. Persistência após restart e demais
+  posições não foram verificadas nesta rodada; não marcar P0 concluído.
+
 ## Próxima ação (uma por vez)
 
-Investigar e corrigir colisões entre barras flutuantes e controles do canvas,
+Investigar o conflito entre scroll horizontal e hold-drag na barra; depois
+investigar e corrigir colisões entre barras flutuantes e controles do canvas,
 com testes para regiões centrais e bordas. Continuar os testes de gestos e
 docks da barra principal e secundárias no emulador; reservar pressão, hover,
 latência e primeiro traço com stylus para o Redmi Pad 2.
