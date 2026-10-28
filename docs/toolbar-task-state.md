@@ -356,6 +356,19 @@ usuário encontradas no worktree e não invente sucesso nem background jobs.
   emulator-5554. A edição direta desses campos ainda não está exposta no
   painel, e QA de hitbox com caneta física permanece pendente.
 
+- 28/10/2026: commit 4cf0b826 expõe `Visual dp` e `Hitbox dp` no editor para o
+  primeiro item Tool da composição v3 e atualiza a árvore recursivamente. Teste
+  JVM de atualização, assembleDebug e install -r passaram no emulator-5554.
+  Edição em lote de todos os nós e QA de acessibilidade/stylus ainda pendentes.
+
+- 28/10/2026: QA ADB no emulator-5554 abriu `Preferences > Configure toolbars`
+  e confirmou a prévia com overflow explícito (`+28`), os perfis `xnote`,
+  `xcanvas` e `Shared`, além dos botões `Undo`, `Redo`, `Cancel` e `Apply`.
+  `Add Toolbar` criou `Toolbar 3`; `Undo` removeu-a e `Redo` restaurou-a.
+  Uma criação seguida de `Cancel` retornou ao explorador sem alterar a lista
+  persistida. Nenhum dado do app original foi tocado; validação de gestos em
+  ferramenta, posições/docks e stylus físico permanece pendente.
+
 - 28/10/2026: após a instalação de `77f0276d`/`aee8a604`, Activity isolada foi
   reiniciada no emulator-5554; após o loader, `topResumedActivity` confirmou
   `com.xnotes.toolbarsdebug/com.xnotes.MainActivity` e `uiautomator dump` foi
@@ -364,8 +377,8 @@ usuário encontradas no worktree e não invente sucesso nem background jobs.
 
 ## Próxima ação (uma por vez)
 
-Validar no ADB o configurador, os botões Undo/Redo/Cancel/Apply e a persistência
-de dimensões/aparência após reinício. Em seguida concluir preview/grade 3×3,
-overflow e matriz de gestos/docks no canvas; implementar grupos/grades de
-elementos, cores por barra e caneta unificada. Reservar pressão, hover, latência
-e primeiro traço para o Redmi Pad 2.
+Validar no ADB a persistência de dimensões/aparência após reinício e a matriz de
+gestos/docks (incluindo toque em ferramenta e long-press no contêiner). Em
+seguida implementar grupos/grades de elementos, cores por barra, drag/drop e
+redimensionamento transacional. Reservar pressão, hover, latência e primeiro
+traço para o Redmi Pad 2.
