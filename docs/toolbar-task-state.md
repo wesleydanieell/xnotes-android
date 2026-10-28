@@ -12,8 +12,9 @@ docs/toolbar-adb-test-playbook.md.
 - Debug applicationId: com.xnotes.toolbarsdebug; build isolado das instalações normais.
 - SDK Android conhecido: /home/wesley/Android/Sdk
 - Emulador existente durante a prototipagem: emulator-5554, Small_Tablet.
-- APK da branch antiga compilou/testou em 27/10/2026 e instalou no emulador.
-  NÃO presumir que o clone novo já foi compilado ou validado visualmente.
+- APK da branch antiga compilou/testou em 27/10/2026; o clone novo compilou,
+  passou testes JVM e instalou no emulador em 28/10/2026. QA visual e de gestos
+  continuam sem validação completa.
 - Keystore de debug em /home/wesley/.android/xnotes-toolbars-debug.keystore:
   não copiar para Git nem alterar sua senha por automação.
 
@@ -21,7 +22,7 @@ docs/toolbar-adb-test-playbook.md.
 
 | Milestone | Estado | Evidência e pendências |
 | --- | --- | --- |
-| M0 Clone/branch/debug | FEITO | Nova pasta Git e commits importados; build desta pasta a confirmar |
+| M0 Clone/branch/debug | FEITO | Clone isolado, commits importados e build/testes/instalação ADB aprovados em 28/10 |
 | M1 Modelos/migração | PARCIAL | ToolbarWorkspace, codec JSON e testes JVM existem; rever casos extremos |
 | M2 Renderer/gestos | PARCIAL | Barras extra; principal pode mover; container longpress; sem QA de conflitos |
 | M3 Editor/preview | PARCIAL | Config view, CRUD, grade 3x3 e live preview simples; sem undo/apply |
@@ -53,7 +54,8 @@ não substitui o Git como fonte de verdade.
 
 ### P0 — Confiabilidade antes de adicionar complexidade
 
-- [ ] [M0] Compilar/testar NESTE clone; verificar status limpo e origem da branch.
+- [x] [M0] Compilar/testar NESTE clone; verificar origem da branch (28/10/2026).
+      Gradle unit tests + assembleDebug passaram e APK instalou no emulator-5554.
 - [ ] [M2] Testar toque e long-press em ferramentas reais. Resolver conflitos
       entre drag do contêiner e long-press próprios de ferramentas/cores.
 - [ ] [M2] Testar dock principal topo/baixo/esquerda/direita com mover por hold;
@@ -108,10 +110,14 @@ usuário encontradas no worktree e não invente sucesso nem background jobs.
   emulator-5554 e Activity iniciada; QA de gestos/preview ainda NÃO validada.
 - 28/10/2026: clone original em novo diretório e branch local importada,
   com origin=fork e upstream=original. Git history preservado.
+- 28/10/2026: no clone NOVO, testDebugUnitTest e assembleDebug concluíram
+  BUILD SUCCESSFUL (50 tasks, 25 executed e 25 from cache), em 2m12s;
+  instalação adb -s emulator-5554 install -r retornou Success, e am start
+  encaminhou a Activity já ativa. QA visual/gestual continua PENDENTE.
 
 ## Próxima ação (uma por vez)
 
-Verificar build no clone novo, depois reproduzir e corrigir o fluxo
-segurar/arrastar contêiner da barra principal e secundárias (touch/stylus),
-antes de expandir renderização de grupos. A tela de preview precisa ser
-inspecionada no emulador e comparada ao resultado real. Use o playbook ADB.
+Reproduzir e corrigir o fluxo segurar/arrastar o contêiner da barra principal
+e secundárias (touch/stylus), antes de expandir renderização de grupos.
+Inspecionar a tela de preview no emulador, testar a grade 3×3 e comparar
+com a barra real. Usar o playbook ADB e documentar evidências.
