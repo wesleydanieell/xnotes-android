@@ -175,6 +175,15 @@ Row/Column/Grid com ocupação row-major e slots aninhados. `ToolbarCompositionT
 da barra de referência, grids com spans e rejeição de IDs duplicados. O HUD M1 ainda não consome
 esse resolver; essa ligação e o renderer compartilhado continuam sendo o próximo passo de M2/M3.
 
+### Refinamento visual do HUD
+
+- O catálogo agora lista os itens do toolbar do app, incluindo texto em caixa, régua, zoom,
+  páginas e controles de canvas; os IDs conhecidos têm ícones explícitos.
+- Docked ocupa a borda da nota e não usa cápsula nem sombra; Floating usa uma superfície arredondada
+  elevada sobre o conteúdo, seguindo `ToolbarFrame`.
+- Barras docked horizontais/verticais ocupam a largura/altura da viewport conforme a orientação.
+- Build debug passou e foi instalado/aberto no AVD visível.
+
 ### Evidência do checkpoint
 
 - `git status --short --branch`: branch limpa exceto pelo guia e este checkpoint.

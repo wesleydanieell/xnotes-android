@@ -104,9 +104,16 @@ fun ToolbarHudScreen(
     }
     val catalog = remember {
         listOf(
-            "pen" to "Caneta", "colors" to "Cores", "eraser" to "Borracha", "select" to "Selecionar",
-            "shape" to "Forma", "text" to "Texto", "image" to "Imagem", "undo" to "Desfazer",
-            "redo" to "Refazer", "group" to "Grupo", "grid" to "Grid 2×2", "spacer" to "Espaçador", "divider" to "Separador",
+            "home" to "Início", "title" to "Título", "sidebar" to "Painel lateral",
+            "pen" to "Caneta", "dashed" to "Caneta tracejada", "calligraphy" to "Caligrafia",
+            "speed" to "Velocidade", "taper" to "Afilar", "highlighter" to "Marca texto",
+            "eraser" to "Borracha", "pan" to "Mover tela", "select" to "Selecionar", "lasso" to "Laço",
+            "screenshot" to "Captura", "wand" to "Varinha", "tape" to "Fita", "shape" to "Forma",
+            "ruler" to "Régua", "text" to "Texto", "text_box" to "Caixa de texto", "markup" to "Marcação PDF",
+            "image" to "Imagem", "undo" to "Desfazer", "redo" to "Refazer", "page_nav" to "Páginas",
+            "styles" to "Estilos", "margins" to "Margens", "view" to "Visualização", "zoom" to "Zoom",
+            "fit" to "Ajustar", "zoom_lock" to "Travar zoom", "fullscreen" to "Tela cheia", "colors" to "Cores",
+            "waypoints" to "Pontos salvos", "minimap" to "Minimapa", "spacer" to "Espaçador", "divider" to "Separador",
         )
     }
     val filteredCatalog = catalog.filter { (id, label) ->
@@ -444,6 +451,13 @@ private fun HudViewport(
                 }
                 bars.forEachIndexed { index, bar ->
                     val stackIndex = bars.take(index).count { it.anchor == bar.anchor }
+                    val placement = when {
+                        bar.presentation == HudPresentation.DOCKED && bar.orientation == HudOrientation.VERTICAL ->
+                            Modifier.fillMaxHeight().width(58.dp).then(hudAnchorModifier(bar.anchor, stackIndex))
+                        bar.presentation == HudPresentation.DOCKED ->
+                            Modifier.fillMaxWidth().then(hudAnchorModifier(bar.anchor, stackIndex))
+                        else -> hudAnchorModifier(bar.anchor, stackIndex)
+                    }
                     HudComposedBar(
                         bar = bar,
                         selected = selectedBar == index,
@@ -456,9 +470,9 @@ private fun HudViewport(
                         onBarDragStart = { onBarDragStart(index) },
                         onBarDrag = { dx, dy -> onBarDrag(index, dx, dy, viewportWidthDp, viewportHeightDp) },
                         onBarDrop = { onBarDrop(index, viewportWidthDp, viewportHeightDp) },
-                        modifier = hudAnchorModifier(bar.anchor, stackIndex)
+                        modifier = placement
                             .offset(x = bar.offsetXDp.dp, y = bar.offsetYDp.dp)
-                            .then(if (bar.fillWidth && bar.orientation == HudOrientation.HORIZONTAL) Modifier.fillMaxWidth().padding(horizontal = 28.dp) else Modifier),
+                            .then(if (bar.fillWidth && bar.presentation == HudPresentation.FLOATING && bar.orientation == HudOrientation.HORIZONTAL) Modifier.fillMaxWidth().padding(horizontal = 28.dp) else Modifier),
                     )
                 }
             }
@@ -538,8 +552,10 @@ private fun HudComposedBar(
         label = "barElevation",
     )
     val dragAlpha by animateFloatAsState(if (dragging) 0.78f else 1f, spring(), label = "barAlpha")
+    val shape = if (bar.presentation == HudPresentation.FLOATING) RoundedCornerShape(28.dp) else RoundedCornerShape(0.dp)
+    val docked = bar.presentation == HudPresentation.DOCKED
     Box(
-        modifier.shadow(elevation, RoundedCornerShape(12.dp)).alpha(dragAlpha)
+        modifier.shadow(if (docked && !dragging) 0.dp else elevation, shape).alpha(dragAlpha)
             .pointerInput(bar.name) {
                 detectDragGesturesAfterLongPress(
                     onDragStart = { onBarDragStart() },
@@ -548,12 +564,12 @@ private fun HudComposedBar(
                     onDrag = { change, amount -> change.consume(); onBarDrag(amount.x / density, amount.y / density) },
                 )
             }
-            .clip(RoundedCornerShape(12.dp)).background(palette.panel.toComposeColor().copy(alpha = 0.97f))
-            .border(2.dp, if (selected) palette.accent.toComposeColor() else palette.border.toComposeColor(), RoundedCornerShape(14.dp))
+            .clip(shape).background(palette.panel.toComposeColor().copy(alpha = if (docked) 1f else 0.94f))
+            .border(if (docked) 0.dp else 1.dp, if (selected) palette.accent.toComposeColor() else palette.border.toComposeColor(), shape)
             .clickable(onClick = onSelectBar).padding((bar.paddingDp * sizeFactor).dp),
     ) {
         Column(verticalArrangement = Arrangement.spacedBy(3.dp)) {
-            Text(bar.name, color = palette.textDim.toComposeColor(), fontSize = 8.sp, modifier = Modifier.padding(start = 2.dp))
+            if (selected) Text(bar.name, color = palette.textDim.toComposeColor(), fontSize = 8.sp, modifier = Modifier.padding(start = 2.dp))
             if (bar.items.isEmpty()) {
                 Text(
                     "Barra vazia · use + Componente para adicionar",
@@ -677,6 +693,19 @@ private fun HudToolbarItem(item: String, selected: Boolean, onClick: () -> Unit,
         "divider" -> HudDivider(scale, vertical)
         "spacer" -> if (vertical) Spacer(Modifier.height(24.dp * scale)) else Spacer(Modifier.width(24.dp * scale))
         "title" -> Text("Nota", color = LocalPalette.current.text.toComposeColor(), fontSize = (12 * scale).sp)
+        "page_nav" -> if (vertical) {
+            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                HudItemIcon("prev", false, onClick, iconSize = 34.dp * scale)
+                Text("1 / 3", color = LocalPalette.current.textDim.toComposeColor(), fontSize = (10 * scale).sp)
+                HudItemIcon("next", false, onClick, iconSize = 34.dp * scale)
+            }
+        } else {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                HudItemIcon("prev", false, onClick, iconSize = 34.dp * scale)
+                Text("1 / 3", color = LocalPalette.current.textDim.toComposeColor(), fontSize = (10 * scale).sp)
+                HudItemIcon("next", false, onClick, iconSize = 34.dp * scale)
+            }
+        }
         "zoom" -> if (vertical) {
             Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(2.dp * scale)) {
                 HudItemIcon("zoom_out", false, onClick, iconSize = 34.dp * scale)
@@ -912,7 +941,10 @@ private fun HudItemIcon(
 
 @Composable
 private fun hudItemIcon(id: String): ImageVector? = when (id) {
-    "pen" -> ImageVector.vectorResource(R.drawable.ic_stroke_regular)
+    "home" -> XnotesIcons.prev
+    "prev" -> XnotesIcons.prev
+    "next" -> XnotesIcons.next
+    "pen", "dashed", "calligraphy", "speed", "taper", "highlighter" -> ImageVector.vectorResource(R.drawable.ic_stroke_regular)
     "colors" -> XnotesIcons.palette
     "eraser" -> XnotesIcons.eraser
     "select" -> XnotesIcons.select
@@ -924,18 +956,22 @@ private fun hudItemIcon(id: String): ImageVector? = when (id) {
     "zoom_out" -> XnotesIcons.zoomOut
     "zoom_in" -> XnotesIcons.zoomIn
     "fit" -> XnotesIcons.fit
-    "sidebar" -> XnotesIcons.sidebar
-    "wand" -> XnotesIcons.magicWand
-    "ruler" -> XnotesIcons.ruler
-    "lasso" -> XnotesIcons.lasso
+    "page_nav" -> XnotesIcons.page
+    "text_box" -> XnotesIcons.textBox
+    "markup" -> XnotesIcons.edit
+    "pan" -> XnotesIcons.pan
     "screenshot" -> XnotesIcons.scissors
+    "wand" -> XnotesIcons.magicWand
+    "fullscreen" -> XnotesIcons.fullscreen
+    "zoom_lock" -> XnotesIcons.lock
+    "waypoints" -> XnotesIcons.bookmark
+    "minimap" -> XnotesIcons.map
     "styles" -> XnotesIcons.sliders
     "margins" -> XnotesIcons.margins
     "view" -> XnotesIcons.view
-    "waypoints" -> XnotesIcons.bookmark
-    "minimap" -> XnotesIcons.map
-    "fullscreen" -> XnotesIcons.fullscreen
-    "zoom_lock" -> XnotesIcons.lock
+    "sidebar" -> XnotesIcons.sidebar
+    "ruler" -> XnotesIcons.ruler
+    "lasso" -> XnotesIcons.lasso
     "tape" -> XnotesIcons.tape
     "group" -> XnotesIcons.layers
     "grid" -> XnotesIcons.layoutGrid
