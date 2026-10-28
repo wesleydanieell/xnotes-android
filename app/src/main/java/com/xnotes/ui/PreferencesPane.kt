@@ -717,6 +717,30 @@ fun PreferencesPane(
             FieldLabel("Toolbar appearance")
             val geometry = currentBar.geometry
             val appearance = geometry.appearance
+            var backgroundPickerOpen by remember(currentBar.id) { mutableStateOf(false) }
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
+                TextButton(onClick = { backgroundPickerOpen = true }) { Text("Background") }
+                Box(
+                    Modifier
+                        .size(28.dp)
+                        .clip(RoundedCornerShape(6.dp))
+                        .background((appearance.background ?: palette.panel).toComposeColor())
+                        .border(1.dp, palette.border.toComposeColor(), RoundedCornerShape(6.dp)),
+                )
+                TextButton(onClick = {
+                    updateSelectedBar { bar -> bar.copy(geometry = bar.geometry.copy(appearance = bar.geometry.appearance.copy(background = null))) }
+                }) { Text("Theme") }
+            }
+            if (backgroundPickerOpen) {
+                ColorPickerPopup(
+                    initial = appearance.background,
+                    recents = editor.recentColors,
+                    onDismiss = { backgroundPickerOpen = false },
+                    onPick = { colour ->
+                        updateSelectedBar { bar -> bar.copy(geometry = bar.geometry.copy(appearance = bar.geometry.appearance.copy(background = colour))) }
+                    },
+                )
+            }
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 Text("Opacity ${(appearance.opacity * 100).toInt()}%", color = palette.textDim.toComposeColor(), fontSize = 12.sp)
                 Slider(
