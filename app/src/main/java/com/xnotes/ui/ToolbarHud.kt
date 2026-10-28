@@ -9,7 +9,6 @@ import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectDragGesturesAfterLongPress
 import androidx.compose.foundation.gestures.detectDragGestures
-import androidx.compose.foundation.gestures.detectTransformGestures
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -413,12 +412,7 @@ private fun HudViewport(
     modifier: Modifier,
 ) {
     val palette = LocalPalette.current
-    var zoom by remember { mutableStateOf(0.55f) }
-    var panX by remember { mutableStateOf(0f) }
-    var panY by remember { mutableStateOf(0f) }
-    val density = LocalDensity.current.density
-    val worldWidth = 1600.dp
-    val worldHeight = 1200.dp
+    var zoom by remember { mutableStateOf(1f) }
 
     Column(modifier.background(palette.bg.toComposeColor()).padding(20.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
         Row(verticalAlignment = Alignment.CenterVertically) {
@@ -428,22 +422,13 @@ private fun HudViewport(
         }
         Box(
             Modifier.fillMaxWidth().weight(1f).clip(RoundedCornerShape(18.dp))
-                .background(palette.paper.toComposeColor())
-                .pointerInput(Unit) {
-                    detectTransformGestures { _, pan, zoomChange, _ ->
-                        zoom = (zoom * zoomChange).coerceIn(0.35f, 1.5f)
-                        panX = (panX + pan.x / density).coerceIn(-720f, 720f)
-                        panY = (panY + pan.y / density).coerceIn(-560f, 560f)
-                    }
-                },
+                .background(palette.paper.toComposeColor()),
         ) {
             Box(
-                Modifier.align(Alignment.Center).size(worldWidth, worldHeight)
+                Modifier.fillMaxSize()
                     .graphicsLayer {
                         scaleX = zoom
                         scaleY = zoom
-                        translationX = panX * density
-                        translationY = panY * density
                     }
                     .drawBehind {
                         val rule = palette.paperBorder.toComposeColor().copy(alpha = 0.20f)
@@ -463,7 +448,7 @@ private fun HudViewport(
                 if (movingBar != null && barDropTarget != null) HudAnchorHints(barDropTarget)
                 Column(Modifier.padding(58.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
                     Text("Nota sem bordas", color = palette.text.toComposeColor().copy(alpha = 0.40f), fontSize = 18.sp)
-                    Text("O canvas continua para além da área visível. Arraste o fundo para navegar e use dois dedos para ajustar a escala.", color = palette.textDim.toComposeColor().copy(alpha = 0.48f), fontSize = 13.sp)
+                    Text("Esta área é uma referência visual da nota final; somente as barras recebem edição.", color = palette.textDim.toComposeColor().copy(alpha = 0.48f), fontSize = 13.sp)
                     Spacer(Modifier.height(110.dp))
                     repeat(5) { line ->
                         Box(Modifier.fillMaxWidth(if (line == 2) 0.62f else 0.82f).height(8.dp).clip(RoundedCornerShape(4.dp)).background(palette.textDim.toComposeColor().copy(alpha = 0.08f)))
@@ -492,13 +477,13 @@ private fun HudViewport(
             HudFloatingPanel(Modifier.align(Alignment.BottomEnd).padding(12.dp)) {
                 Row(Modifier.padding(5.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
                     HudIconButton(XnotesIcons.zoomOut, "Reduzir", onClick = { zoom = (zoom - 0.05f).coerceAtLeast(0.35f) })
-                    HudChip("${(zoom * 100).toInt()}%", selected = false, onClick = { zoom = 0.55f; panX = 0f; panY = 0f })
+                    HudChip("${(zoom * 100).toInt()}%", selected = false, onClick = { zoom = 1f })
                     HudIconButton(XnotesIcons.zoomIn, "Ampliar", onClick = { zoom = (zoom + 0.05f).coerceAtMost(1.5f) })
-                    HudIconButton(XnotesIcons.fit, "Centralizar", onClick = { zoom = 0.55f; panX = 0f; panY = 0f })
+                    HudIconButton(XnotesIcons.fit, "Escala real", onClick = { zoom = 1f })
                 }
             }
         }
-        Text("Arraste o fundo para navegar pelo canvas. Toque no contorno da barra para selecioná-la; toque no widget para selecionar sua instância.", color = palette.textDim.toComposeColor(), fontSize = 12.sp)
+        Text("A nota é apenas uma simulação visual. Toque no contorno da barra para selecioná-la; toque no widget para selecionar sua instância.", color = palette.textDim.toComposeColor(), fontSize = 12.sp)
     }
 }
 
