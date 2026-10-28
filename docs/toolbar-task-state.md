@@ -446,6 +446,13 @@ usuário encontradas no worktree e não invente sucesso nem background jobs.
   `BUILD SUCCESSFUL` no emulator-5554 (70 tasks; sem testes instrumentados
   específicos). A árvore aninhada ainda requer QA visual dedicada.
 
+- 28/10/2026: commit 7fbf72c9 adiciona long-press + drag no editor de nós v3.
+  Os limites medidos escolhem o alvo mais próximo e chamam `moveNodeBefore`,
+  permitindo reordenação entre pais sem duplicar IDs; o item arrastado fica
+  atenuado durante o gesto. `testDebugUnitTest`, assembleDebug, install -r e
+  `connectedDebugAndroidTest` passaram no emulator-5554. QA manual do gesto,
+  feedback visual de destino e cancelamento por stylus ainda pendentes.
+
 - 28/10/2026: QA ADB no emulator-5554 abriu `Preferences > Configure toolbars`
   e confirmou a prévia com overflow explícito (`+28`), os perfis `xnote`,
   `xcanvas` e `Shared`, além dos botões `Undo`, `Redo`, `Cancel` e `Apply`.
