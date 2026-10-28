@@ -395,6 +395,13 @@ usuário encontradas no worktree e não invente sucesso nem background jobs.
   install -r passaram. A UI ainda usa o editor plano; integração visual do
   arraste entre grupos permanece pendente.
 
+- 28/10/2026: commit bca0e63f adiciona handle de resize na prévia para a barra
+  selecionada. O gesto acumula o delta até soltar, aplica limites 48–2048 dp e
+  passa pelo histórico de rascunho do Editor (Undo/Cancel/Apply); o handle tem
+  descrição semântica `Resize toolbar <id>`. `testDebugUnitTest`, assembleDebug
+  e install -r passaram no emulator-5554. Resize on-canvas fora do configurador
+  e validação visual do gesto ainda pendentes.
+
 - 28/10/2026: QA ADB no emulator-5554 abriu `Preferences > Configure toolbars`
   e confirmou a prévia com overflow explícito (`+28`), os perfis `xnote`,
   `xcanvas` e `Shared`, além dos botões `Undo`, `Redo`, `Cancel` e `Apply`.
