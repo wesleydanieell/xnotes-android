@@ -25,7 +25,11 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateMapOf
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
@@ -50,6 +54,7 @@ import com.xnotes.core.tools.ToolbarLayout
 import com.xnotes.core.tools.ToolbarSection
 import com.xnotes.core.tools.ToolbarNode
 import com.xnotes.core.tools.moveNode
+import com.xnotes.core.tools.moveNodeBefore
 import com.xnotes.ui.icons.XnotesIcons
 import com.xnotes.ui.theme.LocalPalette
 import com.xnotes.ui.theme.toComposeColor
@@ -372,6 +377,9 @@ fun ToolbarDragGhost(item: ToolbarItem) {
 @Composable
 fun ToolbarNodeTreeEditor(nodes: List<ToolbarNode>, onChange: (List<ToolbarNode>) -> Unit) {
     val palette = LocalPalette.current
+    val bounds = remember { mutableStateMapOf<String, Rect>() }
+    var draggingId by remember { mutableStateOf<String?>(null) }
+    var dragDelta by remember { mutableStateOf(Offset.Zero) }
     data class Row(val node: ToolbarNode, val parentId: String?, val index: Int, val depth: Int)
     fun collect(items: List<ToolbarNode>, parentId: String?, depth: Int): List<Row> = buildList {
         items.forEachIndexed { index, node ->
@@ -399,14 +407,37 @@ fun ToolbarNodeTreeEditor(nodes: List<ToolbarNode>, onChange: (List<ToolbarNode>
                 Modifier.fillMaxWidth().clip(MaterialTheme.shapes.small)
                     .background(palette.surface.toComposeColor())
                     .border(1.dp, palette.border.toComposeColor(), MaterialTheme.shapes.small)
-                    .padding(start = (8 + row.depth * 18).dp, end = 8.dp, top = 4.dp, bottom = 4.dp),
+                    .padding(start = (8 + row.depth * 18).dp, end = 8.dp, top = 4.dp, bottom = 4.dp)
+                    .onGloballyPositioned { bounds[row.node.id] = it.boundsInRoot() }
+                    .pointerInput(row.node.id) {
+                        detectDragGesturesAfterLongPress(
+                            onDragStart = { draggingId = row.node.id; dragDelta = Offset.Zero },
+                            onDrag = { change, delta -> change.consume(); dragDelta += delta },
+                            onDragEnd = {
+                                val source = bounds[row.node.id]
+                                val target = source?.let { rect ->
+                                    val point = rect.center + dragDelta
+                                    rows.filter { it.node.id != row.node.id }
+                                        .mapNotNull { candidate -> bounds[candidate.node.id]?.let { candidate to it } }
+                                        .minByOrNull { (_, candidate) ->
+                                            val dy = candidate.center.y - point.y
+                                            dy * dy
+                                        }?.first
+                                }
+                                if (target != null) onChange(nodes.moveNodeBefore(row.node.id, target.node.id))
+                                draggingId = null; dragDelta = Offset.Zero
+                            },
+                            onDragCancel = { draggingId = null; dragDelta = Offset.Zero },
+                        )
+                    },
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 Text(
                     text = label(row.node),
                     color = palette.text.toComposeColor(),
                     fontSize = 12.sp,
-                    modifier = Modifier.weight(1f).semantics { contentDescription = "Toolbar node ${row.node.id}" },
+                    modifier = Modifier.weight(1f).alpha(if (draggingId == row.node.id) 0.35f else 1f)
+                        .semantics { contentDescription = "Toolbar node ${row.node.id}" },
                 )
                 TextButton(enabled = row.index > 0, onClick = {
                     onChange(if (row.parentId == null) {
