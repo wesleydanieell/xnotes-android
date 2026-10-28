@@ -563,6 +563,14 @@ usuário encontradas no worktree e não invente sucesso nem background jobs.
   não houve exceção fatal do app nos logs consultados. A matriz de gestos,
   configurador, resize e persistência ainda não foi marcada como PASS.
 
+- 28/10/2026: QA ADB manual no mesmo `emulator-5554` abriu `Preferences >
+  Configure toolbars`. A árvore acessível confirmou `Undo`, `Redo`, `Cancel`,
+  `Apply`, perfis `xnote`/`xcanvas`/`Shared`, preview com `+28`, indicadores
+  `More toolbars above/below`, seleção de barras e `Compose v3`. O botão
+  `Cancel` retornou a Preferences; nenhuma alteração foi aplicada nem dados
+  foram limpos. O menu contextual de resize e gestos de ferramentas ainda não
+  foram exercitados nesta rodada.
+
 ## Próxima ação (uma por vez)
 
 Com o `emulator-5554` online, abrir o configurador via UIAutomator e validar a
