@@ -243,5 +243,10 @@ class ToolbarWorkspaceJsonTest {
         assertEquals(listOf(ToolbarItem.ERASER), (moved[0] as ToolbarNode.Group).flattenItems())
         assertEquals(listOf(ToolbarItem.PEN), (moved[1] as ToolbarNode.Grid).flattenItems())
         assertEquals(moved, moved.moveNode("one", "missing", 0))
+        val nested = listOf(ToolbarNode.Group("parent", listOf(
+            ToolbarNode.Tool("first", ToolbarItem.PEN), ToolbarNode.Tool("second", ToolbarItem.TEXT),
+        )))
+        val nestedMoved = nested.moveNode("first", "parent", 1)
+        assertEquals(listOf(ToolbarItem.TEXT, ToolbarItem.PEN), nestedMoved.single().flattenItems())
     }
 }

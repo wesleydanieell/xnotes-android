@@ -49,6 +49,7 @@ import com.xnotes.core.tools.ToolbarItem
 import com.xnotes.core.tools.ToolbarLayout
 import com.xnotes.core.tools.ToolbarSection
 import com.xnotes.core.tools.ToolbarNode
+import com.xnotes.core.tools.moveNode
 import com.xnotes.ui.icons.XnotesIcons
 import com.xnotes.ui.theme.LocalPalette
 import com.xnotes.ui.theme.toComposeColor
@@ -371,34 +372,56 @@ fun ToolbarDragGhost(item: ToolbarItem) {
 @Composable
 fun ToolbarNodeTreeEditor(nodes: List<ToolbarNode>, onChange: (List<ToolbarNode>) -> Unit) {
     val palette = LocalPalette.current
+    data class Row(val node: ToolbarNode, val parentId: String?, val index: Int, val depth: Int)
+    fun collect(items: List<ToolbarNode>, parentId: String?, depth: Int): List<Row> = buildList {
+        items.forEachIndexed { index, node ->
+            add(Row(node, parentId, index, depth))
+            when (node) {
+                is ToolbarNode.Group -> addAll(collect(node.children, node.id, depth + 1))
+                is ToolbarNode.Grid -> addAll(collect(node.children, node.id, depth + 1))
+                else -> Unit
+            }
+        }
+    }
+    fun label(node: ToolbarNode): String = when (node) {
+        is ToolbarNode.Tool -> "Tool: ${node.item.id}"
+        is ToolbarNode.ColorPalette -> "Colors (${node.columns} cols)"
+        is ToolbarNode.UnifiedPen -> "Unified pen"
+        is ToolbarNode.Group -> "Group: ${node.id}"
+        is ToolbarNode.Grid -> "Grid: ${node.columns}×${node.rows ?: "auto"}"
+        is ToolbarNode.Spacer -> "Spacer"
+        is ToolbarNode.Separator -> "Separator"
+    }
+    val rows = collect(nodes, null, 0)
     Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-        nodes.forEachIndexed { index, node ->
+        rows.forEach { row ->
             Row(
                 Modifier.fillMaxWidth().clip(MaterialTheme.shapes.small)
                     .background(palette.surface.toComposeColor())
                     .border(1.dp, palette.border.toComposeColor(), MaterialTheme.shapes.small)
-                    .padding(horizontal = 8.dp, vertical = 4.dp),
+                    .padding(start = (8 + row.depth * 18).dp, end = 8.dp, top = 4.dp, bottom = 4.dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 Text(
-                    text = when (node) {
-                        is ToolbarNode.Tool -> "Tool: ${node.item.id}"
-                        is ToolbarNode.ColorPalette -> "Colors (${node.columns} cols)"
-                        is ToolbarNode.UnifiedPen -> "Unified pen"
-                        is ToolbarNode.Group -> "Group: ${node.id}"
-                        is ToolbarNode.Grid -> "Grid: ${node.columns}×${node.rows ?: "auto"}"
-                        is ToolbarNode.Spacer -> "Spacer"
-                        is ToolbarNode.Separator -> "Separator"
-                    },
+                    text = label(row.node),
                     color = palette.text.toComposeColor(),
                     fontSize = 12.sp,
-                    modifier = Modifier.weight(1f).semantics { contentDescription = "Toolbar node ${node.id}" },
+                    modifier = Modifier.weight(1f).semantics { contentDescription = "Toolbar node ${row.node.id}" },
                 )
-                TextButton(enabled = index > 0, onClick = {
-                    onChange(nodes.toMutableList().also { it.add(index - 1, it.removeAt(index)) })
+                TextButton(enabled = row.index > 0, onClick = {
+                    onChange(if (row.parentId == null) {
+                        nodes.toMutableList().also { it.add(row.index - 1, it.removeAt(row.index)) }
+                    } else {
+                        nodes.moveNode(row.node.id, row.parentId, row.index - 1)
+                    })
                 }) { Text("↑") }
-                TextButton(enabled = index < nodes.lastIndex, onClick = {
-                    onChange(nodes.toMutableList().also { it.add(index + 1, it.removeAt(index)) })
+                val siblingCount = if (row.parentId == null) nodes.size else rows.count { it.parentId == row.parentId }
+                TextButton(enabled = row.index < siblingCount - 1, onClick = {
+                    onChange(if (row.parentId == null) {
+                        nodes.toMutableList().also { it.add(row.index + 1, it.removeAt(row.index)) }
+                    } else {
+                        nodes.moveNode(row.node.id, row.parentId, row.index + 1)
+                    })
                 }) { Text("↓") }
             }
         }
