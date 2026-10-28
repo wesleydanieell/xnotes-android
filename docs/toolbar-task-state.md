@@ -267,6 +267,13 @@ usuário encontradas no worktree e não invente sucesso nem background jobs.
   passou e install -r retornou Success no emulator-5554. Falta QA de toque
   efetivo dos botões e teste de reinício/cancelamento pelo ADB.
 
+- 28/10/2026: commit 77470460 usa `geometry.columns` (limitado a 1..6) para
+  renderizar uma grade horizontal no `ToolbarFrame`, com espaçamento de
+  aparência; rails verticais permanecem lineares para preservar rolagem e
+  orientação. O editor expõe o número de colunas. Testes JVM, assembleDebug e
+  install -r passaram no emulator-5554. Ainda faltam grid de cores dedicado,
+  grupos/nós v3, validação visual de capacidade e drag/drop entre grupos.
+
 ## Próxima ação (uma por vez)
 
 Validar no ADB o configurador, os botões Undo/Redo/Cancel/Apply e a persistência
