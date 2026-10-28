@@ -651,6 +651,18 @@ fun PreferencesPane(
                         applyEdited(if (canvasTab) ToolbarLayout.CANVAS_DEFAULT else ToolbarLayout.DEFAULT)
                     },
                 ) { Text(stringResource(R.string.reset), fontSize = 13.sp) }
+                val activeWorkspace = editor.toolbarWorkspaces.forContext(
+                    if (canvasTab) com.xnotes.core.tools.ToolbarContext.CANVAS else com.xnotes.core.tools.ToolbarContext.NOTE,
+                )
+                val hiddenCount = activeWorkspace.bars.count { !it.visible }
+                TextButton(
+                    onClick = {
+                        val restored = activeWorkspace.copy(bars = activeWorkspace.bars.map { it.copy(visible = true) })
+                        val profiles = editor.toolbarWorkspaces
+                        editor.applyToolbarWorkspaces(if (canvasTab && !profiles.shared) profiles.copy(canvas = restored) else profiles.copy(note = restored))
+                    },
+                    enabled = hiddenCount > 0,
+                ) { Text("Restore hidden${if (hiddenCount > 0) " ($hiddenCount)" else ""}", fontSize = 13.sp) }
             }
             val barLabel = stringResource(R.string.pref_toolbar)
             val workspace = editedWorkspace()
