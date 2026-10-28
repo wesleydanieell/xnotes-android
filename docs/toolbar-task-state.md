@@ -304,6 +304,11 @@ usuário encontradas no worktree e não invente sucesso nem background jobs.
   passaram no emulator-5554; interação do picker e teste visual de opacidade
   ainda precisam de uma rodada dedicada.
 
+- 28/10/2026: commit c3522fb3 adiciona content descriptions estáveis (IDs dos
+  itens) aos controles da prévia, incluindo swatches, para leitores de tela e
+  navegação sem toque visual. `testDebugUnitTest`, assembleDebug e install -r
+  passaram; validação com TalkBack/leitor real permanece pendente.
+
 ## Próxima ação (uma por vez)
 
 Validar no ADB o configurador, os botões Undo/Redo/Cancel/Apply e a persistência
