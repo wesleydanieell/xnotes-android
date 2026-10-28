@@ -372,6 +372,12 @@ usuário encontradas no worktree e não invente sucesso nem background jobs.
   específicos reportados). Isso não substitui a matriz manual de gestos nem a
   validação de pressão/hover com caneta.
 
+- 28/10/2026: commit fd14ddae expõe `Grid columns` e `Grid rows` no editor
+  quando a barra usa composição v3, com atualização recursiva e teste JVM.
+  `testDebugUnitTest`, `assembleDebug`, install -r e reinício da Activity no
+  emulator-5554 passaram. Ainda falta auto-fit, capacidade/overflow de grids
+  mistos e drag/drop entre grupos.
+
 - 28/10/2026: QA ADB no emulator-5554 abriu `Preferences > Configure toolbars`
   e confirmou a prévia com overflow explícito (`+28`), os perfis `xnote`,
   `xcanvas` e `Shared`, além dos botões `Undo`, `Redo`, `Cancel` e `Apply`.
