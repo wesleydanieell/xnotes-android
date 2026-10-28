@@ -196,9 +196,21 @@ usuário encontradas no worktree e não invente sucesso nem background jobs.
   acessibilidade por leitor, orientação, canvas e telas pequenas; o resolvedor
   de geometria e colisões entre âncoras seguem pendentes.
 
+- 27/10/2026: commit d36b9f77 introduz regiões puras para âncoras ocupadas,
+  usadas no renderer e na prévia; divide em terços quando há linhas ou colunas
+  distintas, mantendo rolagem em barras restringidas. Testes JVM verificam as
+  nove regiões sem interseção, eixo único e dimensões inválidas. Gradle
+  testDebugUnitTest + assembleDebug passou (última execução 13 executadas,
+  37 up-to-date), diff --check e install -r passaram. No emulator-5554,
+  barra principal centro-esquerda e secundária topo-centro, depois topo-esquerda,
+  ficaram separadas; secundária foi devolvida ao centro-esquerda. Este método
+  conservador pode reduzir significativamente o espaço das ferramentas; faltam
+  QA de regiões pequenas, nove âncoras, preview, canvas, split e oclusões de
+  outros overlays. Não equivale ao GeometryResolver completo nem conclui M2/M4.
+
 ## Próxima ação (uma por vez)
 
-Validar overflow em canvas, telas pequenas e acessibilidade; testar outras
+Validar regiões e overflow em preview, canvas, telas pequenas e acessibilidade; testar outras
 ferramentas e barras secundárias após a mudança de prioridade do
 gesto; investigar colisões entre âncoras e controles do canvas,
 com testes para regiões centrais e bordas. Continuar os testes de gestos e
