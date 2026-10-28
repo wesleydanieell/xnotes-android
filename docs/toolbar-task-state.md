@@ -288,6 +288,16 @@ usuário encontradas no worktree e não invente sucesso nem background jobs.
   configurador, apenas `2. Toolbar 2` permaneceu, comprovando restauração do
   snapshot sem apagar dados do app isolado. Screenshot `/tmp/toolbar-config-qa.png`.
 
+- 28/10/2026: commit 53bfc890 adiciona menu contextual em long-press da barra
+  com Lock/Unlock, Duplicate e Hide para secundárias, além de operações de
+  atualização/duplicação/ocultação persistidas no workspace correto. Commit
+  607341a0 corrige o caso bloqueado: o movimento fica desabilitado, mas o
+  long-press continua acessível para Unlock. JVM/assembleDebug/install -r
+  passaram. No emulator-5554, long-press abriu `Lock`/`Duplicate`, Lock foi
+  acionado, reinício preservou o estado e novo long-press exibiu `Unlock` e
+  `Duplicate`. A interação com botão de ferramenta foi preservada no teste
+  de toque curto; pressão/hover de stylus continuam dependentes do Redmi Pad 2.
+
 ## Próxima ação (uma por vez)
 
 Validar no ADB o configurador, os botões Undo/Redo/Cancel/Apply e a persistência
