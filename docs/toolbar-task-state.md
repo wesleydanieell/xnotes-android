@@ -143,6 +143,12 @@ Também foram corrigidos os problemas apontados na revisão seguinte:
 - item selecionado pode ser removido pelo painel de propriedades;
 - `+ Barra` cria e seleciona uma nova barra; barras secundárias são empilhadas com espaçamento no
   preview para não se esconderem.
+- catálogo condensado em `+ Componente` dentro de um painel central superior;
+- painel superior possui alça visível e pode ser deslocado sobre a nota, com escala/feedback durante
+  o arraste, mantendo juntos perfil, adicionar componente, nova barra e undo/redo.
+- painel superior é expansível: no modo aberto atua como inspector contextual da barra/instância
+  selecionada, com edição de nome, padding, gap e remoção do item; o painel lateral duplicado é
+  ocultado enquanto esse inspector está aberto.
 
 Essas alterações ainda são estado local do protótipo M1. A identidade persistente das instâncias,
 destinos de drop por célula, undo/redo e Aplicar/Cancelar transacional continuam sendo escopo do
