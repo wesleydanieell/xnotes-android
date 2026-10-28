@@ -462,6 +462,11 @@ usuário encontradas no worktree e não invente sucesso nem background jobs.
   `BUILD SUCCESSFUL` no emulator-5554; nenhuma suíte instrumentada específica
   foi reportada.
 
+- 28/10/2026: QA ADB reabriu `Configure toolbars` e confirmou a tela de
+  composição plana (`Tools and groups`, chips e `Add section`). Nesta rodada o
+  gesto de scroll não alcançou a seção inferior do editor v3; portanto a árvore
+  `Composition nodes` e o drag visual não foram marcados como PASS.
+
 - 28/10/2026: QA ADB no emulator-5554 abriu `Preferences > Configure toolbars`
   e confirmou a prévia com overflow explícito (`+28`), os perfis `xnote`,
   `xcanvas` e `Shared`, além dos botões `Undo`, `Redo`, `Cancel` e `Apply`.
