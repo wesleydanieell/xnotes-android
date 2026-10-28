@@ -117,6 +117,19 @@ Implementado em `ui/ToolbarHud.kt` e integrado ao backstage por `BackstageView.T
   propriedades à direita com uma instância selecionada.
 - Não foi executada escrita, pan ou zoom no fundo do preview.
 
+### Refinamento visual M1
+
+Após a primeira inspeção, o preview foi remodelado para se comportar visualmente como um painel
+encaixável sobre uma nota:
+
+- papel simulado com linhas e grade, texto fantasma e área de conteúdo não interativa;
+- barra principal sobreposta no topo da nota;
+- segunda barra como painel flutuante no rodapé;
+- composição interna explícita com botão alto, paleta 4×2, separador, grid 2×2 e botões de ação;
+- seleção continua contextual sem transformar o fundo em uma tela de documento.
+
+Screenshot revisado: `app/build/qa/m1-nav2.png`.
+
 ### Próxima ação — M2
 
 Extrair o modelo puro de composição e o layout resolver determinístico: Row/Column/Grid, slots,

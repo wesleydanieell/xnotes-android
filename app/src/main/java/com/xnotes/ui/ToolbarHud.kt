@@ -34,6 +34,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -192,27 +193,118 @@ private fun HudViewport(
     modifier: Modifier,
 ) {
     val palette = LocalPalette.current
-    Box(modifier.background(palette.paper.toComposeColor()).padding(20.dp)) {
-        Column(Modifier.fillMaxSize(), verticalArrangement = Arrangement.spacedBy(16.dp)) {
-            Text("Pré-visualização da nota (fundo não interativo)", color = palette.textDim.toComposeColor(), fontSize = 12.sp)
-            Box(
-                Modifier.fillMaxWidth().weight(1f).clip(RoundedCornerShape(18.dp)).background(palette.bg.toComposeColor())
-                    .border(1.dp, palette.paperBorder.toComposeColor(), RoundedCornerShape(18.dp)),
-                contentAlignment = Alignment.Center,
-            ) {
-                Column(verticalArrangement = Arrangement.spacedBy(14.dp), horizontalAlignment = Alignment.CenterHorizontally) {
-                    bars.forEachIndexed { index, bar ->
-                        HudBarPreview(
-                            bar = bar,
-                            selected = selectedBar == index,
-                            selectedItem = selectedItem,
-                            onSelectBar = { onSelectBar(index) },
-                            onSelectItem = onSelectItem,
-                        )
+    Column(modifier.background(palette.paper.toComposeColor()).padding(20.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+        Text("Nota de teste · o papel é cenário, somente as barras recebem edição", color = palette.textDim.toComposeColor(), fontSize = 12.sp)
+        Box(
+            Modifier.fillMaxWidth().weight(1f).clip(RoundedCornerShape(18.dp))
+                .background(palette.paper.toComposeColor())
+                .drawBehind {
+                    val rule = palette.paperBorder.toComposeColor().copy(alpha = 0.22f)
+                    var y = 44f
+                    while (y < size.height) {
+                        drawLine(rule, androidx.compose.ui.geometry.Offset(0f, y), androidx.compose.ui.geometry.Offset(size.width, y), 1f)
+                        y += 44f
+                    }
+                    var x = 44f
+                    while (x < size.width) {
+                        drawLine(rule.copy(alpha = 0.10f), androidx.compose.ui.geometry.Offset(x, 0f), androidx.compose.ui.geometry.Offset(x, size.height), 1f)
+                        x += 44f
                     }
                 }
+                .border(1.dp, palette.paperBorder.toComposeColor(), RoundedCornerShape(18.dp)),
+        ) {
+            Column(Modifier.padding(34.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                Text("Rascunho de nota", color = palette.text.toComposeColor().copy(alpha = 0.45f), fontSize = 18.sp)
+                Text("Este espaço simula o documento e não aceita escrita, pan ou zoom.", color = palette.textDim.toComposeColor().copy(alpha = 0.5f), fontSize = 13.sp)
+                Spacer(Modifier.height(110.dp))
+                repeat(4) { line ->
+                    Box(Modifier.fillMaxWidth(if (line == 2) 0.62f else 0.82f).height(8.dp).clip(RoundedCornerShape(4.dp)).background(palette.textDim.toComposeColor().copy(alpha = 0.08f)))
+                }
             }
-            Text("Toque no espaço vazio para selecionar a barra; toque em um item para selecionar a instância.", color = palette.textDim.toComposeColor(), fontSize = 12.sp)
+            bars.forEachIndexed { index, bar ->
+                HudComposedBar(
+                    bar = bar,
+                    selected = selectedBar == index,
+                    selectedItem = selectedItem,
+                    onSelectBar = { onSelectBar(index) },
+                    onSelectItem = onSelectItem,
+                    modifier = if (index == 0) Modifier.align(Alignment.TopCenter).padding(top = 34.dp)
+                    else Modifier.align(Alignment.BottomStart).padding(start = 28.dp, bottom = 34.dp),
+                )
+            }
+        }
+        Text("Toque no contorno vazio para selecionar a barra; toque no widget para selecionar sua instância.", color = palette.textDim.toComposeColor(), fontSize = 12.sp)
+    }
+}
+
+@Composable
+private fun HudComposedBar(
+    bar: HudBar,
+    selected: Boolean,
+    selectedItem: String?,
+    onSelectBar: () -> Unit,
+    onSelectItem: (String) -> Unit,
+    modifier: Modifier,
+) {
+    val palette = LocalPalette.current
+    Row(
+        modifier.clip(RoundedCornerShape(14.dp)).background(palette.panel.toComposeColor().copy(alpha = 0.97f))
+            .border(2.dp, if (selected) palette.accent.toComposeColor() else palette.border.toComposeColor(), RoundedCornerShape(14.dp))
+            .clickable(onClick = onSelectBar).padding(8.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(6.dp),
+    ) {
+        HudWidgetCell("↤", "Principal", selected && selectedItem == "home", onClick = { onSelectItem("home") }, tall = true)
+        HudColorGrid(selected && selectedItem == "colors", onClick = { onSelectItem("colors") })
+        HudDivider()
+        HudToolGrid(selected && selectedItem == "tools", onClick = { onSelectItem("tools") })
+        HudWidgetCell("↶", "Desfazer", selected && selectedItem == "undo", onClick = { onSelectItem("undo") }, tall = true)
+        HudWidgetCell("↷", "Refazer", selected && selectedItem == "redo", onClick = { onSelectItem("redo") }, tall = true)
+        if (bar.items.size > 8) HudWidgetCell("+${bar.items.size - 8}", "Mais", selected && selectedItem == "more", onClick = { onSelectItem("more") })
+    }
+}
+
+@Composable
+private fun HudColorGrid(selected: Boolean, onClick: () -> Unit) {
+    val colors = listOf(Color(0xffe45756), Color(0xffffb627), Color(0xff5bc0eb), Color(0xff6cc551), Color(0xff9b5de5), Color(0xfff15bb5), Color(0xff00bbf9), Color(0xff555b6e))
+    Column(Modifier.clip(RoundedCornerShape(8.dp)).clickable(onClick = onClick).padding(3.dp), verticalArrangement = Arrangement.spacedBy(3.dp)) {
+        colors.chunked(4).forEach { row ->
+            Row(horizontalArrangement = Arrangement.spacedBy(3.dp)) {
+                row.forEach { color ->
+                    Box(Modifier.size(19.dp).clip(RoundedCornerShape(5.dp)).background(color).then(if (selected) Modifier.border(2.dp, Color.White, RoundedCornerShape(5.dp)) else Modifier))
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun HudToolGrid(selected: Boolean, onClick: () -> Unit) {
+    Column(Modifier.clip(RoundedCornerShape(8.dp)).clickable(onClick = onClick).padding(3.dp), verticalArrangement = Arrangement.spacedBy(3.dp)) {
+        Row(horizontalArrangement = Arrangement.spacedBy(3.dp)) { HudWidgetCell("✎", "Caneta", selected, onClick); HudWidgetCell("⌁", "Forma", selected, onClick) }
+        Row(horizontalArrangement = Arrangement.spacedBy(3.dp)) { HudWidgetCell("T", "Texto", selected, onClick); HudWidgetCell("⌖", "Selecionar", selected, onClick) }
+    }
+}
+
+@Composable
+private fun HudDivider() {
+    val palette = LocalPalette.current
+    Box(Modifier.width(1.dp).height(56.dp).background(palette.border.toComposeColor()))
+}
+
+@Composable
+private fun HudWidgetCell(symbol: String, label: String, selected: Boolean, onClick: () -> Unit, tall: Boolean = false) {
+    val palette = LocalPalette.current
+    Box(
+        Modifier.width(if (tall) 48.dp else 34.dp).height(if (tall) 56.dp else 25.dp)
+            .clip(RoundedCornerShape(6.dp)).background(if (selected) palette.selectionBackground.toComposeColor() else palette.surface.toComposeColor())
+            .border(1.dp, if (selected) palette.accent.toComposeColor() else palette.border.toComposeColor(), RoundedCornerShape(6.dp))
+            .clickable(onClick = onClick),
+        contentAlignment = Alignment.Center,
+    ) {
+        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+            Text(symbol, color = palette.text.toComposeColor(), fontSize = if (tall) 18.sp else 13.sp)
+            if (tall) Text(label.take(7), color = palette.textDim.toComposeColor(), fontSize = 7.sp)
         }
     }
 }
