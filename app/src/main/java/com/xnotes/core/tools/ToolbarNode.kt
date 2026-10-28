@@ -22,6 +22,13 @@ sealed interface ToolbarNode {
         override val visible: Boolean = true,
     ) : ToolbarNode
 
+    data class UnifiedPen(
+        override val id: String,
+        val styles: List<com.xnotes.core.tools.Tool> = listOf(com.xnotes.core.tools.Tool.PEN, com.xnotes.core.tools.Tool.DASHED, com.xnotes.core.tools.Tool.CALLIGRAPHY, com.xnotes.core.tools.Tool.HIGHLIGHTER),
+        val lastStyle: com.xnotes.core.tools.Tool? = null,
+        override val visible: Boolean = true,
+    ) : ToolbarNode
+
     data class Group(
         override val id: String,
         val children: List<ToolbarNode>,
@@ -57,6 +64,7 @@ fun ToolbarNode.sanitized(depth: Int = 0, ids: MutableSet<String> = HashSet()): 
     return when (this) {
         is ToolbarNode.Tool -> copy(visualDp = dim(visualDp), hitboxDp = dim(hitboxDp), spacingDp = spacingDp.coerceIn(0, 48))
         is ToolbarNode.ColorPalette -> copy(count = count?.coerceIn(1, InkPalette.MAX_SWATCHES), columns = columns.coerceIn(1, 6))
+        is ToolbarNode.UnifiedPen -> copy(styles = styles.distinct().filter { it.isStroke }.take(8), lastStyle = lastStyle?.takeIf { it in styles && it.isStroke })
         is ToolbarNode.Group -> copy(children = children.take(64).mapNotNull { it.sanitized(depth + 1, ids) })
         is ToolbarNode.Grid -> copy(children = children.take(64).mapNotNull { it.sanitized(depth + 1, ids) }, columns = columns.coerceIn(1, 6), rows = rows?.coerceIn(1, 6))
         is ToolbarNode.Spacer -> copy(sizeDp = sizeDp.coerceIn(1, 256))
@@ -69,6 +77,7 @@ fun ToolbarNode.flattenItems(out: MutableList<ToolbarItem> = ArrayList()): List<
     when (this) {
         is ToolbarNode.Tool -> out += item
         is ToolbarNode.ColorPalette -> out += ToolbarItem.COLORS
+        is ToolbarNode.UnifiedPen -> out += ToolbarItem.PEN
         is ToolbarNode.Group -> if (expanded) children.forEach { it.flattenItems(out) }
         is ToolbarNode.Grid -> children.forEach { it.flattenItems(out) }
         is ToolbarNode.Spacer, is ToolbarNode.Separator -> Unit
@@ -82,6 +91,8 @@ fun toolbarNodesFromLayout(layout: ToolbarLayout): List<ToolbarNode> = layout.se
         children = section.entries.mapIndexed { entryIndex, entry ->
             if (entry.item == ToolbarItem.COLORS) {
                 ToolbarNode.ColorPalette("section-$sectionIndex-colors-$entryIndex", visible = entry.visible)
+            } else if (entry.item == ToolbarItem.PEN) {
+                ToolbarNode.UnifiedPen("section-$sectionIndex-pen-$entryIndex", visible = entry.visible)
             } else {
                 ToolbarNode.Tool("section-$sectionIndex-${entry.item.id}-$entryIndex", entry.item, entry.visible)
             }

@@ -167,6 +167,9 @@ internal object ToolbarWorkspaceJson {
                     .put("hitbox_dp", node.hitboxDp).put("spacing_dp", node.spacingDp).put("priority", node.priority)
             }
             is com.xnotes.core.tools.ToolbarNode.ColorPalette -> put("type", "colors").put("count", node.count).put("columns", node.columns)
+            is com.xnotes.core.tools.ToolbarNode.UnifiedPen -> put("type", "unified_pen")
+                .put("styles", JSONArray().apply { node.styles.forEach { put(it.id) } })
+                .put("last_style", node.lastStyle?.id)
             is com.xnotes.core.tools.ToolbarNode.Group -> {
                 put("type", "group").put("collapsible", node.collapsible).put("expanded", node.expanded)
                 put("children", JSONArray().apply { node.children.forEach { put(writeNode(it)) } })
@@ -198,6 +201,13 @@ internal object ToolbarWorkspaceJson {
         return when (type) {
             "tool" -> com.xnotes.core.tools.ToolbarNode.Tool(id, ToolbarItem.fromId(raw.optString("item")) ?: return null, visible, raw.optInt("visual_dp").takeIf { raw.has("visual_dp") }, raw.optInt("hitbox_dp").takeIf { raw.has("hitbox_dp") }, raw.optInt("spacing_dp", 0), raw.optInt("priority", 0))
             "colors" -> com.xnotes.core.tools.ToolbarNode.ColorPalette(id, raw.optInt("count").takeIf { raw.has("count") }, raw.optInt("columns", 1), visible)
+            "unified_pen" -> com.xnotes.core.tools.ToolbarNode.UnifiedPen(
+                id,
+                raw.optJSONArray("styles")?.let { array -> (0 until minOf(array.length(), 8)).mapNotNull { com.xnotes.core.tools.Tool.fromId(array.optString(it)) }.filter { it.isStroke } }
+                    .takeIf { !it.isNullOrEmpty() } ?: listOf(com.xnotes.core.tools.Tool.PEN),
+                com.xnotes.core.tools.Tool.fromId(raw.optString("last_style"))?.takeIf { it.isStroke },
+                visible,
+            )
             "group" -> com.xnotes.core.tools.ToolbarNode.Group(id, children(), raw.optBoolean("collapsible", false), raw.optBoolean("expanded", true), visible)
             "grid" -> com.xnotes.core.tools.ToolbarNode.Grid(id, children(), raw.optInt("columns", 2), raw.optInt("rows").takeIf { raw.has("rows") }, visible)
             "spacer" -> com.xnotes.core.tools.ToolbarNode.Spacer(id, raw.optInt("size_dp", 8), visible)

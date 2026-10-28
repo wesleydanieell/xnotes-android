@@ -197,5 +197,12 @@ class ToolbarWorkspaceJsonTest {
         ))
         val sanitized = tooDeep.sanitized()
         assertTrue((sanitized as ToolbarNode.Group).flattenItems().isEmpty())
+        val penTree = listOf<ToolbarNode>(ToolbarNode.UnifiedPen("unified"))
+        val penProfiles = ToolbarWorkspaces.fromLegacy(ToolbarLayout.DEFAULT, ToolbarLayout.CANVAS_DEFAULT)
+            .copy(note = ToolbarWorkspace(listOf(ToolbarBar("primary", "Primary", ToolbarLayout.DEFAULT, nodes = penTree))))
+        val penRestored = Settings.fromJson(Settings(toolbarWorkspaces = penProfiles).toJson()).toolbarWorkspaces!!
+            .note.bars.single().nodes!!
+        assertEquals(ToolbarItem.PEN, penRestored.single().flattenItems().single())
+        assertTrue(penRestored.single() is ToolbarNode.UnifiedPen)
     }
 }
