@@ -407,6 +407,12 @@ usuário encontradas no worktree e não invente sucesso nem background jobs.
   não alcançou o configurador nesta rodada, portanto o handle não foi marcado
   como validado visualmente. Nenhum dado foi limpo.
 
+- 28/10/2026: commit 501fd0ba adiciona `Restore hidden (N)` ao configurador,
+  reexibindo barras ocultas no perfil ativo sem apagar o perfil canvas quando
+  `Shared` está ligado. `testDebugUnitTest`, assembleDebug e install -r
+  passaram no emulator-5554; teste visual do fluxo de recuperação permanece
+  pendente.
+
 - 28/10/2026: QA ADB no emulator-5554 abriu `Preferences > Configure toolbars`
   e confirmou a prévia com overflow explícito (`+28`), os perfis `xnote`,
   `xcanvas` e `Shared`, além dos botões `Undo`, `Redo`, `Cancel` e `Apply`.
