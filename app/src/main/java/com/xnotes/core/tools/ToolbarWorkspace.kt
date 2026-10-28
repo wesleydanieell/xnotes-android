@@ -80,6 +80,17 @@ data class ToolbarBar(
         val items = tree.flatMap { it.flattenItems() }.distinct()
         return ToolbarLayout(listOf(ToolbarSection(items.map { ToolbarEntry(it) })))
     }
+
+    fun effectiveColumns(): Int {
+        fun find(nodes: List<ToolbarNode>): Int? = nodes.firstNotNullOfOrNull { node ->
+            when (node) {
+                is ToolbarNode.Grid -> node.columns
+                is ToolbarNode.Group -> find(node.children)
+                else -> null
+            }
+        }
+        return (nodes?.let(::find) ?: geometry.columns).coerceIn(1, 6)
+    }
 }
 
 /**

@@ -204,5 +204,11 @@ class ToolbarWorkspaceJsonTest {
             .note.bars.single().nodes!!
         assertEquals(ToolbarItem.PEN, penRestored.single().flattenItems().single())
         assertTrue(penRestored.single() is ToolbarNode.UnifiedPen)
+        val gridBar = ToolbarBar(
+            "grid", "Grid", ToolbarLayout.DEFAULT,
+            geometry = ToolbarGeometry(columns = 1),
+            nodes = listOf(ToolbarNode.Group("g", listOf(ToolbarNode.Grid("grid-node", emptyList(), columns = 3)))),
+        )
+        assertEquals(3, gridBar.effectiveColumns())
     }
 }

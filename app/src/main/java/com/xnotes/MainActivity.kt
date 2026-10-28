@@ -1481,7 +1481,7 @@ private fun EditorPane(
                 val primary = app.toolbarWorkspaces.forContext(ToolbarContext.CANVAS).bars.firstOrNull()
                 val bareBar: @Composable () -> Unit = {
                     CompositionLocalProvider(
-                        LocalToolbarGeometry provides primary?.geometry,
+                        LocalToolbarGeometry provides primary?.let { it.geometry.copy(columns = it.effectiveColumns()) },
                         LocalToolbarColorCount provides primary?.colorCount,
                     ) {
                         com.xnotes.ui.InfiniteToolbar(
@@ -1549,7 +1549,7 @@ private fun EditorPane(
                 val primary = app.toolbarWorkspaces.forContext(ToolbarContext.NOTE).bars.firstOrNull()
                 val bareBar: @Composable () -> Unit = {
                                     CompositionLocalProvider(
-                                        LocalToolbarGeometry provides primary?.geometry,
+                                        LocalToolbarGeometry provides primary?.let { it.geometry.copy(columns = it.effectiveColumns()) },
                                         LocalToolbarColorCount provides primary?.colorCount,
                                     ) {
                         Box(Modifier.endsPageSelection(editor)) { Toolbar(
