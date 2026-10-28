@@ -20,6 +20,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.AbsoluteAlignment
 import androidx.compose.ui.Alignment
@@ -33,10 +34,12 @@ import androidx.compose.ui.layout.boundsInRoot
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.platform.LocalDensity
 import com.xnotes.core.tools.ToolbarAnchor
 import com.xnotes.core.tools.ToolbarBar
 import com.xnotes.core.tools.ToolbarScale
 import com.xnotes.core.tools.ToolbarWorkspace
+import com.xnotes.core.tools.resizeToolbarGeometry
 import com.xnotes.core.tools.toolbarAnchorRegions
 import com.xnotes.core.tools.toolbarDropTarget
 import com.xnotes.core.tools.toolbarStackBarLimit
@@ -57,13 +60,17 @@ fun ToolbarDragSurface(
     movable: Boolean,
     paneBounds: Rect,
     onMoveBar: (String, ToolbarAnchor) -> Unit,
+    resizing: Boolean = false,
+    onResize: (String, Offset) -> Unit = { _, _ -> },
     onLongPress: () -> Unit = {},
     content: @Composable () -> Unit,
 ) {
+    val density = LocalDensity.current.density
+    val currentOnResize by rememberUpdatedState(onResize)
     var drag by remember(id) { mutableStateOf(Offset.Zero) }
     var barBounds by remember(id) { mutableStateOf(Rect.Zero) }
     var dragStart by remember(id) { mutableStateOf(Offset.Zero) }
-    val gesture = Modifier.pointerInput(id, anchor, paneBounds, movable) {
+    val gesture = Modifier.pointerInput(id, anchor, paneBounds, movable, resizing) {
         awaitEachGesture {
             val down = awaitFirstDown(requireUnconsumed = false)
             val held = awaitLongPressOrCancellation(down.id) ?: return@awaitEachGesture
@@ -87,7 +94,9 @@ fun ToolbarDragSurface(
                     change.consume()
                 }
                 val moved = drag
-                if (movable && released && moved.getDistance() >= 12f && barBounds != Rect.Zero && paneBounds != Rect.Zero) {
+                if (resizing && released && moved.getDistance() >= 12f) {
+                    currentOnResize(id, Offset(moved.x / density, moved.y / density))
+                } else if (movable && released && moved.getDistance() >= 12f && barBounds != Rect.Zero && paneBounds != Rect.Zero) {
                     val drop = barBounds.topLeft + dragStart + moved - paneBounds.topLeft
                     toolbarDropTarget(drop.x, drop.y, paneBounds.width, paneBounds.height)?.let {
                         onMoveBar(id, it)
@@ -122,6 +131,7 @@ fun BoxScope.WorkspaceFloatingBars(
 ) {
     var paneBounds by remember { mutableStateOf(Rect.Zero) }
     var contextBarId by remember { mutableStateOf<String?>(null) }
+    var resizeBarId by remember { mutableStateOf<String?>(null) }
     BoxWithConstraints(Modifier.fillMaxSize().onGloballyPositioned { paneBounds = it.boundsInRoot() }) {
         val activeAnchors = workspace.bars.withIndex().filter { (index, bar) ->
             bar.visible && (index > 0 || bar.geometry.floating)
@@ -158,9 +168,15 @@ fun BoxScope.WorkspaceFloatingBars(
                                 ToolbarDragSurface(
                                     id = bar.id,
                                     anchor = anchor,
-                                    movable = bar.geometry.movable,
+                                    movable = bar.geometry.movable && resizeBarId != bar.id,
+                                    resizing = resizeBarId == bar.id,
                                     paneBounds = paneBounds,
                                     onMoveBar = onMoveBar,
+                                    onResize = { id, delta ->
+                                        if (id == bar.id) {
+                                            onUpdateBar(bar.copy(geometry = resizeToolbarGeometry(bar.geometry, delta.x, delta.y)))
+                                        }
+                                    },
                                     onLongPress = { contextBarId = bar.id },
                                 ) {
                                     CompositionLocalProvider(
@@ -183,9 +199,19 @@ fun BoxScope.WorkspaceFloatingBars(
                                         text = { Text(if (bar.geometry.movable) "Lock" else "Unlock") },
                                         onClick = {
                                             contextBarId = null
+                                            if (resizeBarId == bar.id) resizeBarId = null
                                             onUpdateBar(bar.copy(geometry = bar.geometry.copy(movable = !bar.geometry.movable)))
                                         },
                                     )
+                                    if (bar.geometry.movable) {
+                                        DropdownMenuItem(
+                                            text = { Text(if (resizeBarId == bar.id) "Finish resize" else "Resize") },
+                                            onClick = {
+                                                contextBarId = null
+                                                resizeBarId = if (resizeBarId == bar.id) null else bar.id
+                                            },
+                                        )
+                                    }
                                     DropdownMenuItem(
                                         text = { Text("Duplicate") },
                                         onClick = { contextBarId = null; onDuplicateBar(bar) },
