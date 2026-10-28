@@ -524,6 +524,15 @@ usuário encontradas no worktree e não invente sucesso nem background jobs.
   popup de acesso aos itens excedentes; portanto a garantia final de nenhuma
   ação inacessível continua pendente para uma etapa posterior de overflow.
 
+- 28/10/2026: commit 3cb419b5 corrige a projeção compartilhada de árvores v3:
+  `onlyItems()` agora filtra recursivamente `Tool`, `ColorPalette` e
+  `UnifiedPen` por contexto, sem modificar o perfil persistido que ficou
+  oculto. O teste JVM cobre note→canvas com `PAGE_NAV`/`WAYPOINTS` e confirma
+  a preservação do perfil original. `git diff --check` e o gate completo
+  `ANDROID_HOME=/home/wesley/Android/Sdk ./gradlew :app:testDebugUnitTest
+  :app:assembleDebug --console=plain` passaram. ADB segue sem dispositivo
+  online nesta sessão.
+
 ## Próxima ação (uma por vez)
 
 Validar no ADB a grade 3×2 de cores, a persistência após reinício e a matriz de
