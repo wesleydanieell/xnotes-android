@@ -130,6 +130,24 @@ encaixável sobre uma nota:
 
 Screenshot revisado: `app/build/qa/m1-nav2.png`.
 
+### Correção de composição e interação
+
+Também foram corrigidos os problemas apontados na revisão seguinte:
+
+- widgets reduzidos para uma escala mais próxima da barra vista dentro da nota;
+- itens adicionados passam a aparecer em uma faixa de slots reais abaixo da composição;
+- catálogo passou a mostrar ícones do sistema para ferramentas e ícones próprios para grupo, grid,
+  separador e espaçador;
+- toque longo com arraste horizontal reordena slots adjacentes;
+- propriedades da barra permitem editar nome, padding e gap no rascunho;
+- item selecionado pode ser removido pelo painel de propriedades;
+- `+ Barra` cria e seleciona uma nova barra; barras secundárias são empilhadas com espaçamento no
+  preview para não se esconderem.
+
+Essas alterações ainda são estado local do protótipo M1. A identidade persistente das instâncias,
+destinos de drop por célula, undo/redo e Aplicar/Cancelar transacional continuam sendo escopo do
+M2/M4/M5.
+
 ### Próxima ação — M2
 
 Extrair o modelo puro de composição e o layout resolver determinístico: Row/Column/Grid, slots,

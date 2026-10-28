@@ -4,6 +4,7 @@ import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.detectDragGesturesAfterLongPress
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -23,6 +24,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.Slider
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -36,8 +38,12 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.res.vectorResource
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.xnotes.R
 import com.xnotes.core.tools.ToolbarItem
 import com.xnotes.ui.icons.XnotesIcons
 import com.xnotes.ui.theme.LocalPalette
@@ -59,6 +65,7 @@ fun ToolbarHudScreen(
     var profile by remember { mutableStateOf("xnote") }
     var selectedBar by remember { mutableStateOf(0) }
     var selectedItem by remember { mutableStateOf<String?>(null) }
+    var draggedItem by remember { mutableStateOf<String?>(null) }
     var filter by remember { mutableStateOf("") }
     val bars = remember {
         mutableStateListOf(
@@ -70,7 +77,7 @@ fun ToolbarHudScreen(
         listOf(
             "pen" to "Caneta", "colors" to "Cores", "eraser" to "Borracha", "select" to "Selecionar",
             "shape" to "Forma", "text" to "Texto", "image" to "Imagem", "undo" to "Desfazer",
-            "redo" to "Refazer", "spacer" to "Espaçador", "divider" to "Separador",
+            "redo" to "Refazer", "group" to "Grupo", "grid" to "Grid 2×2", "spacer" to "Espaçador", "divider" to "Separador",
         )
     }
     val filteredCatalog = catalog.filter { (id, label) ->
@@ -82,6 +89,11 @@ fun ToolbarHudScreen(
         HudTopBar(
             profile = profile,
             onProfile = { profile = if (profile == "xnote") "xcanvas" else "xnote" },
+            onAddBar = {
+                bars.add(HudBar("Barra ${bars.size + 1}", mutableListOf("pen", "colors")))
+                selectedBar = bars.lastIndex
+                selectedItem = null
+            },
             onClose = onClose,
         )
         Row(Modifier.weight(1f).fillMaxWidth()) {
@@ -106,6 +118,14 @@ fun ToolbarHudScreen(
                 selectedItem = selectedItem,
                 onSelectBar = { selectedBar = it; selectedItem = null },
                 onSelectItem = { selectedItem = it },
+                onMoveItem = { from, to ->
+                    val items = bars[selectedBar].items.toMutableList()
+                    if (from in items.indices && to in items.indices && from != to) {
+                        items.add(to, items.removeAt(from))
+                        bars[selectedBar] = bars[selectedBar].copy(items = items)
+                    }
+                },
+                onDragItem = { draggedItem = it },
                 modifier = Modifier.weight(1f).fillMaxHeight(),
             )
 
@@ -113,6 +133,13 @@ fun ToolbarHudScreen(
                 HudProperties(
                     bar = bars[selectedBar],
                     selectedItem = selectedItem,
+                    onChangeBar = { bars[selectedBar] = it },
+                    onRemoveItem = { item ->
+                        val items = bars[selectedBar].items.toMutableList()
+                        items.remove(item)
+                        bars[selectedBar] = bars[selectedBar].copy(items = items)
+                        selectedItem = null
+                    },
                     onCollapse = { propertiesOpen = false },
                 )
             } else {
@@ -122,10 +149,15 @@ fun ToolbarHudScreen(
     }
 }
 
-private data class HudBar(val name: String, val items: MutableList<String>)
+private data class HudBar(
+    val name: String,
+    val items: MutableList<String>,
+    val paddingDp: Float = 8f,
+    val gapDp: Float = 6f,
+)
 
 @Composable
-private fun HudTopBar(profile: String, onProfile: () -> Unit, onClose: () -> Unit) {
+private fun HudTopBar(profile: String, onProfile: () -> Unit, onAddBar: () -> Unit, onClose: () -> Unit) {
     val palette = LocalPalette.current
     Row(
         Modifier.fillMaxWidth().background(palette.panel.toComposeColor()).padding(horizontal = 10.dp, vertical = 8.dp),
@@ -139,6 +171,7 @@ private fun HudTopBar(profile: String, onProfile: () -> Unit, onClose: () -> Uni
         Spacer(Modifier.weight(1f))
         HudIconButton(XnotesIcons.undo, "Desfazer", onClick = {})
         HudIconButton(XnotesIcons.redo, "Refazer", onClick = {})
+        TextButton(onClick = onAddBar) { Text("+ Barra") }
         TextButton(onClick = onClose) { Text("Cancelar") }
         TextButton(onClick = onClose) { Text("Aplicar") }
     }
@@ -190,6 +223,8 @@ private fun HudViewport(
     selectedItem: String?,
     onSelectBar: (Int) -> Unit,
     onSelectItem: (String) -> Unit,
+    onMoveItem: (Int, Int) -> Unit,
+    onDragItem: (String?) -> Unit,
     modifier: Modifier,
 ) {
     val palette = LocalPalette.current
@@ -228,8 +263,10 @@ private fun HudViewport(
                     selectedItem = selectedItem,
                     onSelectBar = { onSelectBar(index) },
                     onSelectItem = onSelectItem,
+                    onMoveItem = onMoveItem,
+                    onDragItem = onDragItem,
                     modifier = if (index == 0) Modifier.align(Alignment.TopCenter).padding(top = 34.dp)
-                    else Modifier.align(Alignment.BottomStart).padding(start = 28.dp, bottom = 34.dp),
+                    else Modifier.align(Alignment.BottomStart).padding(start = 28.dp, bottom = (34 + (index - 1) * 74).dp),
                 )
             }
         }
@@ -244,34 +281,83 @@ private fun HudComposedBar(
     selectedItem: String?,
     onSelectBar: () -> Unit,
     onSelectItem: (String) -> Unit,
+    onMoveItem: (Int, Int) -> Unit,
+    onDragItem: (String?) -> Unit,
     modifier: Modifier,
 ) {
     val palette = LocalPalette.current
-    Row(
-        modifier.clip(RoundedCornerShape(14.dp)).background(palette.panel.toComposeColor().copy(alpha = 0.97f))
+    Box(
+        modifier.clip(RoundedCornerShape(12.dp)).background(palette.panel.toComposeColor().copy(alpha = 0.97f))
             .border(2.dp, if (selected) palette.accent.toComposeColor() else palette.border.toComposeColor(), RoundedCornerShape(14.dp))
-            .clickable(onClick = onSelectBar).padding(8.dp),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(6.dp),
+            .clickable(onClick = onSelectBar).padding(bar.paddingDp.dp),
     ) {
-        HudWidgetCell("↤", "Principal", selected && selectedItem == "home", onClick = { onSelectItem("home") }, tall = true)
-        HudColorGrid(selected && selectedItem == "colors", onClick = { onSelectItem("colors") })
-        HudDivider()
-        HudToolGrid(selected && selectedItem == "tools", onClick = { onSelectItem("tools") })
-        HudWidgetCell("↶", "Desfazer", selected && selectedItem == "undo", onClick = { onSelectItem("undo") }, tall = true)
-        HudWidgetCell("↷", "Refazer", selected && selectedItem == "redo", onClick = { onSelectItem("redo") }, tall = true)
-        if (bar.items.size > 8) HudWidgetCell("+${bar.items.size - 8}", "Mais", selected && selectedItem == "more", onClick = { onSelectItem("more") })
+        Column(verticalArrangement = Arrangement.spacedBy(3.dp)) {
+            Text(bar.name, color = palette.textDim.toComposeColor(), fontSize = 8.sp, modifier = Modifier.padding(start = 2.dp))
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(bar.gapDp.dp)) {
+                HudWidgetCell("↤", "Principal", selected && selectedItem == "home", onClick = { onSelectItem("home") }, tall = true)
+                HudColorGrid(selected && selectedItem == "colors", onClick = { onSelectItem("colors") })
+                HudDivider()
+                HudToolGrid(selected && selectedItem == "tools", onClick = { onSelectItem("tools") })
+                HudWidgetCell("↶", "Desfazer", selected && selectedItem == "undo", onClick = { onSelectItem("undo") }, tall = true)
+                HudWidgetCell("↷", "Refazer", selected && selectedItem == "redo", onClick = { onSelectItem("redo") }, tall = true)
+                if (bar.items.size > 8) HudWidgetCell("+${bar.items.size - 8}", "Mais", selected && selectedItem == "more", onClick = { onSelectItem("more") })
+            }
+            Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(3.dp)) {
+                bar.items.forEachIndexed { index, item ->
+                    HudActualSlot(
+                        item = item,
+                        selected = selected && selectedItem == item,
+                        onClick = { onSelectItem(item) },
+                        onMove = { delta -> onMoveItem(index, (index + delta).coerceIn(0, bar.items.lastIndex)) },
+                        onDrag = onDragItem,
+                    )
+                }
+            }
+        }
     }
+}
+
+@Composable
+private fun HudActualSlot(
+    item: String,
+    selected: Boolean,
+    onClick: () -> Unit,
+    onMove: (Int) -> Unit,
+    onDrag: (String?) -> Unit,
+) {
+    var totalDrag by remember(item) { mutableStateOf(0f) }
+    HudItemIcon(
+        id = item,
+        selected = selected,
+        onClick = onClick,
+        modifier = Modifier.pointerInput(item) {
+            detectDragGesturesAfterLongPress(
+                onDragStart = { totalDrag = 0f; onDrag(item) },
+                onDragCancel = { totalDrag = 0f; onDrag(null) },
+                onDragEnd = {
+                    val direction = when {
+                        totalDrag > 24f -> 1
+                        totalDrag < -24f -> -1
+                        else -> 0
+                    }
+                    if (direction != 0) onMove(direction)
+                    totalDrag = 0f
+                    onDrag(null)
+                },
+                onDrag = { change, amount -> change.consume(); totalDrag += amount.x },
+            )
+        },
+    )
 }
 
 @Composable
 private fun HudColorGrid(selected: Boolean, onClick: () -> Unit) {
     val colors = listOf(Color(0xffe45756), Color(0xffffb627), Color(0xff5bc0eb), Color(0xff6cc551), Color(0xff9b5de5), Color(0xfff15bb5), Color(0xff00bbf9), Color(0xff555b6e))
-    Column(Modifier.clip(RoundedCornerShape(8.dp)).clickable(onClick = onClick).padding(3.dp), verticalArrangement = Arrangement.spacedBy(3.dp)) {
+    Column(Modifier.clip(RoundedCornerShape(8.dp)).clickable(onClick = onClick).padding(2.dp), verticalArrangement = Arrangement.spacedBy(2.dp)) {
         colors.chunked(4).forEach { row ->
-            Row(horizontalArrangement = Arrangement.spacedBy(3.dp)) {
+            Row(horizontalArrangement = Arrangement.spacedBy(2.dp)) {
                 row.forEach { color ->
-                    Box(Modifier.size(19.dp).clip(RoundedCornerShape(5.dp)).background(color).then(if (selected) Modifier.border(2.dp, Color.White, RoundedCornerShape(5.dp)) else Modifier))
+                    Box(Modifier.size(15.dp).clip(RoundedCornerShape(4.dp)).background(color).then(if (selected) Modifier.border(1.dp, Color.White, RoundedCornerShape(4.dp)) else Modifier))
                 }
             }
         }
@@ -280,31 +366,31 @@ private fun HudColorGrid(selected: Boolean, onClick: () -> Unit) {
 
 @Composable
 private fun HudToolGrid(selected: Boolean, onClick: () -> Unit) {
-    Column(Modifier.clip(RoundedCornerShape(8.dp)).clickable(onClick = onClick).padding(3.dp), verticalArrangement = Arrangement.spacedBy(3.dp)) {
-        Row(horizontalArrangement = Arrangement.spacedBy(3.dp)) { HudWidgetCell("✎", "Caneta", selected, onClick); HudWidgetCell("⌁", "Forma", selected, onClick) }
-        Row(horizontalArrangement = Arrangement.spacedBy(3.dp)) { HudWidgetCell("T", "Texto", selected, onClick); HudWidgetCell("⌖", "Selecionar", selected, onClick) }
+    Column(Modifier.clip(RoundedCornerShape(8.dp)).clickable(onClick = onClick).padding(2.dp), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+        Row(horizontalArrangement = Arrangement.spacedBy(2.dp)) { HudWidgetCell("✎", "Caneta", selected, onClick); HudWidgetCell("⌁", "Forma", selected, onClick) }
+        Row(horizontalArrangement = Arrangement.spacedBy(2.dp)) { HudWidgetCell("T", "Texto", selected, onClick); HudWidgetCell("⌖", "Selecionar", selected, onClick) }
     }
 }
 
 @Composable
 private fun HudDivider() {
     val palette = LocalPalette.current
-    Box(Modifier.width(1.dp).height(56.dp).background(palette.border.toComposeColor()))
+    Box(Modifier.width(1.dp).height(42.dp).background(palette.border.toComposeColor()))
 }
 
 @Composable
 private fun HudWidgetCell(symbol: String, label: String, selected: Boolean, onClick: () -> Unit, tall: Boolean = false) {
     val palette = LocalPalette.current
     Box(
-        Modifier.width(if (tall) 48.dp else 34.dp).height(if (tall) 56.dp else 25.dp)
-            .clip(RoundedCornerShape(6.dp)).background(if (selected) palette.selectionBackground.toComposeColor() else palette.surface.toComposeColor())
+        Modifier.width(if (tall) 38.dp else 27.dp).height(if (tall) 42.dp else 21.dp)
+            .clip(RoundedCornerShape(5.dp)).background(if (selected) palette.selectionBackground.toComposeColor() else palette.surface.toComposeColor())
             .border(1.dp, if (selected) palette.accent.toComposeColor() else palette.border.toComposeColor(), RoundedCornerShape(6.dp))
             .clickable(onClick = onClick),
         contentAlignment = Alignment.Center,
     ) {
         Column(horizontalAlignment = Alignment.CenterHorizontally) {
-            Text(symbol, color = palette.text.toComposeColor(), fontSize = if (tall) 18.sp else 13.sp)
-            if (tall) Text(label.take(7), color = palette.textDim.toComposeColor(), fontSize = 7.sp)
+            Text(symbol, color = palette.text.toComposeColor(), fontSize = if (tall) 14.sp else 10.sp)
+            if (tall) Text(label.take(7), color = palette.textDim.toComposeColor(), fontSize = 6.sp)
         }
     }
 }
@@ -327,13 +413,19 @@ private fun HudBarPreview(
     ) {
         Text(bar.name, color = palette.textDim.toComposeColor(), fontSize = 11.sp, modifier = Modifier.padding(horizontal = 4.dp))
         bar.items.forEach { item ->
-            HudItemIcon(item, selected = selected && selectedItem == item) { onSelectItem(item) }
+            HudItemIcon(item, selected = selected && selectedItem == item, onClick = { onSelectItem(item) })
         }
     }
 }
 
 @Composable
-private fun HudProperties(bar: HudBar, selectedItem: String?, onCollapse: () -> Unit) {
+private fun HudProperties(
+    bar: HudBar,
+    selectedItem: String?,
+    onChangeBar: (HudBar) -> Unit,
+    onRemoveItem: (String) -> Unit,
+    onCollapse: () -> Unit,
+) {
     val palette = LocalPalette.current
     Column(
         Modifier.width(240.dp).fillMaxHeight().background(palette.panel.toComposeColor()).padding(10.dp),
@@ -341,12 +433,35 @@ private fun HudProperties(bar: HudBar, selectedItem: String?, onCollapse: () -> 
     ) {
         HudPanelTitle("Propriedades", XnotesIcons.sliders, onCollapse)
         Text(if (selectedItem == null) "Barra" else "Instância: $selectedItem", color = palette.text.toComposeColor(), fontSize = 15.sp)
-        HudProperty("Nome", if (selectedItem == null) bar.name else selectedItem)
-        HudProperty("Layout", "Row · encaixe automático")
-        HudProperty("Padding", "8 dp")
-        HudProperty("Gap", "6 dp")
-        HudProperty("Aparência", "Regular · bordas arredondadas")
-        Text("As propriedades exibidas são apenas protótipo M1; ainda não persistem alterações.", color = palette.textDim.toComposeColor(), fontSize = 12.sp)
+        if (selectedItem == null) {
+            OutlinedTextField(
+                value = bar.name,
+                onValueChange = { onChangeBar(bar.copy(name = it.take(32))) },
+                label = { Text("Nome") },
+                singleLine = true,
+                modifier = Modifier.fillMaxWidth(),
+            )
+            Text("Padding · ${bar.paddingDp.toInt()} dp", color = palette.textDim.toComposeColor(), fontSize = 12.sp)
+            Slider(
+                value = bar.paddingDp,
+                onValueChange = { onChangeBar(bar.copy(paddingDp = it)) },
+                valueRange = 0f..24f,
+            )
+            Text("Gap · ${bar.gapDp.toInt()} dp", color = palette.textDim.toComposeColor(), fontSize = 12.sp)
+            Slider(
+                value = bar.gapDp,
+                onValueChange = { onChangeBar(bar.copy(gapDp = it)) },
+                valueRange = 0f..20f,
+            )
+            HudProperty("Layout", "Row · encaixe automático")
+            HudProperty("Aparência", "Regular · bordas arredondadas")
+            Text("Estas alterações são do rascunho visual; persistência e Aplicar entram no motor M2/M5.", color = palette.textDim.toComposeColor(), fontSize = 12.sp)
+        } else {
+            HudProperty("Tipo", selectedItem)
+            HudProperty("Instância", "ID independente · seleção contextual")
+            TextButton(onClick = { onRemoveItem(selectedItem) }) { Text("Remover da barra") }
+            Text("Selecione a barra para editar seu nome e espaçamento.", color = palette.textDim.toComposeColor(), fontSize = 12.sp)
+        }
     }
 }
 
@@ -406,16 +521,45 @@ private fun HudChip(label: String, selected: Boolean, onClick: () -> Unit) {
 }
 
 @Composable
-private fun HudItemIcon(id: String, selected: Boolean, onClick: () -> Unit = {}) {
+private fun HudItemIcon(
+    id: String,
+    selected: Boolean,
+    onClick: () -> Unit = {},
+    modifier: Modifier = Modifier,
+) {
     val palette = LocalPalette.current
     val label = id.replace('_', ' ').replaceFirstChar { it.uppercase() }
     Box(
-        Modifier.size(42.dp).clip(MaterialTheme.shapes.small)
+        modifier.size(42.dp).clip(MaterialTheme.shapes.small)
             .background(if (selected) palette.selectionBackground.toComposeColor() else palette.surface.toComposeColor())
             .border(1.dp, if (selected) palette.accent.toComposeColor() else palette.border.toComposeColor(), MaterialTheme.shapes.small)
             .clickable(onClick = onClick),
         contentAlignment = Alignment.Center,
     ) {
-        Text(label.take(3), color = if (selected) palette.selectionForeground.toComposeColor() else palette.text.toComposeColor(), fontSize = 11.sp)
+        val image = hudItemIcon(id)
+        if (image != null) {
+            Icon(image, label, Modifier.size(20.dp), tint = if (selected) palette.selectionForeground.toComposeColor() else palette.text.toComposeColor())
+        } else {
+            Text(label.take(3), color = if (selected) palette.selectionForeground.toComposeColor() else palette.text.toComposeColor(), fontSize = 11.sp)
+        }
     }
+}
+
+@Composable
+private fun hudItemIcon(id: String): ImageVector? = when (id) {
+    "pen" -> ImageVector.vectorResource(R.drawable.ic_stroke_regular)
+    "colors" -> XnotesIcons.palette
+    "eraser" -> XnotesIcons.eraser
+    "select" -> XnotesIcons.select
+    "shape" -> XnotesIcons.shape
+    "text" -> XnotesIcons.text
+    "image" -> XnotesIcons.image
+    "undo" -> XnotesIcons.undo
+    "redo" -> XnotesIcons.redo
+    "tape" -> XnotesIcons.tape
+    "group" -> XnotesIcons.layers
+    "grid" -> XnotesIcons.layoutGrid
+    "divider" -> XnotesIcons.minus
+    "spacer" -> XnotesIcons.more
+    else -> null
 }
