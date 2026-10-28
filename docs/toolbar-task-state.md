@@ -222,14 +222,30 @@ usuário encontradas no worktree e não invente sucesso nem background jobs.
   demais âncoras e gestos continuam pendentes. Canvas multi-barra, 9 âncoras,
   split e teste físico com stylus não foram validados nesta rodada.
 
+- 28/10/2026: commit af83f40d isola a aparência efetiva da barra primária por
+  contexto. `ToolbarLook` agora é projetado da geometria primária da nota/canvas
+  dentro de cada pane; mover a barra do canvas não altera mais a preferência
+  legada global nem reposiciona implicitamente a nota. `moveToolbarBar` mantém a
+  operação no workspace escolhido. Testes JVM cobrem fallback legado,
+  posição/tamanho/float por geometria e âncoras de canto. `ANDROID_HOME=/home/wesley/Android/Sdk ./gradlew :app:testDebugUnitTest`
+  passou; `git diff --check`, assembleDebug e install -r no emulator-5554
+  passaram. Activity reiniciada e captura `/tmp/xnotes-toolbar-dimensions.png`
+  feita sem crash. Ainda não há teste instrumentado de split/contexto.
+
+- 28/10/2026: commit 20a4be4d adiciona `ToolbarGeometryResolver` puro para
+  dimensões manuais opcionais, preservando auto/wrap-content e limitando valores
+  a 48..2048 dp. O frame real recebe a geometria primária/extra e a prévia usa
+  o mesmo resolvedor. `ANDROID_HOME=/home/wesley/Android/Sdk ./gradlew :app:testDebugUnitTest :app:assembleDebug --console=plain`
+  passou (50 tasks, 10 executadas, 40 up-to-date), `git diff --check` passou e
+  install -r no emulator-5554 retornou Success. Não marcar M4: aparência,
+  edição de dimensões na UI, snapshots instrumentados e comparação visual ainda
+  faltam.
+
 ## Próxima ação (uma por vez)
 
-Validar regiões e overflow em preview, canvas com múltiplas barras, telas
-pequenas e acessibilidade; testar outras
-ferramentas e barras secundárias após a mudança de prioridade do
-gesto; investigar colisões entre âncoras e controles do canvas,
-com testes para regiões centrais e bordas. Continuar os testes de gestos e
-docks da barra principal e secundárias no emulador; reservar pressão, hover,
-latência e primeiro traço com stylus para o Redmi Pad 2.
-Inspecionar a tela de preview no emulador, testar a grade 3×3 e comparar
-com a barra real. Usar o playbook ADB e documentar evidências.
+Implementar modelo/persistência de aparência por barra (fundo/alfa/borda/raio/
+padding com fallback de blur) e expor controles no editor; depois criar rascunho
+com undo/redo/cancelar/aplicar. Em paralelo, usar o preview no emulador para
+validar grade 3×3, dimensões manuais e comparação com a barra real. Continuar
+matriz de gestos/docks/overflow no canvas e reservar pressão, hover, latência e
+primeiro traço para o Redmi Pad 2.
