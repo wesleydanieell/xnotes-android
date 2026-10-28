@@ -430,6 +430,12 @@ usuário encontradas no worktree e não invente sucesso nem background jobs.
   install -r e `connectedDebugAndroidTest` passaram no emulator-5554. Grids
   mistos e validação visual específica do auto-fit continuam pendentes.
 
+- 28/10/2026: commit a6781832 conecta a composição v3 ao editor com uma lista
+  `Composition nodes`; cada nó de primeiro nível mostra tipo/ID e pode subir ou
+  descer preservando a árvore e o histórico de rascunho. `testDebugUnitTest`,
+  assembleDebug e install -r passaram no emulator-5554. Reordenação aninhada,
+  drag/drop visual entre grupos e QA da tela ainda pendentes.
+
 - 28/10/2026: QA ADB no emulator-5554 abriu `Preferences > Configure toolbars`
   e confirmou a prévia com overflow explícito (`+28`), os perfis `xnote`,
   `xcanvas` e `Shared`, além dos botões `Undo`, `Redo`, `Cancel` e `Apply`.
