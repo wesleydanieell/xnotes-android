@@ -571,6 +571,15 @@ usuário encontradas no worktree e não invente sucesso nem background jobs.
   foram limpos. O menu contextual de resize e gestos de ferramentas ainda não
   foram exercitados nesta rodada.
 
+- 28/10/2026: QA ADB no canvas `untitled_3` confirmou o menu contextual da
+  barra principal docked: long-press mostrou `Lock` e `Resize`; ativar Resize
+  fez o menu mostrar `Finish resize`; travar durante o modo exibiu somente
+  `Unlock`, sem Resize. A barra foi desbloqueada e a Activity reiniciada com
+  PID ativo (`8419`). Isso valida a guarda de modo/lock e a recuperação do
+  menu, mas não mede ainda a nova largura por screenshot nem fornece Undo/
+  Cancel transacional para resize on-canvas; esses critérios continuam
+  pendentes.
+
 ## Próxima ação (uma por vez)
 
 Com o `emulator-5554` online, abrir o configurador via UIAutomator e validar a
