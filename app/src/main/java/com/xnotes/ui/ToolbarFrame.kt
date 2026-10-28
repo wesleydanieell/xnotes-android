@@ -40,6 +40,10 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.role
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.DpOffset
 import androidx.compose.ui.unit.TextUnit
@@ -235,6 +239,10 @@ internal fun ToolbarFrame(
                                 fontSize = bar.label,
                                 modifier = Modifier
                                     .clickable(enabled = overflowItems.isNotEmpty()) { overflowOpen = true }
+                                    .semantics {
+                                        contentDescription = "$overflow more toolbar items"
+                                        role = Role.Button
+                                    }
                                     .padding(vertical = 6.dp),
                             )
                             DropdownMenu(expanded = overflowOpen, onDismissRequest = { overflowOpen = false }) {
@@ -280,6 +288,10 @@ internal fun ToolbarFrame(
                                 fontSize = bar.label,
                                 modifier = Modifier
                                     .clickable(enabled = overflowItems.isNotEmpty()) { overflowOpen = true }
+                                    .semantics {
+                                        contentDescription = "$overflow more toolbar items"
+                                        role = Role.Button
+                                    }
                                     .padding(horizontal = 6.dp),
                             )
                             DropdownMenu(expanded = overflowOpen, onDismissRequest = { overflowOpen = false }) {
