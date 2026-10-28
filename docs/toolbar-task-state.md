@@ -67,7 +67,8 @@ não substitui o Git como fonte de verdade.
 
 ### P1 — Bases para toda a personalização
 
-- [ ] [M1] Revisar persistência versionada, invalidação de IDs e migração legado.
+- [x] [M1] Revisar persistência versionada, invalidação de IDs e migração legado
+      (28/10/2026; c09da34a; codec limitado e testes de fallback/IDs/schema).
 - [ ] [M3] Criar view-model de edição em rascunho com undo/redo, aplicar/cancelar.
 - [x] [M4] Definir GeometryResolver puro e testes; width/height auto/manual (20a4be4d).
 - [x] [M4] Adicionar cores, fundo, opacidade, borda, raio, padding, blur/fallback (81aeba23, 8286ae38, dc52b5f1).
@@ -481,10 +482,23 @@ usuário encontradas no worktree e não invente sucesso nem background jobs.
   gerado sem crash. Captura inicial `/tmp/xnotes-latest.png`; não houve limpeza
   de dados nem alteração do app original.
 
+- 28/10/2026: commit c09da34a limita a leitura de árvores v3 malformadas no
+  codec de settings a 128 nós e profundidade 3 antes da sanitização, evitando
+  recursão ilimitada em JSON importado. Foi adicionada regressão JVM com árvore
+  de 256 níveis; `:app:testDebugUnitTest --tests
+  com.xnotes.settings.ToolbarWorkspaceJsonTest` passou. O gate completo
+  `ANDROID_HOME=/home/wesley/Android/Sdk ./gradlew :app:testDebugUnitTest
+  :app:assembleDebug --console=plain` passou (50 tasks; 10 executadas, 40
+  up-to-date), e `git diff --check` passou. Nesta rodada `adb devices -l` não
+  listou nenhum dispositivo online; instalação, reinício e QA ADB ficaram
+  pendentes. A alteração local não commitada em `PreferencesPane.kt` foi
+  preservada fora do commit.
+
 ## Próxima ação (uma por vez)
 
 Validar no ADB a persistência de dimensões/aparência após reinício e a matriz de
-gestos/docks (incluindo toque em ferramenta e long-press no contêiner). Em
-seguida implementar grupos/grades de elementos, cores por barra, drag/drop e
-redimensionamento transacional. Reservar pressão, hover, latência e primeiro
-traço para o Redmi Pad 2.
+gestos/docks (incluindo toque em ferramenta e long-press no contêiner) assim
+que um dispositivo autorizado estiver online. Em paralelo, implementar o
+próximo item funcional desbloqueado: grade dedicada de cores por barra com
+layout NxM e validação de capacidade. Reservar pressão, hover, latência e
+primeiro traço para o Redmi Pad 2.
