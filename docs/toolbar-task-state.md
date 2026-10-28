@@ -580,6 +580,15 @@ usuário encontradas no worktree e não invente sucesso nem background jobs.
   Cancel transacional para resize on-canvas; esses critérios continuam
   pendentes.
 
+- 28/10/2026: commit a14c8702 transforma o resize on-canvas em transação
+  explícita: ao entrar em Resize é guardado um snapshot; o menu oferece
+  `Finish resize` para confirmar ou `Cancel resize` para restaurar a geometria.
+  Lock cancela o modo e o mecanismo usa o snapshot mais recente. O gate
+  `git diff --check` + `:app:testDebugUnitTest` + `:app:assembleDebug` passou.
+  Após instalar o APK no `emulator-5554`, UIAutomator confirmou `Lock`/`Resize`
+  e, no modo ativo, `Finish resize`/`Cancel resize`. A confirmação numérica da
+  largura após arraste e Undo separado continuam pendentes.
+
 ## Próxima ação (uma por vez)
 
 Com o `emulator-5554` online, abrir o configurador via UIAutomator e validar a
