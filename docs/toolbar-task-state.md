@@ -378,6 +378,12 @@ usuário encontradas no worktree e não invente sucesso nem background jobs.
   emulator-5554 passaram. Ainda falta auto-fit, capacidade/overflow de grids
   mistos e drag/drop entre grupos.
 
+- 28/10/2026: commit fea94063 propaga `Grid.rows` para o `FlowRow` real das
+  barras primárias e secundárias, limitando linhas além das colunas configuradas.
+  O teste JVM de resolução de linhas passou; `testDebugUnitTest`, assembleDebug
+  e install -r passaram no emulator-5554. Auto-fit e grids mistos seguem
+  pendentes.
+
 - 28/10/2026: QA ADB no emulator-5554 abriu `Preferences > Configure toolbars`
   e confirmou a prévia com overflow explícito (`+28`), os perfis `xnote`,
   `xcanvas` e `Shared`, além dos botões `Undo`, `Redo`, `Cancel` e `Apply`.
