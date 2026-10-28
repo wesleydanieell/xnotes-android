@@ -516,10 +516,18 @@ usuário encontradas no worktree e não invente sucesso nem background jobs.
   up-to-date). Overflow acima de 6 linhas e validação visual no emulador ainda
   ficam pendentes; não houve serial ADB online.
 
+- 28/10/2026: commit 700188fb adiciona `effectiveGridOverflowCount()` e um
+  marcador `+N` no frame real para grids que excedem a capacidade renderizada
+  de 6×6; barras verticais passaram a usar `FlowColumn` e as horizontais
+  mantêm `FlowRow`. O cálculo é coberto pelo teste de grade oversized, e o
+  gate JVM/assemble passou novamente. O marcador ainda é informativo, sem
+  popup de acesso aos itens excedentes; portanto a garantia final de nenhuma
+  ação inacessível continua pendente para uma etapa posterior de overflow.
+
 ## Próxima ação (uma por vez)
 
 Validar no ADB a grade 3×2 de cores, a persistência após reinício e a matriz de
 gestos/docks assim que um dispositivo autorizado estiver online. Em paralelo,
-implementar o próximo item funcional desbloqueado: validação de capacidade e
-auto-fit para grids mistos, com overflow explícito e sem clipping. Reservar
-pressão, hover, latência e primeiro traço para o Redmi Pad 2.
+implementar acesso acionável aos itens excedentes do overflow e validar grids
+mistos/auto-fit sem clipping. Reservar pressão, hover, latência e primeiro
+traço para o Redmi Pad 2.
