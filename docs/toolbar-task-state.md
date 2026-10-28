@@ -159,6 +159,10 @@ Também foram corrigidos os problemas apontados na revisão seguinte:
   overlay central acima da nota, evitando que o canvas passe por cima dele;
 - o inspector de propriedades deixou de ser lateral independente: quando expandido, fica acoplado
   ao mesmo painel flutuante central.
+- o painel central oferece fechamento explícito do catálogo e das propriedades, além de um
+  controle para fixá-lo/desafixá-lo no topo;
+- barras podem alternar entre orientação horizontal e vertical; a orientação vertical usa coluna,
+  rolagem e indicador de reordenação no eixo correto.
 
 Essas alterações ainda são estado local do protótipo M1. A identidade persistente das instâncias,
 destinos de drop por célula, undo/redo e Aplicar/Cancelar transacional continuam sendo escopo do

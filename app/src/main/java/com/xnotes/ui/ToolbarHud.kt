@@ -87,6 +87,7 @@ fun ToolbarHudScreen(
     var editPanelY by remember { mutableStateOf(0f) }
     var editPanelDragging by remember { mutableStateOf(false) }
     var editPanelExpanded by remember { mutableStateOf(false) }
+    var editPanelPinned by remember { mutableStateOf(true) }
     var filter by remember { mutableStateOf("") }
     val bars = remember {
         mutableStateListOf(
@@ -97,6 +98,7 @@ fun ToolbarHudScreen(
                         section.visibleEntries.map { it.item.id }
                 }.toMutableList(),
                 anchor = editor.toolbarLook.position.toHudAnchor(),
+                orientation = editor.toolbarLook.position.toHudOrientation(),
                 presentation = if (editor.toolbarLook.floating) HudPresentation.FLOATING else HudPresentation.DOCKED,
                 size = editor.toolbarLook.size.toHudBarSize(),
             ),
@@ -134,17 +136,29 @@ fun ToolbarHudScreen(
                 selectedItem = null
             },
             onOpenCatalog = { catalogOpen = true },
+            catalogOpen = catalogOpen,
+            onCloseCatalog = { catalogOpen = false },
             panelOffsetX = editPanelX,
             panelOffsetY = editPanelY,
             panelDragging = editPanelDragging,
             onPanelDragStart = { editPanelDragging = true },
             onPanelDrag = { dx, dy ->
-                editPanelX = (editPanelX + dx).coerceIn(-700f, 700f)
-                editPanelY = (editPanelY + dy).coerceIn(-20f, 620f)
+                if (!editPanelPinned) {
+                    editPanelX = (editPanelX + dx).coerceIn(-700f, 700f)
+                    editPanelY = (editPanelY + dy).coerceIn(-20f, 620f)
+                }
             },
             onPanelDragEnd = { editPanelDragging = false },
             expanded = editPanelExpanded,
             onToggleExpanded = { editPanelExpanded = !editPanelExpanded },
+            pinned = editPanelPinned,
+            onTogglePinned = {
+                editPanelPinned = !editPanelPinned
+                if (editPanelPinned) {
+                    editPanelX = 0f
+                    editPanelY = 0f
+                }
+            },
             selectedBar = bars[selectedBar],
             selectedItem = selectedItem,
             onChangeBar = { bars[selectedBar] = it },
@@ -218,11 +232,13 @@ private data class HudBar(
     val presentation: HudPresentation = HudPresentation.DOCKED,
     val size: HudBarSize = HudBarSize.REGULAR,
     val fillWidth: Boolean = false,
+    val orientation: HudOrientation = HudOrientation.HORIZONTAL,
 )
 
 private enum class HudAnchor { TOP_START, TOP_CENTER, TOP_END, CENTER_START, CENTER, CENTER_END, BOTTOM_START, BOTTOM_CENTER, BOTTOM_END }
 private enum class HudPresentation { DOCKED, FLOATING }
 private enum class HudBarSize(val scale: Float) { COMPACT(0.82f), REGULAR(1f), COMFORTABLE(1.18f) }
+private enum class HudOrientation { HORIZONTAL, VERTICAL }
 
 private fun hudAnchorFor(origin: HudAnchor, offsetX: Float, offsetY: Float): HudAnchor {
     val (baseX, baseY) = when (origin) {
@@ -250,6 +266,11 @@ private fun ToolbarPosition.toHudAnchor(): HudAnchor = when (this) {
     ToolbarPosition.RIGHT -> HudAnchor.CENTER_END
 }
 
+private fun ToolbarPosition.toHudOrientation(): HudOrientation = when (this) {
+    ToolbarPosition.LEFT, ToolbarPosition.RIGHT -> HudOrientation.VERTICAL
+    ToolbarPosition.TOP, ToolbarPosition.BOTTOM -> HudOrientation.HORIZONTAL
+}
+
 private fun ToolbarSize.toHudBarSize(): HudBarSize = when (this) {
     ToolbarSize.COMPACT -> HudBarSize.COMPACT
     ToolbarSize.REGULAR -> HudBarSize.REGULAR
@@ -263,6 +284,8 @@ private fun HudTopBar(
     onProfile: () -> Unit,
     onAddBar: () -> Unit,
     onOpenCatalog: () -> Unit,
+    catalogOpen: Boolean,
+    onCloseCatalog: () -> Unit,
     panelOffsetX: Float,
     panelOffsetY: Float,
     panelDragging: Boolean,
@@ -271,6 +294,8 @@ private fun HudTopBar(
     onPanelDragEnd: () -> Unit,
     expanded: Boolean,
     onToggleExpanded: () -> Unit,
+    pinned: Boolean,
+    onTogglePinned: () -> Unit,
     selectedBar: HudBar,
     selectedItem: String?,
     onChangeBar: (HudBar) -> Unit,
@@ -310,7 +335,9 @@ private fun HudTopBar(
                         HudChip(profile, selected = true, onClick = onProfile)
                         HudChip("Compartilhado", selected = false, onClick = {})
                         HudChip("+ Componente", selected = false, onClick = onOpenCatalog)
+                        if (catalogOpen) HudChip("Fechar catálogo", selected = true, onClick = onCloseCatalog)
                         HudChip("+ Barra", selected = false, onClick = onAddBar)
+                        HudIconButton(if (pinned) XnotesIcons.pin else XnotesIcons.unlock, if (pinned) "Desafixar painel" else "Fixar no topo", onClick = onTogglePinned)
                         HudIconButton(XnotesIcons.undo, "Desfazer", onClick = {})
                         HudIconButton(XnotesIcons.redo, "Refazer", onClick = {})
                         HudChip(if (expanded) "Recolher propriedades" else "Editar seleção", selected = expanded, onClick = onToggleExpanded)
@@ -566,23 +593,42 @@ private fun HudComposedBar(
                     modifier = Modifier.padding(vertical = 8.dp),
                 )
             } else {
-                Row(
-                    Modifier.horizontalScroll(rememberScrollState()),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy((bar.gapDp * sizeFactor).dp),
-                ) {
-                    bar.items.forEachIndexed { index, item ->
-                        HudActualSlot(
-                            item = item,
-                            selected = selected && selectedItem == item,
-                            onClick = { onSelectItem(item) },
-                            onMove = { delta -> onMoveItem(index, (index + delta).coerceIn(0, bar.items.lastIndex)) },
-                            onDrag = onDragItem,
-                            iconSize = (42 * sizeFactor).dp,
-                            content = {
-                                HudToolbarItem(item, selected && selectedItem == item, { onSelectItem(item) }, sizeFactor)
-                            },
-                        )
+                if (bar.orientation == HudOrientation.HORIZONTAL) {
+                    Row(
+                        Modifier.horizontalScroll(rememberScrollState()),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy((bar.gapDp * sizeFactor).dp),
+                    ) {
+                        bar.items.forEachIndexed { index, item ->
+                            HudActualSlot(
+                                item = item,
+                                selected = selected && selectedItem == item,
+                                onClick = { onSelectItem(item) },
+                                onMove = { delta -> onMoveItem(index, (index + delta).coerceIn(0, bar.items.lastIndex)) },
+                                onDrag = onDragItem,
+                                iconSize = (42 * sizeFactor).dp,
+                                content = { HudToolbarItem(item, selected && selectedItem == item, { onSelectItem(item) }, sizeFactor) },
+                            )
+                        }
+                    }
+                } else {
+                    Column(
+                        Modifier.heightIn(max = 420.dp).verticalScroll(rememberScrollState()),
+                        verticalArrangement = Arrangement.spacedBy((bar.gapDp * sizeFactor).dp),
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                    ) {
+                        bar.items.forEachIndexed { index, item ->
+                            HudActualSlot(
+                                item = item,
+                                selected = selected && selectedItem == item,
+                                onClick = { onSelectItem(item) },
+                                onMove = { delta -> onMoveItem(index, (index + delta).coerceIn(0, bar.items.lastIndex)) },
+                                onDrag = onDragItem,
+                                vertical = true,
+                                iconSize = (42 * sizeFactor).dp,
+                                content = { HudToolbarItem(item, selected && selectedItem == item, { onSelectItem(item) }, sizeFactor) },
+                            )
+                        }
                     }
                 }
             }
@@ -597,6 +643,7 @@ private fun HudActualSlot(
     onClick: () -> Unit,
     onMove: (Int) -> Unit,
     onDrag: (String?) -> Unit,
+    vertical: Boolean = false,
     iconSize: Dp = 42.dp,
     content: @Composable () -> Unit = {
         HudItemIcon(item, selected = selected, onClick = onClick, iconSize = iconSize)
@@ -609,7 +656,7 @@ private fun HudActualSlot(
         totalDrag < -24f -> -1
         else -> 0
     }
-    Box(Modifier.graphicsLayer { scaleX = scale; scaleY = scale }.pointerInput(item) {
+    Box(Modifier.graphicsLayer { scaleX = scale; scaleY = scale }.pointerInput(item, vertical) {
         detectDragGesturesAfterLongPress(
             onDragStart = { totalDrag = 0f; onDrag(item) },
             onDragCancel = { totalDrag = 0f; onDrag(null) },
@@ -618,13 +665,17 @@ private fun HudActualSlot(
                 totalDrag = 0f
                 onDrag(null)
             },
-            onDrag = { change, amount -> change.consume(); totalDrag += amount.x },
+            onDrag = { change, amount -> change.consume(); totalDrag += if (vertical) amount.y else amount.x },
         )
     }) {
         content()
         if (direction != 0) {
             val palette = LocalPalette.current
-            Box(Modifier.align(if (direction > 0) Alignment.CenterEnd else Alignment.CenterStart).width(4.dp).height(32.dp).clip(RoundedCornerShape(2.dp)).background(palette.accent.toComposeColor()))
+            if (vertical) {
+                Box(Modifier.align(if (direction > 0) Alignment.BottomCenter else Alignment.TopCenter).width(32.dp).height(4.dp).clip(RoundedCornerShape(2.dp)).background(palette.accent.toComposeColor()))
+            } else {
+                Box(Modifier.align(if (direction > 0) Alignment.CenterEnd else Alignment.CenterStart).width(4.dp).height(32.dp).clip(RoundedCornerShape(2.dp)).background(palette.accent.toComposeColor()))
+            }
         }
     }
 }
@@ -756,6 +807,15 @@ private fun HudProperties(
                 HudChip("Compact", bar.size == HudBarSize.COMPACT) { onChangeBar(bar.copy(size = HudBarSize.COMPACT)) }
                 HudChip("Regular", bar.size == HudBarSize.REGULAR) { onChangeBar(bar.copy(size = HudBarSize.REGULAR)) }
                 HudChip("Confortável", bar.size == HudBarSize.COMFORTABLE) { onChangeBar(bar.copy(size = HudBarSize.COMFORTABLE)) }
+            }
+            Text("Orientação", color = palette.textDim.toComposeColor(), fontSize = 12.sp)
+            Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                HudChip("Horizontal", bar.orientation == HudOrientation.HORIZONTAL) {
+                    onChangeBar(bar.copy(orientation = HudOrientation.HORIZONTAL))
+                }
+                HudChip("Vertical", bar.orientation == HudOrientation.VERTICAL) {
+                    onChangeBar(bar.copy(orientation = HudOrientation.VERTICAL))
+                }
             }
             Text("Posição", color = palette.textDim.toComposeColor(), fontSize = 12.sp)
             Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
