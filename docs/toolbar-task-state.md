@@ -442,6 +442,10 @@ usuário encontradas no worktree e não invente sucesso nem background jobs.
   (build anterior sem alteração de produção adicional) e install -r passaram.
   Drag/drop por gesto e movimentação entre pais diferentes ainda pendentes.
 
+- 28/10/2026: `connectedDebugAndroidTest` após 13ee0200 concluiu
+  `BUILD SUCCESSFUL` no emulator-5554 (70 tasks; sem testes instrumentados
+  específicos). A árvore aninhada ainda requer QA visual dedicada.
+
 - 28/10/2026: QA ADB no emulator-5554 abriu `Preferences > Configure toolbars`
   e confirmou a prévia com overflow explícito (`+28`), os perfis `xnote`,
   `xcanvas` e `Shared`, além dos botões `Undo`, `Redo`, `Cancel` e `Apply`.
