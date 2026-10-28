@@ -1,6 +1,7 @@
 package com.xnotes.settings
 
 import com.xnotes.core.tools.ToolbarAnchor
+import com.xnotes.core.model.Rgba
 import com.xnotes.core.tools.ToolbarBar
 import com.xnotes.core.tools.ToolbarEntry
 import com.xnotes.core.tools.ToolbarGeometry
@@ -43,7 +44,7 @@ internal object ToolbarWorkspaceJson {
                 .put("id", bar.id)
                 .put("name", bar.name)
                 .put("visible", bar.visible)
-                .put("geometry", writeGeometry(bar.geometry))
+        .put("geometry", writeGeometry(bar.geometry))
                 .put("sections", JSONArray().apply {
                     for (section in bar.layout.sections) put(JSONArray().apply {
                         for (entry in section.entries) put(JSONObject()
@@ -59,6 +60,7 @@ internal object ToolbarWorkspaceJson {
         .put("floating", g.floating)
         .put("movable", g.movable)
         .put("columns", g.columns)
+        .put("appearance", writeAppearance(g.appearance))
         .apply {
             g.widthDp?.let { put("width_dp", it) }
             g.heightDp?.let { put("height_dp", it) }
@@ -112,6 +114,41 @@ internal object ToolbarWorkspaceJson {
             widthDp = raw.optInt("width_dp").takeIf { raw.has("width_dp") },
             heightDp = raw.optInt("height_dp").takeIf { raw.has("height_dp") },
             columns = raw.optInt("columns", 1),
+            appearance = readAppearance(raw.optJSONObject("appearance")),
         ).constrained()
     }
+
+    private fun writeAppearance(a: com.xnotes.core.tools.ToolbarAppearance): JSONObject = JSONObject()
+        .put("background", a.background?.let(::writeColor))
+        .put("opacity", a.opacity.toDouble())
+        .put("border_enabled", a.borderEnabled)
+        .put("border_width_dp", a.borderWidthDp)
+        .put("border_color", a.borderColor?.let(::writeColor))
+        .put("corner_radius_dp", a.cornerRadiusDp)
+        .put("padding_horizontal_dp", a.paddingHorizontalDp)
+        .put("padding_vertical_dp", a.paddingVerticalDp)
+        .put("spacing_dp", a.spacingDp)
+        .put("blur_radius_dp", a.blurRadiusDp)
+
+    private fun readAppearance(raw: JSONObject?): com.xnotes.core.tools.ToolbarAppearance {
+        if (raw == null) return com.xnotes.core.tools.ToolbarAppearance()
+        return com.xnotes.core.tools.ToolbarAppearance(
+            background = readColor(raw.optJSONArray("background")),
+            opacity = raw.optDouble("opacity", 1.0).toFloat(),
+            borderEnabled = raw.optBoolean("border_enabled", true),
+            borderWidthDp = raw.optInt("border_width_dp", 1),
+            borderColor = readColor(raw.optJSONArray("border_color")),
+            cornerRadiusDp = raw.optInt("corner_radius_dp", 24),
+            paddingHorizontalDp = raw.optInt("padding_horizontal_dp", 4),
+            paddingVerticalDp = raw.optInt("padding_vertical_dp", 4),
+            spacingDp = raw.optInt("spacing_dp", 0),
+            blurRadiusDp = raw.optInt("blur_radius_dp", 0),
+        )
+    }
+
+    private fun writeColor(c: Rgba): JSONArray = JSONArray(c.toList())
+
+    private fun readColor(a: JSONArray?): Rgba? = Rgba.fromList(a?.let { list ->
+        (0 until list.length()).mapNotNull { index -> list.optInt(index).takeIf { !list.isNull(index) } }
+    })
 }

@@ -31,6 +31,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.AbsoluteAlignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.boundsInRoot
@@ -142,18 +143,22 @@ private fun PreviewBar(
     val shown = entries.take(if (vertical) 5 else 9)
     val extras = entries.size - shown.size
     val resolved = resolveToolbarSize(bar.geometry)
+    val appearance = bar.geometry.appearance.constrained()
+    val shape = RoundedCornerShape(appearance.cornerRadiusDp.dp)
+    val surfaceColor = (appearance.background?.scaleAlpha(appearance.opacity.toDouble()) ?: palette.panel).toComposeColor()
     val surface = Modifier
         .then(resolved.widthDp?.let { Modifier.width(it.dp) } ?: Modifier)
         .then(resolved.heightDp?.let { Modifier.height(it.dp) } ?: Modifier)
-        .clip(RoundedCornerShape(9.dp))
-        .background(palette.panel.toComposeColor())
+        .clip(shape)
+        .alpha(appearance.opacity)
+        .background(surfaceColor)
         .border(
-            if (selected) 2.dp else 1.dp,
-            (if (selected) palette.accent else palette.border).toComposeColor(),
-            RoundedCornerShape(9.dp),
+            if (selected) 2.dp else if (appearance.borderEnabled) appearance.borderWidthDp.dp else 0.dp,
+            (if (selected) palette.accent else (appearance.borderColor ?: palette.border)).toComposeColor(),
+            shape,
         )
         .clickable(onClick = onSelect)
-        .padding(horizontal = 6.dp, vertical = 5.dp)
+        .padding(horizontal = appearance.paddingHorizontalDp.dp, vertical = appearance.paddingVerticalDp.dp)
     if (vertical) {
         Column(surface, horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(3.dp)) {
             for (item in shown) PreviewTool(item)

@@ -35,6 +35,7 @@ import androidx.compose.ui.unit.DpOffset
 import androidx.compose.ui.unit.TextUnit
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.foundation.shape.RoundedCornerShape
 import com.xnotes.settings.ToolbarLook
 import com.xnotes.settings.ToolbarPosition
 import com.xnotes.settings.ToolbarSize
@@ -150,18 +151,26 @@ internal fun ToolbarFrame(
     val geometry = LocalToolbarGeometry.current
     val bar = barMetrics(look.size).copy(vertical = look.position.vertical)
     val resolvedSize = geometry?.let(::resolveToolbarSize)
+    val appearance = geometry?.appearance?.constrained()
     val glide = remember { ToolGlide() }
     val palette = LocalPalette.current
-    val shape = MaterialTheme.shapes.extraLarge
+    val shape = RoundedCornerShape((appearance?.cornerRadiusDp ?: 24).dp)
+    val surfaceColor = (appearance?.background?.scaleAlpha((appearance.opacity).toDouble())
+        ?: palette.panel).toComposeColor()
+    val borderWidth = appearance?.borderWidthDp ?: 1
+    val borderColor = (appearance?.borderColor ?: palette.border).toComposeColor()
     // Docked, the strip fills its edge; floating, a pill only as long as its tools, up to that edge.
     val surface = if (!look.floating) {
-        Modifier.background(palette.panel.toComposeColor())
+        Modifier
+            .clip(shape)
+            .background(surfaceColor)
+            .then(if (appearance?.borderEnabled == false || borderWidth == 0) Modifier else Modifier.border(borderWidth.dp, borderColor, shape))
     } else {
         Modifier
             .shadow(6.dp, shape)
             .clip(shape)
-            .background(palette.panel.toComposeColor())
-            .border(1.dp, palette.border.toComposeColor(), shape)
+            .background(surfaceColor)
+            .then(if (appearance?.borderEnabled == false || borderWidth == 0) Modifier else Modifier.border(borderWidth.dp, borderColor, shape))
     }
     val dimensions = Modifier
         .then(resolvedSize?.widthDp?.dp?.let { Modifier.width(it) } ?: Modifier)
@@ -190,7 +199,7 @@ internal fun ToolbarFrame(
                     Modifier
                         .weight(1f, fill = !look.floating)
                         .verticalScroll(rememberScrollState())
-                        .padding(vertical = 4.dp)
+                        .padding(horizontal = (appearance?.paddingHorizontalDp ?: 4).dp, vertical = (appearance?.paddingVerticalDp ?: 4).dp)
                         .toolGlide(glide, armed),
                     horizontalAlignment = Alignment.CenterHorizontally,
                 ) { content() }
@@ -205,7 +214,7 @@ internal fun ToolbarFrame(
                     Modifier
                         .weight(1f, fill = !look.floating)
                         .horizontalScroll(rememberScrollState())
-                        .padding(horizontal = 4.dp)
+                        .padding(horizontal = (appearance?.paddingHorizontalDp ?: 4).dp, vertical = (appearance?.paddingVerticalDp ?: 4).dp)
                         .toolGlide(glide, armed),
                     verticalAlignment = Alignment.CenterVertically,
                 ) { content() }

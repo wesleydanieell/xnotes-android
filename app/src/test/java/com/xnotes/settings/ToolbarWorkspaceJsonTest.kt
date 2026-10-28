@@ -1,6 +1,8 @@
 package com.xnotes.settings
 
 import com.xnotes.core.tools.ToolbarAnchor
+import com.xnotes.core.model.Rgba
+import com.xnotes.core.tools.ToolbarAppearance
 import com.xnotes.core.tools.ToolbarBar
 import com.xnotes.core.tools.ToolbarContext
 import com.xnotes.core.tools.ToolbarEntry
@@ -108,5 +110,34 @@ class ToolbarWorkspaceJsonTest {
         assertEquals(48, dimensions.widthDp)
         assertEquals(2048, dimensions.heightDp)
         assertEquals(6, dimensions.columns)
+    }
+
+    @Test fun appearanceRoundTripAndClampsUnsafeValues() {
+        val appearance = ToolbarAppearance(
+            background = Rgba(12, 34, 56, 220),
+            opacity = 2f,
+            borderEnabled = false,
+            borderWidthDp = 99,
+            borderColor = Rgba(1, 2, 3),
+            cornerRadiusDp = -4,
+            paddingHorizontalDp = 100,
+            paddingVerticalDp = 7,
+            spacingDp = 80,
+            blurRadiusDp = 999,
+        )
+        val profiles = ToolbarWorkspaces.fromLegacy(ToolbarLayout.DEFAULT, ToolbarLayout.CANVAS_DEFAULT)
+            .copy(note = ToolbarWorkspace(listOf(
+                ToolbarBar("primary", "Primary", ToolbarLayout.DEFAULT, geometry = ToolbarGeometry(appearance = appearance)),
+            )))
+        val restored = Settings.fromJson(Settings(toolbarWorkspaces = profiles).toJson()).toolbarWorkspaces!!
+            .note.bars.single().geometry.appearance
+        assertEquals(Rgba(12, 34, 56, 220), restored.background)
+        assertEquals(1f, restored.opacity)
+        assertEquals(false, restored.borderEnabled)
+        assertEquals(24, restored.borderWidthDp)
+        assertEquals(0, restored.cornerRadiusDp)
+        assertEquals(96, restored.paddingHorizontalDp)
+        assertEquals(48, restored.spacingDp)
+        assertEquals(96, restored.blurRadiusDp)
     }
 }

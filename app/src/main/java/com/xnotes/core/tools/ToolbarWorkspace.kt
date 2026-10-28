@@ -1,5 +1,7 @@
 package com.xnotes.core.tools
 
+import com.xnotes.core.model.Rgba
+
 /**
  * An interface workspace contains multiple independently configured toolbars. The existing
  * [ToolbarLayout] still describes the tools *within* each bar, so old layouts can be carried
@@ -17,6 +19,30 @@ enum class ToolbarContext { NOTE, CANVAS }
 
 enum class ToolbarScale { COMPACT, REGULAR, COMFORTABLE }
 
+/** Per-bar visual tokens. Blur is a request only; renderers may safely fall back to a surface. */
+data class ToolbarAppearance(
+    val background: Rgba? = null,
+    val opacity: Float = 1f,
+    val borderEnabled: Boolean = true,
+    val borderWidthDp: Int = 1,
+    val borderColor: Rgba? = null,
+    val cornerRadiusDp: Int = 24,
+    val paddingHorizontalDp: Int = 4,
+    val paddingVerticalDp: Int = 4,
+    val spacingDp: Int = 0,
+    val blurRadiusDp: Int = 0,
+) {
+    fun constrained(): ToolbarAppearance = copy(
+        opacity = opacity.coerceIn(0f, 1f),
+        borderWidthDp = borderWidthDp.coerceIn(0, 24),
+        cornerRadiusDp = cornerRadiusDp.coerceIn(0, 96),
+        paddingHorizontalDp = paddingHorizontalDp.coerceIn(0, 96),
+        paddingVerticalDp = paddingVerticalDp.coerceIn(0, 96),
+        spacingDp = spacingDp.coerceIn(0, 48),
+        blurRadiusDp = blurRadiusDp.coerceIn(0, 96),
+    )
+}
+
 /** Geometry is kept in logical dp; null dimensions mean wrap-content/automatic size. */
 data class ToolbarGeometry(
     val anchor: ToolbarAnchor = ToolbarAnchor.TOP_CENTER,
@@ -26,12 +52,14 @@ data class ToolbarGeometry(
     val widthDp: Int? = null,
     val heightDp: Int? = null,
     val columns: Int = 1,
+    val appearance: ToolbarAppearance = ToolbarAppearance(),
 ) {
     /** Clamp untrusted persisted dimensions before rendering; do not force an exact size on auto bars. */
     fun constrained(): ToolbarGeometry = copy(
         widthDp = widthDp?.coerceIn(48, 2048),
         heightDp = heightDp?.coerceIn(48, 2048),
         columns = columns.coerceIn(1, 6),
+        appearance = appearance.constrained(),
     )
 }
 
