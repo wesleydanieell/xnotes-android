@@ -622,6 +622,19 @@ fun PreferencesPane(
             val barLabel = stringResource(R.string.pref_toolbar)
             val workspace = editedWorkspace()
             val currentBar = selectedBar()
+            FieldLabel(stringResource(R.string.toolbar_preview))
+            ToolbarWorkspacePreview(
+                workspace = workspace.onlyItems(if (canvasTab) ToolbarLayout.CANVAS_ITEMS else ToolbarLayout.NOTE_ITEMS),
+                look = prefs.toolbarLook,
+                selectedId = currentBar.id,
+                onSelectBar = { showBar(it) },
+                onMoveBar = { id, anchor ->
+                    editor.moveToolbarBar(
+                        if (canvasTab) com.xnotes.core.tools.ToolbarContext.CANVAS else com.xnotes.core.tools.ToolbarContext.NOTE,
+                        id, anchor,
+                    )
+                },
+            )
             FieldLabel(stringResource(R.string.toolbar_select))
             FlowRow(
                 horizontalArrangement = Arrangement.spacedBy(6.dp),
@@ -688,6 +701,9 @@ fun PreferencesPane(
                 singleLine = true,
                 modifier = Modifier.width(320.dp),
             )
+            Chip(stringResource(R.string.toolbar_movable), currentBar.geometry.movable) {
+                updateSelectedBar { bar -> bar.copy(geometry = bar.geometry.copy(movable = !bar.geometry.movable)) }
+            }
             if (currentBar.id != workspace.bars.first().id) {
                 val barIndex = workspace.bars.indexOfFirst { it.id == currentBar.id }
                 FlowRow(
@@ -717,32 +733,12 @@ fun PreferencesPane(
                     }
                 }
                 FieldLabel(stringResource(R.string.pref_toolbar_position))
-                FlowRow(
-                    horizontalArrangement = Arrangement.spacedBy(4.dp),
-                    verticalArrangement = Arrangement.spacedBy(4.dp),
-                ) {
-                    for ((anchor, mark) in listOf(
-                        ToolbarAnchor.TOP_LEFT to "↖",
-                        ToolbarAnchor.TOP_CENTER to "↑",
-                        ToolbarAnchor.TOP_RIGHT to "↗",
-                        ToolbarAnchor.CENTER_LEFT to "←",
-                        ToolbarAnchor.CENTER to "●",
-                        ToolbarAnchor.CENTER_RIGHT to "→",
-                        ToolbarAnchor.BOTTOM_LEFT to "↙",
-                        ToolbarAnchor.BOTTOM_CENTER to "↓",
-                        ToolbarAnchor.BOTTOM_RIGHT to "↘",
-                    )) {
-                        Chip(mark, currentBar.geometry.anchor == anchor) {
-                            val profiles = editor.toolbarWorkspaces
-                            val updated = editedWorkspace().replaceBar(
-                                selectedBar().copy(geometry = selectedBar().geometry.copy(anchor = anchor)),
-                            )
-                            editor.applyToolbarWorkspaces(
-                                if (canvasTab) profiles.copy(canvas = updated) else profiles.copy(note = updated),
-                            )
-                        }
-                    }
-                }
+                ToolbarAnchorGrid(
+                    selected = currentBar.geometry.anchor,
+                    onSelect = { anchor ->
+                        updateSelectedBar { bar -> bar.copy(geometry = bar.geometry.copy(anchor = anchor)) }
+                    },
+                )
                 FieldLabel(stringResource(R.string.pref_toolbar_size))
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     for ((scale, label) in listOf(
@@ -764,23 +760,40 @@ fun PreferencesPane(
             } else {
                 FieldLabel(stringResource(R.string.toolbar_primary_appearance))
                 val look = prefs.toolbarLook
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Chip(stringResource(R.string.toolbar_docked), !look.floating) { updateHome(prefs.copy(toolbarLook = look.copy(floating = false))) }
-                    Chip(stringResource(R.string.toolbar_floating), look.floating) { updateHome(prefs.copy(toolbarLook = look.copy(floating = true))) }
+                val floatingPrimary = currentBar.geometry.floating || look.floating
+                val dockAnchor = when (look.position) {
+                    ToolbarPosition.TOP -> ToolbarAnchor.TOP_CENTER
+                    ToolbarPosition.BOTTOM -> ToolbarAnchor.BOTTOM_CENTER
+                    ToolbarPosition.LEFT -> ToolbarAnchor.CENTER_LEFT
+                    ToolbarPosition.RIGHT -> ToolbarAnchor.CENTER_RIGHT
                 }
-                FieldLabel(stringResource(R.string.pref_toolbar_position))
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    for ((position, label) in listOf(
-                        ToolbarPosition.TOP to R.string.edge_top,
-                        ToolbarPosition.BOTTOM to R.string.edge_bottom,
-                        ToolbarPosition.LEFT to R.string.edge_left,
-                        ToolbarPosition.RIGHT to R.string.edge_right,
-                    )) {
-                        Chip(stringResource(label), look.position == position) {
-                            updateHome(prefs.copy(toolbarLook = look.copy(position = position)))
-                        }
+                    Chip(stringResource(R.string.toolbar_docked), !floatingPrimary) {
+                        updateHome(prefs.copy(toolbarLook = look.copy(floating = false)))
+                        updateSelectedBar { bar -> bar.copy(geometry = bar.geometry.copy(floating = false, anchor = dockAnchor)) }
+                    }
+                    Chip(stringResource(R.string.toolbar_floating), floatingPrimary) {
+                        updateSelectedBar { bar -> bar.copy(geometry = bar.geometry.copy(floating = true, anchor = if (bar.geometry.floating) bar.geometry.anchor else dockAnchor)) }
                     }
                 }
+                FieldLabel(stringResource(R.string.pref_toolbar_position))
+                ToolbarAnchorGrid(
+                    selected = if (floatingPrimary) currentBar.geometry.anchor else dockAnchor,
+                    docked = !floatingPrimary,
+                    onSelect = { anchor ->
+                        if (!floatingPrimary) {
+                            val position = when (anchor) {
+                                ToolbarAnchor.TOP_CENTER -> ToolbarPosition.TOP
+                                ToolbarAnchor.BOTTOM_CENTER -> ToolbarPosition.BOTTOM
+                                ToolbarAnchor.CENTER_LEFT -> ToolbarPosition.LEFT
+                                ToolbarAnchor.CENTER_RIGHT -> ToolbarPosition.RIGHT
+                                else -> look.position
+                            }
+                            updateHome(prefs.copy(toolbarLook = look.copy(floating = false, position = position)))
+                        }
+                        updateSelectedBar { bar -> bar.copy(geometry = bar.geometry.copy(anchor = anchor, floating = floatingPrimary)) }
+                    },
+                )
                 FieldLabel(stringResource(R.string.pref_toolbar_size))
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     for ((size, label) in listOf(
@@ -790,6 +803,12 @@ fun PreferencesPane(
                     )) {
                         Chip(stringResource(label), look.size == size) {
                             updateHome(prefs.copy(toolbarLook = look.copy(size = size)))
+                            val scale = when (size) {
+                                ToolbarSize.COMPACT -> com.xnotes.core.tools.ToolbarScale.COMPACT
+                                ToolbarSize.REGULAR -> com.xnotes.core.tools.ToolbarScale.REGULAR
+                                ToolbarSize.COMFORTABLE -> com.xnotes.core.tools.ToolbarScale.COMFORTABLE
+                            }
+                            updateSelectedBar { bar -> bar.copy(geometry = bar.geometry.copy(scale = scale)) }
                         }
                     }
                 }
@@ -1152,6 +1171,67 @@ private fun MillimetreField(label: String, value: Double, onChange: (Double) -> 
         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal, imeAction = ImeAction.Done),
         modifier = Modifier.width(136.dp),
     )
+}
+
+/** Stable 3×3 placement grid; docked primary bars only accept the four edges. */
+@Composable
+private fun ToolbarAnchorGrid(
+    selected: ToolbarAnchor,
+    docked: Boolean = false,
+    onSelect: (ToolbarAnchor) -> Unit,
+) {
+    val palette = LocalPalette.current
+    val symbols = listOf("↖", "↑", "↗", "←", "●", "→", "↙", "↓", "↘")
+    val dockable = setOf(
+        ToolbarAnchor.TOP_CENTER, ToolbarAnchor.CENTER_LEFT,
+        ToolbarAnchor.CENTER_RIGHT, ToolbarAnchor.BOTTOM_CENTER,
+    )
+    Column(verticalArrangement = Arrangement.spacedBy(5.dp)) {
+        for (row in 0..2) {
+            Row(horizontalArrangement = Arrangement.spacedBy(5.dp)) {
+                for (column in 0..2) {
+                    val index = row * 3 + column
+                    val anchor = ToolbarAnchor.entries[index]
+                    val enabled = !docked || anchor in dockable
+                    val active = selected == anchor && enabled
+                    Box(
+                        Modifier
+                            .size(48.dp)
+                            .clip(RoundedCornerShape(10.dp))
+                            .background(
+                                if (active) palette.accent.toComposeColor().copy(alpha = 0.18f)
+                                else palette.panel.toComposeColor(),
+                            )
+                            .border(
+                                if (active) 2.dp else 1.dp,
+                                (if (active) palette.accent else palette.border).toComposeColor(),
+                                RoundedCornerShape(10.dp),
+                            )
+                            .clickable(enabled = enabled) { onSelect(anchor) }
+                            .semantics {
+                                contentDescription = anchor.name.replace('_', ' ').lowercase()
+                                this.selected = active
+                            },
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        Text(
+                            symbols[index],
+                            color = (if (!enabled) palette.textDim else if (active) palette.accent else palette.text).toComposeColor()
+                                .copy(alpha = if (enabled) 1f else 0.35f),
+                            fontSize = 21.sp,
+                        )
+                    }
+                }
+            }
+        }
+        if (docked) {
+            Text(
+                stringResource(R.string.toolbar_docked_positions_hint),
+                color = palette.textDim.toComposeColor(),
+                fontSize = 12.sp,
+            )
+        }
+    }
 }
 
 @Composable

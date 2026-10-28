@@ -140,7 +140,7 @@ fun BoxScope.WorkspaceFloatingBars(
     }
 }
 
-private fun ToolbarAnchor.alignment(): Alignment = when (this) {
+internal fun ToolbarAnchor.alignment(): Alignment = when (this) {
     ToolbarAnchor.TOP_LEFT -> AbsoluteAlignment.TopLeft
     ToolbarAnchor.TOP_CENTER -> Alignment.TopCenter
     ToolbarAnchor.TOP_RIGHT -> AbsoluteAlignment.TopRight
@@ -152,7 +152,7 @@ private fun ToolbarAnchor.alignment(): Alignment = when (this) {
     ToolbarAnchor.BOTTOM_RIGHT -> AbsoluteAlignment.BottomRight
 }
 
-private fun ToolbarAnchor.toolbarPosition(): ToolbarPosition = when (this) {
+internal fun ToolbarAnchor.toolbarPosition(): ToolbarPosition = when (this) {
     ToolbarAnchor.CENTER_LEFT -> ToolbarPosition.LEFT
     ToolbarAnchor.CENTER_RIGHT -> ToolbarPosition.RIGHT
     ToolbarAnchor.BOTTOM_LEFT, ToolbarAnchor.BOTTOM_CENTER, ToolbarAnchor.BOTTOM_RIGHT -> ToolbarPosition.BOTTOM

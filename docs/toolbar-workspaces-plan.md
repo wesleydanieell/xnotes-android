@@ -61,7 +61,9 @@ can replace it atomically.
    - Background, opacity, optional blur, border, radius, padding and alignment.
    - Adapt rows/columns, overflow and color-slot groups without overlapping targets.
 6. **On-canvas interaction and mode profiles**
-   - Press/drag a designated handle, tap it for the context menu.
+   - Hold the toolbar container itself to begin a drag, preserving normal quick tool taps.
+   - The main bar can be docked on all four edges; floating bars snap to a 3×3 anchor grid.
+   - A context menu and resize mode will be added without a permanently visible drag grip.
    - Resize only in layout-edit mode; lock controls during ordinary writing.
    - Shared/independent note and canvas workspace profiles, with distinct tool state
      for each split-view pane. Export/import later if the first six milestones pass QA.
@@ -91,11 +93,14 @@ can replace it atomically.
   before properties, rename, per-bar visibility, secondary-bar ordering, and the existing
   tool/section drag editor. Main-toolbar legacy appearance stays in its own inspector.
 - Desktop QA: Small_Tablet Android emulator boots in the user's Niri session via
-  `QT_QPA_PLATFORM=xcb`; the debug APK installs and launches there. The Wacom CTL-472
-  uses OpenTabletDriver Artist Mode with a pressure-capable virtual tablet. Direct Android
-  stylus forwarding is not yet implemented; emulator gRPC requires authenticated access.
-- Next: movable handles, robust overlap/viewport-cover handling, docking, and
-  explicit edit mode; currently additional bars are positioned via Preferences.
+  `QT_QPA_PLATFORM=xcb`; the isolated debug APK installs and launches there.
+- Container long-press/drag implemented for primary and secondary toolbars. A dragged
+  docked primary can attach to a new edge (top/bottom/left/right) or become floating;
+  floating bars use nine anchored positions, saved per workspace.
+- Placement controls use a stable 3×3 chooser rather than wrapping chips. Docked primary
+  mode enables only edge cells; its floating mode enables all nine.
+- Next: instrument a manual pointer/ink regression pass, bar collision/viewport-cover handling,
+  per-bar appearance and nested color/tool grids, then a context menu and edit mode.
 
 ## Scope boundaries
 
