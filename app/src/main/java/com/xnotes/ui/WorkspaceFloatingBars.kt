@@ -10,6 +10,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.getValue
@@ -33,6 +34,7 @@ import com.xnotes.core.tools.ToolbarAnchor
 import com.xnotes.core.tools.ToolbarBar
 import com.xnotes.core.tools.ToolbarScale
 import com.xnotes.core.tools.ToolbarWorkspace
+import com.xnotes.core.tools.toolbarAnchorRegions
 import com.xnotes.core.tools.toolbarDropTarget
 import com.xnotes.core.tools.toolbarStackBarLimit
 import com.xnotes.settings.ToolbarLook
@@ -112,41 +114,48 @@ fun BoxScope.WorkspaceFloatingBars(
 ) {
     var paneBounds by remember { mutableStateOf(Rect.Zero) }
     BoxWithConstraints(Modifier.fillMaxSize().onGloballyPositioned { paneBounds = it.boundsInRoot() }) {
+        val activeAnchors = workspace.bars.withIndex().filter { (index, bar) ->
+            bar.visible && (index > 0 || bar.geometry.floating)
+        }.map { it.value.geometry.anchor }.toSet()
+        val regions = toolbarAnchorRegions(activeAnchors, maxWidth.value, maxHeight.value)
         for (anchor in ToolbarAnchor.entries) {
             val bars = workspace.bars.withIndex().filter { (index, bar) ->
                 bar.visible && bar.geometry.anchor == anchor && (index > 0 || bar.geometry.floating)
             }
             if (bars.isEmpty()) continue
-            // Keep a long vertical toolbar from consuming all space before later bars
-            // are measured. The outer scroll exposes further bars if the stack is taller
-            // than the pane; each bar retains its own bounded tool scroll.
-            val availableHeight = (maxHeight - 16.dp).coerceAtLeast(0.dp)
-            val barMaxHeight = toolbarStackBarLimit(availableHeight.value, bars.size, 8f).dp
-            ToolbarStackScroll(
-                maxHeight = availableHeight,
-                modifier = Modifier.align(anchor.alignment()).padding(8.dp),
-            ) {
-                for ((index, bar) in bars) {
-                    key(bar.id) {
-                        val look = ToolbarLook(
-                            position = anchor.toolbarPosition(),
-                            size = when (bar.geometry.scale) {
-                                ToolbarScale.COMPACT -> ToolbarSize.COMPACT
-                                ToolbarScale.REGULAR -> ToolbarSize.REGULAR
-                                ToolbarScale.COMFORTABLE -> ToolbarSize.COMFORTABLE
-                            },
-                            floating = true,
-                        )
-                        Box(Modifier.heightIn(max = barMaxHeight)) {
-                            ToolbarDragSurface(
-                                id = bar.id,
-                                anchor = anchor,
-                                movable = bar.geometry.movable,
-                                paneBounds = paneBounds,
-                                onMoveBar = onMoveBar,
-                            ) {
-                                CompositionLocalProvider(LocalToolbarLook provides look) {
-                                    if (index == 0) primaryContent() else content(bar)
+            val region = regions[anchor] ?: continue
+            Box(Modifier.offset(region.x.dp, region.y.dp).size(region.width.dp, region.height.dp)) {
+                // Keep a long vertical toolbar from consuming all space before later bars
+                // are measured. The outer scroll exposes further bars if the stack is taller
+                // than the pane; each bar retains its own bounded tool scroll.
+                val availableHeight = (region.height.dp - 16.dp).coerceAtLeast(0.dp)
+                val barMaxHeight = toolbarStackBarLimit(availableHeight.value, bars.size, 8f).dp
+                ToolbarStackScroll(
+                    maxHeight = availableHeight,
+                    modifier = Modifier.align(anchor.alignment()).padding(8.dp),
+                ) {
+                    for ((index, bar) in bars) {
+                        key(bar.id) {
+                            val look = ToolbarLook(
+                                position = anchor.toolbarPosition(),
+                                size = when (bar.geometry.scale) {
+                                    ToolbarScale.COMPACT -> ToolbarSize.COMPACT
+                                    ToolbarScale.REGULAR -> ToolbarSize.REGULAR
+                                    ToolbarScale.COMFORTABLE -> ToolbarSize.COMFORTABLE
+                                },
+                                floating = true,
+                            )
+                            Box(Modifier.heightIn(max = barMaxHeight)) {
+                                ToolbarDragSurface(
+                                    id = bar.id,
+                                    anchor = anchor,
+                                    movable = bar.geometry.movable,
+                                    paneBounds = paneBounds,
+                                    onMoveBar = onMoveBar,
+                                ) {
+                                    CompositionLocalProvider(LocalToolbarLook provides look) {
+                                        if (index == 0) primaryContent() else content(bar)
+                                    }
                                 }
                             }
                         }

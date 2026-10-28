@@ -4,6 +4,8 @@ import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
@@ -13,6 +15,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -36,6 +39,7 @@ import com.xnotes.core.tools.ToolbarAnchor
 import com.xnotes.core.tools.ToolbarBar
 import com.xnotes.core.tools.ToolbarItem
 import com.xnotes.core.tools.ToolbarWorkspace
+import com.xnotes.core.tools.toolbarAnchorRegions
 import com.xnotes.settings.ToolbarLook
 import com.xnotes.settings.ToolbarPosition
 import com.xnotes.ui.theme.LocalPalette
@@ -86,31 +90,35 @@ internal fun ToolbarWorkspacePreview(
             } else bar.geometry.anchor
             Triple(bar, anchor, floating)
         }
+        val regions = toolbarAnchorRegions(placedBars.map { it.second }.toSet(), maxWidth.value, maxHeight.value)
         for (anchor in ToolbarAnchor.entries) {
             val bars = placedBars.filter { it.second == anchor }
             if (bars.isEmpty()) continue
-            // Like the live workspace, bars sharing an anchor occupy a stable vertical stack.
-            // The stage is bounded; scrolling keeps every preview selectable when it overflows.
-            ToolbarStackScroll(
-                maxHeight = maxHeight - 2.dp,
-                modifier = Modifier.align(anchor.alignment()).padding(1.dp),
-                spacing = 4.dp,
-            ) {
-                for ((bar, _, floating) in bars) {
-                    Box(Modifier.padding(if (floating) 4.dp else 0.dp)) {
-                        ToolbarDragSurface(
-                            id = bar.id,
-                            anchor = anchor,
-                            movable = bar.geometry.movable,
-                            paneBounds = stageBounds,
-                            onMoveBar = onMoveBar,
-                        ) {
-                            PreviewBar(
-                                bar = bar,
-                                selected = bar.id == selectedId,
-                                vertical = anchor == ToolbarAnchor.CENTER_LEFT || anchor == ToolbarAnchor.CENTER_RIGHT,
-                                onSelect = { onSelectBar(bar.id) },
-                            )
+            val region = regions[anchor] ?: continue
+            Box(Modifier.offset(region.x.dp, region.y.dp).size(region.width.dp, region.height.dp)) {
+                // Like the live workspace, bars sharing an anchor occupy a stable vertical stack.
+                // The stage is bounded; scrolling keeps every preview selectable when it overflows.
+                ToolbarStackScroll(
+                    maxHeight = (region.height.dp - 2.dp).coerceAtLeast(0.dp),
+                    modifier = Modifier.align(anchor.alignment()).padding(1.dp),
+                    spacing = 4.dp,
+                ) {
+                    for ((bar, _, floating) in bars) {
+                        Box(Modifier.padding(if (floating) 4.dp else 0.dp)) {
+                            ToolbarDragSurface(
+                                id = bar.id,
+                                anchor = anchor,
+                                movable = bar.geometry.movable,
+                                paneBounds = stageBounds,
+                                onMoveBar = onMoveBar,
+                            ) {
+                                PreviewBar(
+                                    bar = bar,
+                                    selected = bar.id == selectedId,
+                                    vertical = anchor == ToolbarAnchor.CENTER_LEFT || anchor == ToolbarAnchor.CENTER_RIGHT,
+                                    onSelect = { onSelectBar(bar.id) },
+                                )
+                            }
                         }
                     }
                 }
@@ -146,7 +154,7 @@ private fun PreviewBar(
             if (extras > 0) Text("+$extras", fontSize = 9.sp, color = palette.textDim.toComposeColor())
         }
     } else {
-        Row(surface, verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(3.dp)) {
+        Row(surface.horizontalScroll(rememberScrollState()), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(3.dp)) {
             for (item in shown) PreviewTool(item)
             if (extras > 0) Text("+$extras", fontSize = 9.sp, color = palette.textDim.toComposeColor())
         }
