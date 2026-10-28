@@ -594,10 +594,19 @@ usuário encontradas no worktree e não invente sucesso nem background jobs.
   confirmando a saída do modo sem deixar a barra presa em edição. A geometria
   visual quantitativa e Undo independente ainda permanecem pendentes.
 
+- 28/10/2026: commit 91d775f6 torna o overflow acionável: o modelo expõe os
+  itens que excedem a capacidade 6×6, o marcador `+N` abre `DropdownMenu` em
+  barras horizontais e verticais, e note/canvas despacham ferramentas e ações
+  básicas a partir desse menu. A cobertura inclui barras docked e flutuantes,
+  além de teste unitário da ordem dos itens excedentes. `git diff --check`,
+  `:app:testDebugUnitTest`, `:app:assembleDebug` e
+  `:app:connectedDebugAndroidTest` passaram; o último concluiu 70 tasks sem
+  testes instrumentados específicos.
+
 ## Próxima ação (uma por vez)
 
-Com o `emulator-5554` online, abrir o configurador via UIAutomator e validar a
-grade 3×2, persistência, menu `Resize`, docks e long-press; depois executar
-split/orientação. Em paralelo, implementar acesso acionável aos itens
-excedentes do overflow e validar grids mistos/auto-fit sem clipping. Reservar
-pressão, hover, latência e primeiro traço para o Redmi Pad 2.
+Com o `emulator-5554` online, instalar o APK de `91d775f6` e validar via
+UIAutomator o marcador `+N` e seu menu em uma grade oversized; depois executar
+split/orientação e verificar grids mistos/auto-fit sem clipping. A geometria
+quantitativa, Undo independente e testes de pressão, hover, latência e primeiro
+traço continuam reservados para as próximas rodadas e para o Redmi Pad 2.
