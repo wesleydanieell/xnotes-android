@@ -30,6 +30,7 @@ import com.xnotes.core.tools.ToolbarAnchor
 import com.xnotes.core.tools.ToolbarBar
 import com.xnotes.core.tools.ToolbarScale
 import com.xnotes.core.tools.ToolbarWorkspace
+import com.xnotes.core.tools.toolbarDropTarget
 import com.xnotes.settings.ToolbarLook
 import com.xnotes.settings.ToolbarPosition
 import com.xnotes.settings.ToolbarSize
@@ -51,9 +52,10 @@ fun ToolbarDragSurface(
 ) {
     var drag by remember(id) { mutableStateOf(Offset.Zero) }
     var barBounds by remember(id) { mutableStateOf(Rect.Zero) }
+    var dragStart by remember(id) { mutableStateOf(Offset.Zero) }
     val gesture = if (!movable) Modifier else Modifier.pointerInput(id, anchor, paneBounds) {
         detectDragGesturesAfterLongPress(
-            onDragStart = { drag = Offset.Zero },
+            onDragStart = { start -> drag = Offset.Zero; dragStart = start },
             onDrag = { change, distance ->
                 change.consume()
                 drag += distance
@@ -62,20 +64,10 @@ fun ToolbarDragSurface(
                 val moved = drag
                 drag = Offset.Zero
                 if (moved.getDistance() >= 12f && barBounds != Rect.Zero && paneBounds != Rect.Zero) {
-                    val center = barBounds.center + moved - paneBounds.topLeft
-                    val width = paneBounds.width
-                    val height = paneBounds.height
-                    val col = when {
-                        center.x < width / 3f -> 0
-                        center.x > width * 2f / 3f -> 2
-                        else -> 1
+                    val drop = barBounds.topLeft + dragStart + moved - paneBounds.topLeft
+                    toolbarDropTarget(drop.x, drop.y, paneBounds.width, paneBounds.height)?.let {
+                        onMoveBar(id, it)
                     }
-                    val row = when {
-                        center.y < height / 3f -> 0
-                        center.y > height * 2f / 3f -> 2
-                        else -> 1
-                    }
-                    onMoveBar(id, ToolbarAnchor.entries[row * 3 + col])
                 }
             },
             onDragCancel = { drag = Offset.Zero },
