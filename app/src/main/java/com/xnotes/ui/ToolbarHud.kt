@@ -295,18 +295,16 @@ private fun HudTopBar(
         HudFloatingPanel(
             Modifier.align(Alignment.TopCenter)
         ) {
-            Row(Modifier.padding(horizontal = 6.dp, vertical = 4.dp), verticalAlignment = Alignment.Top) {
-                Column(verticalArrangement = Arrangement.spacedBy(5.dp)) {
-                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(5.dp)) {
-                        HudChip(profile, selected = true, onClick = onProfile)
-                        HudChip("Compartilhado", selected = false, onClick = {})
-                        HudChip("+ Componente", selected = false, onClick = onOpenCatalog)
-                        if (catalogOpen) HudChip("Fechar catálogo", selected = true, onClick = onCloseCatalog)
-                        HudChip("+ Barra", selected = false, onClick = onAddBar)
-                        HudIconButton(XnotesIcons.undo, "Desfazer", onClick = {})
-                        HudIconButton(XnotesIcons.redo, "Refazer", onClick = {})
-                        HudChip(if (expanded) "Recolher propriedades" else "Editar seleção", selected = expanded, onClick = onToggleExpanded)
-                    }
+            Column(Modifier.padding(horizontal = 6.dp, vertical = 4.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(5.dp)) {
+                    HudChip(profile, selected = true, onClick = onProfile)
+                    HudChip("Compartilhado", selected = false, onClick = {})
+                    HudChip("+ Componente", selected = false, onClick = onOpenCatalog)
+                    if (catalogOpen) HudChip("Fechar catálogo", selected = true, onClick = onCloseCatalog)
+                    HudChip("+ Barra", selected = false, onClick = onAddBar)
+                    HudIconButton(XnotesIcons.undo, "Desfazer", onClick = {})
+                    HudIconButton(XnotesIcons.redo, "Refazer", onClick = {})
+                    HudChip(if (expanded) "Recolher propriedades" else "Editar seleção", selected = expanded, onClick = onToggleExpanded)
                 }
                 if (expanded) {
                     HudProperties(
