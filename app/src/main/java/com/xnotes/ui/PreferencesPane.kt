@@ -84,6 +84,8 @@ import com.xnotes.core.tools.ToolbarLayout
 import com.xnotes.core.tools.ToolbarSection
 import com.xnotes.core.tools.ToolbarWorkspace
 import com.xnotes.core.tools.toolbarNodesFromLayout
+import com.xnotes.core.tools.findTool
+import com.xnotes.core.tools.updateTool
 import com.xnotes.core.util.NameTemplate
 import com.xnotes.settings.Preferences
 import com.xnotes.settings.MaterialStyle
@@ -723,6 +725,8 @@ fun PreferencesPane(
             FieldLabel("Toolbar appearance")
             val geometry = currentBar.geometry
             val appearance = geometry.appearance
+            val metricItem = currentBar.layout.visibleSections.flatMap { it.visibleEntries }.firstOrNull()?.item
+            val metricNode = metricItem?.let { item -> currentBar.nodes?.firstNotNullOfOrNull { it.findTool(item) } }
             var backgroundPickerOpen by remember(currentBar.id) { mutableStateOf(false) }
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
                 TextButton(onClick = { backgroundPickerOpen = true }) { Text("Background") }
@@ -782,6 +786,36 @@ fun PreferencesPane(
                     modifier = Modifier.width(130.dp),
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                 )
+            }
+            if (metricNode != null && metricItem != null) {
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    OutlinedTextField(
+                        value = metricNode.visualDp?.toString() ?: "",
+                        onValueChange = { raw ->
+                            updateSelectedBar { bar ->
+                                val next = bar.nodes?.map { node -> node.updateTool(metricItem) { it.copy(visualDp = raw.toIntOrNull()) } }
+                                bar.copy(nodes = next)
+                            }
+                        },
+                        label = { Text("Visual dp") },
+                        singleLine = true,
+                        modifier = Modifier.width(130.dp),
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                    )
+                    OutlinedTextField(
+                        value = metricNode.hitboxDp?.toString() ?: "",
+                        onValueChange = { raw ->
+                            updateSelectedBar { bar ->
+                                val next = bar.nodes?.map { node -> node.updateTool(metricItem) { it.copy(hitboxDp = raw.toIntOrNull()) } }
+                                bar.copy(nodes = next)
+                            }
+                        },
+                        label = { Text("Hitbox dp") },
+                        singleLine = true,
+                        modifier = Modifier.width(130.dp),
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                    )
+                }
             }
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 OutlinedTextField(

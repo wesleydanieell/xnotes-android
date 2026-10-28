@@ -96,6 +96,20 @@ fun ToolbarNode.toolMetrics(out: MutableMap<Tool, ToolbarNode.Tool> = LinkedHash
     return out
 }
 
+fun ToolbarNode.updateTool(item: ToolbarItem, transform: (ToolbarNode.Tool) -> ToolbarNode.Tool): ToolbarNode = when (this) {
+    is ToolbarNode.Tool -> if (this.item == item) transform(this) else this
+    is ToolbarNode.Group -> copy(children = children.map { it.updateTool(item, transform) })
+    is ToolbarNode.Grid -> copy(children = children.map { it.updateTool(item, transform) })
+    else -> this
+}
+
+fun ToolbarNode.findTool(item: ToolbarItem): ToolbarNode.Tool? = when (this) {
+    is ToolbarNode.Tool -> takeIf { it.item == item }
+    is ToolbarNode.Group -> children.firstNotNullOfOrNull { it.findTool(item) }
+    is ToolbarNode.Grid -> children.firstNotNullOfOrNull { it.findTool(item) }
+    else -> null
+}
+
 private fun ToolbarItem.toTool(): Tool? = when (this) {
     ToolbarItem.PEN -> Tool.PEN
     ToolbarItem.DASHED -> Tool.DASHED
