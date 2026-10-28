@@ -281,6 +281,13 @@ usuário encontradas no worktree e não invente sucesso nem background jobs.
   install -r passaram no emulator-5554. Grade NxM de swatches e arraste entre
   grupos continuam pendentes.
 
+- 28/10/2026: QA ADB após `91fcb058`/`612e4296`: Preferences abriu no
+  emulator-5554, o configurador exibiu preview com duas barras empilhadas e
+  controles Undo/Redo/Cancel/Apply. Toque em Duplicate criou temporariamente
+  `3. Toolbar 3`; toque em Cancel retornou à Preferences e, ao reabrir o
+  configurador, apenas `2. Toolbar 2` permaneceu, comprovando restauração do
+  snapshot sem apagar dados do app isolado. Screenshot `/tmp/toolbar-config-qa.png`.
+
 ## Próxima ação (uma por vez)
 
 Validar no ADB o configurador, os botões Undo/Redo/Cancel/Apply e a persistência
