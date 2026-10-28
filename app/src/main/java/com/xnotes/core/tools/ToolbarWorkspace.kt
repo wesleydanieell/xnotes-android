@@ -166,6 +166,8 @@ data class ToolbarBar(
         node.toolMetrics(acc)
         acc
     } ?: emptyMap()
+
+    fun unifiedPen(): ToolbarNode.UnifiedPen? = nodes?.firstNotNullOfOrNull { it.findUnifiedPen() }
 }
 
 /**

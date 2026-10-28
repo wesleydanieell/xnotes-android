@@ -30,6 +30,7 @@ import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
@@ -225,12 +226,21 @@ private fun ToolbarItemView(
         ToolbarItem.SIDEBAR ->
             ToolbarIcon(XnotesIcons.sidebar, stringResource(R.string.side_panel), active = editor.sidebarVisible, shortcut = Keys.SIDEBAR) { editor.toggleSidebar() }
 
-        ToolbarItem.PEN, ToolbarItem.DASHED, ToolbarItem.CALLIGRAPHY, ToolbarItem.SPEED,
+        ToolbarItem.DASHED, ToolbarItem.CALLIGRAPHY, ToolbarItem.SPEED,
         ToolbarItem.TAPER, ToolbarItem.HIGHLIGHTER, ToolbarItem.ERASER, ToolbarItem.PAN,
         ToolbarItem.SELECT, ToolbarItem.LASSO, ToolbarItem.SCREENSHOT, ToolbarItem.SHAPE,
         ToolbarItem.TEXT, ToolbarItem.TEXT_BOX, ToolbarItem.TAPE -> {
             val tool = Tool.fromId(item.id)
             if (tool != null) ToolButton(editor, tool, toolIcons[tool], configForTool, setConfigForTool)
+        }
+
+        ToolbarItem.PEN -> {
+            val unified = LocalToolbarUnifiedPen.current
+            if (unified != null) {
+                UnifiedPenButton(editor.tool, toolIcons, editor::selectTool)
+            } else {
+                ToolButton(editor, Tool.PEN, toolIcons[Tool.PEN], configForTool, setConfigForTool)
+            }
         }
 
         // Marks a PDF's text, so a note without a PDF has no use for it.
@@ -351,6 +361,45 @@ private fun ToolButton(
                 tool == Tool.TAPE -> TapeConfigPopup(editor) { setConfigForTool(null) }
                 else -> ToolConfigPopup(editor, tool) { setConfigForTool(null) }
             }
+        }
+    }
+}
+
+@Composable
+internal fun UnifiedPenButton(
+    armed: Tool,
+    icons: Map<Tool, ImageVector>,
+    onSelect: (Tool) -> Unit,
+) {
+    val pen = LocalToolbarUnifiedPen.current ?: return
+    val persist = LocalToolbarUnifiedPenSelect.current
+    val styles = pen.styles.filter { it.isStroke }.ifEmpty { listOf(Tool.PEN) }
+    val active = pen.lastStyle?.takeIf { it in styles } ?: styles.first()
+    var open by remember { mutableStateOf(false) }
+    val icon = icons[active] ?: return
+    ToolbarIcon(
+        icon = icon,
+        contentDescription = stringResource(R.string.tool_pen),
+        active = armed in styles,
+        glideKey = armed.takeIf { it in styles },
+        hint = if (armed in styles) stringResource(R.string.tip_tap_for_settings) else null,
+    ) {
+        if (armed in styles) open = true else {
+            onSelect(active)
+            persist(active)
+        }
+    }
+    DropdownMenu(expanded = open, onDismissRequest = { open = false }) {
+        styles.forEach { style ->
+            DropdownMenuItem(
+                text = { Text(stringResource(style.labelRes)) },
+                leadingIcon = icons[style]?.let { vector -> { Icon(vector, contentDescription = null) } },
+                onClick = {
+                    open = false
+                    onSelect(style)
+                    persist(style)
+                },
+            )
         }
     }
 }

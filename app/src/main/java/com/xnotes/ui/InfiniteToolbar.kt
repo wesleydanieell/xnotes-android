@@ -116,7 +116,9 @@ fun InfiniteToolbar(
                         val tool = CANVAS_TOOL_OF.getValue(item)
                         val icon = toolIcons[tool]
                         if (icon != null) {
-                            Box {
+                            if (item == ToolbarItem.PEN && LocalToolbarUnifiedPen.current != null) {
+                                UnifiedPenButton(editor.tool, toolIcons, editor::armTool)
+                            } else Box {
                                 // Tapping the armed tool again opens its settings, as the paged bar does.
                                 val armed = editor.tool == tool
                                 val configurable = tool.isStroke || tool == Tool.ERASER || tool == Tool.SHAPE || tool == Tool.SELECT || tool == Tool.TAPE

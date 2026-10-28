@@ -6,14 +6,18 @@ import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.compositionLocalOf
 import com.xnotes.core.tools.Tool
+import com.xnotes.core.tools.ToolbarBar
 import com.xnotes.core.tools.ToolbarItem
 import com.xnotes.core.tools.ToolbarNode
+import com.xnotes.core.tools.updateUnifiedPen
 
 /** Optional per-bar swatch count; null retains the shared ink palette count. */
 internal val LocalToolbarColorCount = compositionLocalOf<Int?> { null }
 internal val LocalToolbarColorColumns = compositionLocalOf { 1 }
 internal val LocalToolbarGridOverflow = compositionLocalOf { 0 }
 internal val LocalToolbarGridOverflowItems = compositionLocalOf<List<ToolbarItem>> { emptyList() }
+internal val LocalToolbarUnifiedPen = compositionLocalOf<ToolbarNode.UnifiedPen?> { null }
+internal val LocalToolbarUnifiedPenSelect = compositionLocalOf<(Tool) -> Unit> { {} }
 
 internal val LocalToolbarNodeMetrics = compositionLocalOf<Map<Tool, ToolbarNode.Tool>> { emptyMap() }
 
@@ -36,6 +40,10 @@ internal fun ToolbarItem.overflowTool(): Tool? = when (this) {
     ToolbarItem.TAPE -> Tool.TAPE
     else -> null
 }
+
+internal fun ToolbarBar.selectUnifiedPenStyle(style: Tool): ToolbarBar = copy(
+    nodes = nodes?.map { it.updateUnifiedPen { pen -> pen.copy(lastStyle = style) } },
+)
 
 @Composable
 @OptIn(ExperimentalLayoutApi::class)

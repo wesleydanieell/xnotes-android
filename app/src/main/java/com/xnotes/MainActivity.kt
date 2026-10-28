@@ -113,6 +113,9 @@ import com.xnotes.ui.LocalToolbarNodeMetrics
 import com.xnotes.ui.LocalToolbarColorColumns
 import com.xnotes.ui.LocalToolbarGridOverflow
 import com.xnotes.ui.LocalToolbarGridOverflowItems
+import com.xnotes.ui.LocalToolbarUnifiedPen
+import com.xnotes.ui.LocalToolbarUnifiedPenSelect
+import com.xnotes.ui.selectUnifiedPenStyle
 import com.xnotes.ui.WorkspaceFloatingBars
 import com.xnotes.ui.toolbarLookFor
 import com.xnotes.ui.icons.XnotesIcons
@@ -1498,6 +1501,8 @@ private fun EditorPane(
                         LocalToolbarGridOverflow provides (primary?.effectiveGridOverflowCount() ?: 0),
                         LocalToolbarGridOverflowItems provides (primary?.effectiveGridOverflowItems() ?: emptyList()),
                         LocalToolbarNodeMetrics provides (primary?.toolMetrics() ?: emptyMap()),
+                        LocalToolbarUnifiedPen provides primary?.unifiedPen(),
+                        LocalToolbarUnifiedPenSelect provides { style -> primary?.let { app.updateToolbarBar(ToolbarContext.CANVAS, it.selectUnifiedPenStyle(style)) } },
                     ) {
                         com.xnotes.ui.InfiniteToolbar(
                             canvas,
@@ -1573,6 +1578,8 @@ private fun EditorPane(
                                         LocalToolbarGridOverflow provides (primary?.effectiveGridOverflowCount() ?: 0),
                                         LocalToolbarGridOverflowItems provides (primary?.effectiveGridOverflowItems() ?: emptyList()),
                                         LocalToolbarNodeMetrics provides (primary?.toolMetrics() ?: emptyMap()),
+                                        LocalToolbarUnifiedPen provides primary?.unifiedPen(),
+                                        LocalToolbarUnifiedPenSelect provides { style -> primary?.let { app.updateToolbarBar(ToolbarContext.NOTE, it.selectUnifiedPenStyle(style)) } },
                                     ) {
                         Box(Modifier.endsPageSelection(editor)) { Toolbar(
                             editor,

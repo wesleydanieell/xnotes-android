@@ -10,6 +10,8 @@ import com.xnotes.core.tools.toolbarNodesFromLayout
 import com.xnotes.core.tools.updateTool
 import com.xnotes.core.tools.updateColorPalette
 import com.xnotes.core.tools.updateGrid
+import com.xnotes.core.tools.findUnifiedPen
+import com.xnotes.core.tools.updateUnifiedPen
 import com.xnotes.core.tools.moveNode
 import com.xnotes.core.tools.moveNodeBefore
 import com.xnotes.core.tools.ToolbarBar
@@ -228,6 +230,10 @@ class ToolbarWorkspaceJsonTest {
         assertEquals(3, (updatedPalette as ToolbarNode.Group).children.single().let { (it as ToolbarNode.ColorPalette).columns })
         assertEquals(1, ToolbarBar("palette", "Palette", ToolbarLayout.DEFAULT, nodes = listOf(updatedPalette)).effectiveColumns())
         assertEquals(3, ToolbarBar("palette", "Palette", ToolbarLayout.DEFAULT, nodes = listOf(updatedPalette)).effectiveColorColumns())
+        val unified = ToolbarNode.Group("unified-parent", listOf(ToolbarNode.UnifiedPen("unified", lastStyle = com.xnotes.core.tools.Tool.DASHED)))
+        assertEquals(com.xnotes.core.tools.Tool.DASHED, unified.findUnifiedPen()?.lastStyle)
+        val changedUnified = unified.updateUnifiedPen { it.copy(lastStyle = com.xnotes.core.tools.Tool.CALLIGRAPHY) }
+        assertEquals(com.xnotes.core.tools.Tool.CALLIGRAPHY, changedUnified.findUnifiedPen()?.lastStyle)
         val grid = ToolbarNode.Grid("grid", emptyList(), columns = 2, rows = 2)
         val updatedGrid = grid.updateGrid { it.copy(columns = 3, rows = 2) }
         assertEquals(3, (updatedGrid as ToolbarNode.Grid).columns)

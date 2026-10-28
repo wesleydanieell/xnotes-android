@@ -189,6 +189,8 @@ fun BoxScope.WorkspaceFloatingBars(
                                         LocalToolbarGridOverflow provides bar.effectiveGridOverflowCount(),
                                         LocalToolbarGridOverflowItems provides bar.effectiveGridOverflowItems(),
                                         LocalToolbarNodeMetrics provides bar.toolMetrics(),
+                                        LocalToolbarUnifiedPen provides bar.unifiedPen(),
+                                        LocalToolbarUnifiedPenSelect provides { style -> onUpdateBar(bar.selectUnifiedPenStyle(style)) },
                                     ) {
                                         if (index == 0) primaryContent() else content(bar)
                                     }

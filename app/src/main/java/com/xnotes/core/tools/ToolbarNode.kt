@@ -128,6 +128,20 @@ fun ToolbarNode.findColorPalette(): ToolbarNode.ColorPalette? = when (this) {
     else -> null
 }
 
+fun ToolbarNode.findUnifiedPen(): ToolbarNode.UnifiedPen? = when (this) {
+    is ToolbarNode.UnifiedPen -> this
+    is ToolbarNode.Group -> children.firstNotNullOfOrNull { it.findUnifiedPen() }
+    is ToolbarNode.Grid -> children.firstNotNullOfOrNull { it.findUnifiedPen() }
+    else -> null
+}
+
+fun ToolbarNode.updateUnifiedPen(transform: (ToolbarNode.UnifiedPen) -> ToolbarNode.UnifiedPen): ToolbarNode = when (this) {
+    is ToolbarNode.UnifiedPen -> transform(this)
+    is ToolbarNode.Group -> copy(children = children.map { it.updateUnifiedPen(transform) })
+    is ToolbarNode.Grid -> copy(children = children.map { it.updateUnifiedPen(transform) })
+    else -> this
+}
+
 fun ToolbarNode.updateGrid(transform: (ToolbarNode.Grid) -> ToolbarNode.Grid): ToolbarNode = when (this) {
     is ToolbarNode.Grid -> transform(this)
     is ToolbarNode.Group -> copy(children = children.map { it.updateGrid(transform) })
