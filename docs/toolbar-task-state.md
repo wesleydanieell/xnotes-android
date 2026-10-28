@@ -350,6 +350,12 @@ usuário encontradas no worktree e não invente sucesso nem background jobs.
   resolução, JVM/assembleDebug e install -r passaram no emulator-5554.
   Capacidade de grids mistos e validação visual de overflow ainda pendentes.
 
+- 28/10/2026: após a instalação de `77f0276d`/`aee8a604`, Activity isolada foi
+  reiniciada no emulator-5554; após o loader, `topResumedActivity` confirmou
+  `com.xnotes.toolbarsdebug/com.xnotes.MainActivity` e `uiautomator dump` foi
+  gerado sem crash. Captura inicial `/tmp/xnotes-latest.png`; não houve limpeza
+  de dados nem alteração do app original.
+
 ## Próxima ação (uma por vez)
 
 Validar no ADB o configurador, os botões Undo/Redo/Cancel/Apply e a persistência
