@@ -361,6 +361,12 @@ usuário encontradas no worktree e não invente sucesso nem background jobs.
   JVM de atualização, assembleDebug e install -r passaram no emulator-5554.
   Edição em lote de todos os nós e QA de acessibilidade/stylus ainda pendentes.
 
+- 28/10/2026: commit c1477cc2 adiciona edição persistente das colunas do primeiro
+  `ColorPalette` v3 (`Swatch columns`), usa essa grade na resolução comum da barra
+  e cobre a atualização recursiva com teste JVM. `testDebugUnitTest`,
+  `assembleDebug` e `install -r` passaram no emulator-5554. Edição de múltiplos
+  palettes/grids mistos e validação visual 3×2 continuam pendentes.
+
 - 28/10/2026: QA ADB no emulator-5554 abriu `Preferences > Configure toolbars`
   e confirmou a prévia com overflow explícito (`+28`), os perfis `xnote`,
   `xcanvas` e `Shared`, além dos botões `Undo`, `Redo`, `Cancel` e `Apply`.
