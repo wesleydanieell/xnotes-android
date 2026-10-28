@@ -4,6 +4,8 @@ import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
@@ -75,8 +77,8 @@ internal fun ToolbarWorkspacePreview(
                 y += rule
             }
         }
-        workspace.bars.forEachIndexed { index, bar ->
-            if (!bar.visible) return@forEachIndexed
+        val placedBars = workspace.bars.mapIndexedNotNull { index, bar ->
+            if (!bar.visible) return@mapIndexedNotNull null
             val floating = index != 0 || bar.geometry.floating || look.floating
             val anchor = if (index == 0 && !bar.geometry.floating) when (look.position) {
                 ToolbarPosition.TOP -> ToolbarAnchor.TOP_CENTER
@@ -84,26 +86,35 @@ internal fun ToolbarWorkspacePreview(
                 ToolbarPosition.LEFT -> ToolbarAnchor.CENTER_LEFT
                 ToolbarPosition.RIGHT -> ToolbarAnchor.CENTER_RIGHT
             } else bar.geometry.anchor
-            val vertical = anchor == ToolbarAnchor.CENTER_LEFT || anchor == ToolbarAnchor.CENTER_RIGHT
-            // A fixed bar has its own edge slot; floating bars are inset from the paper edge.
-            Box(
-                Modifier
-                    .align(anchor.alignment())
-                    .padding(if (floating) 9.dp else 1.dp),
+            Triple(bar, anchor, floating)
+        }
+        for (anchor in ToolbarAnchor.entries) {
+            val bars = placedBars.filter { it.second == anchor }
+            if (bars.isEmpty()) continue
+            // Like the live workspace, bars sharing an anchor occupy a stable vertical stack.
+            // The stage is bounded; scrolling keeps every preview selectable when it overflows.
+            Column(
+                Modifier.align(anchor.alignment()).padding(1.dp).verticalScroll(rememberScrollState()),
+                verticalArrangement = Arrangement.spacedBy(4.dp),
+                horizontalAlignment = Alignment.CenterHorizontally,
             ) {
-                ToolbarDragSurface(
-                    id = bar.id,
-                    anchor = anchor,
-                    movable = bar.geometry.movable,
-                    paneBounds = stageBounds,
-                    onMoveBar = onMoveBar,
-                ) {
-                    PreviewBar(
-                        bar = bar,
-                        selected = bar.id == selectedId,
-                        vertical = vertical,
-                        onSelect = { onSelectBar(bar.id) },
-                    )
+                for ((bar, _, floating) in bars) {
+                    Box(Modifier.padding(if (floating) 4.dp else 0.dp)) {
+                        ToolbarDragSurface(
+                            id = bar.id,
+                            anchor = anchor,
+                            movable = bar.geometry.movable,
+                            paneBounds = stageBounds,
+                            onMoveBar = onMoveBar,
+                        ) {
+                            PreviewBar(
+                                bar = bar,
+                                selected = bar.id == selectedId,
+                                vertical = anchor == ToolbarAnchor.CENTER_LEFT || anchor == ToolbarAnchor.CENTER_RIGHT,
+                                onSelect = { onSelectBar(bar.id) },
+                            )
+                        }
+                    }
                 }
             }
         }
