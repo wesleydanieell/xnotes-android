@@ -12,6 +12,7 @@ import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -173,16 +174,16 @@ fun ToolbarHudScreen(
                 movingBar = movingBar,
                 barDropTarget = barDropTarget,
                 onBarDragStart = { index -> selectedBar = index; selectedItem = null; movingBar = index },
-                onBarDrag = { index, dx, dy ->
+            onBarDrag = { index, dx, dy, width, height ->
                     val bar = bars[index]
-                    val nextX = (bar.offsetXDp + dx).coerceIn(-260f, 260f)
-                    val nextY = (bar.offsetYDp + dy).coerceIn(-220f, 220f)
+                    val nextX = bar.offsetXDp + dx
+                    val nextY = bar.offsetYDp + dy
                     bars[index] = bar.copy(offsetXDp = nextX, offsetYDp = nextY)
-                    barDropTarget = hudAnchorFor(bar.anchor, nextX, nextY)
+                    barDropTarget = hudAnchorFor(bar.anchor, nextX, nextY, width, height)
                 },
-                onBarDrop = { index ->
+                onBarDrop = { index, width, height ->
                     val bar = bars[index]
-                    bars[index] = bar.copy(anchor = hudAnchorFor(bar.anchor, bar.offsetXDp, bar.offsetYDp), offsetXDp = 0f, offsetYDp = 0f)
+                    bars[index] = bar.copy(anchor = hudAnchorFor(bar.anchor, bar.offsetXDp, bar.offsetYDp, width, height), offsetXDp = 0f, offsetYDp = 0f)
                     movingBar = null
                     barDropTarget = null
                 },
@@ -225,22 +226,24 @@ private enum class HudPresentation { DOCKED, FLOATING }
 private enum class HudBarSize(val scale: Float) { COMPACT(0.82f), REGULAR(1f), COMFORTABLE(1.18f) }
 private enum class HudOrientation { HORIZONTAL, VERTICAL }
 
-private fun hudAnchorFor(origin: HudAnchor, offsetX: Float, offsetY: Float): HudAnchor {
+private fun hudAnchorFor(origin: HudAnchor, offsetX: Float, offsetY: Float, widthDp: Float, heightDp: Float): HudAnchor {
+    val halfWidth = widthDp / 2f
+    val halfHeight = heightDp / 2f
     val (baseX, baseY) = when (origin) {
-        HudAnchor.TOP_START -> -300f to -220f
-        HudAnchor.TOP_CENTER -> 0f to -220f
-        HudAnchor.TOP_END -> 300f to -220f
-        HudAnchor.CENTER_START -> -300f to 0f
+        HudAnchor.TOP_START -> -halfWidth + 36f to -halfHeight + 36f
+        HudAnchor.TOP_CENTER -> 0f to -halfHeight + 36f
+        HudAnchor.TOP_END -> halfWidth - 36f to -halfHeight + 36f
+        HudAnchor.CENTER_START -> -halfWidth + 36f to 0f
         HudAnchor.CENTER -> 0f to 0f
-        HudAnchor.CENTER_END -> 300f to 0f
-        HudAnchor.BOTTOM_START -> -300f to 220f
-        HudAnchor.BOTTOM_CENTER -> 0f to 220f
-        HudAnchor.BOTTOM_END -> 300f to 220f
+        HudAnchor.CENTER_END -> halfWidth - 36f to 0f
+        HudAnchor.BOTTOM_START -> -halfWidth + 36f to halfHeight - 36f
+        HudAnchor.BOTTOM_CENTER -> 0f to halfHeight - 36f
+        HudAnchor.BOTTOM_END -> halfWidth - 36f to halfHeight - 36f
     }
     val x = baseX + offsetX
     val y = baseY + offsetY
-    val column = when { x < -150f -> 0; x > 150f -> 2; else -> 1 }
-    val row = when { y < -110f -> 0; y > 110f -> 2; else -> 1 }
+    val column = when { x < -widthDp / 6f -> 0; x > widthDp / 6f -> 2; else -> 1 }
+    val row = when { y < -heightDp / 6f -> 0; y > heightDp / 6f -> 2; else -> 1 }
     return HudAnchor.entries[row * 3 + column]
 }
 
@@ -390,8 +393,8 @@ private fun HudViewport(
     movingBar: Int?,
     barDropTarget: HudAnchor?,
     onBarDragStart: (Int) -> Unit,
-    onBarDrag: (Int, Float, Float) -> Unit,
-    onBarDrop: (Int) -> Unit,
+    onBarDrag: (Int, Float, Float, Float, Float) -> Unit,
+    onBarDrop: (Int, Float, Float) -> Unit,
     modifier: Modifier,
 ) {
     val palette = LocalPalette.current
@@ -403,7 +406,7 @@ private fun HudViewport(
             Spacer(Modifier.weight(1f))
             Text("${(zoom * 100).toInt()}%", color = palette.text.toComposeColor(), fontSize = 12.sp)
         }
-        Box(
+        BoxWithConstraints(
             Modifier.fillMaxWidth().weight(1f).clip(RoundedCornerShape(18.dp))
                 .background(palette.paper.toComposeColor()),
         ) {
@@ -428,6 +431,8 @@ private fun HudViewport(
                         }
                     },
             ) {
+            val viewportWidthDp = this@BoxWithConstraints.maxWidth.value
+            val viewportHeightDp = this@BoxWithConstraints.maxHeight.value
                 if (movingBar != null && barDropTarget != null) HudAnchorHints(barDropTarget)
                 Column(Modifier.padding(58.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
                     Text("Nota sem bordas", color = palette.text.toComposeColor().copy(alpha = 0.40f), fontSize = 18.sp)
@@ -449,8 +454,8 @@ private fun HudViewport(
                         onDragItem = onDragItem,
                         dragging = movingBar == index,
                         onBarDragStart = { onBarDragStart(index) },
-                        onBarDrag = { dx, dy -> onBarDrag(index, dx, dy) },
-                        onBarDrop = { onBarDrop(index) },
+                        onBarDrag = { dx, dy -> onBarDrag(index, dx, dy, viewportWidthDp, viewportHeightDp) },
+                        onBarDrop = { onBarDrop(index, viewportWidthDp, viewportHeightDp) },
                         modifier = hudAnchorModifier(bar.anchor, stackIndex)
                             .offset(x = bar.offsetXDp.dp, y = bar.offsetYDp.dp)
                             .then(if (bar.fillWidth && bar.orientation == HudOrientation.HORIZONTAL) Modifier.fillMaxWidth().padding(horizontal = 28.dp) else Modifier),
@@ -571,7 +576,7 @@ private fun HudComposedBar(
                                 onMove = { delta -> onMoveItem(index, (index + delta).coerceIn(0, bar.items.lastIndex)) },
                                 onDrag = onDragItem,
                                 iconSize = (42 * sizeFactor).dp,
-                                content = { HudToolbarItem(item, selected && selectedItem == item, { onSelectItem(item) }, sizeFactor) },
+                                content = { HudToolbarItem(item, selected && selectedItem == item, { onSelectItem(item) }, sizeFactor, vertical = false) },
                             )
                         }
                     }
@@ -590,7 +595,7 @@ private fun HudComposedBar(
                                 onDrag = onDragItem,
                                 vertical = true,
                                 iconSize = (42 * sizeFactor).dp,
-                                content = { HudToolbarItem(item, selected && selectedItem == item, { onSelectItem(item) }, sizeFactor) },
+                                content = { HudToolbarItem(item, selected && selectedItem == item, { onSelectItem(item) }, sizeFactor, vertical = true) },
                             )
                         }
                     }
@@ -645,14 +650,20 @@ private fun HudActualSlot(
 }
 
 @Composable
-private fun HudColorGrid(selected: Boolean, onClick: () -> Unit, scale: Float = 1f) {
+private fun HudColorGrid(selected: Boolean, onClick: () -> Unit, scale: Float = 1f, vertical: Boolean = false) {
     val colors = listOf(Color(0xffe45756), Color(0xffffb627), Color(0xff5bc0eb), Color(0xff6cc551), Color(0xff9b5de5), Color(0xfff15bb5), Color(0xff00bbf9), Color(0xff555b6e))
     val cell = 22.dp * scale
     Column(Modifier.clip(RoundedCornerShape(8.dp)).clickable(onClick = onClick).padding(2.dp * scale), verticalArrangement = Arrangement.spacedBy(2.dp * scale)) {
-        colors.chunked(4).forEach { row ->
-            Row(horizontalArrangement = Arrangement.spacedBy(2.dp * scale)) {
-                row.forEach { color ->
-                    Box(Modifier.size(cell).clip(CircleShape).background(color).border(if (selected) 2.dp * scale else 1.dp * scale, if (selected) Color.White else Color.Transparent, CircleShape))
+        if (vertical) {
+            colors.forEach { color ->
+                Box(Modifier.size(cell).clip(CircleShape).background(color).border(if (selected) 2.dp * scale else 1.dp * scale, if (selected) Color.White else Color.Transparent, CircleShape))
+            }
+        } else {
+            colors.chunked(4).forEach { row ->
+                Row(horizontalArrangement = Arrangement.spacedBy(2.dp * scale)) {
+                    row.forEach { color ->
+                        Box(Modifier.size(cell).clip(CircleShape).background(color).border(if (selected) 2.dp * scale else 1.dp * scale, if (selected) Color.White else Color.Transparent, CircleShape))
+                    }
                 }
             }
         }
@@ -660,25 +671,37 @@ private fun HudColorGrid(selected: Boolean, onClick: () -> Unit, scale: Float = 
 }
 
 @Composable
-private fun HudToolbarItem(item: String, selected: Boolean, onClick: () -> Unit, scale: Float) {
+private fun HudToolbarItem(item: String, selected: Boolean, onClick: () -> Unit, scale: Float, vertical: Boolean) {
     when (item) {
-        "colors" -> HudColorGrid(selected, onClick, scale)
-        "divider" -> HudDivider(scale)
-        "spacer" -> Spacer(Modifier.width(24.dp * scale))
+        "colors" -> HudColorGrid(selected, onClick, scale, vertical)
+        "divider" -> HudDivider(scale, vertical)
+        "spacer" -> if (vertical) Spacer(Modifier.height(24.dp * scale)) else Spacer(Modifier.width(24.dp * scale))
         "title" -> Text("Nota", color = LocalPalette.current.text.toComposeColor(), fontSize = (12 * scale).sp)
-        "zoom" -> Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(2.dp * scale)) {
-            HudItemIcon("zoom_out", false, onClick, iconSize = 34.dp * scale)
-            Text("100%", color = LocalPalette.current.textDim.toComposeColor(), fontSize = (11 * scale).sp)
-            HudItemIcon("zoom_in", false, onClick, iconSize = 34.dp * scale)
+        "zoom" -> if (vertical) {
+            Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(2.dp * scale)) {
+                HudItemIcon("zoom_out", false, onClick, iconSize = 34.dp * scale)
+                Text("100%", color = LocalPalette.current.textDim.toComposeColor(), fontSize = (11 * scale).sp)
+                HudItemIcon("zoom_in", false, onClick, iconSize = 34.dp * scale)
+            }
+        } else {
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(2.dp * scale)) {
+                HudItemIcon("zoom_out", false, onClick, iconSize = 34.dp * scale)
+                Text("100%", color = LocalPalette.current.textDim.toComposeColor(), fontSize = (11 * scale).sp)
+                HudItemIcon("zoom_in", false, onClick, iconSize = 34.dp * scale)
+            }
         }
         else -> HudItemIcon(item, selected = selected, onClick = onClick, iconSize = 42.dp * scale)
     }
 }
 
 @Composable
-private fun HudDivider(scale: Float = 1f) {
+private fun HudDivider(scale: Float = 1f, vertical: Boolean = false) {
     val palette = LocalPalette.current
-    Box(Modifier.width(1.dp).height(42.dp * scale).background(palette.border.toComposeColor()))
+    Box(
+        (if (vertical) Modifier.width(42.dp * scale).height(1.dp)
+        else Modifier.width(1.dp).height(42.dp * scale))
+            .background(palette.border.toComposeColor()),
+    )
 }
 
 @Composable

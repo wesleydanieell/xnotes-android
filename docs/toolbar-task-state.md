@@ -169,9 +169,11 @@ M2/M4/M5.
 
 ### Próxima ação — M2
 
-Extrair o modelo puro de composição e o layout resolver determinístico: Row/Column/Grid, slots,
-spans, padding/gap, validação de IDs/ciclos e fixture da barra de referência do guia. O HUD M1
-deve continuar sendo apenas uma camada visual até esse motor existir.
+O primeiro núcleo de M2 foi extraído em `core/tools/ToolbarComposition.kt`: árvore tipada de
+ferramentas/containers/spacers/dividers, validação de IDs e spans, e resolver determinístico de
+Row/Column/Grid com ocupação row-major e slots aninhados. `ToolbarCompositionTest` cobre a fixture
+da barra de referência, grids com spans e rejeição de IDs duplicados. O HUD M1 ainda não consome
+esse resolver; essa ligação e o renderer compartilhado continuam sendo o próximo passo de M2/M3.
 
 ### Evidência do checkpoint
 
