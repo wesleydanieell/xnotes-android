@@ -384,6 +384,11 @@ usuário encontradas no worktree e não invente sucesso nem background jobs.
   e install -r passaram no emulator-5554. Auto-fit e grids mistos seguem
   pendentes.
 
+- 28/10/2026: após fea94063, `connectedDebugAndroidTest` concluiu novamente
+  `BUILD SUCCESSFUL` no emulator-5554 (70 tasks; sem testes instrumentados
+  específicos). O APK já havia sido instalado com `install -r` e a Activity
+  reiniciada sem limpar dados.
+
 - 28/10/2026: QA ADB no emulator-5554 abriu `Preferences > Configure toolbars`
   e confirmou a prévia com overflow explícito (`+28`), os perfis `xnote`,
   `xcanvas` e `Shared`, além dos botões `Undo`, `Redo`, `Cancel` e `Apply`.
