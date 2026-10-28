@@ -2886,6 +2886,31 @@ class Editor(context: Context, val pane: Pane = Pane.PRIMARY) : ToolPopupHost, S
         persistToolbarWorkspaces(next)
     }
 
+    fun updateToolbarBar(context: ToolbarContext, bar: com.xnotes.core.tools.ToolbarBar) {
+        val profiles = toolbarWorkspaces
+        val workspace = if (context == ToolbarContext.NOTE || profiles.shared) profiles.note else profiles.canvas
+        val changed = workspace.replaceBar(bar)
+        if (changed != workspace) {
+            applyToolbarWorkspaces(if (context == ToolbarContext.CANVAS && !profiles.shared) profiles.copy(canvas = changed) else profiles.copy(note = changed))
+        }
+    }
+
+    fun duplicateToolbarBar(context: ToolbarContext, source: com.xnotes.core.tools.ToolbarBar) {
+        val profiles = toolbarWorkspaces
+        val workspace = if (context == ToolbarContext.NOTE || profiles.shared) profiles.note else profiles.canvas
+        val id = generateSequence(1) { it + 1 }.map { "bar-$it" }.first { candidate -> workspace.bars.none { it.id == candidate } }
+        val changed = workspace.duplicateBar(source.id, id, "${source.name} copy")
+        if (changed != workspace) applyToolbarWorkspaces(if (context == ToolbarContext.CANVAS && !profiles.shared) profiles.copy(canvas = changed) else profiles.copy(note = changed))
+    }
+
+    fun hideToolbarBar(context: ToolbarContext, source: com.xnotes.core.tools.ToolbarBar) {
+        val profiles = toolbarWorkspaces
+        val workspace = if (context == ToolbarContext.NOTE || profiles.shared) profiles.note else profiles.canvas
+        if (workspace.bars.size <= 1 || workspace.bars.first().id == source.id) return
+        val changed = workspace.replaceBar(source.copy(visible = false))
+        applyToolbarWorkspaces(if (context == ToolbarContext.CANVAS && !profiles.shared) profiles.copy(canvas = changed) else profiles.copy(note = changed))
+    }
+
     /** Hold-drag any toolbar, including the docked primary, to a persisted floating anchor. */
     fun moveToolbarBar(context: ToolbarContext, id: String, anchor: ToolbarAnchor) {
         val profiles = toolbarWorkspaces

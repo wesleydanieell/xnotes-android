@@ -11,6 +11,9 @@ import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.absoluteOffset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.getValue
@@ -54,6 +57,7 @@ fun ToolbarDragSurface(
     movable: Boolean,
     paneBounds: Rect,
     onMoveBar: (String, ToolbarAnchor) -> Unit,
+    onLongPress: () -> Unit = {},
     content: @Composable () -> Unit,
 ) {
     var drag by remember(id) { mutableStateOf(Offset.Zero) }
@@ -88,6 +92,8 @@ fun ToolbarDragSurface(
                     toolbarDropTarget(drop.x, drop.y, paneBounds.width, paneBounds.height)?.let {
                         onMoveBar(id, it)
                     }
+                } else if (released && moved.getDistance() < 12f) {
+                    onLongPress()
                 }
             } finally {
                 drag = Offset.Zero
@@ -108,10 +114,14 @@ fun ToolbarDragSurface(
 fun BoxScope.WorkspaceFloatingBars(
     workspace: ToolbarWorkspace,
     onMoveBar: (id: String, anchor: ToolbarAnchor) -> Unit,
+    onUpdateBar: (ToolbarBar) -> Unit = {},
+    onDuplicateBar: (ToolbarBar) -> Unit = {},
+    onHideBar: (ToolbarBar) -> Unit = {},
     primaryContent: @Composable () -> Unit,
     content: @Composable (ToolbarBar) -> Unit,
 ) {
     var paneBounds by remember { mutableStateOf(Rect.Zero) }
+    var contextBarId by remember { mutableStateOf<String?>(null) }
     BoxWithConstraints(Modifier.fillMaxSize().onGloballyPositioned { paneBounds = it.boundsInRoot() }) {
         val activeAnchors = workspace.bars.withIndex().filter { (index, bar) ->
             bar.visible && (index > 0 || bar.geometry.floating)
@@ -151,6 +161,7 @@ fun BoxScope.WorkspaceFloatingBars(
                                     movable = bar.geometry.movable,
                                     paneBounds = paneBounds,
                                     onMoveBar = onMoveBar,
+                                    onLongPress = { contextBarId = bar.id },
                                 ) {
                                     CompositionLocalProvider(
                                         LocalToolbarLook provides look,
@@ -158,6 +169,28 @@ fun BoxScope.WorkspaceFloatingBars(
                                         LocalToolbarColorCount provides bar.colorCount,
                                     ) {
                                         if (index == 0) primaryContent() else content(bar)
+                                    }
+                                }
+                                DropdownMenu(
+                                    expanded = contextBarId == bar.id,
+                                    onDismissRequest = { contextBarId = null },
+                                ) {
+                                    DropdownMenuItem(
+                                        text = { Text(if (bar.geometry.movable) "Lock" else "Unlock") },
+                                        onClick = {
+                                            contextBarId = null
+                                            onUpdateBar(bar.copy(geometry = bar.geometry.copy(movable = !bar.geometry.movable)))
+                                        },
+                                    )
+                                    DropdownMenuItem(
+                                        text = { Text("Duplicate") },
+                                        onClick = { contextBarId = null; onDuplicateBar(bar) },
+                                    )
+                                    if (index > 0) {
+                                        DropdownMenuItem(
+                                            text = { Text("Hide") },
+                                            onClick = { contextBarId = null; onHideBar(bar) },
+                                        )
                                     }
                                 }
                             }

@@ -1517,6 +1517,9 @@ private fun EditorPane(
                         WorkspaceFloatingBars(
                             workspace = app.toolbarWorkspaces.forContext(ToolbarContext.CANVAS),
                             onMoveBar = { id, anchor -> app.moveToolbarBar(ToolbarContext.CANVAS, id, anchor) },
+                            onUpdateBar = { bar -> app.updateToolbarBar(ToolbarContext.CANVAS, bar) },
+                            onDuplicateBar = { bar -> app.duplicateToolbarBar(ToolbarContext.CANVAS, bar) },
+                            onHideBar = { bar -> app.hideToolbarBar(ToolbarContext.CANVAS, bar) },
                             primaryContent = { bar() },
                         ) { extraBar ->
                             com.xnotes.ui.InfiniteToolbar(
@@ -1596,6 +1599,9 @@ private fun EditorPane(
                             WorkspaceFloatingBars(
                             workspace = app.toolbarWorkspaces.forContext(ToolbarContext.NOTE),
                             onMoveBar = { id, anchor -> app.moveToolbarBar(ToolbarContext.NOTE, id, anchor) },
+                            onUpdateBar = { bar -> app.updateToolbarBar(ToolbarContext.NOTE, bar) },
+                            onDuplicateBar = { bar -> app.duplicateToolbarBar(ToolbarContext.NOTE, bar) },
+                            onHideBar = { bar -> app.hideToolbarBar(ToolbarContext.NOTE, bar) },
                             primaryContent = { bar() },
                         ) { extraBar ->
                                 Toolbar(
