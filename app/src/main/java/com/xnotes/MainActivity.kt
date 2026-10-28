@@ -1492,6 +1492,7 @@ private fun EditorPane(
                             onInsertAudio = { actions.onInsertAudio(editor) },
                             onRecordAudio = { actions.onRecordAudio(editor) },
                             onTakePhoto = { actions.onTakePhoto(editor) },
+                            layout = primary?.effectiveLayout() ?: editor.canvasToolbarLayout,
                         )
                     }
                 }
@@ -1562,6 +1563,7 @@ private fun EditorPane(
                             onInsertAudio = { actions.onInsertAudio(editor) },
                             onRecordAudio = { actions.onRecordAudio(editor) },
                             onTakePhoto = { actions.onTakePhoto(editor) },
+                            layout = primary?.effectiveLayout() ?: editor.toolbarLayout,
                         ) }
                     }
                 }
