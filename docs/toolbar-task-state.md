@@ -315,6 +315,15 @@ usuário encontradas no worktree e não invente sucesso nem background jobs.
   JVM/assembleDebug/install -r passaram no emulator-5554. QA visual do toggle
   e alternância com perfis distintos ainda pendentes.
 
+- 28/10/2026: commit fd9c8a89 adiciona schema v3 finito de `ToolbarNode`, com
+  Tool, ColorPalette, Group, Grid, Spacer e Separator, limites de profundidade
+  3/filhos 64, sanitização de IDs/dimensões e codec versionado que aceita v1–v3
+  e grava v3. Barras legadas continuam usando `ToolbarLayout`; barras com nós
+  explícitos projetam uma lista segura no renderer de barras secundárias.
+  Testes JVM cobrem round-trip, flatten e rejeição de profundidade insegura;
+  assembleDebug/install -r passaram no emulator-5554. Editor visual de nós,
+  drag/drop entre grupos e grids de cores dedicados ainda pendentes.
+
 ## Próxima ação (uma por vez)
 
 Validar no ADB o configurador, os botões Undo/Redo/Cancel/Apply e a persistência
