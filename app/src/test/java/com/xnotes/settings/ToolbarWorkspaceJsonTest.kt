@@ -8,6 +8,7 @@ import com.xnotes.core.tools.flattenItems
 import com.xnotes.core.tools.sanitized
 import com.xnotes.core.tools.toolbarNodesFromLayout
 import com.xnotes.core.tools.updateTool
+import com.xnotes.core.tools.updateColorPalette
 import com.xnotes.core.tools.ToolbarBar
 import com.xnotes.core.tools.ToolbarContext
 import com.xnotes.core.tools.ToolbarEntry
@@ -219,5 +220,9 @@ class ToolbarWorkspaceJsonTest {
         assertEquals(56, metrics[com.xnotes.core.tools.Tool.PEN]?.hitboxDp)
         val updatedNode = ToolbarNode.Tool("pen", ToolbarItem.PEN).updateTool(ToolbarItem.PEN) { it.copy(hitboxDp = 64) }
         assertEquals(64, (updatedNode as ToolbarNode.Tool).hitboxDp)
+        val palette = ToolbarNode.Group("palette-group", listOf(ToolbarNode.ColorPalette("palette", columns = 2)))
+        val updatedPalette = palette.updateColorPalette { it.copy(columns = 3) }
+        assertEquals(3, (updatedPalette as ToolbarNode.Group).children.single().let { (it as ToolbarNode.ColorPalette).columns })
+        assertEquals(3, ToolbarBar("palette", "Palette", ToolbarLayout.DEFAULT, nodes = listOf(updatedPalette)).effectiveColumns())
     }
 }

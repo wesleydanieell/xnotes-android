@@ -103,6 +103,20 @@ fun ToolbarNode.updateTool(item: ToolbarItem, transform: (ToolbarNode.Tool) -> T
     else -> this
 }
 
+fun ToolbarNode.updateColorPalette(transform: (ToolbarNode.ColorPalette) -> ToolbarNode.ColorPalette): ToolbarNode = when (this) {
+    is ToolbarNode.ColorPalette -> transform(this)
+    is ToolbarNode.Group -> copy(children = children.map { it.updateColorPalette(transform) })
+    is ToolbarNode.Grid -> copy(children = children.map { it.updateColorPalette(transform) })
+    else -> this
+}
+
+fun ToolbarNode.findColorPalette(): ToolbarNode.ColorPalette? = when (this) {
+    is ToolbarNode.ColorPalette -> this
+    is ToolbarNode.Group -> children.firstNotNullOfOrNull { it.findColorPalette() }
+    is ToolbarNode.Grid -> children.firstNotNullOfOrNull { it.findColorPalette() }
+    else -> null
+}
+
 fun ToolbarNode.findTool(item: ToolbarItem): ToolbarNode.Tool? = when (this) {
     is ToolbarNode.Tool -> takeIf { it.item == item }
     is ToolbarNode.Group -> children.firstNotNullOfOrNull { it.findTool(item) }

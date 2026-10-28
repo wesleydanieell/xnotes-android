@@ -85,6 +85,7 @@ data class ToolbarBar(
         fun find(nodes: List<ToolbarNode>): Int? = nodes.firstNotNullOfOrNull { node ->
             when (node) {
                 is ToolbarNode.Grid -> node.columns
+                is ToolbarNode.ColorPalette -> node.columns
                 is ToolbarNode.Group -> find(node.children)
                 else -> null
             }

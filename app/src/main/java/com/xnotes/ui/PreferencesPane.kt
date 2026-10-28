@@ -85,7 +85,9 @@ import com.xnotes.core.tools.ToolbarSection
 import com.xnotes.core.tools.ToolbarWorkspace
 import com.xnotes.core.tools.toolbarNodesFromLayout
 import com.xnotes.core.tools.findTool
+import com.xnotes.core.tools.findColorPalette
 import com.xnotes.core.tools.updateTool
+import com.xnotes.core.tools.updateColorPalette
 import com.xnotes.core.util.NameTemplate
 import com.xnotes.settings.Preferences
 import com.xnotes.settings.MaterialStyle
@@ -816,6 +818,23 @@ fun PreferencesPane(
                         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                     )
                 }
+            }
+            val paletteNode = currentBar.nodes?.firstNotNullOfOrNull { it.findColorPalette() }
+            if (paletteNode != null) {
+                OutlinedTextField(
+                    value = paletteNode.columns.toString(),
+                    onValueChange = { raw ->
+                        raw.toIntOrNull()?.let { value ->
+                            updateSelectedBar { bar ->
+                                bar.copy(nodes = bar.nodes?.map { node -> node.updateColorPalette { it.copy(columns = value) } })
+                            }
+                        }
+                    },
+                    label = { Text("Swatch columns") },
+                    singleLine = true,
+                    modifier = Modifier.width(150.dp),
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                )
             }
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 OutlinedTextField(
