@@ -607,10 +607,25 @@ usuário encontradas no worktree e não invente sucesso nem background jobs.
   O popup `+N` não foi exercitado visualmente porque o estado persistido do
   emulador ainda não contém uma grade oversized.
 
+- 28/10/2026: commit 7dae5ee3 conecta `UnifiedPen.styles` e `lastStyle` ao
+  renderer de note/canvas. O botão PEN agora abre o menu dos estilos válidos,
+  arma o `Tool` escolhido e persiste o último estilo na árvore v3 da barra;
+  barras sem `UnifiedPen` mantêm o comportamento anterior. Foram adicionados
+  helpers recursivos e teste JVM de leitura/atualização; `git diff --check` e
+  `:app:testDebugUnitTest :app:assembleDebug --console=plain` passaram.
+
+- 28/10/2026: commit 509ac912 amplia o editor de composição v3 com criação
+  direta de `Group` e grade 2×2, exclusão de nós e teste puro de remoção
+  recursiva. A árvore já permitia reorderação entre pais; agora o configurador
+  também consegue criar destinos estruturais sem editar JSON manualmente.
+  `git diff --check` e o gate JVM/assemble passaram. O drag visual entre grupos,
+  clipping e a validação ADB da tela continuam pendentes.
+
 ## Próxima ação (uma por vez)
 
-Com o `emulator-5554` online, instalar o APK de `91d775f6` e validar via
-UIAutomator o marcador `+N` e seu menu em uma grade oversized; depois executar
-split/orientação e verificar grids mistos/auto-fit sem clipping. A geometria
+Com o `emulator-5554` online, instalar o APK de `7dae5ee3` e validar via
+UIAutomator o marcador `+N` e o menu de estilos da caneta unificada; criar uma
+grade oversized no configurador para exercitar o popup e depois executar
+split/orientação, verificando grids mistos/auto-fit sem clipping. A geometria
 quantitativa, Undo independente e testes de pressão, hover, latência e primeiro
 traço continuam reservados para as próximas rodadas e para o Redmi Pad 2.
