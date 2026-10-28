@@ -241,6 +241,16 @@ usuário encontradas no worktree e não invente sucesso nem background jobs.
   edição de dimensões na UI, snapshots instrumentados e comparação visual ainda
   faltam.
 
+- 28/10/2026: commit 81aeba23 adiciona `ToolbarAppearance` imutável por barra,
+  com fundo RGBA opcional, opacidade, borda, raio, padding, espaçamento e
+  solicitação de blur limitada com fallback seguro sem blur. O codec de
+  workspaces faz round-trip e aplica clamps (opacidade 0..1, dimensões de
+  aparência e blur); o frame e a prévia usam os mesmos tokens. Teste de
+  persistência/clamp foi adicionado. `ANDROID_HOME=/home/wesley/Android/Sdk ./gradlew :app:testDebugUnitTest :app:assembleDebug --console=plain`
+  passou e install -r no emulator-5554 retornou Success. Os controles de
+  edição desses tokens ainda não estão expostos na PreferencesPane; não marcar
+  M4 concluído.
+
 ## Próxima ação (uma por vez)
 
 Implementar modelo/persistência de aparência por barra (fundo/alfa/borda/raio/
