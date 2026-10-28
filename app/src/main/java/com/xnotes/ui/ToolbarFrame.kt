@@ -10,6 +10,8 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -142,6 +144,7 @@ internal fun ColumnScope.ToolbarAround(
  * and [armed] is the tool the gliding circle sits under.
  */
 @Composable
+@OptIn(ExperimentalLayoutApi::class)
 internal fun ToolbarFrame(
     armed: Any?,
     trailing: (@Composable () -> Unit)? = null,
@@ -152,6 +155,7 @@ internal fun ToolbarFrame(
     val bar = barMetrics(look.size).copy(vertical = look.position.vertical)
     val resolvedSize = geometry?.let(::resolveToolbarSize)
     val appearance = geometry?.appearance?.constrained()
+    val columns = geometry?.columns?.coerceIn(1, 6) ?: 1
     val glide = remember { ToolGlide() }
     val palette = LocalPalette.current
     val shape = RoundedCornerShape((appearance?.cornerRadiusDp ?: 24).dp)
@@ -217,7 +221,13 @@ internal fun ToolbarFrame(
                         .padding(horizontal = (appearance?.paddingHorizontalDp ?: 4).dp, vertical = (appearance?.paddingVerticalDp ?: 4).dp)
                         .toolGlide(glide, armed),
                     verticalAlignment = Alignment.CenterVertically,
-                ) { content() }
+                ) {
+                    if (columns > 1) {
+                        FlowRow(maxItemsInEachRow = columns, horizontalArrangement = Arrangement.spacedBy((appearance?.spacingDp ?: 0).dp)) {
+                            content()
+                        }
+                    } else content()
+                }
                 trailing?.invoke()
             }
         }

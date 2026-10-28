@@ -774,6 +774,16 @@ fun PreferencesPane(
                     modifier = Modifier.width(130.dp),
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                 )
+                OutlinedTextField(
+                    value = geometry.columns.toString(),
+                    onValueChange = { raw ->
+                        raw.toIntOrNull()?.let { value -> updateSelectedBar { bar -> bar.copy(geometry = bar.geometry.copy(columns = value)) } }
+                    },
+                    label = { Text("Columns") },
+                    singleLine = true,
+                    modifier = Modifier.width(110.dp),
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                )
             }
             HorizontalDivider(color = palette.border.toComposeColor())
             FieldLabel(stringResource(R.string.toolbar_selected))
