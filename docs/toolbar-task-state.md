@@ -453,6 +453,15 @@ usuário encontradas no worktree e não invente sucesso nem background jobs.
   `connectedDebugAndroidTest` passaram no emulator-5554. QA manual do gesto,
   feedback visual de destino e cancelamento por stylus ainda pendentes.
 
+- 28/10/2026: a regressão encontrada no cenário nó aninhado → alvo na raiz foi
+  corrigida em 83a3d952; a extração agora é recursiva também para destinos da
+  raiz, com teste JVM dedicado. Após a correção, `testDebugUnitTest`,
+  `assembleDebug` e install -r passaram no emulator-5554.
+
+- 28/10/2026: `connectedDebugAndroidTest` após 83a3d952 concluiu
+  `BUILD SUCCESSFUL` no emulator-5554; nenhuma suíte instrumentada específica
+  foi reportada.
+
 - 28/10/2026: QA ADB no emulator-5554 abriu `Preferences > Configure toolbars`
   e confirmou a prévia com overflow explícito (`+28`), os perfis `xnote`,
   `xcanvas` e `Shared`, além dos botões `Undo`, `Redo`, `Cancel` e `Apply`.
