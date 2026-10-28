@@ -274,6 +274,13 @@ usuário encontradas no worktree e não invente sucesso nem background jobs.
   install -r passaram no emulator-5554. Ainda faltam grid de cores dedicado,
   grupos/nós v3, validação visual de capacidade e drag/drop entre grupos.
 
+- 28/10/2026: commit 91fcb058 adiciona `colorCount` opcional por barra, com
+  fallback ao contador global e codec/clamp de 1..15. Note e canvas recebem o
+  valor via CompositionLocal sem copiar a paleta mutável; o editor expõe slider
+  e retorno ao modo Shared. Teste JVM de round-trip/clamp, assembleDebug e
+  install -r passaram no emulator-5554. Grade NxM de swatches e arraste entre
+  grupos continuam pendentes.
+
 ## Próxima ação (uma por vez)
 
 Validar no ADB o configurador, os botões Undo/Redo/Cancel/Apply e a persistência
