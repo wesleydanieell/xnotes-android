@@ -25,6 +25,8 @@ internal object ToolbarWorkspaceJson {
     private const val MAX_BARS = 32
     private const val MAX_SECTIONS = 32
     private const val MAX_ENTRIES = 128
+    private const val MAX_NODES = 128
+    private const val MAX_NODE_DEPTH = 3
 
     fun write(value: ToolbarWorkspaces): JSONObject = JSONObject()
         .put("version", VERSION)
@@ -186,17 +188,28 @@ internal object ToolbarWorkspaceJson {
     private fun readNodes(raw: JSONArray?): List<com.xnotes.core.tools.ToolbarNode>? {
         if (raw == null) return null
         val ids = HashSet<String>()
-        return (0 until minOf(raw.length(), 128)).mapNotNull { readNode(raw.optJSONObject(it))?.sanitized(ids = ids) }
+        val budget = NodeBudget(MAX_NODES)
+        return (0 until minOf(raw.length(), MAX_NODES)).mapNotNull {
+            readNode(raw.optJSONObject(it), depth = 0, budget = budget)?.sanitized(ids = ids)
+        }
             .takeIf { it.isNotEmpty() }
     }
 
-    private fun readNode(raw: JSONObject?): com.xnotes.core.tools.ToolbarNode? {
-        if (raw == null) return null
+    private class NodeBudget(var remaining: Int)
+
+    private fun readNode(
+        raw: JSONObject?,
+        depth: Int,
+        budget: NodeBudget,
+    ): com.xnotes.core.tools.ToolbarNode? {
+        if (raw == null || depth > MAX_NODE_DEPTH || budget.remaining-- <= 0) return null
         val id = raw.optString("id").trim().takeIf { it.isNotEmpty() } ?: return null
         val visible = raw.optBoolean("visible", true)
         val type = raw.optString("type")
         fun children(): List<com.xnotes.core.tools.ToolbarNode> = raw.optJSONArray("children")?.let { array ->
-            (0 until minOf(array.length(), 64)).mapNotNull { readNode(array.optJSONObject(it)) }
+            (0 until minOf(array.length(), 64)).mapNotNull {
+                readNode(array.optJSONObject(it), depth + 1, budget)
+            }
         } ?: emptyList()
         return when (type) {
             "tool" -> com.xnotes.core.tools.ToolbarNode.Tool(id, ToolbarItem.fromId(raw.optString("item")) ?: return null, visible, raw.optInt("visual_dp").takeIf { raw.has("visual_dp") }, raw.optInt("hitbox_dp").takeIf { raw.has("hitbox_dp") }, raw.optInt("spacing_dp", 0), raw.optInt("priority", 0))

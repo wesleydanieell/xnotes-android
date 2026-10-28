@@ -262,4 +262,22 @@ class ToolbarWorkspaceJsonTest {
         assertTrue(rootTarget.first() is ToolbarNode.Group && rootTarget.first().flattenItems().isEmpty())
         assertEquals(ToolbarItem.PEN, rootTarget[1].flattenItems().single())
     }
+
+    @Test fun malformedNodeJsonIsBoundedBeforeSanitization() {
+        val root = JSONObject().put("id", "d0").put("type", "group")
+        var current = root
+        repeat(256) { depth ->
+            val child = JSONObject().put("id", "d${depth + 1}").put("type", "group")
+            current.put("children", JSONArray().put(child))
+            current = child
+        }
+        val workspace = ToolbarWorkspaceJson.write(
+            ToolbarWorkspaces.fromLegacy(ToolbarLayout.DEFAULT, ToolbarLayout.CANVAS_DEFAULT),
+        )
+        workspace.getJSONObject("note").getJSONArray("bars").getJSONObject(0)
+            .put("nodes", JSONArray().put(root))
+
+        val parsed = ToolbarWorkspaceJson.read(workspace)!!
+        assertTrue(parsed.note.bars.single().nodes!!.single().flattenItems().isEmpty())
+    }
 }
