@@ -101,7 +101,15 @@ data class ToolbarBar(
     fun effectiveRows(): Int? {
         fun find(nodes: List<ToolbarNode>): Int? = nodes.firstNotNullOfOrNull { node ->
             when (node) {
-                is ToolbarNode.Grid -> node.rows
+                is ToolbarNode.Grid -> {
+                    val itemCount = node.children.sumOf { it.flattenItems().size }
+                    val columns = if (node.autoFit) {
+                        node.rows?.let { kotlin.math.ceil(itemCount / it.coerceIn(1, 6).toDouble()).toInt() }
+                            ?: kotlin.math.ceil(kotlin.math.sqrt(itemCount.coerceAtLeast(1).toDouble())).toInt()
+                    } else node.columns.coerceIn(1, 6)
+                    val required = kotlin.math.ceil(itemCount / columns.coerceAtLeast(1).toDouble()).toInt()
+                    maxOf(node.rows ?: 1, required).coerceIn(1, 6)
+                }
                 is ToolbarNode.Group -> find(node.children)
                 else -> null
             }

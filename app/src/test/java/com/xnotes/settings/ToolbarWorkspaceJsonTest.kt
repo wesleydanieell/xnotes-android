@@ -233,6 +233,12 @@ class ToolbarWorkspaceJsonTest {
         assertEquals(3, (updatedGrid as ToolbarNode.Grid).columns)
         assertEquals(2, updatedGrid.rows)
         assertEquals(2, ToolbarBar("grid", "Grid", ToolbarLayout.DEFAULT, nodes = listOf(updatedGrid)).effectiveRows())
+        val capacityGrid = ToolbarNode.Grid("capacity", listOf(
+            ToolbarNode.Tool("c1", ToolbarItem.PEN), ToolbarNode.Tool("c2", ToolbarItem.ERASER),
+            ToolbarNode.Tool("c3", ToolbarItem.TEXT), ToolbarNode.Tool("c4", ToolbarItem.SELECT),
+            ToolbarNode.Tool("c5", ToolbarItem.PAN), ToolbarNode.Tool("c6", ToolbarItem.LASSO),
+        ), columns = 2, rows = 1)
+        assertEquals(3, ToolbarBar("capacity", "Capacity", ToolbarLayout.DEFAULT, nodes = listOf(capacityGrid)).effectiveRows())
         val autoGrid = ToolbarNode.Grid("auto", listOf(
             ToolbarNode.Tool("a1", ToolbarItem.PEN), ToolbarNode.Tool("a2", ToolbarItem.ERASER),
             ToolbarNode.Tool("a3", ToolbarItem.TEXT), ToolbarNode.Tool("a4", ToolbarItem.SELECT),
