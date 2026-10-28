@@ -634,6 +634,13 @@ usuário encontradas no worktree e não invente sucesso nem background jobs.
   `git diff --check`, o gate JVM/assemble e `:app:connectedDebugAndroidTest`
   passaram (70 tasks; sem testes instrumentados específicos).
 
+- 28/10/2026: commit b24b4e41 adiciona semântica de botão ao marcador `+N`;
+  commit dc3b0f3c faz escolhas pelos botões individuais de estilo atualizarem
+  também `UnifiedPen.lastStyle`, em note e canvas. O gate JVM/assemble passou
+  após a correção de compilação das lambdas Compose; a primeira tentativa
+  falhou apenas por leitura de CompositionLocal dentro de callback não-
+  composable, corrigida capturando os valores no escopo Compose.
+
 ## Próxima ação (uma por vez)
 
 Com o `emulator-5554` online, instalar o APK de `029b1313` e validar via
