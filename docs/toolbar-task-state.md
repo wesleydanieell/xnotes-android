@@ -115,6 +115,15 @@ usuário encontradas no worktree e não invente sucesso nem background jobs.
   instalação adb -s emulator-5554 install -r retornou Success, e am start
   encaminhou a Activity já ativa. QA visual/gestual continua PENDENTE.
 
+- 27/10/2026: preflight nesta sessão em 6a5d6d64: worktree limpo,
+  emulator-5554 online; Gradle testDebugUnitTest + assembleDebug passou
+  (50 tasks, 6 executadas, 44 up-to-date; aviso CXX5304 sobre versão XML do SDK).
+  install -r retornou Success. Criada nota de teste untitled_2 no app isolado;
+  toque no primeiro ícone de caneta selecionou-o. Pressão de 1000 ms no mesmo
+  ícone não mostrou menu visual; comportamento esperado do controle e eventual
+  conflito com detector do contêiner ainda precisam ser investigados. Nenhum
+  cenário P0 completo; nenhum teste de stylus físico foi executado.
+
 ## Próxima ação (uma por vez)
 
 Reproduzir e corrigir o fluxo segurar/arrastar o contêiner da barra principal
