@@ -207,10 +207,15 @@ fun BoxScope.WorkspaceFloatingBars(
                                         onClick = {
                                             contextBarId = null
                                             if (resizeBarId == bar.id) {
+                                                resizeSnapshot?.let { snapshot ->
+                                                    onRestoreResize(snapshot)
+                                                    onUpdateBar(snapshot.copy(geometry = snapshot.geometry.copy(movable = false)))
+                                                }
                                                 resizeBarId = null
                                                 resizeSnapshot = null
+                                            } else {
+                                                onUpdateBar(bar.copy(geometry = bar.geometry.copy(movable = !bar.geometry.movable)))
                                             }
-                                            onUpdateBar(bar.copy(geometry = bar.geometry.copy(movable = !bar.geometry.movable)))
                                         },
                                     )
                                     if (bar.geometry.movable) {

@@ -1736,9 +1736,16 @@ private fun DockedToolbarSurface(
                 text = { Text(if (bar.geometry.movable) "Lock" else "Unlock") },
                 onClick = {
                     menuOpen = false
-                    resizing = false
-                    resizeSnapshot = null
-                    onUpdateBar(bar.copy(geometry = bar.geometry.copy(movable = !bar.geometry.movable)))
+                    if (resizing) {
+                        resizeSnapshot?.let { snapshot ->
+                            onRestoreResize(snapshot)
+                            onUpdateBar(snapshot.copy(geometry = snapshot.geometry.copy(movable = false)))
+                        }
+                        resizing = false
+                        resizeSnapshot = null
+                    } else {
+                        onUpdateBar(bar.copy(geometry = bar.geometry.copy(movable = !bar.geometry.movable)))
+                    }
                 },
             )
             if (bar.geometry.movable) {
