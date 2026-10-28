@@ -3,6 +3,9 @@ package com.xnotes.settings
 import com.xnotes.core.tools.ToolbarAnchor
 import com.xnotes.core.model.Rgba
 import com.xnotes.core.tools.ToolbarAppearance
+import com.xnotes.core.tools.ToolbarNode
+import com.xnotes.core.tools.flattenItems
+import com.xnotes.core.tools.sanitized
 import com.xnotes.core.tools.ToolbarBar
 import com.xnotes.core.tools.ToolbarContext
 import com.xnotes.core.tools.ToolbarEntry
@@ -153,5 +156,39 @@ class ToolbarWorkspaceJsonTest {
         assertEquals(96, restored.paddingHorizontalDp)
         assertEquals(48, restored.spacingDp)
         assertEquals(96, restored.blurRadiusDp)
+    }
+
+    @Test fun v3NodeTreeRoundTripsAndRejectsUnsafeDepth() {
+        val nodes = listOf<ToolbarNode>(
+            ToolbarNode.Group("tools", listOf(
+                ToolbarNode.Tool("pen-node", ToolbarItem.PEN, visualDp = 28, hitboxDp = 48),
+                ToolbarNode.Grid("grid", listOf(
+                    ToolbarNode.Tool("colors-tool", ToolbarItem.COLORS),
+                    ToolbarNode.Spacer("gap", 6),
+                ), columns = 2),
+            ), collapsible = true, expanded = true),
+        )
+        val profiles = ToolbarWorkspaces.fromLegacy(ToolbarLayout.DEFAULT, ToolbarLayout.CANVAS_DEFAULT)
+            .copy(note = ToolbarWorkspace(listOf(ToolbarBar("primary", "Primary", ToolbarLayout.DEFAULT, nodes = nodes))))
+        val restored = Settings.fromJson(Settings(toolbarWorkspaces = profiles).toJson()).toolbarWorkspaces!!
+            .note.bars.single().nodes!!
+        assertEquals(nodes, restored)
+        assertEquals(listOf(ToolbarItem.PEN, ToolbarItem.COLORS), restored.flatMap { it.flattenItems() })
+        assertEquals(
+            listOf(ToolbarItem.PEN, ToolbarItem.COLORS),
+            ToolbarBar("primary", "Primary", ToolbarLayout.DEFAULT, nodes = restored).effectiveLayout()
+                .sections.single().entries.map { it.item },
+        )
+        val tooDeep = ToolbarNode.Group("d0", listOf(
+            ToolbarNode.Group("d1", listOf(
+                ToolbarNode.Group("d2", listOf(
+                    ToolbarNode.Group("d3", listOf(
+                        ToolbarNode.Group("d4", listOf(ToolbarNode.Tool("tool", ToolbarItem.PEN)))
+                    ))
+                ))
+            ))
+        ))
+        val sanitized = tooDeep.sanitized()
+        assertTrue((sanitized as ToolbarNode.Group).flattenItems().isEmpty())
     }
 }

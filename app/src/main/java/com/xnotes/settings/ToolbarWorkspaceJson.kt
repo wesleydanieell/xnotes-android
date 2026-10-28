@@ -11,6 +11,7 @@ import com.xnotes.core.tools.ToolbarScale
 import com.xnotes.core.tools.ToolbarSection
 import com.xnotes.core.tools.ToolbarWorkspace
 import com.xnotes.core.tools.ToolbarWorkspaces
+import com.xnotes.core.tools.sanitized
 import org.json.JSONArray
 import org.json.JSONObject
 
@@ -20,7 +21,7 @@ import org.json.JSONObject
  * correct for migrating a legacy single bar but wrong for a secondary/compact bar.
  */
 internal object ToolbarWorkspaceJson {
-    private const val VERSION = 1
+    private const val VERSION = 3
     private const val MAX_BARS = 32
     private const val MAX_SECTIONS = 32
     private const val MAX_ENTRIES = 128
@@ -32,7 +33,8 @@ internal object ToolbarWorkspaceJson {
         .put("canvas", writeWorkspace(value.canvas))
 
     fun read(value: JSONObject?): ToolbarWorkspaces? {
-        if (value?.optInt("version", -1) != VERSION) return null
+        val version = value?.optInt("version", -1) ?: return null
+        if (version !in 1..VERSION) return null
         val note = readWorkspace(value.optJSONObject("note"), ToolbarLayout.NOTE_ITEMS) ?: return null
         val canvas = readWorkspace(value.optJSONObject("canvas"), ToolbarLayout.CANVAS_ITEMS) ?: return null
         return ToolbarWorkspaces(note, canvas, shared = value.optBoolean("shared", false))
@@ -45,6 +47,7 @@ internal object ToolbarWorkspaceJson {
                 .put("name", bar.name)
                 .put("visible", bar.visible)
                 .put("color_count", bar.colorCount)
+                .apply { bar.nodes?.let { put("nodes", JSONArray().apply { it.forEach { node -> put(writeNode(node)) } }) } }
         .put("geometry", writeGeometry(bar.geometry))
                 .put("sections", JSONArray().apply {
                     for (section in bar.layout.sections) put(JSONArray().apply {
@@ -97,6 +100,7 @@ internal object ToolbarWorkspaceJson {
                 visible = raw.optBoolean("visible", true),
                 geometry = readGeometry(raw.optJSONObject("geometry")),
                 colorCount = raw.optInt("color_count").takeIf { raw.has("color_count") }?.coerceIn(1, com.xnotes.core.tools.InkPalette.MAX_SWATCHES),
+                nodes = readNodes(raw.optJSONArray("nodes")),
             ))
         }
         return bars.takeIf { it.isNotEmpty() }?.let(::ToolbarWorkspace)
@@ -153,4 +157,52 @@ internal object ToolbarWorkspaceJson {
     private fun readColor(a: JSONArray?): Rgba? = Rgba.fromList(a?.let { list ->
         (0 until list.length()).mapNotNull { index -> list.optInt(index).takeIf { !list.isNull(index) } }
     })
+
+    private fun writeNode(node: com.xnotes.core.tools.ToolbarNode): JSONObject = JSONObject().apply {
+        put("id", node.id)
+        put("visible", node.visible)
+        when (node) {
+            is com.xnotes.core.tools.ToolbarNode.Tool -> {
+                put("type", "tool").put("item", node.item.id).put("visual_dp", node.visualDp)
+                    .put("hitbox_dp", node.hitboxDp).put("spacing_dp", node.spacingDp).put("priority", node.priority)
+            }
+            is com.xnotes.core.tools.ToolbarNode.ColorPalette -> put("type", "colors").put("count", node.count).put("columns", node.columns)
+            is com.xnotes.core.tools.ToolbarNode.Group -> {
+                put("type", "group").put("collapsible", node.collapsible).put("expanded", node.expanded)
+                put("children", JSONArray().apply { node.children.forEach { put(writeNode(it)) } })
+            }
+            is com.xnotes.core.tools.ToolbarNode.Grid -> {
+                put("type", "grid").put("columns", node.columns).put("rows", node.rows)
+                put("children", JSONArray().apply { node.children.forEach { put(writeNode(it)) } })
+            }
+            is com.xnotes.core.tools.ToolbarNode.Spacer -> put("type", "spacer").put("size_dp", node.sizeDp)
+            is com.xnotes.core.tools.ToolbarNode.Separator -> put("type", "separator")
+        }
+    }
+
+    private fun readNodes(raw: JSONArray?): List<com.xnotes.core.tools.ToolbarNode>? {
+        if (raw == null) return null
+        val ids = HashSet<String>()
+        return (0 until minOf(raw.length(), 128)).mapNotNull { readNode(raw.optJSONObject(it))?.sanitized(ids = ids) }
+            .takeIf { it.isNotEmpty() }
+    }
+
+    private fun readNode(raw: JSONObject?): com.xnotes.core.tools.ToolbarNode? {
+        if (raw == null) return null
+        val id = raw.optString("id").trim().takeIf { it.isNotEmpty() } ?: return null
+        val visible = raw.optBoolean("visible", true)
+        val type = raw.optString("type")
+        fun children(): List<com.xnotes.core.tools.ToolbarNode> = raw.optJSONArray("children")?.let { array ->
+            (0 until minOf(array.length(), 64)).mapNotNull { readNode(array.optJSONObject(it)) }
+        } ?: emptyList()
+        return when (type) {
+            "tool" -> com.xnotes.core.tools.ToolbarNode.Tool(id, ToolbarItem.fromId(raw.optString("item")) ?: return null, visible, raw.optInt("visual_dp").takeIf { raw.has("visual_dp") }, raw.optInt("hitbox_dp").takeIf { raw.has("hitbox_dp") }, raw.optInt("spacing_dp", 0), raw.optInt("priority", 0))
+            "colors" -> com.xnotes.core.tools.ToolbarNode.ColorPalette(id, raw.optInt("count").takeIf { raw.has("count") }, raw.optInt("columns", 1), visible)
+            "group" -> com.xnotes.core.tools.ToolbarNode.Group(id, children(), raw.optBoolean("collapsible", false), raw.optBoolean("expanded", true), visible)
+            "grid" -> com.xnotes.core.tools.ToolbarNode.Grid(id, children(), raw.optInt("columns", 2), raw.optInt("rows").takeIf { raw.has("rows") }, visible)
+            "spacer" -> com.xnotes.core.tools.ToolbarNode.Spacer(id, raw.optInt("size_dp", 8), visible)
+            "separator" -> com.xnotes.core.tools.ToolbarNode.Separator(id, visible)
+            else -> null
+        }
+    }
 }

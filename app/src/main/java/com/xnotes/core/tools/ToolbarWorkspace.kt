@@ -71,7 +71,16 @@ data class ToolbarBar(
     val geometry: ToolbarGeometry = ToolbarGeometry(),
     /** Null means use the existing workspace-wide palette count. */
     val colorCount: Int? = null,
-)
+    /** Explicit v3 tree; null keeps the compatible flat layout projection. */
+    val nodes: List<ToolbarNode>? = null,
+) {
+    /** Safe renderer projection; legacy flat layout remains the source when no v3 tree is present. */
+    fun effectiveLayout(): ToolbarLayout {
+        val tree = nodes ?: return layout
+        val items = tree.flatMap { it.flattenItems() }.distinct()
+        return ToolbarLayout(listOf(ToolbarSection(items.map { ToolbarEntry(it) })))
+    }
+}
 
 /**
  * Pure, immutable multi-bar operations. Tools may appear on different bars simultaneously:

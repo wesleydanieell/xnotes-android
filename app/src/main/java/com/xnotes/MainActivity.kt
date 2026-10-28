@@ -1529,7 +1529,7 @@ private fun EditorPane(
                                 onInsertAudio = { actions.onInsertAudio(editor) },
                                 onRecordAudio = { actions.onRecordAudio(editor) },
                                 onTakePhoto = { actions.onTakePhoto(editor) },
-                                layout = extraBar.layout,
+                                layout = extraBar.effectiveLayout(),
                             )
                         }
                         com.xnotes.ui.SelectionMenu(
@@ -1614,7 +1614,7 @@ private fun EditorPane(
                                     onInsertAudio = { actions.onInsertAudio(editor) },
                                     onRecordAudio = { actions.onRecordAudio(editor) },
                                     onTakePhoto = { actions.onTakePhoto(editor) },
-                                    layout = extraBar.layout,
+                                    layout = extraBar.effectiveLayout(),
                                 )
                             }
                             com.xnotes.ui.SelectionMenu(
