@@ -175,11 +175,21 @@ usuário encontradas no worktree e não invente sucesso nem background jobs.
   com renderer real, testes automatizados de UI e demais âncoras; M3 segue
   parcial. A sobreposição real da barra longa com secundárias continua aberta.
 
+- 27/10/2026: commit 5ddbd25d limita a altura das barras que compartilham
+  âncora e torna a pilha rolável; testes JVM cobrem limites para uma, duas e
+  várias barras e espaço inválido. testDebugUnitTest + assembleDebug passou
+  (16 executadas, 34 up-to-date), diff --check e install -r passaram. No
+  emulator-5554, duas barras verticais na esquerda ficaram visíveis sem se
+  sobrepor; a principal rolou, a secundária foi arrastada para a direita e
+  de volta à esquerda, e ambas voltaram separadas após reiniciar o app.
+  Faltam QA de pilhas maiores, indicação explícita de overflow, âncoras
+  distintas, telas pequenas, canvas e testes instrumentados; não marcar M2.
+
 ## Próxima ação (uma por vez)
 
-Validar outras ferramentas e barras secundárias após a mudança de prioridade
-do gesto; investigar e corrigir colisões e overflow de barras flutuantes no
-renderer real,
+Validar pilhas maiores e overflow explícito no renderer e na prévia; testar
+outras ferramentas e barras secundárias após a mudança de prioridade do
+gesto; investigar colisões entre âncoras e controles do canvas,
 com testes para regiões centrais e bordas. Continuar os testes de gestos e
 docks da barra principal e secundárias no emulador; reservar pressão, hover,
 latência e primeiro traço com stylus para o Redmi Pad 2.
