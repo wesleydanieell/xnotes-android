@@ -344,6 +344,12 @@ usuário encontradas no worktree e não invente sucesso nem background jobs.
   no emulator-5554. Alternância visual de estilos e latência com caneta física
   continuam pendentes.
 
+- 28/10/2026: commit 77f0276d propaga as colunas do primeiro `Grid` válido da
+  árvore v3 para o `ToolbarFrame`, com fallback para `geometry.columns`; note,
+  canvas, barras primárias e secundárias usam o mesmo valor. Teste puro de
+  resolução, JVM/assembleDebug e install -r passaram no emulator-5554.
+  Capacidade de grids mistos e validação visual de overflow ainda pendentes.
+
 ## Próxima ação (uma por vez)
 
 Validar no ADB o configurador, os botões Undo/Redo/Cancel/Apply e a persistência
