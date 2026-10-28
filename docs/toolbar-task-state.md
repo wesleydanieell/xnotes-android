@@ -544,10 +544,20 @@ usuário encontradas no worktree e não invente sucesso nem background jobs.
   extensão para barras docked ainda estão pendentes; nenhum dispositivo ficou
   online nesta sessão.
 
+- 28/10/2026: commit 7c47db0e reutiliza o modo contextual de resize também na
+  barra principal docked de note e canvas. `Lock/Unlock` e `Resize` ficam no
+  mesmo menu; resize só aceita hold-drag depois da ativação explícita e o
+  travamento cancela o modo. `git diff --check` e
+  `ANDROID_HOME=/home/wesley/Android/Sdk ./gradlew :app:testDebugUnitTest
+  :app:assembleDebug --console=plain` passaram (50 tasks; 14 executadas, 36
+  up-to-date). A confirmação visual do menu, persistência após restart e QA de
+  orientação/split continuam pendentes por falta de dispositivo ADB online.
+
 ## Próxima ação (uma por vez)
 
 Validar no ADB a grade 3×2 de cores, a persistência após reinício e a matriz de
 gestos/docks assim que um dispositivo autorizado estiver online. Em paralelo,
-implementar acesso acionável aos itens excedentes do overflow e resize explícito
-também para a barra principal docked, além de validar grids mistos/auto-fit sem
-clipping. Reservar pressão, hover, latência e primeiro traço para o Redmi Pad 2.
+implementar acesso acionável aos itens excedentes do overflow e validar grids
+mistos/auto-fit sem clipping. Depois executar a matriz ADB completa, incluindo
+resize, docks, split e persistência. Reservar pressão, hover, latência e
+primeiro traço para o Redmi Pad 2.
