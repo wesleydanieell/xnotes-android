@@ -154,6 +154,23 @@ fun ToolbarNode.findGrid(): ToolbarNode.Grid? = when (this) {
     else -> null
 }
 
+/** Remove the first node with [nodeId], including nodes nested in groups or grids. */
+fun List<ToolbarNode>.removeNode(nodeId: String): List<ToolbarNode> {
+    if (nodeId.isBlank()) return this
+    var removed = false
+    fun remove(nodes: List<ToolbarNode>): List<ToolbarNode> = nodes.mapNotNull { node ->
+        if (!removed && node.id == nodeId) {
+            removed = true
+            null
+        } else when (node) {
+            is ToolbarNode.Group -> node.copy(children = remove(node.children))
+            is ToolbarNode.Grid -> node.copy(children = remove(node.children))
+            else -> node
+        }
+    }
+    return remove(this)
+}
+
 /** Move one node between Group/Grid parents without creating duplicate IDs. */
 fun List<ToolbarNode>.moveNode(nodeId: String, targetParentId: String, targetIndex: Int): List<ToolbarNode> {
     if (nodeId.isBlank() || targetParentId.isBlank() || nodeId == targetParentId) return this

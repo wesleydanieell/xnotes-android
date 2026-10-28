@@ -14,6 +14,7 @@ import com.xnotes.core.tools.findUnifiedPen
 import com.xnotes.core.tools.updateUnifiedPen
 import com.xnotes.core.tools.moveNode
 import com.xnotes.core.tools.moveNodeBefore
+import com.xnotes.core.tools.removeNode
 import com.xnotes.core.tools.ToolbarBar
 import com.xnotes.core.tools.ToolbarContext
 import com.xnotes.core.tools.ToolbarEntry
@@ -265,6 +266,12 @@ class ToolbarWorkspaceJsonTest {
         assertEquals(listOf(ToolbarItem.ERASER), (moved[0] as ToolbarNode.Group).flattenItems())
         assertEquals(listOf(ToolbarItem.PEN), (moved[1] as ToolbarNode.Grid).flattenItems())
         assertEquals(moved, moved.moveNode("one", "missing", 0))
+        assertEquals(listOf(ToolbarItem.ERASER), listOf(
+            ToolbarNode.Group("remove-parent", listOf(
+                ToolbarNode.Tool("remove-me", ToolbarItem.PEN),
+                ToolbarNode.Tool("keep-me", ToolbarItem.ERASER),
+            )),
+        ).removeNode("remove-me").single().flattenItems())
         val nested = listOf(ToolbarNode.Group("parent", listOf(
             ToolbarNode.Tool("first", ToolbarItem.PEN), ToolbarNode.Tool("second", ToolbarItem.TEXT),
         )))

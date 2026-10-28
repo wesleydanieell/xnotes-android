@@ -55,6 +55,7 @@ import com.xnotes.core.tools.ToolbarSection
 import com.xnotes.core.tools.ToolbarNode
 import com.xnotes.core.tools.moveNode
 import com.xnotes.core.tools.moveNodeBefore
+import com.xnotes.core.tools.removeNode
 import com.xnotes.ui.icons.XnotesIcons
 import com.xnotes.ui.theme.LocalPalette
 import com.xnotes.ui.theme.toComposeColor
@@ -454,7 +455,22 @@ fun ToolbarNodeTreeEditor(nodes: List<ToolbarNode>, onChange: (List<ToolbarNode>
                         nodes.moveNode(row.node.id, row.parentId, row.index + 1)
                     })
                 }) { Text("↓") }
+                TextButton(onClick = { onChange(nodes.removeNode(row.node.id)) }) { Text("Delete") }
             }
+        }
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            TextButton(onClick = {
+                val id = generateSequence(1) { it + 1 }
+                    .map { "group-$it" }
+                    .first { candidate -> rows.none { it.node.id == candidate } }
+                onChange(nodes + ToolbarNode.Group(id, emptyList()))
+            }) { Text("Add group") }
+            TextButton(onClick = {
+                val id = generateSequence(1) { it + 1 }
+                    .map { "grid-$it" }
+                    .first { candidate -> rows.none { it.node.id == candidate } }
+                onChange(nodes + ToolbarNode.Grid(id, emptyList(), columns = 2, rows = 2))
+            }) { Text("Add 2×2 grid") }
         }
     }
 }
