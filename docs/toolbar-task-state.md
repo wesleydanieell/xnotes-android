@@ -298,6 +298,12 @@ usuário encontradas no worktree e não invente sucesso nem background jobs.
   `Duplicate`. A interação com botão de ferramenta foi preservada no teste
   de toque curto; pressão/hover de stylus continuam dependentes do Redmi Pad 2.
 
+- 28/10/2026: commit dc52b5f1 adiciona picker RGBA de fundo por barra, com
+  opção de voltar ao tema. O valor usa os recents existentes e é persistido no
+  codec de aparência, sem duplicar estado de tinta. JVM/assembleDebug/install -r
+  passaram no emulator-5554; interação do picker e teste visual de opacidade
+  ainda precisam de uma rodada dedicada.
+
 ## Próxima ação (uma por vez)
 
 Validar no ADB o configurador, os botões Undo/Redo/Cancel/Apply e a persistência
