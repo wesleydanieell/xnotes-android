@@ -75,7 +75,7 @@ não substitui o Git como fonte de verdade.
 
 ### P2 — Customização estrutural e ações
 
-- [ ] [M5] Tamanho/espaço/hitbox por elemento.
+- [x] [M5] Tamanho/espaço/hitbox por elemento (fb50bae7; nós explícitos aplicados ao renderer).
 - [ ] [M5] Número de cores por barra e grade de swatches.
 - [x] [M6] Schema ToolbarNode v3 com Group/Grid e migração + testes (fd9c8a89, aee8a604).
 - [ ] [M6] Grid 2x2, 3x2, auto fit e drag/drop entre grupos.
@@ -349,6 +349,12 @@ usuário encontradas no worktree e não invente sucesso nem background jobs.
   canvas, barras primárias e secundárias usam o mesmo valor. Teste puro de
   resolução, JVM/assembleDebug e install -r passaram no emulator-5554.
   Capacidade de grids mistos e validação visual de overflow ainda pendentes.
+
+- 28/10/2026: commit fb50bae7 liga `visualDp` e `hitboxDp` dos nós Tool ao
+  `ToolbarIcon` real via CompositionLocal, com fallback para os presets. Teste
+  JVM verifica métricas por Tool; assembleDebug/install -r passaram no
+  emulator-5554. A edição direta desses campos ainda não está exposta no
+  painel, e QA de hitbox com caneta física permanece pendente.
 
 - 28/10/2026: após a instalação de `77f0276d`/`aee8a604`, Activity isolada foi
   reiniciada no emulator-5554; após o loader, `topResumedActivity` confirmou
