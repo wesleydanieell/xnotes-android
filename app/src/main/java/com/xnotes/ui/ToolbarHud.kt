@@ -59,6 +59,8 @@ import com.xnotes.core.tools.ToolbarItem
 import com.xnotes.ui.icons.XnotesIcons
 import com.xnotes.ui.theme.LocalPalette
 import com.xnotes.ui.theme.toComposeColor
+import com.xnotes.settings.ToolbarPosition
+import com.xnotes.settings.ToolbarSize
 
 /**
  * M1 HUD editor prototype. Its background is deliberately a painted, non-document surface: the
@@ -86,7 +88,13 @@ fun ToolbarHudScreen(
     var filter by remember { mutableStateOf("") }
     val bars = remember {
         mutableStateListOf(
-            HudBar("Barra principal", editor.toolbarLayout.sections.flatMap { it.visibleEntries }.map { it.item.id }.take(8).toMutableList()),
+            HudBar(
+                name = "Barra principal",
+                items = editor.toolbarLayout.sections.flatMap { it.visibleEntries }.map { it.item.id }.take(8).toMutableList(),
+                anchor = editor.toolbarLook.position.toHudAnchor(),
+                presentation = if (editor.toolbarLook.floating) HudPresentation.FLOATING else HudPresentation.DOCKED,
+                size = editor.toolbarLook.size.toHudBarSize(),
+            ),
             HudBar("Ferramentas rápidas", mutableListOf("pen", "colors", "eraser", "undo"), anchor = HudAnchor.BOTTOM_START),
         )
     }
@@ -107,7 +115,15 @@ fun ToolbarHudScreen(
             profile = profile,
             onProfile = { profile = if (profile == "xnote") "xcanvas" else "xnote" },
             onAddBar = {
-                bars.add(HudBar("Barra ${bars.size + 1}", mutableListOf("pen", "colors"), anchor = HudAnchor.BOTTOM_START))
+                bars.add(
+                    HudBar(
+                        name = "Barra ${bars.size + 1}",
+                        items = mutableListOf(),
+                        anchor = HudAnchor.TOP_CENTER,
+                        fillWidth = true,
+                        size = HudBarSize.REGULAR,
+                    ),
+                )
                 selectedBar = bars.lastIndex
                 selectedItem = null
             },
@@ -157,11 +173,11 @@ fun ToolbarHudScreen(
                     val nextX = (bar.offsetXDp + dx).coerceIn(-260f, 260f)
                     val nextY = (bar.offsetYDp + dy).coerceIn(-220f, 220f)
                     bars[index] = bar.copy(offsetXDp = nextX, offsetYDp = nextY)
-                    barDropTarget = hudAnchorFor(nextX, nextY)
+                    barDropTarget = hudAnchorFor(bar.anchor, nextX, nextY)
                 },
                 onBarDrop = { index ->
                     val bar = bars[index]
-                    bars[index] = bar.copy(anchor = hudAnchorFor(bar.offsetXDp, bar.offsetYDp), offsetXDp = 0f, offsetYDp = 0f)
+                    bars[index] = bar.copy(anchor = hudAnchorFor(bar.anchor, bar.offsetXDp, bar.offsetYDp), offsetXDp = 0f, offsetYDp = 0f)
                     movingBar = null
                     barDropTarget = null
                 },
@@ -211,20 +227,45 @@ private data class HudBar(
     val anchor: HudAnchor = HudAnchor.TOP_CENTER,
     val offsetXDp: Float = 0f,
     val offsetYDp: Float = 0f,
+    val presentation: HudPresentation = HudPresentation.DOCKED,
+    val size: HudBarSize = HudBarSize.REGULAR,
+    val fillWidth: Boolean = false,
 )
 
 private enum class HudAnchor { TOP_START, TOP_CENTER, TOP_END, CENTER_START, CENTER, CENTER_END, BOTTOM_START, BOTTOM_CENTER, BOTTOM_END }
+private enum class HudPresentation { DOCKED, FLOATING }
+private enum class HudBarSize(val scale: Float) { COMPACT(0.82f), REGULAR(1f), COMFORTABLE(1.18f) }
 
-private fun hudAnchorFor(x: Float, y: Float): HudAnchor = when {
-    y < -80f && x < -90f -> HudAnchor.TOP_START
-    y < -80f && x > 90f -> HudAnchor.TOP_END
-    y < -80f -> HudAnchor.TOP_CENTER
-    y > 80f && x < -90f -> HudAnchor.BOTTOM_START
-    y > 80f && x > 90f -> HudAnchor.BOTTOM_END
-    y > 80f -> HudAnchor.BOTTOM_CENTER
-    x < -90f -> HudAnchor.CENTER_START
-    x > 90f -> HudAnchor.CENTER_END
-    else -> HudAnchor.CENTER
+private fun hudAnchorFor(origin: HudAnchor, offsetX: Float, offsetY: Float): HudAnchor {
+    val (baseX, baseY) = when (origin) {
+        HudAnchor.TOP_START -> -300f to -220f
+        HudAnchor.TOP_CENTER -> 0f to -220f
+        HudAnchor.TOP_END -> 300f to -220f
+        HudAnchor.CENTER_START -> -300f to 0f
+        HudAnchor.CENTER -> 0f to 0f
+        HudAnchor.CENTER_END -> 300f to 0f
+        HudAnchor.BOTTOM_START -> -300f to 220f
+        HudAnchor.BOTTOM_CENTER -> 0f to 220f
+        HudAnchor.BOTTOM_END -> 300f to 220f
+    }
+    val x = baseX + offsetX
+    val y = baseY + offsetY
+    val column = when { x < -150f -> 0; x > 150f -> 2; else -> 1 }
+    val row = when { y < -110f -> 0; y > 110f -> 2; else -> 1 }
+    return HudAnchor.entries[row * 3 + column]
+}
+
+private fun ToolbarPosition.toHudAnchor(): HudAnchor = when (this) {
+    ToolbarPosition.TOP -> HudAnchor.TOP_CENTER
+    ToolbarPosition.BOTTOM -> HudAnchor.BOTTOM_CENTER
+    ToolbarPosition.LEFT -> HudAnchor.CENTER_START
+    ToolbarPosition.RIGHT -> HudAnchor.CENTER_END
+}
+
+private fun ToolbarSize.toHudBarSize(): HudBarSize = when (this) {
+    ToolbarSize.COMPACT -> HudBarSize.COMPACT
+    ToolbarSize.REGULAR -> HudBarSize.REGULAR
+    ToolbarSize.COMFORTABLE -> HudBarSize.COMFORTABLE
 }
 
 @Composable
@@ -401,6 +442,7 @@ private fun HudViewport(
                 }
             }
             bars.forEachIndexed { index, bar ->
+                val stackIndex = bars.take(index).count { it.anchor == bar.anchor }
                 HudComposedBar(
                     bar = bar,
                     selected = selectedBar == index,
@@ -413,7 +455,9 @@ private fun HudViewport(
                     onBarDragStart = { onBarDragStart(index) },
                     onBarDrag = { dx, dy -> onBarDrag(index, dx, dy) },
                     onBarDrop = { onBarDrop(index) },
-                    modifier = hudAnchorModifier(bar.anchor, index).offset(x = bar.offsetXDp.dp, y = bar.offsetYDp.dp),
+                    modifier = hudAnchorModifier(bar.anchor, stackIndex)
+                        .offset(x = bar.offsetXDp.dp, y = bar.offsetYDp.dp)
+                        .then(if (bar.fillWidth) Modifier.fillMaxWidth().padding(horizontal = 28.dp) else Modifier),
                 )
             }
         }
@@ -473,10 +517,18 @@ private fun HudComposedBar(
 ) {
     val palette = LocalPalette.current
     val density = LocalDensity.current.density
-    val elevation by animateDpAsState(if (selected || dragging) 8.dp else 2.dp, spring(), label = "barElevation")
-    val scale by animateFloatAsState(if (dragging) 1.04f else if (selected) 1.015f else 1f, spring(), label = "barScale")
+    val elevation by animateDpAsState(
+        if (dragging || bar.presentation == HudPresentation.FLOATING) 8.dp else if (selected) 3.dp else 1.dp,
+        spring(),
+        label = "barElevation",
+    )
+    val interactionScale by animateFloatAsState(if (dragging) 1.04f else if (selected) 1.015f else 1f, spring(), label = "barScale")
     Box(
-        modifier.shadow(elevation, RoundedCornerShape(12.dp)).graphicsLayer { scaleX = scale; scaleY = scale; alpha = if (dragging) 0.78f else 1f }
+        modifier.shadow(elevation, RoundedCornerShape(12.dp)).graphicsLayer {
+            scaleX = bar.size.scale * interactionScale
+            scaleY = bar.size.scale * interactionScale
+            alpha = if (dragging) 0.78f else 1f
+        }
             .pointerInput(bar.name) {
                 detectDragGesturesAfterLongPress(
                     onDragStart = { onBarDragStart() },
@@ -491,24 +543,33 @@ private fun HudComposedBar(
     ) {
         Column(verticalArrangement = Arrangement.spacedBy(3.dp)) {
             Text(bar.name, color = palette.textDim.toComposeColor(), fontSize = 8.sp, modifier = Modifier.padding(start = 2.dp))
-            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(bar.gapDp.dp)) {
-                HudWidgetCell("↤", "Principal", selected && selectedItem == "home", onClick = { onSelectItem("home") }, tall = true)
-                HudColorGrid(selected && selectedItem == "colors", onClick = { onSelectItem("colors") })
-                HudDivider()
-                HudToolGrid(selected && selectedItem == "tools", onClick = { onSelectItem("tools") })
-                HudWidgetCell("↶", "Desfazer", selected && selectedItem == "undo", onClick = { onSelectItem("undo") }, tall = true)
-                HudWidgetCell("↷", "Refazer", selected && selectedItem == "redo", onClick = { onSelectItem("redo") }, tall = true)
-                if (bar.items.size > 8) HudWidgetCell("+${bar.items.size - 8}", "Mais", selected && selectedItem == "more", onClick = { onSelectItem("more") })
-            }
-            Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(3.dp)) {
-                bar.items.forEachIndexed { index, item ->
-                    HudActualSlot(
-                        item = item,
-                        selected = selected && selectedItem == item,
-                        onClick = { onSelectItem(item) },
-                        onMove = { delta -> onMoveItem(index, (index + delta).coerceIn(0, bar.items.lastIndex)) },
-                        onDrag = onDragItem,
-                    )
+            if (bar.items.isEmpty()) {
+                Text(
+                    "Barra vazia · use + Componente para adicionar",
+                    color = palette.textDim.toComposeColor(),
+                    fontSize = 12.sp,
+                    modifier = Modifier.padding(vertical = 8.dp),
+                )
+            } else {
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(bar.gapDp.dp)) {
+                    HudWidgetCell("↤", "Principal", selected && selectedItem == "home", onClick = { onSelectItem("home") }, tall = true)
+                    HudColorGrid(selected && selectedItem == "colors", onClick = { onSelectItem("colors") })
+                    HudDivider()
+                    HudToolGrid(selected && selectedItem == "tools", onClick = { onSelectItem("tools") })
+                    HudWidgetCell("↶", "Desfazer", selected && selectedItem == "undo", onClick = { onSelectItem("undo") }, tall = true)
+                    HudWidgetCell("↷", "Refazer", selected && selectedItem == "redo", onClick = { onSelectItem("redo") }, tall = true)
+                    if (bar.items.size > 8) HudWidgetCell("+${bar.items.size - 8}", "Mais", selected && selectedItem == "more", onClick = { onSelectItem("more") })
+                }
+                Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(3.dp)) {
+                    bar.items.forEachIndexed { index, item ->
+                        HudActualSlot(
+                            item = item,
+                            selected = selected && selectedItem == item,
+                            onClick = { onSelectItem(item) },
+                            onMove = { delta -> onMoveItem(index, (index + delta).coerceIn(0, bar.items.lastIndex)) },
+                            onDrag = onDragItem,
+                        )
+                    }
                 }
             }
         }
@@ -633,7 +694,8 @@ private fun HudProperties(
 ) {
     val palette = LocalPalette.current
     Column(
-        Modifier.width(240.dp).fillMaxHeight().background(palette.panel.toComposeColor()).padding(10.dp),
+        Modifier.width(240.dp).heightIn(max = 480.dp).verticalScroll(rememberScrollState())
+            .background(palette.panel.toComposeColor()).padding(10.dp),
         verticalArrangement = Arrangement.spacedBy(10.dp),
     ) {
         HudPanelTitle("Propriedades", XnotesIcons.sliders, onCollapse)
@@ -658,8 +720,34 @@ private fun HudProperties(
                 onValueChange = { onChangeBar(bar.copy(gapDp = it)) },
                 valueRange = 0f..20f,
             )
-            HudProperty("Layout", "Row · encaixe automático")
-            HudProperty("Aparência", "Regular · bordas arredondadas")
+            Text("Apresentação", color = palette.textDim.toComposeColor(), fontSize = 12.sp)
+            Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                HudChip("Docked", bar.presentation == HudPresentation.DOCKED) {
+                    onChangeBar(bar.copy(presentation = HudPresentation.DOCKED))
+                }
+                HudChip("Floating", bar.presentation == HudPresentation.FLOATING) {
+                    onChangeBar(bar.copy(presentation = HudPresentation.FLOATING))
+                }
+            }
+            Text("Tamanho", color = palette.textDim.toComposeColor(), fontSize = 12.sp)
+            Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                HudChip("Compact", bar.size == HudBarSize.COMPACT) { onChangeBar(bar.copy(size = HudBarSize.COMPACT)) }
+                HudChip("Regular", bar.size == HudBarSize.REGULAR) { onChangeBar(bar.copy(size = HudBarSize.REGULAR)) }
+                HudChip("Confortável", bar.size == HudBarSize.COMFORTABLE) { onChangeBar(bar.copy(size = HudBarSize.COMFORTABLE)) }
+            }
+            Text("Posição", color = palette.textDim.toComposeColor(), fontSize = 12.sp)
+            Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                HudChip("Topo", bar.anchor in setOf(HudAnchor.TOP_START, HudAnchor.TOP_CENTER, HudAnchor.TOP_END)) {
+                    onChangeBar(bar.copy(anchor = HudAnchor.TOP_CENTER, offsetXDp = 0f, offsetYDp = 0f))
+                }
+                HudChip("Base", bar.anchor in setOf(HudAnchor.BOTTOM_START, HudAnchor.BOTTOM_CENTER, HudAnchor.BOTTOM_END)) {
+                    onChangeBar(bar.copy(anchor = HudAnchor.BOTTOM_CENTER, offsetXDp = 0f, offsetYDp = 0f))
+                }
+                HudChip("Lado", bar.anchor in setOf(HudAnchor.CENTER_START, HudAnchor.CENTER_END)) {
+                    onChangeBar(bar.copy(anchor = HudAnchor.CENTER_START, offsetXDp = 0f, offsetYDp = 0f))
+                }
+            }
+            HudProperty("Largura", if (bar.fillWidth) "Tela inteira" else "Conteúdo")
             Text("Estas alterações são do rascunho visual; persistência e Aplicar entram no motor M2/M5.", color = palette.textDim.toComposeColor(), fontSize = 12.sp)
         } else {
             HudProperty("Tipo", selectedItem)
