@@ -631,7 +631,8 @@ usuário encontradas no worktree e não invente sucesso nem background jobs.
 - 28/10/2026: commit 68b384d5 corrige a saída por `Lock` durante Resize:
   o snapshot é restaurado sem histórico e o bloqueio é gravado como a única
   alteração, evitando confirmar acidentalmente a geometria intermediária.
-  `git diff --check` e o gate JVM/assemble passaram.
+  `git diff --check`, o gate JVM/assemble e `:app:connectedDebugAndroidTest`
+  passaram (70 tasks; sem testes instrumentados específicos).
 
 ## Próxima ação (uma por vez)
 
