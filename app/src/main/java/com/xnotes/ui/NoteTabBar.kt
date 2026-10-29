@@ -24,7 +24,7 @@ import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.outlined.Article
 import androidx.compose.material.icons.outlined.Gesture
@@ -85,6 +85,7 @@ fun NoteTabBar(
     onReorder: (Int, Int) -> Unit,
     onSplit: (String, SplitSide) -> Unit,
     modifier: Modifier = Modifier,
+    floatingSurface: Boolean = false,
 ) {
     val palette = LocalPalette.current
     // All tabs are equal-width, so the indicator can be positioned arithmetically.
@@ -134,7 +135,7 @@ fun NoteTabBar(
         val highlightWidth by animateFloatAsState(targetWidth, highlightMotion, label = "tabHighlightWidth")
     Row(
         Modifier.fillMaxWidth()
-            .background(palette.bg.toComposeColor())
+            .background((if (floatingSurface) palette.panel else palette.bg).toComposeColor())
             .horizontalScroll(scrollState)
             .height(42.dp)
             .drawBehind {
@@ -174,7 +175,7 @@ fun NoteTabBar(
                 Modifier.width(animatedWidth)
                     .padding(horizontal = 2.dp)
                     .graphicsLayer { alpha = if (draggingUri == tab.uri) 0.55f else 1f }
-                    .clip(RoundedCornerShape(8.dp)),
+                    .clip(MaterialTheme.shapes.small),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 Row(

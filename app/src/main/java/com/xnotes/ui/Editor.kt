@@ -898,6 +898,73 @@ class Editor(context: Context, val pane: Pane = Pane.PRIMARY) : ToolPopupHost, S
             }.getOrDefault(false)
         }
 
+    /** Save an explicitly requested canvas before leaving it, and continue only on success. */
+    fun saveCanvasToThen(uri: String, name: String?, onDone: (Boolean) -> Unit) {
+        val canvas = infinite
+        canvas.commitText()
+        val doc = canvas.document
+        val snapshot = doc.snapshotForWrite()
+        val wasDirty = doc.dirty
+        doc.dirty = false
+        canvasDebounceJob?.cancel()
+        val pending = canvasWriteJob
+        savingNote = true
+        canvasWriteJob = autosaveScope.launch {
+            pending?.join()
+            val ok = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+                writeCanvasSafely(uri, snapshot)
+            }
+            savingNote = false
+            if (ok && canvas.document === doc) {
+                doc.path = uri
+                if (name != null) doc.displayName = name
+                canvasAutosaveUri = if (browseRoot?.let { isUnderTree(uri, it) } == true) uri else null
+                invalidateThumb(uri)
+            } else if (!ok) {
+                if (wasDirty && canvas.document === doc) doc.dirty = true
+                message = appContext.getString(R.string.err_save_note)
+            }
+            onDone(ok && canvas.document === doc && !doc.dirty)
+        }
+    }
+
+    /** Create a durable file for a new canvas before switching away from it. */
+    fun saveNewCanvasToThen(onDone: (Boolean) -> Unit) {
+        val canvas = infinite
+        canvas.commitText()
+        val doc = canvas.document
+        val snapshot = doc.snapshotForWrite()
+        val wasDirty = doc.dirty
+        doc.dirty = false
+        val root = browseRoot ?: com.xnotes.platform.AppStorageDocumentsProvider.treeUri(appContext).toString()
+        canvasDebounceJob?.cancel()
+        val pending = canvasWriteJob
+        savingNote = true
+        canvasWriteJob = autosaveScope.launch {
+            pending?.join()
+            val result = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+                runCatching {
+                    val parent = android.provider.DocumentsContract.getTreeDocumentId(android.net.Uri.parse(root))
+                    val name = uniqueDocumentName(root, parent, "", com.xnotes.core.util.DocumentKind.CANVAS)
+                    val uri = createNoteFile(root, parent, name) { canvasCodec.write(snapshot, it) }
+                    uri?.let { it to name }
+                }.getOrNull()
+            }
+            savingNote = false
+            if (result != null && canvas.document === doc) {
+                doc.path = result.first
+                doc.displayName = result.second
+                canvasAutosaveUri = if (browseRoot == root) result.first else null
+                rememberStamp(result.first)
+                invalidateThumb(result.first)
+            } else if (result == null) {
+                if (wasDirty && canvas.document === doc) doc.dirty = true
+                message = appContext.getString(R.string.err_save_note)
+            }
+            onDone(result != null && canvas.document === doc && !doc.dirty)
+        }
+    }
+
     private fun scheduleCanvasAutosave() {
         val uri = canvasAutosaveUri ?: return
         canvasDebounceJob?.cancel()
@@ -4429,7 +4496,9 @@ class Editor(context: Context, val pane: Pane = Pane.PRIMARY) : ToolPopupHost, S
             android.provider.DocumentsContract.createDocument(appContext.contentResolver, parent, "application/octet-stream", name)
         }.getOrNull() ?: return null
         return runCatching {
-            appContext.contentResolver.openOutputStream(uri, "wt")?.use { write(it) }
+            val output = appContext.contentResolver.openOutputStream(uri, "wt")
+                ?: throw java.io.IOException("Could not open created document")
+            output.use { write(it) }
             uri.toString()
         }.getOrElse {
             runCatching { android.provider.DocumentsContract.deleteDocument(appContext.contentResolver, uri) }
