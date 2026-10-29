@@ -275,7 +275,8 @@ class CanvasSelection(private val doc: InfiniteDocument) {
     fun resizeLive(handle: HandleId, pointer: Pt, margin: Double = 0.0) {
         if (handle == HandleId.START || handle == HandleId.END) return dragTapeEnd(handle, pointer)
         val from = startBox ?: return
-        val result = boundedTextResize(handle, pointer, margin) ?: return
+        val result = if (loneTapeBox != null) boxResize(from, handle, pointer, margin)
+            else boundedTextResize(handle, pointer, margin) ?: return
         box = result.obb
         // Corner handles scale the letters along with the box; edge handles only reflow them.
         // ResizeMath already locks corner scales to one factor on both axes.
@@ -291,7 +292,9 @@ class CanvasSelection(private val doc: InfiniteDocument) {
      * model. The counterpart of [previewMove] and [previewRotate].
      */
     fun previewResize(handle: HandleId, pointer: Pt, margin: Double = 0.0): Affine? {
-        val result = boundedTextResize(handle, pointer, margin) ?: return null
+        val from = startBox ?: return null
+        val result = if (loneTapeBox != null) boxResize(from, handle, pointer, margin)
+            else boundedTextResize(handle, pointer, margin) ?: return null
         box = result.obb
         return result.transform
     }
