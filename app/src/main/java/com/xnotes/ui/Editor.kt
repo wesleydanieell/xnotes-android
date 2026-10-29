@@ -401,7 +401,13 @@ class Editor(context: Context, val pane: Pane = Pane.PRIMARY) : ToolPopupHost, S
      * The two surfaces, in order. The pad is a sibling above the canvas rather than part of it: the
      * canvas paints into the window and the front buffer has to be a surface of its own.
      */
-    val surfaces = android.widget.FrameLayout(context).apply {
+    val surfaces = object : android.widget.FrameLayout(context) {
+        override fun dispatchTouchEvent(ev: android.view.MotionEvent): Boolean {
+            val handled = super.dispatchTouchEvent(ev)
+            com.xnotes.SplitStylusRouter.nativeSawEvent()
+            return handled
+        }
+    }.apply {
         addView(view, android.widget.FrameLayout.LayoutParams(-1, -1))
         addView(pad, android.widget.FrameLayout.LayoutParams(-1, -1))
     }

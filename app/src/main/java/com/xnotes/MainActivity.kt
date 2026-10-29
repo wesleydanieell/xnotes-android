@@ -10,6 +10,7 @@ import android.util.DisplayMetrics
 import android.view.Display
 import android.view.KeyEvent
 import android.view.MotionEvent
+import android.view.View
 import android.view.WindowManager
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.BackHandler
@@ -96,9 +97,11 @@ import androidx.compose.ui.input.key.type
 import androidx.compose.ui.input.pointer.PointerEventPass
 import androidx.compose.ui.input.pointer.PointerType
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.input.pointer.pointerInteropFilter
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.core.content.IntentCompat
 import androidx.core.view.WindowInsetsCompat
@@ -238,13 +241,18 @@ class MainActivity : ComponentActivity() {
     override fun dispatchTouchEvent(ev: MotionEvent): Boolean {
         StylusButtonLatch.clicks.onTouch(ev) // a side-button press with the pen tip down is a hold, never a click
         val standard = standardPenAction(ev.actionMasked)
-        if (standard < 0 || ev.getToolType(0) != MotionEvent.TOOL_TYPE_STYLUS) {
+        if (ev.pointerCount == 0 || ev.getToolType(0) != MotionEvent.TOOL_TYPE_STYLUS) {
             return super.dispatchTouchEvent(ev)
         }
         val rewritten = MotionEvent.obtain(ev)
-        rewritten.action = standard
+        if (standard >= 0) rewritten.action = standard
+        val action = if (standard >= 0) standard else rewritten.actionMasked
         try {
-            return super.dispatchTouchEvent(rewritten)
+            if (action == MotionEvent.ACTION_DOWN) SplitStylusRouter.beginDispatch()
+            else SplitStylusRouter.beginSubsequentDispatch()
+            val handled = super.dispatchTouchEvent(rewritten)
+            val fallback = SplitStylusRouter.dispatchFallback(rewritten)
+            return handled || fallback
         } finally {
             rewritten.recycle()
         }
@@ -313,6 +321,80 @@ class MainActivity : ComponentActivity() {
         } else {
             controller.show(WindowInsetsCompat.Type.systemBars())
         }
+    }
+}
+
+/**
+ * Compose can expose a stylus press to pointerInput without invoking a pointerInteropFilter that
+ * shares the same pane. After the normal view dispatch, fill only that missing AndroidView leg.
+ */
+internal object SplitStylusRouter {
+    private data class Target(val surface: View, val toolbarOnScreen: android.graphics.Rect?)
+    private val targets = LinkedHashMap<String, Target>()
+    private var interopSawDown = false
+    private var nativeSawEvent = false
+    private var fallbackSurface: View? = null
+
+    fun register(key: String, surface: View, toolbarOnScreen: android.graphics.Rect?) {
+        targets[key] = Target(surface, toolbarOnScreen)
+    }
+
+    fun unregister(key: String) {
+        targets.remove(key)
+    }
+
+    fun beginDispatch() {
+        interopSawDown = false
+        nativeSawEvent = false
+        fallbackSurface = null
+    }
+
+    fun beginSubsequentDispatch() {
+        nativeSawEvent = false
+    }
+
+    fun interopSawDown() {
+        interopSawDown = true
+    }
+
+    fun nativeSawEvent() {
+        nativeSawEvent = true
+    }
+
+    fun dispatchFallback(event: MotionEvent): Boolean {
+        val action = event.actionMasked
+        if (action == MotionEvent.ACTION_DOWN) {
+            val rawX = event.rawX
+            val rawY = event.rawY
+            fallbackSurface = targets.values.firstOrNull { target ->
+                val visible = android.graphics.Rect()
+                val insideCanvas = target.surface.isAttachedToWindow &&
+                    target.surface.getGlobalVisibleRect(visible) && visible.contains(rawX.toInt(), rawY.toInt())
+                com.xnotes.ui.shouldFallbackStylusToCanvas(
+                    interopSawDown = interopSawDown,
+                    nativeSawEvent = nativeSawEvent,
+                    insideCanvas = insideCanvas,
+                    overToolbar = target.toolbarOnScreen?.contains(rawX.toInt(), rawY.toInt()) == true,
+                )
+            }?.surface
+        }
+        val target = fallbackSurface
+        val isTouch = action == MotionEvent.ACTION_DOWN || action == MotionEvent.ACTION_MOVE ||
+            action == MotionEvent.ACTION_UP || action == MotionEvent.ACTION_CANCEL ||
+            action == MotionEvent.ACTION_POINTER_DOWN || action == MotionEvent.ACTION_POINTER_UP
+        val handled = if (target != null && isTouch && !nativeSawEvent) {
+            val location = IntArray(2)
+            target.getLocationOnScreen(location)
+            val copy = MotionEvent.obtain(event)
+            try {
+                copy.offsetLocation(event.rawX - event.x - location[0], event.rawY - event.y - location[1])
+                target.dispatchTouchEvent(copy)
+            } finally {
+                copy.recycle()
+            }
+        } else false
+        if (action == MotionEvent.ACTION_UP || action == MotionEvent.ACTION_CANCEL) fallbackSurface = null
+        return handled
     }
 }
 
@@ -1574,13 +1656,39 @@ private fun placeSplitPane(editor: Editor, pane: com.xnotes.ui.Pane, side: Split
 }
 
 /**
- * Lays the open panes over the backstage. Both open is a split: side by side in landscape, stacked
- * in portrait, with a draggable divider between them. One open is that pane full-screen, and none
- * leaves the backstage showing.
- *
- * The panes are placed by offset and size inside one Box rather than by a Row that becomes a Column,
- * so a pane keeps its composition node — and with it its canvas view, raster caches and GL context —
- * when the split opens, closes or the device turns.
+ * Defers pane activation until the native AndroidView has completed its Final-pass release.
+ * If another pane starts a stroke before the queued focus runs, the older focus request is stale.
+ */
+private class PaneFocusDelivery {
+    private val pressedPanes = mutableSetOf<com.xnotes.ui.Pane>()
+    private var generation = 0L
+    private val handler = android.os.Handler(android.os.Looper.getMainLooper())
+
+    fun observe(pane: com.xnotes.ui.Pane, event: androidx.compose.ui.input.pointer.PointerEvent) {
+        when (event.type) {
+            androidx.compose.ui.input.pointer.PointerEventType.Press -> {
+                pressedPanes.add(pane)
+                generation++
+            }
+            androidx.compose.ui.input.pointer.PointerEventType.Release -> {
+                if (event.changes.none { it.pressed }) pressedPanes.remove(pane)
+            }
+        }
+    }
+
+    fun activateAfterDispatch(editor: Editor, app: Editor) {
+        val atRelease = generation
+        handler.post {
+            if (generation == atRelease && pressedPanes.isEmpty() &&
+                editor.noteOpen && app.active !== editor) {
+                app.focusPane(editor.pane)
+            }
+        }
+    }
+}
+
+/**
+ * Lays open panes over the backstage and preserves their composition nodes across split changes.
  */
 @Composable
 private fun SplitHost(editor: Editor, actions: PaneActions, openingSplit: Boolean = false) {
@@ -1590,6 +1698,7 @@ private fun SplitHost(editor: Editor, actions: PaneActions, openingSplit: Boolea
     var hostRootOrigin by remember { mutableStateOf(Offset.Zero) }
     var hostPixels by remember { mutableStateOf(IntSize.Zero) }
     val second = editor.secondary
+    val paneFocusDelivery = remember(editor) { PaneFocusDelivery() }
     val split = editor.noteOpen && second?.noteOpen == true
     // A document switch or split rearrangement invalidates any in-flight drag preview.
     LaunchedEffect(editor.splitAxis, editor.splitSwapped, editor.title, second?.title, split) {
@@ -1663,6 +1772,7 @@ private fun SplitHost(editor: Editor, actions: PaneActions, openingSplit: Boolea
             EditorPane(
                 editor = editor,
                 app = editor,
+                focusDelivery = paneFocusDelivery,
                 actions = actions,
                 closable = split,
                 onSwapPreview = { position ->
@@ -1684,6 +1794,7 @@ private fun SplitHost(editor: Editor, actions: PaneActions, openingSplit: Boolea
             EditorPane(
                 editor = second,
                 app = editor,
+                focusDelivery = paneFocusDelivery,
                 actions = actions,
                 closable = split,
                 onSwapPreview = { position ->
@@ -1808,17 +1919,58 @@ private fun SplitHost(editor: Editor, actions: PaneActions, openingSplit: Boolea
 }
 
 /**
- * One pane: its toolbar over its canvas, with the menus and overlays that belong to that document.
- * A paged note and an infinite canvas get different chrome, since the paged toolbar is mostly pages,
- * viewing modes and text, none of which mean anything on a canvas.
- *
- * [app] is the primary editor, which owns the split; [editor] is this pane's own. Touching anywhere
- * in the pane gives it the focus, so the keyboard and the file actions follow the pen.
+ * Some split-pane stylus streams hit the Compose AndroidView node without being delivered by
+ * AndroidViewHolder to its embedded native drawing surface. The additional interop filter
+ * forwards such streams to the surface. Compose consumes a handled native dispatch, so the
+ * AndroidViewHolder and this filter cannot deliver the same gesture twice.
  */
+@OptIn(androidx.compose.ui.ExperimentalComposeUiApi::class)
+private fun Modifier.forwardStylusToNativeCanvas(
+    surface: android.view.View,
+    paneOriginInWindow: () -> Offset,
+    toolbarBoundsInWindow: () -> androidx.compose.ui.geometry.Rect?,
+): Modifier =
+    pointerInteropFilter { event ->
+        if (event.actionMasked == MotionEvent.ACTION_DOWN) SplitStylusRouter.interopSawDown()
+        val origin = paneOriginInWindow()
+        val location = IntArray(2)
+        surface.getLocationInWindow(location)
+        val surfaceLeft = location[0] - origin.x
+        val surfaceTop = location[1] - origin.y
+        val eventInWindow = Offset(origin.x + event.x, origin.y + event.y)
+        val overToolbar = toolbarBoundsInWindow()?.contains(eventInWindow) == true
+        val insideSurface = event.x >= surfaceLeft && event.x < surfaceLeft + surface.width &&
+            event.y >= surfaceTop && event.y < surfaceTop + surface.height && !overToolbar
+        val stylus = event.pointerCount > 0 && when (event.getToolType(0)) {
+            MotionEvent.TOOL_TYPE_STYLUS, MotionEvent.TOOL_TYPE_ERASER -> true
+            else -> false
+        }
+        val touch = when (event.actionMasked) {
+            MotionEvent.ACTION_DOWN, MotionEvent.ACTION_MOVE, MotionEvent.ACTION_UP,
+            MotionEvent.ACTION_POINTER_DOWN, MotionEvent.ACTION_POINTER_UP,
+            MotionEvent.ACTION_CANCEL -> true
+            else -> false
+        }
+        if (!stylus || !touch || !surface.isAttachedToWindow ||
+            (event.actionMasked == MotionEvent.ACTION_DOWN && !insideSurface)) {
+            false
+        } else {
+            val copy = MotionEvent.obtain(event)
+            try {
+                copy.offsetLocation(-surfaceLeft, -surfaceTop)
+                surface.dispatchTouchEvent(copy)
+            } finally {
+                copy.recycle()
+            }
+        }
+    }
+
+/** One pane with its canvas, toolbar, menus and overlays. */
 @Composable
 private fun EditorPane(
     editor: Editor,
     app: Editor,
+    focusDelivery: PaneFocusDelivery,
     actions: PaneActions,
     closable: Boolean,
     modifier: Modifier = Modifier,
@@ -1832,6 +1984,9 @@ private fun EditorPane(
 ) {
     val palette = LocalPalette.current
     val focusRequester = remember { FocusRequester() }
+    val paneWindowOrigin = remember(editor) { arrayOf(Offset.Zero) }
+    val composeHostView = LocalView.current
+    var toolbarBoundsInWindow by remember(editor) { mutableStateOf<androidx.compose.ui.geometry.Rect?>(null) }
     val focused = app.active === editor
     // Animate toolbar ownership one frame after the pen-down dispatch. This keeps a
     // focus change from rebuilding the toolbar while the canvas receives its first stroke.
@@ -1861,11 +2016,33 @@ private fun EditorPane(
                 // ACTION_DOWN reached the native canvas, rebuilding a floating toolbar
                 // during MOVE could cancel its touch target. Focus after the last lift.
                 val event = awaitPointerEvent(PointerEventPass.Final)
+                focusDelivery.observe(editor.pane, event)
                 if (com.xnotes.ui.shouldFocusPaneAfterEvent(event.type,
                         anyPointerPressed = event.changes.any { it.pressed },
-                        alreadyFocused = app.active === editor)) app.focusPane(editor.pane)
+                        alreadyFocused = app.active === editor)) {
+                    focusDelivery.activateAfterDispatch(editor, app)
+                }
             }
         }
+    }
+    val stylusSurface = if (editor.canvasOpen) editor.infinite.surfaces else editor.surfaces
+    SideEffect {
+        val inWindow = IntArray(2)
+        val onScreen = IntArray(2)
+        composeHostView.getLocationInWindow(inWindow)
+        composeHostView.getLocationOnScreen(onScreen)
+        val dx = onScreen[0] - inWindow[0]
+        val dy = onScreen[1] - inWindow[1]
+        val toolbarOnScreen = toolbarBoundsInWindow?.let {
+            android.graphics.Rect(
+                (it.left + dx).toInt(), (it.top + dy).toInt(),
+                (it.right + dx).toInt(), (it.bottom + dy).toInt(),
+            )
+        }
+        SplitStylusRouter.register(editor.pane.name, stylusSurface, toolbarOnScreen)
+    }
+    androidx.compose.runtime.DisposableEffect(editor) {
+        onDispose { SplitStylusRouter.unregister(editor.pane.name) }
     }
     // The colour a swatch drag carries rides over the whole pane, toolbar and page alike.
     Box(modifier) {
@@ -1873,7 +2050,9 @@ private fun EditorPane(
             modifier = Modifier
                 .fillMaxSize()
                 .background(palette.bg.toComposeColor())
+                .onGloballyPositioned { paneWindowOrigin[0] = it.positionInWindow() }
                 .then(takeFocus)
+                .forwardStylusToNativeCanvas(stylusSurface, { paneWindowOrigin[0] }) { toolbarBoundsInWindow }
                 .focusRequester(focusRequester)
                 .focusable()
                 .onPreviewKeyEvent { ke ->
@@ -1904,7 +2083,8 @@ private fun EditorPane(
                         onTakePhoto = { actions.onTakePhoto(editor) },
                     )
                 }
-                ToolbarAround(bar, onCover = canvas::setToolbarCover, tabExtension = paneTabs) { floatingBar ->
+                ToolbarAround(bar, onCover = canvas::setToolbarCover, tabExtension = paneTabs,
+                    onBarBounds = { if (toolbarBoundsInWindow != it) toolbarBoundsInWindow = it }) { floatingBar ->
                     Box(modifier = Modifier.fillMaxSize().clipToBounds()) {
                         AndroidView(
                             factory = { detached(canvas.surfaces) },
@@ -1942,7 +2122,8 @@ private fun EditorPane(
                         onTakePhoto = { actions.onTakePhoto(editor) },
                     ) }
                 }
-                ToolbarAround(bar, onCover = editor::setToolbarCover, tabExtension = paneTabs) { floatingBar ->
+                ToolbarAround(bar, onCover = editor::setToolbarCover, tabExtension = paneTabs,
+                    onBarBounds = { if (toolbarBoundsInWindow != it) toolbarBoundsInWindow = it }) { floatingBar ->
                     Row(modifier = Modifier.fillMaxSize()) {
                         if (editor.sidebarVisible) {
                             com.xnotes.ui.SidePanel(

@@ -11,3 +11,11 @@ internal fun shouldFocusPaneAfterEvent(
     anyPointerPressed: Boolean,
     alreadyFocused: Boolean,
 ): Boolean = !alreadyFocused && type == PointerEventType.Release && !anyPointerPressed
+
+/** Route a stylus press to the native canvas only when normal dispatch missed it. */
+internal fun shouldFallbackStylusToCanvas(
+    interopSawDown: Boolean,
+    nativeSawEvent: Boolean,
+    insideCanvas: Boolean,
+    overToolbar: Boolean,
+): Boolean = !interopSawDown && !nativeSawEvent && insideCanvas && !overToolbar

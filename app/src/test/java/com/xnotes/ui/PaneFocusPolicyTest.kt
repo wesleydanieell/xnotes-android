@@ -16,4 +16,17 @@ class PaneFocusPolicyTest {
         assertTrue(shouldFocusPaneAfterEvent(PointerEventType.Release, false, false))
         assertFalse(shouldFocusPaneAfterEvent(PointerEventType.Release, false, true))
     }
+
+    @Test fun stylusFallbackOnlyTargetsMissedCanvasPresses() {
+        assertTrue(shouldFallbackStylusToCanvas(
+            interopSawDown = false,
+            nativeSawEvent = false,
+            insideCanvas = true,
+            overToolbar = false,
+        ))
+        assertFalse(shouldFallbackStylusToCanvas(true, false, true, false))
+        assertFalse(shouldFallbackStylusToCanvas(false, true, true, false))
+        assertFalse(shouldFallbackStylusToCanvas(false, false, true, true))
+        assertFalse(shouldFallbackStylusToCanvas(false, false, false, false))
+    }
 }
