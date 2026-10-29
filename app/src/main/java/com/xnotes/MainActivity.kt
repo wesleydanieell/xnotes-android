@@ -19,11 +19,17 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectDragGestures
+import androidx.compose.foundation.gestures.awaitEachGesture
+import androidx.compose.foundation.gestures.awaitFirstDown
+import androidx.compose.foundation.gestures.detectDragGesturesAfterLongPress
 import androidx.compose.foundation.gestures.detectTapGestures
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxScope
 import androidx.compose.foundation.layout.BoxWithConstraints
@@ -55,6 +61,7 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -66,6 +73,17 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.foundation.focusable
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.layout.positionInWindow
+import androidx.compose.ui.layout.positionInRoot
+import androidx.compose.ui.unit.IntOffset
+import androidx.compose.ui.unit.IntRect
+import androidx.compose.ui.unit.IntSize
+import androidx.compose.ui.unit.LayoutDirection
+import androidx.compose.ui.window.Popup
+import androidx.compose.ui.window.PopupPositionProvider
+import androidx.compose.ui.window.PopupProperties
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.Dp
@@ -78,6 +96,7 @@ import androidx.compose.ui.input.key.onPreviewKeyEvent
 import androidx.compose.ui.input.key.type
 import androidx.compose.ui.input.pointer.PointerEventPass
 import androidx.compose.ui.input.pointer.PointerEventType
+import androidx.compose.ui.input.pointer.PointerType
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
@@ -92,11 +111,20 @@ import com.xnotes.ui.externalDropTarget
 import com.xnotes.ui.Editor
 import com.xnotes.ui.Toolbar
 import com.xnotes.ui.ToolbarAround
+import com.xnotes.ui.NoteTabBar
 import com.xnotes.ui.icons.XnotesIcons
 import com.xnotes.ui.theme.LocalPalette
 import com.xnotes.ui.theme.XnotesTheme
 import com.xnotes.ui.theme.toComposeColor
+import com.xnotes.core.workspace.NoteTabs
+import com.xnotes.core.workspace.SplitSide
+import com.xnotes.core.workspace.paneDropSide
+import com.xnotes.core.workspace.paneGripOffset
+import com.xnotes.core.workspace.panePlacementChanges
+import com.xnotes.ui.SplitAxis
+import com.xnotes.platform.NoteTabsStore
 import kotlin.math.roundToInt
+import kotlinx.coroutines.async
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
@@ -202,6 +230,7 @@ class MainActivity : ComponentActivity() {
     override fun dispatchKeyEvent(event: KeyEvent): Boolean {
         // The pen writes in whichever pane has the focus, so its button keys go to that pane too.
         if (editor?.active?.onStylusButtonKey(event) == true) return true
+        if (editor?.active?.onVolumeKey(event) == true) return true
         return super.dispatchKeyEvent(event)
     }
 
@@ -210,6 +239,7 @@ class MainActivity : ComponentActivity() {
     // so the view tree never opens a touch target and the whole stroke is dropped. Rewrite them
     // here, the last point they are intact, and dispatch normally. A no-op on every other device.
     override fun dispatchTouchEvent(ev: MotionEvent): Boolean {
+        StylusButtonLatch.clicks.onTouch(ev) // a side-button press with the pen tip down is a hold, never a click
         val standard = standardPenAction(ev.actionMasked)
         if (standard < 0 || ev.getToolType(0) != MotionEvent.TOOL_TYPE_STYLUS) {
             return super.dispatchTouchEvent(ev)
@@ -272,6 +302,8 @@ class MainActivity : ComponentActivity() {
         // UI is hidden; they load again when something new is drawn.
         if (level >= TRIM_MEMORY_UI_HIDDEN || level == TRIM_MEMORY_RUNNING_LOW || level == TRIM_MEMORY_RUNNING_CRITICAL) {
             com.xnotes.platform.PdfiumDocument.trimAll()
+            editor?.clearInactiveDocuments()
+            editor?.secondary?.clearInactiveDocuments()
         }
     }
 
@@ -297,6 +329,10 @@ private fun EditorScreen(
 ) {
     val context = LocalContext.current
     val snackbar = remember { SnackbarHostState() }
+    val tabsStore = remember(context) { NoteTabsStore(context) }
+    var noteTabs by remember { mutableStateOf(tabsStore.load()) }
+    var splitOpening by remember { mutableStateOf(false) }
+    LaunchedEffect(noteTabs) { tabsStore.save(noteTabs) }
     // The LaTeX renderer resolves its fonts through the composition, so this is the
     // only place it can be built; the flow reaches it through MathRendering after.
     val mathDensity = LocalDensity.current
@@ -611,6 +647,56 @@ private fun EditorScreen(
         step(0)
     }
 
+    // A settings backup written where the user picks, or read and held for the go-ahead to apply it.
+    val exportSettingsLauncher = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("application/zip")) { uri ->
+        if (uri == null) return@rememberLauncherForActivityResult
+        scope.launch {
+            val ok = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+                runCatching { resolver.openOutputStream(uri, "wt")?.use { editor.exportSettings(it) } != null }.getOrDefault(false)
+            }
+            editor.message = context.getString(if (ok) R.string.settings_exported else R.string.err_export_settings)
+        }
+    }
+    var pendingBackup by remember { mutableStateOf<Editor.SettingsBackup?>(null) }
+    val importSettingsLauncher = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
+        if (uri == null) return@rememberLauncherForActivityResult
+        scope.launch {
+            val backup = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+                runCatching { resolver.openInputStream(uri)?.use { editor.readSettingsBackup(it) } }.getOrNull()
+            }
+            if (backup == null) editor.message = context.getString(R.string.err_import_settings) else pendingBackup = backup
+        }
+    }
+
+    // A photo the camera app is taking, into a cache file handed to it, for the pane that asked.
+    var pendingPhoto by remember { mutableStateOf<Pair<Editor, java.io.File>?>(null) }
+    val takePhotoLauncher = rememberLauncherForActivityResult(ActivityResultContracts.TakePicture()) { taken ->
+        val (pane, file) = pendingPhoto ?: return@rememberLauncherForActivityResult
+        pendingPhoto = null
+        scope.launch {
+            val bytes = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+                (if (taken) runCatching { file.readBytes() }.getOrNull() else null).also { file.delete() }
+            }
+            if (bytes == null || bytes.isEmpty()) return@launch
+            if (pane.canvasOpen) pane.infinite.insertImage(bytes) else pane.insertImageAt(bytes, null)
+        }
+    }
+
+    fun takePhoto(pane: Editor) {
+        val file = runCatching {
+            val dir = java.io.File(context.cacheDir, "camera").apply { mkdirs() }
+            java.io.File(dir, "photo-${System.currentTimeMillis()}.jpg")
+        }.getOrNull() ?: return
+        val uri = androidx.core.content.FileProvider.getUriForFile(context, "${context.packageName}.fileprovider", file)
+        pendingPhoto = pane to file
+        try {
+            takePhotoLauncher.launch(uri)
+        } catch (_: android.content.ActivityNotFoundException) {
+            pendingPhoto = null
+            pane.message = context.getString(R.string.err_no_camera)
+        }
+    }
+
     // An image picked for the infinite canvas: read the bytes and hand them straight over.
     val insertCanvasImageLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.OpenDocument(),
@@ -635,6 +721,60 @@ private fun EditorScreen(
         } else {
             target.openAsync(uriStr, name)
         }
+        // An unsuccessful or cancelled read must not create a ghost tab.
+        val openedUri = if (target.canvasOpen) target.infinite.document.path else target.currentUri
+        if (target.noteOpen && openedUri == uriStr) {
+            noteTabs = noteTabs.open(uriStr, name ?: "Note", target.pane == com.xnotes.ui.Pane.SECONDARY)
+        }
+    }
+
+    fun activateTab(uri: String, secondary: Boolean? = null) {
+        // Outside split mode, reuse the only remaining pane. Reopening the other editor would
+        // resurrect a split the user explicitly closed, even if its tab is still in the strip.
+        val useSecondary = noteTabs.targetSecondary(
+            requested = secondary, splitVisible = editor.inSplit,
+            focusedSecondary = editor.active.pane == com.xnotes.ui.Pane.SECONDARY,
+        )
+        val target = if (useSecondary) editor.secondaryPane() else editor
+        val other = if (target === editor) editor.secondary else editor
+        val otherAssigned = if (other === editor) noteTabs.primaryUri else noteTabs.secondaryUri
+        if (other?.noteOpen == true && otherAssigned == uri &&
+            (if (other.canvasOpen) other.infinite.document.path else other.currentUri) == uri) {
+            editor.focusPane(other.pane)
+            return
+        }
+        val activeUri = if (target.canvasOpen) target.infinite.document.path else target.currentUri
+        if (target.noteOpen && activeUri == uri) {
+            noteTabs = noteTabs.open(uri, noteTabs.tabs.first { it.uri == uri }.title, useSecondary)
+            return
+        }
+        guarded(target) {
+            scope.launch { openInto(target, uri) }
+        }
+    }
+
+    fun closeTab(uri: String) {
+        val matching = listOfNotNull(editor, editor.secondary).firstOrNull { pane ->
+            pane.noteOpen && (if (pane.canvasOpen) pane.infinite.document.path else pane.currentUri) == uri
+        }
+        val finish = {
+            val closingSplitPane = matching != null && editor.inSplit
+            val updated = if (closingSplitPane) noteTabs.closeSplitPaneTab(uri) else noteTabs.close(uri)
+            val replacement = if (closingSplitPane) null else when (matching?.pane) {
+                com.xnotes.ui.Pane.PRIMARY -> updated.primaryUri
+                com.xnotes.ui.Pane.SECONDARY -> updated.secondaryUri
+                else -> null
+            }
+            noteTabs = updated
+            editor.forgetInactiveDocument(uri)
+            editor.secondary?.forgetInactiveDocument(uri)
+            if (matching != null) {
+                if (replacement != null) scope.launch { openInto(matching, replacement) }
+                else matching.goHome()
+            }
+            Unit
+        }
+        if (matching != null) guarded(matching, finish) else finish()
     }
 
     fun openTreeFile(uriStr: String) {
@@ -642,18 +782,54 @@ private fun EditorScreen(
     }
 
     /** Open two picked files together, one per pane, and start the split focused on the first. */
-    fun openSplit(firstUri: String, secondUri: String) {
+    fun openSplit(firstUri: String, secondUri: String, axis: SplitAxis = SplitAxis.AUTO) {
         editor.splitRatio = 0.5f
+        editor.splitAxis = axis
+        editor.splitSwapped = false
         editor.focusPane(com.xnotes.ui.Pane.PRIMARY)
         val second = editor.secondaryPane()
+        splitOpening = true
         scope.launch {
-            openInto(editor, firstUri)
-            openInto(second, secondUri)
-            // A file that would not open leaves no half-built pane behind; the other stays as it is.
-            if (!second.noteOpen) {
-                editor.abandonSecondary()
-                editor.message = context.getString(R.string.err_open_second)
+            try {
+                // Keep the transition covered until both documents are attached. Otherwise the
+                // first async load briefly renders its pane full-screen before the second finishes.
+                kotlinx.coroutines.coroutineScope {
+                    val firstLoad = async { openInto(editor, firstUri) }
+                    val secondLoad = async { openInto(second, secondUri) }
+                    firstLoad.await()
+                    secondLoad.await()
+                }
+                if (!second.noteOpen) {
+                    editor.abandonSecondary()
+                    editor.message = context.getString(R.string.err_open_second)
+                }
+            } finally {
+                splitOpening = false
             }
+        }
+    }
+
+    /** Route the dragged tab into any of four half-screen targets. */
+    fun splitFromTab(uri: String, side: SplitSide) {
+        val axis = when (side) {
+            SplitSide.LEFT, SplitSide.RIGHT -> SplitAxis.HORIZONTAL
+            SplitSide.TOP, SplitSide.BOTTOM -> SplitAxis.VERTICAL
+        }
+        val firstSlot = side == SplitSide.LEFT || side == SplitSide.TOP
+        if (editor.inSplit && noteTabs.primaryUri != null && noteTabs.secondaryUri != null) {
+            // A grip may have swapped physical positions. The drop selects a screen slot, not
+            // an editor construction order, so resolve through the current swap arrangement.
+            editor.splitAxis = axis
+            val secondaryTarget = if (firstSlot) editor.splitSwapped else !editor.splitSwapped
+            editor.focusPane(if (secondaryTarget) com.xnotes.ui.Pane.SECONDARY else com.xnotes.ui.Pane.PRIMARY)
+            activateTab(uri, secondary = secondaryTarget)
+            return
+        }
+        val companion = noteTabs.selectedUri(false)?.takeUnless { it == uri }
+            ?: noteTabs.tabs.firstOrNull { it.uri != uri }?.uri
+            ?: return // a single tab cannot display the same document twice
+        guardedAll {
+            if (firstSlot) openSplit(uri, companion, axis) else openSplit(companion, uri, axis)
         }
     }
 
@@ -889,7 +1065,20 @@ private fun EditorScreen(
         snackbarHost = { SnackbarHost(snackbar, Modifier.windowInsetsPadding(WindowInsets.ime.exclude(contentInsets))) },
         contentWindowInsets = contentInsets,
     ) { inner ->
-        Box(modifier = Modifier.fillMaxSize().padding(inner).consumeWindowInsets(contentInsets)) {
+        Column(modifier = Modifier.fillMaxSize().padding(inner).consumeWindowInsets(contentInsets)) {
+            if (noteTabs.tabs.isNotEmpty() && editor.openPanes.isNotEmpty()) {
+                NoteTabBar(
+                    tabs = noteTabs,
+                    // Selection follows workspace state immediately on close, even while
+                    // the replacement document is still loading into its editor pane.
+                    activeUri = noteTabs.selectedUri(editor.active.pane == com.xnotes.ui.Pane.SECONDARY),
+                    onSelect = { uri -> activateTab(uri) },
+                    onClose = ::closeTab,
+                    onReorder = { from, to -> noteTabs = noteTabs.move(from, to) },
+                    onSplit = ::splitFromTab,
+                )
+            }
+            Box(modifier = Modifier.fillMaxWidth().weight(1f)) {
             // BASE LAYER: backstage is the root of the stack — always present underneath.
             com.xnotes.ui.Backstage(
                 editor = editor,
@@ -898,6 +1087,10 @@ private fun EditorScreen(
                 onExitApp = { (context as? android.app.Activity)?.finish() },
                 onImportCodeTheme = { importCodeThemeLauncher.launch(arrayOf("*/*")) },
                 onImportFont = { importFontLauncher.launch(arrayOf("*/*")) },
+                onBackup = { export ->
+                    if (export) exportSettingsLauncher.launch("xnotes-settings-${java.time.LocalDate.now()}.zip")
+                    else importSettingsLauncher.launch(arrayOf("application/zip", "application/octet-stream"))
+                },
                 onImportPdf = { importPdfLauncher.launch(arrayOf("application/pdf")) },
                 onOpenFile = { uri -> guarded(editor) { openTreeFile(uri) } },
                 onPickRoot = { pickRootLauncher.launch(null) },
@@ -947,7 +1140,11 @@ private fun EditorScreen(
                     backstageView = com.xnotes.ui.BackstageView.HOME
                     guardedAll { editor.goHomeAll() }
                 },
-                onClosePane = { pane -> guarded(pane) { pane.goHome() } },
+                onClosePane = { pane -> guarded(pane) {
+                    val closedUri = if (pane.canvasOpen) pane.infinite.document.path else pane.currentUri
+                    if (closedUri != null) noteTabs = noteTabs.hide(closedUri)
+                    pane.goHome()
+                } },
                 onInsertImage = { pane, at ->
                     pendingInsert = PendingInsert(pane, at)
                     insertImageLauncher.launch(arrayOf("image/*"))
@@ -956,6 +1153,12 @@ private fun EditorScreen(
                     pendingCanvasInsert = PendingInsert(pane, at)
                     insertCanvasImageLauncher.launch(arrayOf("image/*"))
                 },
+                onTakePhoto = { pane -> takePhoto(pane) },
+                onShareImage = { file ->
+                    runCatching { launchShare(file, file.nameWithoutExtension, "image/png") }
+                        .onFailure { editor.message = context.getString(R.string.err_share_image) }
+                },
+                onOpenFile = { pane, uri -> scope.launch { openInto(pane, uri) } },
                 onAddStickers = { addStickersLauncher.launch(arrayOf("image/*")) },
                 onInsertAudio = { pane ->
                     pendingAudioPane = pane
@@ -1013,7 +1216,8 @@ private fun EditorScreen(
                     insertPdfLauncher.launch(arrayOf("application/pdf"))
                 },
             )
-            SplitHost(editor, actions)
+            SplitHost(editor, actions, openingSplit = splitOpening)
+            }
         }
     }
     if (showShareChooser) {
@@ -1038,6 +1242,23 @@ private fun EditorScreen(
             },
             dismissButton = {
                 androidx.compose.material3.TextButton(onClick = { showShareChooser = false; pendingShareUri = null }) {
+                    androidx.compose.material3.Text(stringResource(R.string.cancel))
+                }
+            },
+        )
+    }
+    pendingBackup?.let { backup ->
+        com.xnotes.ui.AlertDialog(
+            onDismissRequest = { pendingBackup = null },
+            title = { androidx.compose.material3.Text(stringResource(R.string.import_settings_title)) },
+            text = { androidx.compose.material3.Text(stringResource(R.string.import_settings_confirm)) },
+            confirmButton = {
+                androidx.compose.material3.TextButton(onClick = { pendingBackup = null; editor.applySettingsBackup(backup) }) {
+                    androidx.compose.material3.Text(stringResource(R.string.replace))
+                }
+            },
+            dismissButton = {
+                androidx.compose.material3.TextButton(onClick = { pendingBackup = null }) {
                     androidx.compose.material3.Text(stringResource(R.string.cancel))
                 }
             },
@@ -1089,7 +1310,7 @@ private fun EditorScreen(
         val batch = importer.importProgress
         if (batch != null) PdfImportBatchDialog(batch.done, batch.total) { importer.cancelImportInProgress() }
         else PdfImportDialog(
-            markdown = importer.pendingImport?.markdown == true,
+            label = importer.busyWith ?: if (importer.pendingImport?.markdown == true) R.string.importing_markdown else R.string.importing_pdf,
             onCancel = { importer.cancelImportInProgress() }, // the stream-copy stops at its next buffer
         )
     }
@@ -1148,6 +1369,31 @@ private class ExportProgress(val done: Int, val total: Int, val counting: String
 }
 
 /**
+ * A tap here, or any pen stroke, lets the side panel's page selection go; a finger that scrolls or
+ * pinches keeps it. Watched on the way in and never consumed, so whatever is under it still acts.
+ */
+private fun Modifier.endsPageSelection(editor: Editor): Modifier = pointerInput(editor) {
+    awaitEachGesture {
+        val down = awaitFirstDown(requireUnconsumed = false, pass = PointerEventPass.Initial)
+        if (!editor.inPageSelectionMode) return@awaitEachGesture
+        if (down.type == PointerType.Stylus || down.type == PointerType.Eraser) {
+            editor.clearPageSelection()
+            return@awaitEachGesture
+        }
+        while (true) {
+            val e = awaitPointerEvent(PointerEventPass.Initial)
+            if (e.changes.any { it.id != down.id && it.pressed }) return@awaitEachGesture
+            val c = e.changes.firstOrNull { it.id == down.id } ?: return@awaitEachGesture
+            if ((c.position - down.position).getDistance() > viewConfiguration.touchSlop) return@awaitEachGesture
+            if (!c.pressed) {
+                editor.clearPageSelection()
+                return@awaitEachGesture
+            }
+        }
+    }
+}
+
+/**
  * What a pane can ask the screen around it to do: open a SAF picker, run an export, or change the
  * window. Each callback takes the pane it is acting for, because in a split there are two of them
  * and a picker's result has to come back to the one that opened it.
@@ -1160,11 +1406,17 @@ private class PaneActions(
     val onClosePane: (Editor) -> Unit,
     val onInsertImage: (Editor, com.xnotes.core.geometry.Pt?) -> Unit,
     val onInsertCanvasImage: (Editor, com.xnotes.core.geometry.Pt?) -> Unit,
+    /** Take a photo with the camera app and place it like an inserted picture, on the canvas when [Editor.canvasOpen]. */
+    val onTakePhoto: (Editor) -> Unit,
     val onAddStickers: () -> Unit,
     val onInsertAudio: (Editor) -> Unit,
     val onRecordAudio: (Editor) -> Unit,
     val onSaveAudio: (Editor, com.xnotes.core.model.AudioItem) -> Unit,
     val onShareAudio: (Editor, com.xnotes.core.model.AudioItem) -> Unit,
+    /** Hand a PNG the pane rendered (a selection or a capture) to the share sheet. */
+    val onShareImage: (java.io.File) -> Unit,
+    /** Open a stored note in [Editor]'s pane, as a tap on it in the explorer would. */
+    val onOpenFile: (Editor, String) -> Unit,
     val onImportTemplate: () -> Unit,
     val onTemplateFromImage: (com.xnotes.core.template.TemplateKind) -> Unit,
     val onSharePages: (Editor, List<Int>, Boolean) -> Unit,
@@ -1214,6 +1466,46 @@ private val SwallowTouches = Modifier.pointerInput(Unit) {
     }
 }
 
+/** Both drag overlays use the same window origin and never intercept stylus or touch input. */
+private val SPLIT_DRAG_POPUP = PopupProperties(
+    flags = WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or
+        WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE,
+    dismissOnBackPress = false, dismissOnClickOutside = false,
+)
+
+@Composable
+private fun rememberSplitPopupOrigin(origin: Offset): PopupPositionProvider = remember(origin) {
+    object : PopupPositionProvider {
+        override fun calculatePosition(
+            anchorBounds: IntRect, windowSize: IntSize,
+            layoutDirection: LayoutDirection, popupContentSize: IntSize,
+        ): IntOffset = IntOffset(origin.x.roundToInt(), origin.y.roundToInt())
+    }
+}
+
+/** The four edges are drop targets; releasing outside the workspace cancels the gesture. */
+private fun resolvePaneDrop(point: Offset, origin: Offset, size: IntSize): SplitSide? {
+    return paneDropSide(point.x - origin.x, point.y - origin.y,
+        size.width.toFloat(), size.height.toFloat())
+}
+
+/** Move the dragged editor to an explicit screen half; dropping in its current half is a no-op. */
+private fun placeSplitPane(editor: Editor, pane: com.xnotes.ui.Pane, side: SplitSide,
+    currentlyHorizontal: Boolean) {
+    if (!editor.inSplit) return
+    val nextAxis = when (side) {
+        SplitSide.LEFT, SplitSide.RIGHT -> SplitAxis.HORIZONTAL
+        SplitSide.TOP, SplitSide.BOTTOM -> SplitAxis.VERTICAL
+    }
+    if (!panePlacementChanges(pane == com.xnotes.ui.Pane.PRIMARY,
+            currentlyHorizontal, editor.splitSwapped, side)) return
+    val firstSlot = side == SplitSide.LEFT || side == SplitSide.TOP
+    val swapped = if (pane == com.xnotes.ui.Pane.PRIMARY) !firstSlot else firstSlot
+    if (editor.splitAxis != nextAxis) editor.splitRatio = 0.5f
+    editor.splitAxis = nextAxis
+    editor.splitSwapped = swapped
+}
+
 /**
  * Lays the open panes over the backstage. Both open is a split: side by side in landscape, stacked
  * in portrait, with a draggable divider between them. One open is that pane full-screen, and none
@@ -1224,20 +1516,39 @@ private val SwallowTouches = Modifier.pointerInput(Unit) {
  * when the split opens, closes or the device turns.
  */
 @Composable
-private fun SplitHost(editor: Editor, actions: PaneActions) {
+private fun SplitHost(editor: Editor, actions: PaneActions, openingSplit: Boolean = false) {
+    var swapPreview by remember { mutableStateOf<Pair<com.xnotes.ui.Pane, SplitSide>?>(null) }
+    var dragGhost by remember { mutableStateOf<Pair<com.xnotes.ui.Pane, Offset>?>(null) }
+    var hostOrigin by remember { mutableStateOf(Offset.Zero) }
+    var hostRootOrigin by remember { mutableStateOf(Offset.Zero) }
+    var hostPixels by remember { mutableStateOf(IntSize.Zero) }
     val second = editor.secondary
     val split = editor.noteOpen && second?.noteOpen == true
+    // A document switch or split rearrangement invalidates any in-flight drag preview.
+    LaunchedEffect(editor.splitAxis, editor.splitSwapped, editor.title, second?.title, split) {
+        swapPreview = null
+        dragGhost = null
+    }
     // A pane that closed on its own leaves the other one full-screen; once neither is open the
     // second editor is released, freeing its canvas and GL surfaces.
     LaunchedEffect(editor.noteOpen, second?.noteOpen) {
         if (second != null && !second.noteOpen) editor.releaseClosedSecondary()
     }
-    if (!editor.noteOpen && second?.noteOpen != true) return
+    if (!editor.noteOpen && second?.noteOpen != true && !openingSplit) return
 
-    val sideBySide = LocalConfiguration.current.orientation ==
-        android.content.res.Configuration.ORIENTATION_LANDSCAPE
+    val sideBySide = when (editor.splitAxis) {
+        SplitAxis.HORIZONTAL -> true
+        SplitAxis.VERTICAL -> false
+        SplitAxis.AUTO -> LocalConfiguration.current.orientation ==
+            android.content.res.Configuration.ORIENTATION_LANDSCAPE
+    }
     val ratio = editor.splitRatio.coerceIn(MIN_PANE_RATIO, 1f - MIN_PANE_RATIO)
-    BoxWithConstraints(Modifier.fillMaxSize().then(SwallowTouches).imePadding()) {
+    BoxWithConstraints(Modifier.fillMaxSize().then(SwallowTouches).imePadding()
+        .onGloballyPositioned { coordinates ->
+            hostOrigin = coordinates.positionInWindow()
+            hostRootOrigin = coordinates.positionInRoot()
+            hostPixels = coordinates.size
+        }) {
         val fullW = maxWidth
         val fullH = maxHeight
         val full = if (sideBySide) fullW else fullH
@@ -1259,13 +1570,37 @@ private fun SplitHost(editor: Editor, actions: PaneActions) {
             y = if (sideBySide) 0.dp else along,
         )
 
+        val swapped = split && editor.splitSwapped
+        val toolbarLook = com.xnotes.ui.LocalToolbarLook.current
+        val gripTopInset = com.xnotes.ui.paneGripTopInset(toolbarLook)
+        val density = LocalDensity.current
+        // Compute each grip's actual screen slot from the split layout, independent of where
+        // its EditorPane was originally composed or which document it currently displays.
+        fun gripRootOrigin(firstSlot: Boolean): Offset {
+            val (x, y) = paneGripOffset(sideBySide,
+                with(density) { firstExtent.toPx() }, with(density) { secondExtent.toPx() },
+                with(density) { fullW.toPx() }, firstSlot, with(density) { 48.dp.toPx() })
+            return hostRootOrigin + Offset(x, y + with(density) { gripTopInset.toPx() })
+        }
         if (editor.noteOpen) {
             EditorPane(
                 editor = editor,
                 app = editor,
                 actions = actions,
                 closable = split,
-                modifier = paneSize(firstExtent),
+                onSwapPreview = { position ->
+                    swapPreview = position?.let { point ->
+                        resolvePaneDrop(point, hostRootOrigin, hostPixels)?.let { editor.pane to it }
+                    }
+                },
+                onDrop = { side -> placeSplitPane(editor, editor.pane, side, sideBySide) },
+                onGhost = { point -> dragGhost = point?.let { editor.pane to it } },
+                hostOrigin = hostRootOrigin,
+                hostPixels = hostPixels,
+                gripRootOrigin = gripRootOrigin(!swapped),
+                gripTopInset = gripTopInset,
+                modifier = (if (swapped) paneOffset(firstExtent).then(paneSize(secondExtent))
+                    else paneSize(firstExtent)),
             )
         }
         if (second?.noteOpen == true) {
@@ -1274,7 +1609,19 @@ private fun SplitHost(editor: Editor, actions: PaneActions) {
                 app = editor,
                 actions = actions,
                 closable = split,
-                modifier = paneOffset(if (split) firstExtent else 0.dp).then(paneSize(secondExtent)),
+                onSwapPreview = { position ->
+                    swapPreview = position?.let { point ->
+                        resolvePaneDrop(point, hostRootOrigin, hostPixels)?.let { second.pane to it }
+                    }
+                },
+                onDrop = { side -> placeSplitPane(editor, second.pane, side, sideBySide) },
+                onGhost = { point -> dragGhost = point?.let { second.pane to it } },
+                hostOrigin = hostRootOrigin,
+                hostPixels = hostPixels,
+                gripRootOrigin = gripRootOrigin(swapped),
+                gripTopInset = gripTopInset,
+                modifier = (if (swapped) paneSize(firstExtent)
+                    else paneOffset(if (split) firstExtent else 0.dp).then(paneSize(secondExtent))),
             )
         }
         // Composed last so it sits over both panes and catches the drag before either of them.
@@ -1287,6 +1634,96 @@ private fun SplitHost(editor: Editor, actions: PaneActions) {
                 modifier = paneOffset((firstExtent - DIVIDER / 2).coerceAtLeast(0.dp))
                     .then(paneSize(DIVIDER)),
             )
+        }
+        if (split) swapPreview?.let { (sourcePane, side) ->
+            val sourceFirst = (sourcePane == com.xnotes.ui.Pane.PRIMARY) != swapped
+            val currentSide = if (sideBySide) {
+                if (sourceFirst) SplitSide.LEFT else SplitSide.RIGHT
+            } else {
+                if (sourceFirst) SplitSide.TOP else SplitSide.BOTTOM
+            }
+            val effective = side != currentSide
+            val previewW by androidx.compose.animation.core.animateDpAsState(
+                if (side == SplitSide.LEFT || side == SplitSide.RIGHT) fullW / 2 else fullW,
+                tween(150), label = "gripPreviewWidth",
+            )
+            val previewH by androidx.compose.animation.core.animateDpAsState(
+                if (side == SplitSide.TOP || side == SplitSide.BOTTOM) fullH / 2 else fullH,
+                tween(150), label = "gripPreviewHeight",
+            )
+            val previewX by androidx.compose.animation.core.animateDpAsState(
+                if (side == SplitSide.RIGHT) fullW / 2 else 0.dp,
+                tween(150), label = "gripPreviewX",
+            )
+            val previewY by androidx.compose.animation.core.animateDpAsState(
+                if (side == SplitSide.BOTTOM) fullH / 2 else 0.dp,
+                tween(150), label = "gripPreviewY",
+            )
+            val palette = LocalPalette.current
+            Popup(
+                popupPositionProvider = rememberSplitPopupOrigin(hostOrigin),
+                properties = SPLIT_DRAG_POPUP,
+            ) {
+                Box(Modifier.size(fullW, fullH)) {
+                    Box(
+                        Modifier.offset(previewX, previewY).size(previewW, previewH).padding(6.dp)
+                            .clip(RoundedCornerShape(14.dp))
+                            .background(palette.selectionBackground.toComposeColor()
+                                .copy(alpha = if (effective) 0.20f else 0.08f))
+                            .border(2.dp, palette.border.toComposeColor()
+                                .copy(alpha = if (effective) 0.9f else 0.35f), RoundedCornerShape(14.dp)),
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        Text(if (effective) "Release to position" else "Current position",
+                            color = palette.text.toComposeColor())
+                    }
+                }
+            }
+        }
+        // A touch-through popup anchored to the shared host follows the real pointer position.
+        // Drawing it as a regular sibling intercepts touches and can freeze the other editor.
+        if (split) dragGhost?.let { (source, point) ->
+            val palette = LocalPalette.current
+            val title = if (source == com.xnotes.ui.Pane.PRIMARY) editor.title else second?.title.orEmpty()
+            val targetReady = swapPreview?.first == source
+            val density = LocalDensity.current
+            Popup(
+                popupPositionProvider = rememberSplitPopupOrigin(hostOrigin),
+                properties = SPLIT_DRAG_POPUP,
+            ) {
+                Box(Modifier.size(fullW, fullH)) {
+                    Row(
+                        Modifier
+                            .offset {
+                                IntOffset(
+                                    (point.x - hostRootOrigin.x - with(density) { 24.dp.toPx() }).roundToInt(),
+                                    (point.y - hostRootOrigin.y - with(density) { 8.dp.toPx() }).roundToInt(),
+                                )
+                            }
+                            .clip(RoundedCornerShape(12.dp))
+                            .background(palette.panel.toComposeColor())
+                            .border(1.dp, if (targetReady) palette.accent.toComposeColor().copy(alpha = 0.7f)
+                                else palette.border.toComposeColor(), RoundedCornerShape(12.dp))
+                            .padding(horizontal = 12.dp, vertical = 8.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    ) {
+                        PaneGripDots()
+                        Text(title.take(24), fontSize = 11.sp, color = palette.text.toComposeColor())
+                    }
+                }
+            }
+        }
+        // Both documents load asynchronously. Mask the transient one-pane arrangement until
+        // the final split exists, instead of flashing the dragged note full-screen.
+        if (openingSplit) {
+            val palette = LocalPalette.current
+            Box(Modifier.fillMaxSize().background(palette.bg.toComposeColor()),
+                contentAlignment = Alignment.Center) {
+                androidx.compose.material3.CircularProgressIndicator(
+                    color = palette.accent.toComposeColor(),
+                )
+            }
         }
     }
 }
@@ -1306,10 +1743,18 @@ private fun EditorPane(
     actions: PaneActions,
     closable: Boolean,
     modifier: Modifier = Modifier,
+    onSwapPreview: (Offset?) -> Unit = {},
+    onDrop: ((SplitSide) -> Unit)? = null,
+    onGhost: (Offset?) -> Unit = {},
+    hostOrigin: Offset = Offset.Zero,
+    hostPixels: IntSize = IntSize.Zero,
+    gripRootOrigin: Offset = Offset.Zero,
+    gripTopInset: Dp = 4.dp,
 ) {
     val palette = LocalPalette.current
     val focusRequester = remember { FocusRequester() }
     val focused = app.active === editor
+    SideEffect { editor.openInPane = { uri -> actions.onOpenFile(editor, uri) } }
     // This pane owns the keyboard while it is the focused one; (re)grab it as that changes.
     LaunchedEffect(focused, editor.noteOpen) {
         if (focused && editor.noteOpen) runCatching { focusRequester.requestFocus() }
@@ -1343,7 +1788,8 @@ private fun EditorPane(
                     Modifier
                         .fillMaxWidth()
                         .height(2.dp)
-                        .background((if (focused) palette.accent else palette.border).toComposeColor()),
+                        .background((if (focused) palette.accent else palette.border).toComposeColor()
+                            .copy(alpha = if (focused) 0.30f else 0.50f)),
                 )
             }
             if (editor.canvasOpen) {
@@ -1356,6 +1802,7 @@ private fun EditorPane(
                         onClosePane = onClose,
                         onInsertAudio = { actions.onInsertAudio(editor) },
                         onRecordAudio = { actions.onRecordAudio(editor) },
+                        onTakePhoto = { actions.onTakePhoto(editor) },
                     )
                 }
                 ToolbarAround(bar, onCover = canvas::setToolbarCover) { floatingBar ->
@@ -1373,7 +1820,9 @@ private fun EditorPane(
                             canvas,
                             onSaveAudio = { actions.onSaveAudio(editor, it) },
                             onShareAudio = { actions.onShareAudio(editor, it) },
+                            onShareImage = actions.onShareImage,
                         )
+                        com.xnotes.ui.CropOverlay(canvas)
                         com.xnotes.ui.TextStyleBar(canvas)
                         com.xnotes.ui.LongPressMenu(canvas, onInsertImageAt = { c -> actions.onInsertCanvasImage(editor, c) })
                         com.xnotes.ui.CanvasDebugOverlay(canvas)
@@ -1381,7 +1830,7 @@ private fun EditorPane(
                 }
             } else {
                 val bar: @Composable () -> Unit = {
-                    Toolbar(
+                    Box(Modifier.endsPageSelection(editor)) { Toolbar(
                         editor,
                         onToggleFullscreen = actions.onToggleFullscreen,
                         onOpenBackstage = actions.onOpenBackstage,
@@ -1391,7 +1840,8 @@ private fun EditorPane(
                         onImportTemplate = actions.onImportTemplate,
                         onInsertAudio = { actions.onInsertAudio(editor) },
                         onRecordAudio = { actions.onRecordAudio(editor) },
-                    )
+                        onTakePhoto = { actions.onTakePhoto(editor) },
+                    ) }
                 }
                 ToolbarAround(bar, onCover = editor::setToolbarCover) { floatingBar ->
                     Row(modifier = Modifier.fillMaxSize()) {
@@ -1406,7 +1856,7 @@ private fun EditorPane(
                                 onTemplateFromImage = actions.onTemplateFromImage,
                             )
                         }
-                        Box(modifier = Modifier.weight(1f).fillMaxHeight().clipToBounds()) {
+                        Box(modifier = Modifier.weight(1f).fillMaxHeight().clipToBounds().endsPageSelection(editor)) {
                             AndroidView(
                                 factory = { detached(editor.surfaces) },
                                 modifier = Modifier.fillMaxSize().externalDropTarget(editor.externalDrop),
@@ -1420,8 +1870,10 @@ private fun EditorPane(
                                 editor,
                                 onSaveAudio = { actions.onSaveAudio(editor, it) },
                                 onShareAudio = { actions.onShareAudio(editor, it) },
+                                onShareImage = actions.onShareImage,
                             )
-                            com.xnotes.ui.ScreenshotMenu(editor)
+                            com.xnotes.ui.CropOverlay(editor)
+                            com.xnotes.ui.ScreenshotMenu(editor, onShare = actions.onShareImage)
                             com.xnotes.ui.TextStyleBar(editor)
                             com.xnotes.ui.LongPressMenu(editor, onInsertImageAt = { c -> actions.onInsertImage(editor, c) })
                             com.xnotes.ui.FlowEditMenu(editor)
@@ -1442,6 +1894,69 @@ private fun EditorPane(
             }
         }
         com.xnotes.ui.ColorDropOverlay(if (editor.canvasOpen) editor.infinite else editor)
+        // Hold and drag the small pane grip across the split to exchange positions. A simple
+        // tap or short move never swaps editors, preventing accidental changes while inking.
+        if (onDrop != null) {
+            val dropNow by rememberUpdatedState(onDrop)
+            val previewNow by rememberUpdatedState(onSwapPreview)
+            val ghostNow by rememberUpdatedState(onGhost)
+            val gripOriginNow by rememberUpdatedState(gripRootOrigin)
+            var dragStartOrigin by remember { mutableStateOf(Offset.Zero) }
+            var ghostOffset by remember { mutableStateOf(Offset.Zero) }
+            val threshold = with(LocalDensity.current) { 48.dp.toPx() }
+            val hostOriginNow by rememberUpdatedState(hostOrigin)
+            val hostPixelsNow by rememberUpdatedState(hostPixels)
+            var previewTarget by remember { mutableStateOf<SplitSide?>(null) }
+            Box(
+                Modifier.align(Alignment.TopCenter)
+                    .offset(y = gripTopInset)
+                    .size(width = 48.dp, height = 16.dp)
+                    .pointerInput(Unit) {
+                        detectDragGesturesAfterLongPress(
+                            onDragStart = { touchInGrip ->
+                                dragStartOrigin = gripOriginNow + touchInGrip
+                                ghostOffset = Offset.Zero
+                                ghostNow(dragStartOrigin)
+                                previewTarget = null
+                                previewNow(null)
+                            },
+                            onDrag = { change, delta ->
+                                change.consume()
+                                ghostOffset += delta
+                                val point = dragStartOrigin + ghostOffset
+                                ghostNow(point)
+                                val target = if (ghostOffset.getDistance() >= threshold) point else null
+                                previewNow(target)
+                                previewTarget = target?.let { resolvePaneDrop(it, hostOriginNow, hostPixelsNow) }
+                            },
+                            onDragEnd = {
+                                val target = previewTarget
+                                previewNow(null)
+                                ghostNow(null)
+                                previewTarget = null
+                                if (target != null) dropNow(target)
+                            },
+                            onDragCancel = {
+                                previewNow(null)
+                                ghostNow(null)
+                                previewTarget = null
+                            },
+                        )
+                    },
+                contentAlignment = Alignment.Center,
+            ) {
+                PaneGripDots()
+            }
+        }
+    }
+}
+
+/** Three-dot pane grip, styled from the active theme rather than a directional arrow. */
+@Composable
+private fun PaneGripDots() {
+    val color = LocalPalette.current.text.toComposeColor()
+    Row(horizontalArrangement = Arrangement.spacedBy(4.dp), verticalAlignment = Alignment.CenterVertically) {
+        repeat(3) { Box(Modifier.size(5.dp).clip(CircleShape).background(color.copy(alpha = 0.92f))) }
     }
 }
 
@@ -1494,7 +2009,7 @@ private fun SplitDivider(
                     vertical = if (sideBySide) 0.dp else (DIVIDER - DIVIDER_LINE) / 2,
                 )
                 .clip(RoundedCornerShape(DIVIDER_LINE / 2))
-                .background(palette.accent.toComposeColor()),
+                .background(palette.border.toComposeColor().copy(alpha = 0.55f)),
         )
     }
 }
@@ -1656,8 +2171,7 @@ private fun SavingDialog() {
  * cost is copying the (possibly large) source bytes — so it shows an animated spinner.
  */
 @Composable
-private fun PdfImportDialog(markdown: Boolean, onCancel: () -> Unit) =
-    SpinnerDialog(stringResource(if (markdown) R.string.importing_markdown else R.string.importing_pdf), onCancel)
+private fun PdfImportDialog(label: Int, onCancel: () -> Unit) = SpinnerDialog(stringResource(label), onCancel)
 
 /**
  * Determinate "Importing PDFs…" dialog for a multi-file import: a ring filled by files finished plus
