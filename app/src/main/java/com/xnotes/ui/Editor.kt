@@ -285,6 +285,9 @@ private val sharedRecents = androidx.compose.runtime.mutableStateOf<List<com.xno
  */
 enum class Pane { PRIMARY, SECONDARY }
 
+/** AUTO preserves the device-orientation default until the user chooses a split edge. */
+enum class SplitAxis { AUTO, HORIZONTAL, VERTICAL }
+
 @Stable
 class Editor(context: Context, val pane: Pane = Pane.PRIMARY) : ToolPopupHost, SelectionMenuHost, LongPressMenuHost, TextEditHost, SwatchStore, ColorDropHost, AudioHost, CropHost {
 
@@ -398,7 +401,13 @@ class Editor(context: Context, val pane: Pane = Pane.PRIMARY) : ToolPopupHost, S
      * The two surfaces, in order. The pad is a sibling above the canvas rather than part of it: the
      * canvas paints into the window and the front buffer has to be a surface of its own.
      */
-    val surfaces = android.widget.FrameLayout(context).apply {
+    val surfaces = object : android.widget.FrameLayout(context) {
+        override fun dispatchTouchEvent(ev: android.view.MotionEvent): Boolean {
+            val handled = super.dispatchTouchEvent(ev)
+            com.xnotes.SplitStylusRouter.nativeSawEvent()
+            return handled
+        }
+    }.apply {
         addView(view, android.widget.FrameLayout.LayoutParams(-1, -1))
         addView(pad, android.widget.FrameLayout.LayoutParams(-1, -1))
     }
@@ -9061,6 +9070,12 @@ class Editor(context: Context, val pane: Pane = Pane.PRIMARY) : ToolPopupHost, S
 
     /** The divider position, as the first pane's share of the split axis. */
     var splitRatio by mutableStateOf(0.5f)
+
+    /** A chosen top/bottom or left/right split overrides the orientation-based default. */
+    var splitAxis by mutableStateOf(SplitAxis.AUTO)
+
+    /** Swaps which live editor occupies the first/second split slot without reopening documents. */
+    var splitSwapped by mutableStateOf(false)
 
     /** The pane that keyboard shortcuts and the file/export actions act on. */
     var focusedPane by mutableStateOf(Pane.PRIMARY)
