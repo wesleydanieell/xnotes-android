@@ -24,13 +24,13 @@ import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.outlined.Article
 import androidx.compose.material.icons.outlined.Gesture
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.key
@@ -68,9 +68,13 @@ import com.xnotes.core.workspace.TabDrop
 import com.xnotes.core.workspace.SplitSide
 import com.xnotes.core.workspace.resolveTabDrop
 import com.xnotes.core.workspace.insertionBoundary
+import com.xnotes.core.workspace.paneDropSide
 import androidx.compose.ui.platform.LocalConfiguration
 import com.xnotes.ui.theme.LocalPalette
 import com.xnotes.ui.theme.toComposeColor
+
+/** Window-space bounds of the actual editor workspace, independent of toolbar/pane widths. */
+data class DocumentDropArea(val origin: Offset, val size: IntSize)
 
 /**
  * Independent workspace bar. It depends on tab metadata and actions, not on the page toolbar,
@@ -85,6 +89,8 @@ fun NoteTabBar(
     onReorder: (Int, Int) -> Unit,
     onSplit: (String, SplitSide) -> Unit,
     modifier: Modifier = Modifier,
+    floatingSurface: Boolean = false,
+    dropArea: DocumentDropArea? = null,
 ) {
     val palette = LocalPalette.current
     // All tabs are equal-width, so the indicator can be positioned arithmetically.
@@ -111,7 +117,7 @@ fun NoteTabBar(
         // The pointer detector may outlive width/scroll animations. Keep its drop resolver current
         // so releasing at either end uses the same geometry as the visible insertion preview.
         val resolveDrop: (String, Offset) -> TabDrop? = { uri, point ->
-            resolveTabDrop(
+            val candidate = resolveTabDrop(
                 fromIndex = tabs.tabs.indexOfFirst { it.uri == uri },
                 x = point.x, y = point.y,
                 barLeft = barOrigin[0].x, barTop = barOrigin[0].y,
@@ -120,6 +126,11 @@ fun NoteTabBar(
                 tabCount = tabs.tabs.size, splitThreshold = splitThresholdPx,
                 workspaceBottom = workspaceBottomPx,
             )
+            if (candidate is TabDrop.Split && dropArea != null &&
+                dropArea.size.width > 0 && dropArea.size.height > 0) {
+                paneDropSide(point.x - dropArea.origin.x, point.y - dropArea.origin.y,
+                    dropArea.size.width.toFloat(), dropArea.size.height.toFloat())?.let(TabDrop::Split)
+            } else candidate
         }
         val currentResolveDrop by rememberUpdatedState(resolveDrop)
         val previewDrop = draggingUri?.let { uri -> resolveDrop(uri, dragPoint) }
@@ -134,7 +145,7 @@ fun NoteTabBar(
         val highlightWidth by animateFloatAsState(targetWidth, highlightMotion, label = "tabHighlightWidth")
     Row(
         Modifier.fillMaxWidth()
-            .background(palette.bg.toComposeColor())
+            .background((if (floatingSurface) palette.panel else palette.bg).toComposeColor())
             .horizontalScroll(scrollState)
             .height(42.dp)
             .drawBehind {
@@ -174,7 +185,7 @@ fun NoteTabBar(
                 Modifier.width(animatedWidth)
                     .padding(horizontal = 2.dp)
                     .graphicsLayer { alpha = if (draggingUri == tab.uri) 0.55f else 1f }
-                    .clip(RoundedCornerShape(8.dp)),
+                    .clip(MaterialTheme.shapes.small),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 Row(
@@ -238,17 +249,19 @@ fun NoteTabBar(
     // separate Popup windows on each edge change could miss frames during fast transitions.
     if (draggingUri != null) {
         val side = (previewDrop as? TabDrop.Split)?.side
-        val vertical = side == SplitSide.TOP || side == SplitSide.BOTTOM
         val screen = LocalConfiguration.current
         val screenWidth = screen.screenWidthDp.dp
         val screenHeight = screen.screenHeightDp.dp
-        val previewTop = with(density) { (barOrigin[0].y + barHeightPx).toDp() } + 6.dp
-        val previewHeight = (screenHeight - previewTop - 8.dp).coerceAtLeast(180.dp)
-        val left = with(density) { barOrigin[0].x.toDp() } + 4.dp
-        val targetX = left + if (side == SplitSide.RIGHT) maxWidth / 2 else 0.dp
-        val targetY = previewTop + if (side == SplitSide.BOTTOM) previewHeight / 2 else 0.dp
-        val targetWidth = if (vertical) maxWidth - 8.dp else maxWidth / 2 - 8.dp
-        val targetHeight = if (vertical) previewHeight / 2 - 4.dp else previewHeight
+        val previewLeft = with(density) { (dropArea?.origin?.x ?: barOrigin[0].x).toDp() }
+        val previewTop = with(density) { (dropArea?.origin?.y ?: (barOrigin[0].y + barHeightPx)).toDp() }
+        val previewWidth = dropArea?.let { with(density) { it.size.width.toDp() } } ?: maxWidth
+        val previewHeight = dropArea?.let { with(density) { it.size.height.toDp() } }
+            ?: (screenHeight - previewTop - 8.dp).coerceAtLeast(180.dp)
+        val bounds = splitPreviewRect(side ?: SplitSide.LEFT, previewWidth, previewHeight)
+        val targetX = previewLeft + bounds.x
+        val targetY = previewTop + bounds.y
+        val targetWidth = bounds.width
+        val targetHeight = bounds.height
         val x by animateDpAsState(targetX, tween(130), label = "splitPreviewX")
         val y by animateDpAsState(targetY, tween(130), label = "splitPreviewY")
         val w by animateDpAsState(targetWidth, tween(130), label = "splitPreviewWidth")
@@ -266,8 +279,8 @@ fun NoteTabBar(
                 if (side != null) {
                     Box(
                         Modifier.offset(x, y).width(w).height(h)
-                            .background(highlight.copy(alpha = 0.13f), RoundedCornerShape(16.dp))
-                            .border(2.dp, highlight, RoundedCornerShape(16.dp)),
+                            .background(highlight.copy(alpha = 0.13f), MaterialTheme.shapes.medium)
+                            .border(2.dp, highlight, MaterialTheme.shapes.medium),
                         contentAlignment = Alignment.TopCenter,
                     ) {
                         Text(when (side) {
@@ -307,8 +320,8 @@ fun NoteTabBar(
             Popup(popupPositionProvider = popupPosition, properties = TAB_DRAG_POPUP) {
                 Column(
                     Modifier.widthIn(min = 120.dp, max = 230.dp)
-                        .border(1.dp, palette.selectionBackground.toComposeColor(), RoundedCornerShape(12.dp))
-                        .background(palette.bg.toComposeColor(), RoundedCornerShape(12.dp))
+                        .border(1.dp, palette.selectionBackground.toComposeColor(), MaterialTheme.shapes.medium)
+                        .background(palette.bg.toComposeColor(), MaterialTheme.shapes.medium)
                         .padding(horizontal = 14.dp, vertical = 10.dp),
                 ) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
