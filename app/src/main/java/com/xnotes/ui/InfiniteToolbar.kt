@@ -34,6 +34,7 @@ private val CANVAS_TOOL_OF: Map<ToolbarItem, Tool> = mapOf(
     ToolbarItem.SHAPE to Tool.SHAPE,
     ToolbarItem.TEXT_BOX to Tool.TEXT_BOX,
     ToolbarItem.TAPE to Tool.TAPE,
+    ToolbarItem.TEXT_BOX to Tool.TEXT_BOX,
 )
 
 /**
