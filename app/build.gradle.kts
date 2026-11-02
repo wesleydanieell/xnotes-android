@@ -108,6 +108,12 @@ android {
                 "proguard-rules.pro",
             )
         }
+        create("community") {
+            initWith(getByName("release"))
+            applicationIdSuffix = ".community"
+            versionNameSuffix = "-community"
+            matchingFallbacks += listOf("release")
+        }
     }
 
     compileOptions {
