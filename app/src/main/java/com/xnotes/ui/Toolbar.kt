@@ -75,6 +75,7 @@ import com.xnotes.R
 import com.xnotes.core.model.Rgba
 import com.xnotes.core.tools.Tool
 import com.xnotes.core.tools.ToolbarItem
+import com.xnotes.core.tools.ToolbarLayout
 import com.xnotes.platform.ImageDecoder
 import com.xnotes.ui.icons.XnotesIcons
 import com.xnotes.ui.theme.LocalPalette
@@ -101,6 +102,7 @@ fun Toolbar(
     onRecordAudio: () -> Unit = {},
     onTakePhoto: () -> Unit = {},
     onImagePage: () -> Unit = {},
+    layout: ToolbarLayout = editor.toolbarLayout,
 ) {
     // The five stroke tools use the designed vector drawables (res/drawable/ic_stroke_*),
     // tinted at the call site like every other icon; the rest use the built-in line set.
@@ -177,7 +179,7 @@ fun Toolbar(
         ToolbarFrame(armed = editor.tool, trailing = onClosePane?.let { { ClosePaneButton(it) } }) {
             // The bar is driven by the user-customisable layout; separators sit between non-empty
             // sections, and each item dispatches to its renderer (see ToolbarItemView).
-            editor.toolbarLayout.visibleSections.forEachIndexed { si, section ->
+            layout.visibleSections.forEachIndexed { si, section ->
                 if (si > 0) Separator()
                 section.visibleEntries.forEach { entry -> Item(entry.item) }
             }
