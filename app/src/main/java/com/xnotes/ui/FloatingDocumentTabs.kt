@@ -32,6 +32,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.xnotes.core.workspace.NoteTabs
+import com.xnotes.core.workspace.SplitSide
 import com.xnotes.ui.theme.LocalPalette
 import com.xnotes.ui.theme.toComposeColor
 
@@ -45,7 +46,8 @@ fun FloatingDocumentTabs(
     onSelect: (String) -> Unit,
     onClose: (String) -> Unit,
     onReorder: (Int, Int) -> Unit,
-    onSplit: (String, com.xnotes.core.workspace.SplitSide) -> Unit,
+    onSplit: (String, SplitSide) -> Unit,
+    dropArea: DocumentDropArea? = null,
     modifier: Modifier = Modifier,
 ) {
     val palette = LocalPalette.current
@@ -69,6 +71,7 @@ fun FloatingDocumentTabs(
                     onSplit = onSplit,
                     modifier = Modifier.padding(end = 36.dp),
                     floatingSurface = true,
+                    dropArea = dropArea,
                 )
                 Box(
                     Modifier.align(Alignment.CenterEnd).size(36.dp)

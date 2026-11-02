@@ -10,6 +10,7 @@ import android.util.DisplayMetrics
 import android.view.Display
 import android.view.KeyEvent
 import android.view.MotionEvent
+import android.view.View
 import android.view.WindowManager
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.BackHandler
@@ -29,7 +30,6 @@ import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.foundation.gestures.detectDragGesturesAfterLongPress
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxScope
 import androidx.compose.foundation.layout.BoxWithConstraints
@@ -95,12 +95,13 @@ import androidx.compose.ui.input.key.KeyEventType
 import androidx.compose.ui.input.key.onPreviewKeyEvent
 import androidx.compose.ui.input.key.type
 import androidx.compose.ui.input.pointer.PointerEventPass
-import androidx.compose.ui.input.pointer.PointerEventType
 import androidx.compose.ui.input.pointer.PointerType
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.input.pointer.pointerInteropFilter
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.core.content.IntentCompat
 import androidx.core.view.WindowInsetsCompat
@@ -241,13 +242,18 @@ class MainActivity : ComponentActivity() {
     override fun dispatchTouchEvent(ev: MotionEvent): Boolean {
         StylusButtonLatch.clicks.onTouch(ev) // a side-button press with the pen tip down is a hold, never a click
         val standard = standardPenAction(ev.actionMasked)
-        if (standard < 0 || ev.getToolType(0) != MotionEvent.TOOL_TYPE_STYLUS) {
+        if (ev.pointerCount == 0 || ev.getToolType(0) != MotionEvent.TOOL_TYPE_STYLUS) {
             return super.dispatchTouchEvent(ev)
         }
         val rewritten = MotionEvent.obtain(ev)
-        rewritten.action = standard
+        if (standard >= 0) rewritten.action = standard
+        val action = if (standard >= 0) standard else rewritten.actionMasked
         try {
-            return super.dispatchTouchEvent(rewritten)
+            if (action == MotionEvent.ACTION_DOWN) SplitStylusRouter.beginDispatch()
+            else SplitStylusRouter.beginSubsequentDispatch()
+            val handled = super.dispatchTouchEvent(rewritten)
+            val fallback = SplitStylusRouter.dispatchFallback(rewritten)
+            return handled || fallback
         } finally {
             rewritten.recycle()
         }
@@ -316,6 +322,80 @@ class MainActivity : ComponentActivity() {
         } else {
             controller.show(WindowInsetsCompat.Type.systemBars())
         }
+    }
+}
+
+/**
+ * Compose can expose a stylus press to pointerInput without invoking a pointerInteropFilter that
+ * shares the same pane. After the normal view dispatch, fill only that missing AndroidView leg.
+ */
+internal object SplitStylusRouter {
+    private data class Target(val surface: View, val toolbarOnScreen: android.graphics.Rect?)
+    private val targets = LinkedHashMap<String, Target>()
+    private var interopSawDown = false
+    private var nativeSawEvent = false
+    private var fallbackSurface: View? = null
+
+    fun register(key: String, surface: View, toolbarOnScreen: android.graphics.Rect?) {
+        targets[key] = Target(surface, toolbarOnScreen)
+    }
+
+    fun unregister(key: String) {
+        targets.remove(key)
+    }
+
+    fun beginDispatch() {
+        interopSawDown = false
+        nativeSawEvent = false
+        fallbackSurface = null
+    }
+
+    fun beginSubsequentDispatch() {
+        nativeSawEvent = false
+    }
+
+    fun interopSawDown() {
+        interopSawDown = true
+    }
+
+    fun nativeSawEvent() {
+        nativeSawEvent = true
+    }
+
+    fun dispatchFallback(event: MotionEvent): Boolean {
+        val action = event.actionMasked
+        if (action == MotionEvent.ACTION_DOWN) {
+            val rawX = event.rawX
+            val rawY = event.rawY
+            fallbackSurface = targets.values.firstOrNull { target ->
+                val visible = android.graphics.Rect()
+                val insideCanvas = target.surface.isAttachedToWindow &&
+                    target.surface.getGlobalVisibleRect(visible) && visible.contains(rawX.toInt(), rawY.toInt())
+                com.xnotes.ui.shouldFallbackStylusToCanvas(
+                    interopSawDown = interopSawDown,
+                    nativeSawEvent = nativeSawEvent,
+                    insideCanvas = insideCanvas,
+                    overToolbar = target.toolbarOnScreen?.contains(rawX.toInt(), rawY.toInt()) == true,
+                )
+            }?.surface
+        }
+        val target = fallbackSurface
+        val isTouch = action == MotionEvent.ACTION_DOWN || action == MotionEvent.ACTION_MOVE ||
+            action == MotionEvent.ACTION_UP || action == MotionEvent.ACTION_CANCEL ||
+            action == MotionEvent.ACTION_POINTER_DOWN || action == MotionEvent.ACTION_POINTER_UP
+        val handled = if (target != null && isTouch && !nativeSawEvent) {
+            val location = IntArray(2)
+            target.getLocationOnScreen(location)
+            val copy = MotionEvent.obtain(event)
+            try {
+                copy.offsetLocation(event.rawX - event.x - location[0], event.rawY - event.y - location[1])
+                target.dispatchTouchEvent(copy)
+            } finally {
+                copy.recycle()
+            }
+        } else false
+        if (action == MotionEvent.ACTION_UP || action == MotionEvent.ACTION_CANCEL) fallbackSurface = null
+        return handled
     }
 }
 
@@ -1099,9 +1179,27 @@ private fun EditorScreen(
     // inset. Insets are consumed below so inner imePadding only adds what the bars don't cover.
     val contentInsets = if (fullscreen) WindowInsets(0, 0, 0, 0) else WindowInsets.systemBars
     var tabsExpanded by remember { mutableStateOf(false) }
+    var tabHostArea by remember { mutableStateOf<com.xnotes.ui.DocumentDropArea?>(null) }
     val tabsMode = editor.preferences.documentTabsMode
-    val tabPlacement = com.xnotes.ui.tabBarPlacement(editor.toolbarLook)
-    LaunchedEffect(tabsMode, tabPlacement) { tabsExpanded = tabsMode == "expanded" }
+    val toolbarPlacement = com.xnotes.ui.tabBarPlacement(editor.toolbarLook)
+    // Docking determines placement; the tab preference only selects its initial expansion.
+    val tabPlacement = toolbarPlacement
+    LaunchedEffect(tabsMode, toolbarPlacement) {
+        tabsExpanded = tabsMode == "expanded"
+    }
+    val tabsDensity = LocalDensity.current
+    val toolbarClearance = if (editor.toolbarLook.position == com.xnotes.settings.ToolbarPosition.TOP) {
+        com.xnotes.ui.barMetrics(editor.toolbarLook.size).thickness +
+            (if (editor.toolbarLook.floating) 16.dp else 0.dp) +
+            (if (toolbarPlacement == com.xnotes.ui.TabBarPlacement.ATTACHED_TOP && tabsExpanded) 42.dp else 0.dp)
+    } else 0.dp
+    val clearPx = with(tabsDensity) { toolbarClearance.toPx() }.roundToInt()
+    val tabDropArea = tabHostArea?.let { area ->
+        com.xnotes.ui.DocumentDropArea(
+            area.origin + Offset(0f, clearPx.toFloat()),
+            IntSize(area.size.width, (area.size.height - clearPx).coerceAtLeast(0)),
+        )
+    }
     Scaffold(
         snackbarHost = { SnackbarHost(snackbar, Modifier.windowInsetsPadding(WindowInsets.ime.exclude(contentInsets))) },
         contentWindowInsets = contentInsets,
@@ -1118,9 +1216,14 @@ private fun EditorScreen(
                     onClose = ::closeTab,
                     onReorder = { from, to -> noteTabs = noteTabs.move(from, to) },
                     onSplit = ::splitFromTab,
+                    dropArea = tabDropArea,
                 )
             }
-            Box(modifier = Modifier.fillMaxWidth().weight(1f)) {
+            Box(modifier = Modifier.fillMaxWidth().weight(1f)
+                .onGloballyPositioned { coordinates ->
+                    val next = com.xnotes.ui.DocumentDropArea(coordinates.positionInWindow(), coordinates.size)
+                    if (tabHostArea != next) tabHostArea = next
+                }) {
             // BASE LAYER: backstage is the root of the stack — always present underneath.
             com.xnotes.ui.Backstage(
                 editor = editor,
@@ -1258,16 +1361,24 @@ private fun EditorScreen(
                     insertPdfLauncher.launch(arrayOf("application/pdf"))
                 },
             )
+            // The top floating toolbar owns its tabs, sharing one rounded surface.
+            // Keep this independent of the editor panels so either pane can be focused.
             val toolbarTabs = if (tabPlacement == com.xnotes.ui.TabBarPlacement.ATTACHED_TOP &&
                 noteTabs.tabs.isNotEmpty() && editor.openPanes.isNotEmpty()) {
                 com.xnotes.ui.ToolbarTabExtension(
                     expanded = tabsExpanded,
                     onToggle = { tabsExpanded = !tabsExpanded },
                     content = {
-                        NoteTabBar(noteTabs, noteTabs.selectedUri(editor.active.pane == com.xnotes.ui.Pane.SECONDARY),
-                            onSelect = { uri -> activateTab(uri) }, onClose = ::closeTab,
+                        NoteTabBar(
+                            tabs = noteTabs,
+                            activeUri = noteTabs.selectedUri(editor.active.pane == com.xnotes.ui.Pane.SECONDARY),
+                            onSelect = { uri -> activateTab(uri) },
+                            onClose = ::closeTab,
                             onReorder = { from, to -> noteTabs = noteTabs.move(from, to) },
-                            onSplit = ::splitFromTab, floatingSurface = true)
+                            onSplit = ::splitFromTab,
+                            floatingSurface = true,
+                            dropArea = tabDropArea,
+                        )
                     },
                 )
             } else null
@@ -1276,6 +1387,10 @@ private fun EditorScreen(
             }
             if (tabPlacement == com.xnotes.ui.TabBarPlacement.FLOATING_SELECTOR &&
                 noteTabs.tabs.isNotEmpty() && editor.openPanes.isNotEmpty()) {
+                // Overlay, not a Column child: expanding tabs must not resize the canvas.
+                val topInset = if (editor.toolbarLook.position == com.xnotes.settings.ToolbarPosition.TOP &&
+                    !editor.toolbarLook.floating) com.xnotes.ui.barMetrics(editor.toolbarLook.size).thickness + 8.dp
+                    else 8.dp
                 com.xnotes.ui.FloatingDocumentTabs(
                     tabs = noteTabs,
                     activeUri = noteTabs.selectedUri(editor.active.pane == com.xnotes.ui.Pane.SECONDARY),
@@ -1285,7 +1400,8 @@ private fun EditorScreen(
                     onClose = ::closeTab,
                     onReorder = { from, to -> noteTabs = noteTabs.move(from, to) },
                     onSplit = ::splitFromTab,
-                    modifier = Modifier.align(Alignment.TopStart).padding(start = 8.dp, top = 8.dp),
+                    dropArea = tabDropArea,
+                    modifier = Modifier.align(Alignment.TopStart).padding(start = 8.dp, top = topInset),
                 )
             }
             }
@@ -1580,13 +1696,39 @@ private fun placeSplitPane(editor: Editor, pane: com.xnotes.ui.Pane, side: Split
 }
 
 /**
- * Lays the open panes over the backstage. Both open is a split: side by side in landscape, stacked
- * in portrait, with a draggable divider between them. One open is that pane full-screen, and none
- * leaves the backstage showing.
- *
- * The panes are placed by offset and size inside one Box rather than by a Row that becomes a Column,
- * so a pane keeps its composition node — and with it its canvas view, raster caches and GL context —
- * when the split opens, closes or the device turns.
+ * Defers pane activation until the native AndroidView has completed its Final-pass release.
+ * If another pane starts a stroke before the queued focus runs, the older focus request is stale.
+ */
+private class PaneFocusDelivery {
+    private val pressedPanes = mutableSetOf<com.xnotes.ui.Pane>()
+    private var generation = 0L
+    private val handler = android.os.Handler(android.os.Looper.getMainLooper())
+
+    fun observe(pane: com.xnotes.ui.Pane, event: androidx.compose.ui.input.pointer.PointerEvent) {
+        when (event.type) {
+            androidx.compose.ui.input.pointer.PointerEventType.Press -> {
+                pressedPanes.add(pane)
+                generation++
+            }
+            androidx.compose.ui.input.pointer.PointerEventType.Release -> {
+                if (event.changes.none { it.pressed }) pressedPanes.remove(pane)
+            }
+        }
+    }
+
+    fun activateAfterDispatch(editor: Editor, app: Editor) {
+        val atRelease = generation
+        handler.post {
+            if (generation == atRelease && pressedPanes.isEmpty() &&
+                editor.noteOpen && app.active !== editor) {
+                app.focusPane(editor.pane)
+            }
+        }
+    }
+}
+
+/**
+ * Lays open panes over the backstage and preserves their composition nodes across split changes.
  */
 @Composable
 private fun SplitHost(editor: Editor, actions: PaneActions, openingSplit: Boolean = false) {
@@ -1596,6 +1738,7 @@ private fun SplitHost(editor: Editor, actions: PaneActions, openingSplit: Boolea
     var hostRootOrigin by remember { mutableStateOf(Offset.Zero) }
     var hostPixels by remember { mutableStateOf(IntSize.Zero) }
     val second = editor.secondary
+    val paneFocusDelivery = remember(editor) { PaneFocusDelivery() }
     val split = editor.noteOpen && second?.noteOpen == true
     // A document switch or split rearrangement invalidates any in-flight drag preview.
     LaunchedEffect(editor.splitAxis, editor.splitSwapped, editor.title, second?.title, split) {
@@ -1645,20 +1788,31 @@ private fun SplitHost(editor: Editor, actions: PaneActions, openingSplit: Boolea
 
         val swapped = split && editor.splitSwapped
         val toolbarLook = com.xnotes.ui.LocalToolbarLook.current
-        val gripTopInset = com.xnotes.ui.paneGripTopInset(toolbarLook)
+        val floatingTabExtension = com.xnotes.ui.LocalToolbarTabExtension.current
+        val baseGripInset = com.xnotes.ui.paneGripTopInset(toolbarLook)
+        fun gripInset(pane: com.xnotes.ui.Pane): Dp = baseGripInset +
+            if (toolbarLook.floating && toolbarLook.position == com.xnotes.settings.ToolbarPosition.TOP &&
+                floatingTabExtension?.expanded == true && editor.active.pane == pane) 42.dp else 0.dp
+        val primaryGripInset by androidx.compose.animation.core.animateDpAsState(
+            gripInset(editor.pane), tween(190), label = "primaryGripPosition",
+        )
+        val secondaryGripInset by androidx.compose.animation.core.animateDpAsState(
+            gripInset(second?.pane ?: com.xnotes.ui.Pane.SECONDARY), tween(190), label = "secondaryGripPosition",
+        )
         val density = LocalDensity.current
         // Compute each grip's actual screen slot from the split layout, independent of where
         // its EditorPane was originally composed or which document it currently displays.
-        fun gripRootOrigin(firstSlot: Boolean): Offset {
+        fun gripRootOrigin(firstSlot: Boolean, inset: Dp): Offset {
             val (x, y) = paneGripOffset(sideBySide,
                 with(density) { firstExtent.toPx() }, with(density) { secondExtent.toPx() },
                 with(density) { fullW.toPx() }, firstSlot, with(density) { 48.dp.toPx() })
-            return hostRootOrigin + Offset(x, y + with(density) { gripTopInset.toPx() })
+            return hostRootOrigin + Offset(x, y + with(density) { inset.toPx() })
         }
         if (editor.noteOpen) {
             EditorPane(
                 editor = editor,
                 app = editor,
+                focusDelivery = paneFocusDelivery,
                 actions = actions,
                 closable = split,
                 onSwapPreview = { position ->
@@ -1666,12 +1820,12 @@ private fun SplitHost(editor: Editor, actions: PaneActions, openingSplit: Boolea
                         resolvePaneDrop(point, hostRootOrigin, hostPixels)?.let { editor.pane to it }
                     }
                 },
-                onDrop = { side -> placeSplitPane(editor, editor.pane, side, sideBySide) },
+                onDrop = if (split) ({ side -> placeSplitPane(editor, editor.pane, side, sideBySide) }) else null,
                 onGhost = { point -> dragGhost = point?.let { editor.pane to it } },
                 hostOrigin = hostRootOrigin,
                 hostPixels = hostPixels,
-                gripRootOrigin = gripRootOrigin(!swapped),
-                gripTopInset = gripTopInset,
+                gripRootOrigin = gripRootOrigin(!swapped, primaryGripInset),
+                gripTopInset = primaryGripInset,
                 modifier = (if (swapped) paneOffset(firstExtent).then(paneSize(secondExtent))
                     else paneSize(firstExtent)),
             )
@@ -1680,6 +1834,7 @@ private fun SplitHost(editor: Editor, actions: PaneActions, openingSplit: Boolea
             EditorPane(
                 editor = second,
                 app = editor,
+                focusDelivery = paneFocusDelivery,
                 actions = actions,
                 closable = split,
                 onSwapPreview = { position ->
@@ -1687,12 +1842,12 @@ private fun SplitHost(editor: Editor, actions: PaneActions, openingSplit: Boolea
                         resolvePaneDrop(point, hostRootOrigin, hostPixels)?.let { second.pane to it }
                     }
                 },
-                onDrop = { side -> placeSplitPane(editor, second.pane, side, sideBySide) },
+                onDrop = if (split) ({ side -> placeSplitPane(editor, second.pane, side, sideBySide) }) else null,
                 onGhost = { point -> dragGhost = point?.let { second.pane to it } },
                 hostOrigin = hostRootOrigin,
                 hostPixels = hostPixels,
-                gripRootOrigin = gripRootOrigin(swapped),
-                gripTopInset = gripTopInset,
+                gripRootOrigin = gripRootOrigin(swapped, secondaryGripInset),
+                gripTopInset = secondaryGripInset,
                 modifier = (if (swapped) paneSize(firstExtent)
                     else paneOffset(if (split) firstExtent else 0.dp).then(paneSize(secondExtent))),
             )
@@ -1716,21 +1871,23 @@ private fun SplitHost(editor: Editor, actions: PaneActions, openingSplit: Boolea
                 if (sourceFirst) SplitSide.TOP else SplitSide.BOTTOM
             }
             val effective = side != currentSide
+            val previewClearance = baseGripInset +
+                if (floatingTabExtension?.expanded == true &&
+                    toolbarLook.floating && toolbarLook.position == com.xnotes.settings.ToolbarPosition.TOP) 42.dp
+                else 0.dp
+            val bounds = com.xnotes.ui.splitPreviewRect(side, fullW, fullH,
+                if (toolbarLook.position == com.xnotes.settings.ToolbarPosition.TOP) previewClearance else 0.dp)
             val previewW by androidx.compose.animation.core.animateDpAsState(
-                if (side == SplitSide.LEFT || side == SplitSide.RIGHT) fullW / 2 else fullW,
-                tween(150), label = "gripPreviewWidth",
+                bounds.width, tween(150), label = "gripPreviewWidth",
             )
             val previewH by androidx.compose.animation.core.animateDpAsState(
-                if (side == SplitSide.TOP || side == SplitSide.BOTTOM) fullH / 2 else fullH,
-                tween(150), label = "gripPreviewHeight",
+                bounds.height, tween(150), label = "gripPreviewHeight",
             )
             val previewX by androidx.compose.animation.core.animateDpAsState(
-                if (side == SplitSide.RIGHT) fullW / 2 else 0.dp,
-                tween(150), label = "gripPreviewX",
+                bounds.x, tween(150), label = "gripPreviewX",
             )
             val previewY by androidx.compose.animation.core.animateDpAsState(
-                if (side == SplitSide.BOTTOM) fullH / 2 else 0.dp,
-                tween(150), label = "gripPreviewY",
+                bounds.y, tween(150), label = "gripPreviewY",
             )
             val palette = LocalPalette.current
             Popup(
@@ -1740,11 +1897,11 @@ private fun SplitHost(editor: Editor, actions: PaneActions, openingSplit: Boolea
                 Box(Modifier.size(fullW, fullH)) {
                     Box(
                         Modifier.offset(previewX, previewY).size(previewW, previewH).padding(6.dp)
-                            .clip(RoundedCornerShape(14.dp))
+                            .clip(androidx.compose.material3.MaterialTheme.shapes.medium)
                             .background(palette.selectionBackground.toComposeColor()
                                 .copy(alpha = if (effective) 0.20f else 0.08f))
                             .border(2.dp, palette.border.toComposeColor()
-                                .copy(alpha = if (effective) 0.9f else 0.35f), RoundedCornerShape(14.dp)),
+                                .copy(alpha = if (effective) 0.9f else 0.35f), androidx.compose.material3.MaterialTheme.shapes.medium),
                         contentAlignment = Alignment.Center,
                     ) {
                         Text(if (effective) "Release to position" else "Current position",
@@ -1773,10 +1930,10 @@ private fun SplitHost(editor: Editor, actions: PaneActions, openingSplit: Boolea
                                     (point.y - hostRootOrigin.y - with(density) { 8.dp.toPx() }).roundToInt(),
                                 )
                             }
-                            .clip(RoundedCornerShape(12.dp))
+                            .clip(androidx.compose.material3.MaterialTheme.shapes.medium)
                             .background(palette.panel.toComposeColor())
                             .border(1.dp, if (targetReady) palette.accent.toComposeColor().copy(alpha = 0.7f)
-                                else palette.border.toComposeColor(), RoundedCornerShape(12.dp))
+                                else palette.border.toComposeColor(), androidx.compose.material3.MaterialTheme.shapes.medium)
                             .padding(horizontal = 12.dp, vertical = 8.dp),
                         verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.spacedBy(8.dp),
@@ -1802,17 +1959,58 @@ private fun SplitHost(editor: Editor, actions: PaneActions, openingSplit: Boolea
 }
 
 /**
- * One pane: its toolbar over its canvas, with the menus and overlays that belong to that document.
- * A paged note and an infinite canvas get different chrome, since the paged toolbar is mostly pages,
- * viewing modes and text, none of which mean anything on a canvas.
- *
- * [app] is the primary editor, which owns the split; [editor] is this pane's own. Touching anywhere
- * in the pane gives it the focus, so the keyboard and the file actions follow the pen.
+ * Some split-pane stylus streams hit the Compose AndroidView node without being delivered by
+ * AndroidViewHolder to its embedded native drawing surface. The additional interop filter
+ * forwards such streams to the surface. Compose consumes a handled native dispatch, so the
+ * AndroidViewHolder and this filter cannot deliver the same gesture twice.
  */
+@OptIn(androidx.compose.ui.ExperimentalComposeUiApi::class)
+private fun Modifier.forwardStylusToNativeCanvas(
+    surface: android.view.View,
+    paneOriginInWindow: () -> Offset,
+    toolbarBoundsInWindow: () -> androidx.compose.ui.geometry.Rect?,
+): Modifier =
+    pointerInteropFilter { event ->
+        if (event.actionMasked == MotionEvent.ACTION_DOWN) SplitStylusRouter.interopSawDown()
+        val origin = paneOriginInWindow()
+        val location = IntArray(2)
+        surface.getLocationInWindow(location)
+        val surfaceLeft = location[0] - origin.x
+        val surfaceTop = location[1] - origin.y
+        val eventInWindow = Offset(origin.x + event.x, origin.y + event.y)
+        val overToolbar = toolbarBoundsInWindow()?.contains(eventInWindow) == true
+        val insideSurface = event.x >= surfaceLeft && event.x < surfaceLeft + surface.width &&
+            event.y >= surfaceTop && event.y < surfaceTop + surface.height && !overToolbar
+        val stylus = event.pointerCount > 0 && when (event.getToolType(0)) {
+            MotionEvent.TOOL_TYPE_STYLUS, MotionEvent.TOOL_TYPE_ERASER -> true
+            else -> false
+        }
+        val touch = when (event.actionMasked) {
+            MotionEvent.ACTION_DOWN, MotionEvent.ACTION_MOVE, MotionEvent.ACTION_UP,
+            MotionEvent.ACTION_POINTER_DOWN, MotionEvent.ACTION_POINTER_UP,
+            MotionEvent.ACTION_CANCEL -> true
+            else -> false
+        }
+        if (!stylus || !touch || !surface.isAttachedToWindow ||
+            (event.actionMasked == MotionEvent.ACTION_DOWN && !insideSurface)) {
+            false
+        } else {
+            val copy = MotionEvent.obtain(event)
+            try {
+                copy.offsetLocation(-surfaceLeft, -surfaceTop)
+                surface.dispatchTouchEvent(copy)
+            } finally {
+                copy.recycle()
+            }
+        }
+    }
+
+/** One pane with its canvas, toolbar, menus and overlays. */
 @Composable
 private fun EditorPane(
     editor: Editor,
     app: Editor,
+    focusDelivery: PaneFocusDelivery,
     actions: PaneActions,
     closable: Boolean,
     modifier: Modifier = Modifier,
@@ -1826,14 +2024,24 @@ private fun EditorPane(
 ) {
     val palette = LocalPalette.current
     val focusRequester = remember { FocusRequester() }
+    val paneWindowOrigin = remember(editor) { arrayOf(Offset.Zero) }
+    val composeHostView = LocalView.current
+    var toolbarBoundsInWindow by remember(editor) { mutableStateOf<androidx.compose.ui.geometry.Rect?>(null) }
     val focused = app.active === editor
+    // Animate toolbar ownership one frame after the pen-down dispatch. This keeps a
+    // focus change from rebuilding the toolbar while the canvas receives its first stroke.
+    var toolbarFocused by remember(editor) { mutableStateOf(focused) }
+    LaunchedEffect(focused) {
+        androidx.compose.runtime.withFrameNanos { }
+        toolbarFocused = focused
+    }
     val sharedTabs = com.xnotes.ui.LocalToolbarTabExtension.current
     val paneTabs = sharedTabs?.let {
         com.xnotes.ui.ToolbarTabExtension(
-            expanded = it.expanded && focused,
+            expanded = it.expanded && toolbarFocused,
             onToggle = it.onToggle,
             content = it.content,
-            showToggle = focused,
+            showToggle = toolbarFocused,
         )
     }
     SideEffect { editor.openInPane = { uri -> actions.onOpenFile(editor, uri) } }
@@ -1844,11 +2052,37 @@ private fun EditorPane(
     val takeFocus = Modifier.pointerInput(editor) {
         awaitPointerEventScope {
             while (true) {
-                // Initial pass and never consumed: the pane notices the touch, the canvas still gets it.
-                val event = awaitPointerEvent(PointerEventPass.Initial)
-                if (event.type == PointerEventType.Press) app.focusPane(editor.pane)
+                // Never change Compose focus during an active ink/pan gesture. Even when
+                // ACTION_DOWN reached the native canvas, rebuilding a floating toolbar
+                // during MOVE could cancel its touch target. Focus after the last lift.
+                val event = awaitPointerEvent(PointerEventPass.Final)
+                focusDelivery.observe(editor.pane, event)
+                if (com.xnotes.ui.shouldFocusPaneAfterEvent(event.type,
+                        anyPointerPressed = event.changes.any { it.pressed },
+                        alreadyFocused = app.active === editor)) {
+                    focusDelivery.activateAfterDispatch(editor, app)
+                }
             }
         }
+    }
+    val stylusSurface = if (editor.canvasOpen) editor.infinite.surfaces else editor.surfaces
+    SideEffect {
+        val inWindow = IntArray(2)
+        val onScreen = IntArray(2)
+        composeHostView.getLocationInWindow(inWindow)
+        composeHostView.getLocationOnScreen(onScreen)
+        val dx = onScreen[0] - inWindow[0]
+        val dy = onScreen[1] - inWindow[1]
+        val toolbarOnScreen = toolbarBoundsInWindow?.let {
+            android.graphics.Rect(
+                (it.left + dx).toInt(), (it.top + dy).toInt(),
+                (it.right + dx).toInt(), (it.bottom + dy).toInt(),
+            )
+        }
+        SplitStylusRouter.register(editor.pane.name, stylusSurface, toolbarOnScreen)
+    }
+    androidx.compose.runtime.DisposableEffect(editor) {
+        onDispose { SplitStylusRouter.unregister(editor.pane.name) }
     }
     // The colour a swatch drag carries rides over the whole pane, toolbar and page alike.
     Box(modifier) {
@@ -1856,7 +2090,9 @@ private fun EditorPane(
             modifier = Modifier
                 .fillMaxSize()
                 .background(palette.bg.toComposeColor())
+                .onGloballyPositioned { paneWindowOrigin[0] = it.positionInWindow() }
                 .then(takeFocus)
+                .forwardStylusToNativeCanvas(stylusSurface, { paneWindowOrigin[0] }) { toolbarBoundsInWindow }
                 .focusRequester(focusRequester)
                 .focusable()
                 .onPreviewKeyEvent { ke ->
@@ -1887,7 +2123,8 @@ private fun EditorPane(
                         onTakePhoto = { actions.onTakePhoto(editor) },
                     )
                 }
-                ToolbarAround(bar, onCover = canvas::setToolbarCover, tabExtension = paneTabs) { floatingBar ->
+                ToolbarAround(bar, onCover = canvas::setToolbarCover, tabExtension = paneTabs,
+                    onBarBounds = { if (toolbarBoundsInWindow != it) toolbarBoundsInWindow = it }) { floatingBar ->
                     Box(modifier = Modifier.fillMaxSize().clipToBounds()) {
                         AndroidView(
                             factory = { detached(canvas.surfaces) },
@@ -1925,7 +2162,8 @@ private fun EditorPane(
                         onTakePhoto = { actions.onTakePhoto(editor) },
                     ) }
                 }
-                ToolbarAround(bar, onCover = editor::setToolbarCover, tabExtension = paneTabs) { floatingBar ->
+                ToolbarAround(bar, onCover = editor::setToolbarCover, tabExtension = paneTabs,
+                    onBarBounds = { if (toolbarBoundsInWindow != it) toolbarBoundsInWindow = it }) { floatingBar ->
                     Row(modifier = Modifier.fillMaxSize()) {
                         if (editor.sidebarVisible) {
                             com.xnotes.ui.SidePanel(
@@ -2036,9 +2274,15 @@ private fun EditorPane(
 /** Three-dot pane grip, styled from the active theme rather than a directional arrow. */
 @Composable
 private fun PaneGripDots() {
-    val color = LocalPalette.current.text.toComposeColor()
-    Row(horizontalArrangement = Arrangement.spacedBy(4.dp), verticalAlignment = Alignment.CenterVertically) {
-        repeat(3) { Box(Modifier.size(5.dp).clip(CircleShape).background(color.copy(alpha = 0.92f))) }
+    // The page can be white even in dark app mode (or dark in light app mode).
+    // A neutral midtone remains visible on both without adding an outline.
+    val ink = androidx.compose.ui.graphics.Color(0xFF757575)
+    Row(horizontalArrangement = Arrangement.spacedBy(3.dp), verticalAlignment = Alignment.CenterVertically) {
+        repeat(3) {
+            androidx.compose.foundation.Canvas(Modifier.size(6.dp)) {
+                drawCircle(ink, radius = size.minDimension * 0.46f)
+            }
+        }
     }
 }
 
