@@ -119,10 +119,17 @@ internal fun ColumnScope.ToolbarAround(
     onCover: (Double, Double, Double, Double) -> Unit,
     tabExtension: ToolbarTabExtension? = null,
     onBarBounds: (Rect) -> Unit = {},
+    suppressBar: Boolean = false,
     content: @Composable (floatingBar: @Composable BoxScope.() -> Unit) -> Unit,
 ) {
     val look = LocalToolbarLook.current
     val rest = Modifier.weight(1f).fillMaxWidth()
+    // A moved primary is rendered in the shared floating workspace, not twice here.
+    if (suppressBar) {
+        SideEffect { onCover(0.0, 0.0, 0.0, 0.0) }
+        Box(rest) { content({}) }
+        return
+    }
     if (!look.floating) {
         SideEffect { onCover(0.0, 0.0, 0.0, 0.0) }
         val docked: @Composable BoxScope.() -> Unit = {}
