@@ -42,6 +42,9 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
+import androidx.compose.ui.geometry.Rect
+import androidx.compose.ui.layout.boundsInWindow
+import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.DpOffset
@@ -77,6 +80,12 @@ internal fun barMetrics(size: ToolbarSize): BarMetrics = when (size) {
     ToolbarSize.COMFORTABLE -> BarMetrics(50.dp, 40.dp, 26.dp, 34.dp, 30.dp, 13.sp)
 }
 
+/** Keep pane drag handles clear of the document toolbar at every configured size. */
+internal fun paneGripTopInset(look: ToolbarLook): Dp =
+    if (look.position == ToolbarPosition.TOP) {
+        barMetrics(look.size).thickness + (if (look.floating) 16.dp else 4.dp)
+    } else 4.dp
+
 internal val LocalBar = staticCompositionLocalOf { barMetrics(ToolbarSize.REGULAR) }
 
 /** Where a menu opens from its anchor; a side rail sets it so its menus open beside the rail. */
@@ -109,6 +118,7 @@ internal fun ColumnScope.ToolbarAround(
     bar: @Composable () -> Unit,
     onCover: (Double, Double, Double, Double) -> Unit,
     tabExtension: ToolbarTabExtension? = null,
+    onBarBounds: (Rect) -> Unit = {},
     content: @Composable (floatingBar: @Composable BoxScope.() -> Unit) -> Unit,
 ) {
     val look = LocalToolbarLook.current
@@ -119,10 +129,10 @@ internal fun ColumnScope.ToolbarAround(
         // Left and right are the screen's, as the canvas insets are, whatever the language.
         val across = Arrangement.Absolute.Left
         when (look.position) {
-            ToolbarPosition.TOP -> { bar(); Box(rest) { content(docked) } }
-            ToolbarPosition.BOTTOM -> { Box(rest) { content(docked) }; bar() }
-            ToolbarPosition.LEFT -> Row(rest, across) { bar(); Box(Modifier.weight(1f).fillMaxHeight()) { content(docked) } }
-            ToolbarPosition.RIGHT -> Row(rest, across) { Box(Modifier.weight(1f).fillMaxHeight()) { content(docked) }; bar() }
+            ToolbarPosition.TOP -> { MeasuredToolbar(onBarBounds, bar); Box(rest) { content(docked) } }
+            ToolbarPosition.BOTTOM -> { Box(rest) { content(docked) }; MeasuredToolbar(onBarBounds, bar) }
+            ToolbarPosition.LEFT -> Row(rest, across) { MeasuredToolbar(onBarBounds, bar); Box(Modifier.weight(1f).fillMaxHeight()) { content(docked) } }
+            ToolbarPosition.RIGHT -> Row(rest, across) { Box(Modifier.weight(1f).fillMaxHeight()) { content(docked) }; MeasuredToolbar(onBarBounds, bar) }
         }
         return
     }
@@ -150,7 +160,7 @@ internal fun ColumnScope.ToolbarAround(
                 if (position == ToolbarPosition.TOP && tabExtension != null) {
                     val shape = MaterialTheme.shapes.extraLarge
                     val palette = LocalPalette.current
-                    Box(Modifier.align(edge).padding(FLOAT_MARGIN)) {
+                    Box(Modifier.align(edge).padding(FLOAT_MARGIN).onGloballyPositioned { onBarBounds(it.boundsInWindow()) }) {
                         Column(
                             Modifier.shadow(6.dp, shape).clip(shape)
                                 .background(palette.panel.toComposeColor())
@@ -171,11 +181,16 @@ internal fun ColumnScope.ToolbarAround(
                         }
                     }
                 } else {
-                    Box(Modifier.align(edge).padding(FLOAT_MARGIN)) { bar() }
+                    Box(Modifier.align(edge).padding(FLOAT_MARGIN).onGloballyPositioned { onBarBounds(it.boundsInWindow()) }) { bar() }
                 }
             }
         }
     }
+}
+
+@Composable
+private fun MeasuredToolbar(onBounds: (Rect) -> Unit, content: @Composable () -> Unit) {
+    Box(Modifier.onGloballyPositioned { onBounds(it.boundsInWindow()) }) { content() }
 }
 
 /**
