@@ -16,7 +16,6 @@ import androidx.compose.ui.unit.dp
 import com.xnotes.R
 import com.xnotes.core.tools.Tool
 import com.xnotes.core.tools.ToolbarItem
-import com.xnotes.core.tools.ToolbarLayout
 import com.xnotes.ui.icons.XnotesIcons
 import com.xnotes.ui.theme.toComposeColor
 
@@ -55,7 +54,6 @@ fun InfiniteToolbar(
     onInsertAudio: () -> Unit = {},
     onRecordAudio: () -> Unit = {},
     onTakePhoto: () -> Unit = {},
-    layout: ToolbarLayout = editor.toolbarLayout,
 ) {
     // The stroke tools use the same designed drawables the paged toolbar does, so a pen looks like
     // a pen on either canvas rather than like a generic glyph.
@@ -87,7 +85,7 @@ fun InfiniteToolbar(
 
     // Pinned outside the scrolling strip so closing a split pane is always one tap away.
     ToolbarFrame(armed = editor.tool, trailing = onClosePane?.let { { ClosePaneButton(it) } }) {
-        val sections = layout.visibleSections
+        val sections = editor.toolbarLayout.visibleSections
         sections.forEachIndexed { index, section ->
             if (index > 0) Separator()
             for (entry in section.visibleEntries) {

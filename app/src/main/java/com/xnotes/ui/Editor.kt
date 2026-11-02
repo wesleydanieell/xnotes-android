@@ -115,8 +115,6 @@ import com.xnotes.core.tools.InkPalette
 import com.xnotes.core.tools.ShapeConfig
 import com.xnotes.core.tools.Tool
 import com.xnotes.core.tools.ToolDefaults
-import com.xnotes.core.tools.ToolbarAnchor
-import com.xnotes.core.tools.ToolbarContext
 import com.xnotes.core.tools.ToolbarLayout
 import com.xnotes.core.util.DocumentKind
 import com.xnotes.core.util.FileStamp
@@ -680,9 +678,6 @@ class Editor(context: Context, val pane: Pane = Pane.PRIMARY) : ToolPopupHost, S
 
     /** The infinite canvas's own bar. Its own layout: the two surfaces hold different items. */
     var canvasToolbarLayout by mutableStateOf(ToolbarLayout.CANVAS_DEFAULT)
-        private set
-    /** Device-wide toolbar profiles; observed by every pane's Compose renderer. */
-    var toolbarWorkspaces by mutableStateOf(settings.effectiveToolbarWorkspaces())
         private set
     var renderScale by mutableStateOf(1.0)
         private set
@@ -3098,7 +3093,6 @@ class Editor(context: Context, val pane: Pane = Pane.PRIMARY) : ToolPopupHost, S
         toolbarColorCount = settings.toolbarColorCount
         toolbarLayout = settings.toolbarLayout
         canvasToolbarLayout = settings.canvasToolbarLayout
-        toolbarWorkspaces = settings.effectiveToolbarWorkspaces()
         activeColorIndex = settings.activeColor.coerceIn(0, toolbarColorCount - 1)
         // Render always at 1x (the DPI/supersampling control was removed).
         renderScale = 1.0
@@ -3262,7 +3256,6 @@ class Editor(context: Context, val pane: Pane = Pane.PRIMARY) : ToolPopupHost, S
         settings = settings.copy(prefs = p)
         cornerStyle = p.cornerStyle
         toolbarLook = p.toolbarLook
-        toolbarWorkspaces = settings.effectiveToolbarWorkspaces()
         saveSettingsSoon()
         prefsVersion++
     }
@@ -3270,13 +3263,7 @@ class Editor(context: Context, val pane: Pane = Pane.PRIMARY) : ToolPopupHost, S
     /** Apply an edited toolbar layout live and persist (used by the toolbar customiser). */
     fun applyToolbarLayout(layout: ToolbarLayout) {
         toolbarLayout = layout
-        settings = settings.copy(
-            toolbarLayout = layout,
-            toolbarWorkspaces = settings.toolbarWorkspaces?.let {
-                it.copy(note = it.note.replacePrimaryLayout(layout))
-            },
-        )
-        toolbarWorkspaces = settings.effectiveToolbarWorkspaces()
+        settings = settings.copy(toolbarLayout = layout)
         settingsRepo.save(settings)
     }
 
@@ -3284,46 +3271,8 @@ class Editor(context: Context, val pane: Pane = Pane.PRIMARY) : ToolPopupHost, S
     fun applyCanvasToolbarLayout(layout: ToolbarLayout) {
         canvasToolbarLayout = layout
         infiniteOrNull?.toolbarLayout = layout
-        settings = settings.copy(
-            canvasToolbarLayout = layout,
-            toolbarWorkspaces = settings.toolbarWorkspaces?.let {
-                it.copy(canvas = it.canvas.replacePrimaryLayout(layout))
-            },
-        )
-        toolbarWorkspaces = settings.effectiveToolbarWorkspaces()
+        settings = settings.copy(canvasToolbarLayout = layout)
         settingsRepo.save(settings)
-    }
-
-    /** Save a new multi-bar profile without changing the legacy toolbar fields. */
-    fun applyToolbarWorkspaces(workspaces: com.xnotes.core.tools.ToolbarWorkspaces) {
-        toolbarWorkspaces = workspaces
-        settings = settings.copy(toolbarWorkspaces = workspaces)
-        settingsRepo.save(settings)
-    }
-
-    /** Hold-drag any toolbar, including the docked primary, to a persisted floating anchor. */
-    fun moveToolbarBar(context: ToolbarContext, id: String, anchor: ToolbarAnchor) {
-        val profiles = toolbarWorkspaces
-        val workspace = if (context == ToolbarContext.NOTE || profiles.shared) profiles.note else profiles.canvas
-        val bar = workspace.bars.firstOrNull { it.id == id && it.geometry.movable } ?: return
-        val isPrimary = workspace.bars.firstOrNull()?.id == id
-        // An edge drop keeps a docked primary docked. Center/corner drops float it.
-        val dockPosition = if (isPrimary && !bar.geometry.floating) when (anchor) {
-            ToolbarAnchor.TOP_CENTER -> com.xnotes.settings.ToolbarPosition.TOP
-            ToolbarAnchor.BOTTOM_CENTER -> com.xnotes.settings.ToolbarPosition.BOTTOM
-            ToolbarAnchor.CENTER_LEFT -> com.xnotes.settings.ToolbarPosition.LEFT
-            ToolbarAnchor.CENTER_RIGHT -> com.xnotes.settings.ToolbarPosition.RIGHT
-            else -> null
-        } else null
-        if (bar.geometry.anchor == anchor && (bar.geometry.floating || dockPosition != null && toolbarLook.position == dockPosition)) return
-        val moved = bar.copy(geometry = bar.geometry.copy(anchor = anchor, floating = dockPosition == null))
-        val changed = workspace.replaceBar(moved)
-        if (dockPosition != null) {
-            applyHomePreferences(settings.prefs.copy(toolbarLook = toolbarLook.copy(floating = false, position = dockPosition)))
-        }
-        applyToolbarWorkspaces(
-            if (context == ToolbarContext.NOTE || profiles.shared) profiles.copy(note = changed) else profiles.copy(canvas = changed),
-        )
     }
 
     /** Set how many colour swatches the toolbar shows (1-15) and persist. */
