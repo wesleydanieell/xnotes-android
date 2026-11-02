@@ -337,8 +337,8 @@ class InfiniteEditor(context: Context) : ToolPopupHost, SelectionMenuHost, LongP
 
         override fun onItemRemoved(item: CanvasItem) {
             itemsRevision++
-            if (textResizeState?.item === item) textResizeState = null
             sceneBuildRemoved.add(item) // a pending load batch must not resurrect this item
+            if (textResizeState?.item === item) textResizeState = null
             // Drop any mesh job still running for it, so its result cannot file the record again.
             if (item is ImageItem) vectorMeshGen.remove(item)
             textMeshes.cancel(item)
@@ -1254,7 +1254,7 @@ class InfiniteEditor(context: Context) : ToolPopupHost, SelectionMenuHost, LongP
         val top = if (verticalDrag) rect.top else from.y
         val label = ShapeLabel("", TextStyle(inkColor, textPointSize, textFace), textMeasurer)
         val height = if (verticalDrag) rect.h.coerceAtLeast(label.lineHeight)
-            else label.normalizedHeight(width)
+            else label.height(width)
         val host = ShapeItem(ShapeKind.RECTANGLE, Pt(left, top), Pt(left + width, top + height),
             inkColor.withAlpha(0), strokeWidth = 0.0).also { it.label = label }
         document.add(host)
@@ -1267,7 +1267,10 @@ class InfiniteEditor(context: Context) : ToolPopupHost, SelectionMenuHost, LongP
         val reach = 8.0 / viewport.zoom
         val near = Rect(at.x - reach, at.y - reach, 2 * reach, 2 * reach)
         val shape = document.itemsIn(near).lastOrNull {
-            it is ShapeItem && !it.locked && it.isTextOnlyBox() && it.labelContains(at)
+            it is ShapeItem && !it.locked &&
+                (it.shape == ShapeKind.RECTANGLE || it.shape == ShapeKind.POLYGON) &&
+                it.label != null && it.strokeWidth == 0.0 && it.strokeRgba.a == 0 &&
+                it.fillRgba == null && it.labelContains(at)
         } as? ShapeItem ?: return false
         startLabelEdit(shape)
         return true
@@ -1350,7 +1353,7 @@ class InfiniteEditor(context: Context) : ToolPopupHost, SelectionMenuHost, LongP
                 document.remove(shape)
             } else {
                 val box = shape.box
-                val requiredHeight = after.normalizedHeight(box.w)
+                val requiredHeight = after.height(box.w)
                 if (requiredHeight > box.h) shape.end = Pt(shape.end.x, shape.start.y + requiredHeight)
                 document.itemChanged(shape)
                 history.push(AddCanvasItem(document, shape))

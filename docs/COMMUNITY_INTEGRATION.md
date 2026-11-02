@@ -1,12 +1,11 @@
 # Community integration
 
-`community/xnotes` combines the latest reviewed XNotes base with this fork's features.
-The customizable toolbar workspace is a prototype; gesture and split-screen QA is pending.
+`community/xnotes` combines the current XNotes base with the changes submitted in
+PRs #285, #326, #332, #333, #358 and #359 and the stacked split-view PR.
 
-To update: fetch `upstream/master`, merge it into this branch, resolve conflicts without
-removing community features, and run `:app:testDebugUnitTest :app:assembleCommunity`.
-Review the diff and exercise notes, canvases, tabs, split view and toolbar gestures on a
-separate test document before installing. Push only after validation.
+To update, merge `upstream/master`, review conflicts, and run
+`:app:testDebugUnitTest :app:assembleCommunity`. Exercise tabs, split view, stylus,
+canvas loading and file interactions on a separate test document before installing.
 
 The community variant uses `com.xnotes.community`. Updating an existing installation
-requires its original signing key; never uninstall it to work around a signature mismatch.
+requires its original signing key; do not uninstall to work around a signature mismatch.

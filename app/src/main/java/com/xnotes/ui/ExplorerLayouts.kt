@@ -57,9 +57,9 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.LayoutCoordinates
 import androidx.compose.ui.layout.onPlaced
-import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -126,9 +126,9 @@ internal fun GridBody(
         if (!embedded) {
             item(key = "chips", span = { GridItemSpan(maxLineSpan) }, contentType = "chips") { chips(48.dp) }
             top?.invoke(this)
-            if (b.pinned.isNotEmpty()) {
-                item(key = "pinned", span = { GridItemSpan(maxLineSpan) }, contentType = "pinned") { PinnedShelf(b, whole = b.view.thumb == ThumbShape.PAGE) }
-            }
+        }
+        if (b.pinned.isNotEmpty()) {
+            item(key = "pinned", span = { GridItemSpan(maxLineSpan) }, contentType = "pinned") { PinnedShelf(b, whole = b.view.thumb == ThumbShape.PAGE) }
         }
         if (b.folders.isNotEmpty()) {
             items(b.folders, key = { it.documentUri }, contentType = { "folder" }) { FolderChipTile(b, it) }
