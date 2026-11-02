@@ -110,6 +110,7 @@ import com.xnotes.R
 import com.xnotes.platform.PdfOpenError
 import com.xnotes.ui.CanvasToastPill
 import com.xnotes.canvas.StylusButtonLatch
+import com.xnotes.ui.externalDropTarget
 import com.xnotes.ui.Editor
 import com.xnotes.ui.Toolbar
 import com.xnotes.ui.ToolbarAround
@@ -2344,7 +2345,7 @@ private fun EditorPane(
                     Box(modifier = Modifier.fillMaxSize().clipToBounds()) {
                         AndroidView(
                             factory = { detached(canvas.surfaces) },
-                            modifier = Modifier.fillMaxSize(),
+                            modifier = Modifier.fillMaxSize().externalDropTarget(canvas.externalDrop),
                             update = { canvas.view.publish() },
                         )
                         canvas.editingField?.let { field ->
@@ -2397,7 +2398,7 @@ private fun EditorPane(
                         Box(modifier = Modifier.weight(1f).fillMaxHeight().clipToBounds().endsPageSelection(editor)) {
                             AndroidView(
                                 factory = { detached(editor.surfaces) },
-                                modifier = Modifier.fillMaxSize(),
+                                modifier = Modifier.fillMaxSize().externalDropTarget(editor.externalDrop),
                                 update = { editor.view.requestRender() }, // repaint on (re)attach so a push never flashes blank
                             )
                             editor.editingField?.let { field ->
