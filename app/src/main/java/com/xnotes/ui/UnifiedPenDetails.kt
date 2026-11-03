@@ -40,6 +40,8 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.xnotes.R
@@ -138,7 +140,17 @@ internal fun UnifiedPenDetails(
                             .padding(vertical = 5.dp),
                         horizontalAlignment = Alignment.CenterHorizontally,
                     ) {
-                        PenSilhouette(item, ink, Modifier.size(width = 25.dp, height = 46.dp))
+                        PenSilhouette(item, ink, Modifier.size(width = 19.dp, height = 29.dp))
+                        Text(
+                            stringResource(item.labelRes),
+                            fontSize = 9.sp,
+                            lineHeight = 10.sp,
+                            maxLines = 2,
+                            textAlign = TextAlign.Center,
+                            overflow = TextOverflow.Ellipsis,
+                            color = foreground,
+                            modifier = Modifier.width(47.dp),
+                        )
                     }
                 }
             }

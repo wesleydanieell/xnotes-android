@@ -24,6 +24,7 @@ import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.boundsInRoot
 import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.zIndex
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import com.xnotes.core.tools.ToolbarAnchor
@@ -51,10 +52,14 @@ fun ToolbarDragSurface(
     content: @Composable () -> Unit,
 ) {
     var drag by remember(id) { mutableStateOf(Offset.Zero) }
+    var dragging by remember(id) { mutableStateOf(false) }
     var barBounds by remember(id) { mutableStateOf(Rect.Zero) }
     val gesture = if (!movable) Modifier else Modifier.pointerInput(id, anchor, paneBounds) {
         detectDragGesturesAfterLongPress(
-            onDragStart = { drag = Offset.Zero },
+            onDragStart = {
+                drag = Offset.Zero
+                dragging = true
+            },
             onDrag = { change, distance ->
                 change.consume()
                 drag += distance
@@ -62,6 +67,7 @@ fun ToolbarDragSurface(
             onDragEnd = {
                 val moved = drag
                 drag = Offset.Zero
+                dragging = false
                 if (moved.getDistance() >= 12f && barBounds != Rect.Zero && paneBounds != Rect.Zero) {
                     val center = barBounds.center + moved - paneBounds.topLeft
                     ToolbarAnchorResolver.nearest(
@@ -71,12 +77,18 @@ fun ToolbarDragSurface(
                     }
                 }
             },
-            onDragCancel = { drag = Offset.Zero },
+            onDragCancel = {
+                drag = Offset.Zero
+                dragging = false
+            },
         )
     }
     Box(
         Modifier
             .offset { IntOffset(drag.x.roundToInt(), drag.y.roundToInt()) }
+            // A docked bar is an earlier sibling of the canvas. Lift it while moving so the
+            // canvas (and adjacent split panes) cannot paint over the dragged toolbar.
+            .zIndex(if (dragging) 10f else 0f)
             .onGloballyPositioned { if (drag == Offset.Zero) barBounds = it.boundsInRoot() }
             .then(gesture),
     ) {
@@ -93,7 +105,9 @@ fun BoxScope.WorkspaceFloatingBars(
     content: @Composable (ToolbarBar) -> Unit,
 ) {
     var paneBounds by remember { mutableStateOf(Rect.Zero) }
-    BoxWithConstraints(Modifier.fillMaxSize().onGloballyPositioned { paneBounds = it.boundsInRoot() }) {
+    // This is a sibling of the Android drawing surface and its other overlays. Keep toolbars
+    // above the canvas even when their anchored containers overlap during a move.
+    BoxWithConstraints(Modifier.fillMaxSize().zIndex(10f).onGloballyPositioned { paneBounds = it.boundsInRoot() }) {
         for (anchor in ToolbarAnchor.entries) {
             val bars = workspace.bars.withIndex().filter { (index, bar) ->
                 bar.visible && bar.geometry.anchor == anchor && (index > 0 || bar.geometry.floating)

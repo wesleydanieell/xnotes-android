@@ -24,6 +24,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
@@ -42,6 +43,8 @@ import androidx.compose.ui.graphics.drawscope.rotate
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.layout.positionOnScreen
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
@@ -84,12 +87,14 @@ internal fun UnifiedPenLauncher(
     var fanOpen by remember { mutableStateOf(false) }
     var fanMounted by remember { mutableStateOf(false) }
     var detailsOpen by remember { mutableStateOf(false) }
-    var tappedOnce by remember { mutableStateOf(false) }
     var hoveredIndex by remember { mutableIntStateOf(-1) }
+    var launcherOnScreen by remember { mutableStateOf(Offset.Zero) }
+    val penCentersOnScreen = remember { mutableStateMapOf<Int, Offset>() }
 
     val fanProgress = remember { Animatable(0f) }
     LaunchedEffect(fanOpen) {
         if (fanOpen) {
+            penCentersOnScreen.clear()
             fanMounted = true
             fanProgress.snapTo(0f)
             fanProgress.animateTo(
@@ -114,21 +119,14 @@ internal fun UnifiedPenLauncher(
     // A separate pen button updates the shortcut too, but not the second-tap state.
     LaunchedEffect(armedTool) {
         val activeItem = group.items.firstOrNull { it.id == armedTool.id }
-        if (activeItem == null) {
-            tappedOnce = false
-        } else if (activeItem.id != lastId) {
+        if (activeItem != null && activeItem.id != lastId) {
             lastId = activeItem.id
-            tappedOnce = false
         }
     }
+    // If this pen is already armed, one tap opens its details—even immediately after closing
+    // the panel. Otherwise the first tap arms it and the next tap opens the panel.
     val tap by rememberUpdatedState {
-        if (tappedOnce && armedTool.id == lastItem.id) {
-            detailsOpen = true
-            tappedOnce = false
-        } else {
-            choose(lastItem)
-            tappedOnce = true
-        }
+        if (armedTool.id == lastItem.id) detailsOpen = true else choose(lastItem)
     }
 
     val active = armedTool.id == lastItem.id
@@ -139,6 +137,7 @@ internal fun UnifiedPenLauncher(
                 .size(metrics.button)
                 .clip(RoundedCornerShape(12.dp))
                 .background(if (active) palette.selectionBackground.toComposeColor() else Color.Transparent)
+                .onGloballyPositioned { launcherOnScreen = it.positionOnScreen() }
                 .semantics {
                     role = Role.Button
                     contentDescription = label
@@ -168,21 +167,34 @@ internal fun UnifiedPenLauncher(
                             null -> {
                                 fanOpen = true
                                 detailsOpen = false
-                                tappedOnce = false
                                 hoveredIndex = -1
                                 haptics.performHapticFeedback(HapticFeedbackType.LongPress)
-                                val minForward = 24.dp.toPx()
+                                val minDistance = 32.dp.toPx()
+                                // Compute from the palette's actual center, not the pressed
+                                // point. A press near the launcher edge otherwise skews the
+                                // narrow first/last sectors (especially on side rails).
+                                val fanOrigin = penFanGestureOrigin(
+                                    metrics.button.toPx(), direction, 35.dp.toPx(),
+                                )
                                 var tracking = true
                                 while (tracking) {
                                     val change = awaitPointerEvent().changes.firstOrNull { it.id == down.id }
                                     if (change == null) {
                                         tracking = false
                                     } else {
-                                        val target = penFanTarget(
-                                            displacement = change.position - down.position,
+                                        // Hit-test the *drawn* circles first. A side-rail popup
+                                        // can be shifted by the window edge, so its visual position
+                                        // is more reliable than an angle from the button.
+                                        val target = penFanVisibleTarget(
+                                            pointerOnScreen = launcherOnScreen + change.position,
+                                            centersOnScreen = penCentersOnScreen,
+                                            count = group.items.size,
+                                            maxDistance = 44.dp.toPx(),
+                                        ) ?: penFanTarget(
+                                            displacement = change.position - fanOrigin,
                                             direction = direction,
                                             count = group.items.size,
-                                            minForward = minForward,
+                                            minDistance = minDistance,
                                         )
                                         val next = target ?: -1
                                         if (next != hoveredIndex && next >= 0) {
@@ -206,10 +218,9 @@ internal fun UnifiedPenLauncher(
                 },
             contentAlignment = Alignment.Center,
         ) {
-            PenSilhouette(lastItem, ink, Modifier.width(21.dp).height(31.dp))
-            Canvas(Modifier.align(Alignment.BottomEnd).padding(1.dp).size(7.dp)) {
-                drawCircle(ink, radius = size.minDimension / 2f)
-            }
+            // Match the native toolbar icon scale; the ink is shown in the settings panel,
+            // not by an extra dot that gets cropped by this button's rounded container.
+            PenSilhouette(lastItem, ink, Modifier.width(metrics.icon * .72f).height(metrics.icon))
         }
         if (fanMounted) {
             Popup(
@@ -229,6 +240,7 @@ internal fun UnifiedPenLauncher(
                     active = lastItem,
                     ink = ink,
                     progress = fanProgress.value,
+                    onItemPosition = { index, center -> penCentersOnScreen[index] = center },
                 )
             }
         }
@@ -254,6 +266,7 @@ private fun PenFanPalette(
     active: ToolbarItem,
     ink: Color,
     progress: Float,
+    onItemPosition: (Int, Offset) -> Unit,
 ) {
     val horizontal = direction == PenFanDirection.DOWN || direction == PenFanDirection.UP
     val width = if (horizontal) 260.dp else 185.dp
@@ -281,6 +294,10 @@ private fun PenFanPalette(
                 Modifier
                     .offset(x = x, y = y)
                     .size(46.dp)
+                    .onGloballyPositioned { coords ->
+                        val center = Offset(coords.size.width / 2f, coords.size.height / 2f)
+                        onItemPosition(index, coords.localToScreen(center))
+                    }
                     .graphicsLayer {
                         alpha = reveal
                         scaleX = (0.65f + 0.35f * reveal) * scale
@@ -295,7 +312,7 @@ private fun PenFanPalette(
                     ),
                 contentAlignment = Alignment.Center,
             ) {
-                PenSilhouette(item, ink, Modifier.width(20.dp).height(34.dp))
+                PenSilhouette(item, ink, Modifier.width(18.dp).height(27.dp))
             }
         }
         if (selected in items.indices) {
@@ -310,85 +327,107 @@ private fun PenFanPalette(
 /** A stable, vector-based nib shared by the compact fan, detailed panel, and editor preview. */
 @Composable
 internal fun PenSilhouette(item: ToolbarItem, ink: Color, modifier: Modifier = Modifier) {
+    // One consistent outlined icon family: dark/light adaptive strokes and a small live ink
+    // accent, without the photorealistic shaded bodies that clash with the rest of XNotes.
+    val foreground = LocalPalette.current.text.toComposeColor()
     Canvas(modifier) {
         val w = size.width
         val h = size.height
-        val graphite = Color(0xFF343942)
-        val steel = Color(0xFFD8DDE4)
-        val silver = Color(0xFF919BA8)
-        val beige = Color(0xFFF4CD96)
-        val highlighter = item == ToolbarItem.HIGHLIGHTER
-        val pencil = item == ToolbarItem.SPEED
-        val brush = item == ToolbarItem.TAPER
-        val fountain = item == ToolbarItem.PEN || item == ToolbarItem.CALLIGRAPHY
-        val l = if (highlighter) w * .2f else w * .28f
-        val r = if (highlighter) w * .8f else w * .72f
-        val bodyTop = if (brush) h * .42f else h * .34f
-        // Keep every illustrated pen vertical; type differences are in the nib, not rotation.
-        rotate(0f) {
+        val line = w * .075f
+        val fine = w * .052f
+        val outline = androidx.compose.ui.graphics.drawscope.Stroke(
+            width = line,
+            cap = StrokeCap.Round,
+            join = androidx.compose.ui.graphics.StrokeJoin.Round,
+        )
+        fun at(x: Float, y: Float) = Offset(w * x, h * y)
+        fun nib(path: Path) = drawPath(path, foreground, style = outline)
+        fun cap(left: Float = .24f, right: Float = .76f) {
             drawRoundRect(
-                brush = Brush.horizontalGradient(
-                    listOf(
-                        if (highlighter) Color(0xFFBFC7D2) else if (pencil) beige else Color(0xFF222832),
-                        if (highlighter) Color(0xFFF3F5F8) else if (pencil) Color(0xFFFFE0A6) else Color(0xFF555E6A),
-                        if (highlighter) silver else if (pencil) Color(0xFFD29B60) else graphite,
-                    ),
-                ),
-                topLeft = Offset(l, bodyTop),
-                size = Size(r - l, h * .58f),
-                cornerRadius = androidx.compose.ui.geometry.CornerRadius(w * .07f),
+                foreground,
+                topLeft = at(left, .77f),
+                size = Size(w * (right - left), h * .17f),
+                cornerRadius = androidx.compose.ui.geometry.CornerRadius(w * .055f),
+                style = outline,
             )
-            drawLine(
-                color = ink.copy(alpha = if (highlighter) .8f else 1f),
-                start = Offset(l + w * .025f, h * .71f),
-                end = Offset(r - w * .025f, h * .71f),
-                strokeWidth = h * .105f,
-                cap = StrokeCap.Round,
-            )
-            drawLine(Color.White.copy(alpha = .35f), Offset(l + w * .07f, h * .43f), Offset(l + w * .07f, h * .64f), w * .035f)
-            val tip = Path().apply {
-                if (highlighter) {
-                    moveTo(l, bodyTop); lineTo(r, bodyTop); lineTo(r - w * .10f, h * .10f); lineTo(l, h * .17f)
-                } else if (pencil) {
-                    moveTo(l, bodyTop); lineTo(r, bodyTop); lineTo(w * .5f, h * .08f)
-                } else if (brush) {
-                    moveTo(l, bodyTop); lineTo(r, bodyTop); lineTo(w * .59f, h * .02f); lineTo(w * .49f, h * .13f)
-                } else if (fountain) {
-                    moveTo(l, bodyTop); lineTo(r, bodyTop); lineTo(w * .51f, h * .03f)
+            drawLine(foreground, at(left, .86f), at(right, .86f), fine, cap = StrokeCap.Round)
+        }
+
+        when (item) {
+            ToolbarItem.PEN, ToolbarItem.DASHED -> {
+                nib(Path().apply {
+                    moveTo(w * .30f, h * .76f)
+                    lineTo(w * .22f, h * .36f)
+                    quadraticBezierTo(w * .40f, h * .23f, w * .44f, h * .07f)
+                    quadraticBezierTo(w * .50f, h * .01f, w * .56f, h * .07f)
+                    quadraticBezierTo(w * .60f, h * .23f, w * .78f, h * .36f)
+                    lineTo(w * .70f, h * .76f)
+                })
+                if (item == ToolbarItem.DASHED) {
+                    for (y in listOf(.24f, .34f, .44f)) {
+                        drawCircle(foreground, w * .035f, at(.50f, y))
+                    }
                 } else {
-                    moveTo(l, bodyTop); lineTo(r, bodyTop); lineTo(w * .5f, h * .09f)
+                    drawLine(foreground, at(.50f, .10f), at(.50f, .34f), fine, cap = StrokeCap.Round)
+                    drawCircle(ink, w * .060f, at(.50f, .39f))
                 }
-                close()
+                cap()
             }
-            drawPath(
-                tip,
-                when {
-                    highlighter -> ink.copy(alpha = .87f)
-                    pencil -> beige
-                    brush -> silver
-                    fountain -> steel
-                    else -> silver
-                },
-            )
-            if (fountain) {
-                drawLine(graphite, Offset(w * .51f, h * .05f), Offset(w * .50f, h * .27f), w * .025f)
-                drawCircle(ink, radius = w * .035f, center = Offset(w * .5f, h * .24f))
-                if (item == ToolbarItem.CALLIGRAPHY) {
-                    drawLine(ink, Offset(w * .37f, h * .20f), Offset(w * .62f, h * .11f), w * .07f)
-                }
+            ToolbarItem.CALLIGRAPHY -> {
+                nib(Path().apply {
+                    moveTo(w * .31f, h * .76f)
+                    lineTo(w * .27f, h * .29f)
+                    lineTo(w * .61f, h * .08f)
+                    lineTo(w * .75f, h * .18f)
+                    lineTo(w * .70f, h * .76f)
+                })
+                drawLine(foreground, at(.37f, .33f), at(.58f, .17f), fine, cap = StrokeCap.Round)
+                drawLine(ink, at(.42f, .42f), at(.61f, .35f), line, cap = StrokeCap.Round)
+                cap()
             }
-            if (pencil) {
+            ToolbarItem.SPEED -> {
+                nib(Path().apply {
+                    moveTo(w * .30f, h * .77f)
+                    lineTo(w * .30f, h * .31f)
+                    lineTo(w * .50f, h * .07f)
+                    lineTo(w * .70f, h * .31f)
+                    lineTo(w * .70f, h * .77f)
+                })
                 drawPath(Path().apply {
-                    moveTo(w * .50f, h * .075f); lineTo(w * .43f, h * .16f); lineTo(w * .57f, h * .16f); close()
-                }, graphite)
+                    moveTo(w * .44f, h * .14f)
+                    lineTo(w * .50f, h * .07f)
+                    lineTo(w * .56f, h * .14f)
+                }, foreground, style = outline)
+                drawLine(foreground, at(.50f, .32f), at(.50f, .70f), fine)
+                cap(.25f, .75f)
             }
-            if (brush) {
-                drawLine(ink, Offset(w * .5f, h * .055f), Offset(w * .5f, h * .23f), w * .04f, cap = StrokeCap.Round)
+            ToolbarItem.TAPER -> {
+                nib(Path().apply {
+                    moveTo(w * .33f, h * .76f)
+                    lineTo(w * .34f, h * .34f)
+                    quadraticBezierTo(w * .35f, h * .17f, w * .50f, h * .05f)
+                    quadraticBezierTo(w * .65f, h * .17f, w * .66f, h * .34f)
+                    lineTo(w * .67f, h * .76f)
+                })
+                drawLine(foreground, at(.33f, .35f), at(.67f, .35f), fine, cap = StrokeCap.Round)
+                drawLine(ink, at(.50f, .11f), at(.50f, .31f), fine, cap = StrokeCap.Round)
+                cap(.27f, .73f)
             }
-            if (item == ToolbarItem.DASHED) {
-                for (i in 0..2) {
-                    drawCircle(ink, radius = w * .035f, center = Offset(w * .5f, h * (.41f + i * .075f)))
-                }
+            ToolbarItem.HIGHLIGHTER -> {
+                nib(Path().apply {
+                    moveTo(w * .23f, h * .77f)
+                    lineTo(w * .23f, h * .37f)
+                    lineTo(w * .58f, h * .11f)
+                    lineTo(w * .78f, h * .20f)
+                    lineTo(w * .77f, h * .77f)
+                })
+                drawLine(foreground, at(.23f, .37f), at(.77f, .37f), fine, cap = StrokeCap.Round)
+                drawLine(ink, at(.28f, .57f), at(.72f, .57f), line * 1.5f, cap = StrokeCap.Round)
+                cap(.19f, .81f)
+            }
+            else -> {
+                drawLine(foreground, at(.50f, .12f), at(.50f, .85f), line, cap = StrokeCap.Round)
+                drawCircle(ink, w * .065f, at(.50f, .42f))
             }
         }
     }
@@ -403,9 +442,6 @@ internal fun UnifiedPenPreview(ink: Color, onSelect: () -> Unit) {
             .clickable(onClick = onSelect),
         contentAlignment = Alignment.Center,
     ) {
-        PenSilhouette(ToolbarItem.PEN, ink, Modifier.width(21.dp).height(31.dp))
-        Canvas(Modifier.align(Alignment.BottomEnd).padding(1.dp).size(7.dp)) {
-            drawCircle(ink, radius = size.minDimension / 2f)
-        }
+        PenSilhouette(ToolbarItem.PEN, ink, Modifier.width(metrics.icon * .72f).height(metrics.icon))
     }
 }
