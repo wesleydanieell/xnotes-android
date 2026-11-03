@@ -1,13 +1,14 @@
 # Estado executável — XNotes Toolbars
 
-Atualizado em 28/10/2026. Este arquivo é o checkpoint obrigatório para qualquer sessão Codex.
-Guia completo: docs/toolbar-implementation-guide.md. Roteiro ADB:
-docs/toolbar-adb-test-playbook.md.
+Atualizado em 03/11/2026. Este arquivo é o checkpoint obrigatório para qualquer sessão Codex.
+Índice e prioridades atuais: docs/FEATURE_ROADMAP.md. Guia técnico:
+docs/toolbar-implementation-guide.md. Roteiro ADB: docs/toolbar-adb-test-playbook.md.
+Camadas são um projeto futuro separado: docs/layers-roadmap.md.
 
 ## Projeto e ambiente verificados
 
-- Diretório ativo: /home/wesley/Projetos/xnotes-android-toolbars
-- Clone separado do upstream shardulvs/xnotes-android; fork configurado como origin.
+- Diretório ativo confirmado em 03/11: /home/wesley/Projetos/xnotes-customizable-toolbars
+- Worktree separada do upstream shardulvs/xnotes-android; fork configurado como origin.
 - Branch atual: feat/customizable-toolbars; histórico da prototipagem importado sem squash.
 - Debug applicationId: com.xnotes.toolbarsdebug; build isolado das instalações normais.
 - SDK Android conhecido: /home/wesley/Android/Sdk
@@ -115,9 +116,31 @@ usuário encontradas no worktree e não invente sucesso nem background jobs.
   instalação adb -s emulator-5554 install -r retornou Success, e am start
   encaminhou a Activity já ativa. QA visual/gestual continua PENDENTE.
 
+## Evidências de retomada — 03/11/2026
+
+- O worktree local estava limpo em `feat/customizable-toolbars` (`1f9c1e62`),
+  dois commits atrás do remoto. Foi atualizado exclusivamente por fast-forward
+  até `6a5d6d64`, preservando o histórico anterior.
+- Auditoria de código identificou `ToolbarWorkspace`, codec JSON versionado,
+  renderer de barras secundárias, preview e testes existentes. **Não foram
+  reexecutados builds ou QA no tablet nesta sessão.**
+- Roadmap de produto atualizado em `FEATURE_ROADMAP.md`: priorizar a redução
+  de sobrecarga com grupos/paleta rápida, mas **antes** validar os gestos e
+  a geometria existentes. Camadas documentadas em trilha separada.
+
+## Evidências de implementação — 03/11/2026
+
+- Commit `b444d24d`: extraído `ToolbarAnchorResolver.nearest` como função pura para o grid 3×3,
+  compartilhada pelo drag das barras reais e pela prévia que usa `ToolbarDragSurface`.
+- Adicionados testes JVM para nove posições, coordenadas fora da área e entrada inválida.
+- `:app:testDebugUnitTest :app:compileDebugKotlin` passou (25 tarefas, BUILD SUCCESSFUL,
+  14 s). Não valida gestos de stylus ou aparência no dispositivo.
+- `Small_Tablet` estava com override de celular (1080×2400/420 dpi); restaurados
+  1920×1200/320 dpi. Build anterior instalou no emulador com sucesso.
+
 ## Próxima ação (uma por vez)
 
-Reproduzir e corrigir o fluxo segurar/arrastar o contêiner da barra principal
-e secundárias (touch/stylus), antes de expandir renderização de grupos.
-Inspecionar a tela de preview no emulador, testar a grade 3×3 e comparar
-com a barra real. Usar o playbook ADB e documentar evidências.
+Executar o P0: reproduzir e corrigir conflitos entre long-press do contêiner
+principal/secundário e long-press de ferramentas. Comparar o preview e a barra
+real no emulador; registrar testes com ADB. Depois implementar `GeometryResolver`
+puro e compartilhado, antes de expandir para grupos. Não iniciar camadas nesta branch.

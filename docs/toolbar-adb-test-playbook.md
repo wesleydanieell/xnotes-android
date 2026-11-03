@@ -6,7 +6,7 @@ DIAGNOSTICAR a versão de toolbars sem tocar no XNotes normal do usuário.
 
 ## 1. Alvos e segurança
 
-- Diretório: /home/wesley/Projetos/xnotes-android-toolbars
+- Diretório: /home/wesley/Projetos/xnotes-customizable-toolbars
 - Android SDK: /home/wesley/Android/Sdk
 - APK esperado: app/build/outputs/apk/debug/app-debug.apk
 - Application ID isolado: com.xnotes.toolbarsdebug
@@ -24,7 +24,7 @@ DIAGNOSTICAR a versão de toolbars sem tocar no XNotes normal do usuário.
 
 No terminal Linux:
 
-    cd /home/wesley/Projetos/xnotes-android-toolbars
+    cd /home/wesley/Projetos/xnotes-customizable-toolbars
     git status --short --branch
     git remote -v
     git diff --check
@@ -41,7 +41,7 @@ A janela deve abrir no computador CachyOS. Não matar outra sessão do usuário.
 
 ## 3. Compilar e testar
 
-    cd /home/wesley/Projetos/xnotes-android-toolbars
+    cd /home/wesley/Projetos/xnotes-customizable-toolbars
     ANDROID_HOME=/home/wesley/Android/Sdk ./gradlew :app:testDebugUnitTest :app:assembleDebug --console=plain
 
 Registrar exit code, falhas e testes executados no task-state. Atenção:

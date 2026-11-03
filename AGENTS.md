@@ -2,8 +2,9 @@
 
 This directory is an independent clone of the original XNotes Android repository. It is the
 dedicated workspace for the toolbar project, not the XNotes Community or tabs/split-view work.
-Read `docs/toolbar-implementation-guide.md` **completely**,
+Read `docs/FEATURE_ROADMAP.md`, `docs/toolbar-implementation-guide.md` **completely**,
 `docs/toolbar-task-state.md`, and `docs/toolbar-adb-test-playbook.md` before editing code.
+Layers are a separate proposal in `docs/layers-roadmap.md`; do not implement layers in this branch.
 
 ## Repository and scope
 
