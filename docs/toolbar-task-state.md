@@ -161,8 +161,32 @@ usuário encontradas no worktree e não invente sucesso nem background jobs.
 - QA visual com capturas no emulador: xnote docked topo, xnote floating topo e
   xcanvas floating inferior renderizaram sem crash. Teste de gestos/caneta no
   Redmi Pad 2 e comparação pixel-perfect com barra real ainda PENDENTES.
-- Ainda existem placeholders para título/página/zoom e falta resolver colisões
-  entre várias barras e escalas manuais: não declarar fidelidade completa.
+- Esta foi uma aproximação inicial: título, página e zoom eram placeholders, e
+  ainda faltava escala relativa à largura da tela e resolver colisões entre barras.
+
+## Correção incremental — proporção real do preview (03/11/2026)
+
+- Docked: removido o limite de largura que encolhia a barra e a deixava grudada
+  à esquerda; largura/altura transversal seguem exatamente o contêiner e
+  `BarMetrics.thickness`, como no `ToolbarFrame` real.
+- A prévia agora reutiliza os composables efetivos `ToolbarIcon`, `Swatch`,
+  `Separator`, `Label` e `PageCounter`: cores com anel/miolo corretos,
+  paginação anterior + contador + próxima (sem três setas iguais),
+  zoom menos + valor + mais, e seta de voltar no lugar de ícone de casa.
+- `LocalConfiguration.screenWidthDp/screenHeightDp` fornecem dimensões da janela;
+  `toolbarPreviewAspectRatio` preserva a forma da tela no palco e
+  `toolbarPreviewScale(previewWidth, screenWidth)` + `LocalDensity` aplicam
+  escala uniforme a botões, cores, textos, separadores e espaço do papel.
+  Preservam-se os tamanhos reais da barra fora do preview, inclusive hit targets.
+- O preview recebe título, número de página, zoom e cor ativa do `Editor` atual;
+  para xcanvas, a representação de zoom ainda precisa receber o estado do canvas.
+- `:app:testDebugUnitTest :app:assembleDebug` passou (50 tarefas); testes unitários
+  da razão de escala cobrindo .75, .5, largura maior e dimensões inválidas.
+  APK reinstalado com `adb` no `Small_Tablet`, capturas da barra real e do
+  docked no editor mostram a mesma proporção da seta e dos demais controles.
+- Pendente: comparar floating, barra lateral e contexto split-view no Redmi Pad 2;
+  testar long-press/scroll sem colisões, além de alinhar o tamanho da viewport
+  ao painel real quando houver sidebar e split.
 
 ## Próxima ação (uma por vez)
 
