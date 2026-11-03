@@ -1221,7 +1221,7 @@ private fun ToolbarAnchorGrid(
     onSelect: (ToolbarAnchor) -> Unit,
 ) {
     val palette = LocalPalette.current
-    val symbols = listOf("↖", "↑", "↗", "←", "●", "→", "↙", "↓", "↘")
+    val symbols = listOf("↖", "↑", "↗", "←", "", "→", "↙", "↓", "↘")
     val dockable = setOf(
         ToolbarAnchor.TOP_CENTER, ToolbarAnchor.CENTER_LEFT,
         ToolbarAnchor.CENTER_RIGHT, ToolbarAnchor.BOTTOM_CENTER,
@@ -1231,6 +1231,10 @@ private fun ToolbarAnchorGrid(
             Row(horizontalArrangement = Arrangement.spacedBy(5.dp)) {
                 for (column in 0..2) {
                     val index = row * 3 + column
+                    if (index == 4) {
+                        Spacer(Modifier.size(48.dp))
+                        continue
+                    }
                     val anchor = ToolbarAnchor.entries[index]
                     val enabled = !docked || anchor in dockable
                     val active = selected == anchor && enabled

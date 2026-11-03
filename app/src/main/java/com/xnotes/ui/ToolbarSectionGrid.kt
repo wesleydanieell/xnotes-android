@@ -11,31 +11,35 @@ import com.xnotes.core.tools.ToolbarSection
 
 /** Maximum thickness measured perpendicular to a bar. */
 internal fun toolbarCrossCells(layout: ToolbarLayout?): Int =
-    layout?.visibleSections?.maxOfOrNull { it.crossCells }?.coerceIn(1, 2) ?: 1
+    layout?.visibleSections?.maxOfOrNull { it.crossCells }?.coerceIn(1, 3) ?: 1
 
-/** Identical layout in live notes, canvas and toolbar settings preview.
- * Sections hold one or two independent lanes. On sidebars, lanes become columns.
- * Each lane has no arbitrary limit, and composite items keep their natural dimensions. */
+/** Identical layout in notes, canvas and settings preview.
+ * Sections hold 1–3 independent lanes. Sidebars transpose rows into columns.
+ * Composite controls retain their natural dimensions. */
 @Composable
 internal fun ToolbarSectionGrid(
     section: ToolbarSection,
     cell: @Composable (ToolbarEntry) -> Unit,
 ) {
-    if (section.lanes != 2) {
+    if (section.lanes == 1) {
         section.visibleEntries.forEach { cell(it) }
         return
     }
-    val first = section.entriesInLane(0)
-    val second = section.entriesInLane(1)
     if (LocalBar.current.vertical) {
         Row(horizontalArrangement = Arrangement.spacedBy(2.dp)) {
-            Column(verticalArrangement = Arrangement.spacedBy(2.dp)) { first.forEach { cell(it) } }
-            Column(verticalArrangement = Arrangement.spacedBy(2.dp)) { second.forEach { cell(it) } }
+            repeat(section.lanes) { lane ->
+                Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                    section.entriesInLane(lane).forEach { cell(it) }
+                }
+            }
         }
     } else {
         Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
-            Row(horizontalArrangement = Arrangement.spacedBy(2.dp)) { first.forEach { cell(it) } }
-            Row(horizontalArrangement = Arrangement.spacedBy(2.dp)) { second.forEach { cell(it) } }
+            repeat(section.lanes) { lane ->
+                Row(horizontalArrangement = Arrangement.spacedBy(2.dp)) {
+                    section.entriesInLane(lane).forEach { cell(it) }
+                }
+            }
         }
     }
 }

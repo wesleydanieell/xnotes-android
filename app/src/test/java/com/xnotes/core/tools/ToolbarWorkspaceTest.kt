@@ -78,5 +78,7 @@ class ToolbarWorkspaceTest {
         assertEquals(6, limited.columns)
         assertFalse(limited.floating)
         assertTrue(limited.movable)
+        assertEquals(ToolbarAnchor.TOP_CENTER,
+            ToolbarGeometry(anchor = ToolbarAnchor.CENTER).constrained().anchor)
     }
 }

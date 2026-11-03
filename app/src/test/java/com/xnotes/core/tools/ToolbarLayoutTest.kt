@@ -114,6 +114,33 @@ class ToolbarLayoutTest {
         assertEquals(linear, moved.setSectionLanes(0, 1))
     }
 
+    @Test fun threeLanesAllowIndependentStacksAndPreserveExistingRows() {
+        val base = ToolbarLayout(listOf(sec(
+            ToolbarItem.PEN, ToolbarItem.ERASER, ToolbarItem.DASHED, ToolbarItem.HIGHLIGHTER,
+        )))
+        assertEquals(1, base.sections.single().lanes)
+        val triple = base.setSectionLanes(0, 3)
+            .moveItem(0, 1, 0, 4, toLane = 1)
+            .moveItem(0, 0, 0, 3, toLane = 2)
+        assertEquals(3, triple.sections.single().lanes)
+        assertEquals(3, triple.sections.single().crossCells)
+        assertEquals(listOf(ToolbarItem.DASHED, ToolbarItem.HIGHLIGHTER),
+            triple.sections.single().entriesInLane(0).map { it.item })
+        assertEquals(ToolbarItem.ERASER, triple.sections.single().entriesInLane(1).single().item)
+        assertEquals(ToolbarItem.PEN, triple.sections.single().entriesInLane(2).single().item)
+        val double = triple.setSectionLanes(0, 2)
+        assertEquals(2, double.sections.single().crossCells)
+        assertEquals(listOf(ToolbarItem.PEN, ToolbarItem.ERASER),
+            double.sections.single().entriesInLane(1).map { it.item }.sortedBy { it.ordinal })
+        assertEquals(triple.items().toSet(), double.items().toSet())
+        val single = triple.setSectionLanes(0, 1)
+        assertEquals(1, single.sections.single().crossCells)
+        assertTrue(single.sections.single().entries.all { it.lane == 0 })
+        assertEquals(3, base.addSection(3).sections.last().lanes)
+        assertEquals(1, base.addSection().sections.last().lanes)
+        assertEquals(base, base.addSection(4))
+    }
+
     @Test fun movingAcrossSectionsAndLanesPreservesAllTools() {
         val first = sec(ToolbarItem.PEN, ToolbarItem.DASHED, ToolbarItem.CALLIGRAPHY, ToolbarItem.SPEED)
         val other = sec(ToolbarItem.HIGHLIGHTER, ToolbarItem.COLORS)

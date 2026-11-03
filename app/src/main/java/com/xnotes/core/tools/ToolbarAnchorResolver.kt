@@ -18,16 +18,19 @@ object ToolbarAnchorResolver {
 
         val x = centerX.coerceIn(0f, paneWidth)
         val y = centerY.coerceIn(0f, paneHeight)
-        val column = when {
-            x < paneWidth / 3f -> 0
-            x > paneWidth * 2f / 3f -> 2
-            else -> 1
+        // The middle of the pane is no longer an anchor. Choose the nearest of the
+        // eight edge/corner targets in real pixels, including when released at center.
+        val candidates = listOf(
+            ToolbarAnchor.TOP_LEFT, ToolbarAnchor.TOP_CENTER, ToolbarAnchor.TOP_RIGHT,
+            ToolbarAnchor.CENTER_LEFT, ToolbarAnchor.CENTER_RIGHT,
+            ToolbarAnchor.BOTTOM_LEFT, ToolbarAnchor.BOTTOM_CENTER, ToolbarAnchor.BOTTOM_RIGHT,
+        )
+        return candidates.minByOrNull { anchor ->
+            val snapX = (anchor.ordinal % 3) * paneWidth / 2f
+            val snapY = (anchor.ordinal / 3) * paneHeight / 2f
+            val dx = snapX - x
+            val dy = snapY - y
+            dx * dx + dy * dy
         }
-        val row = when {
-            y < paneHeight / 3f -> 0
-            y > paneHeight * 2f / 3f -> 2
-            else -> 1
-        }
-        return ToolbarAnchor.entries[row * 3 + column]
     }
 }

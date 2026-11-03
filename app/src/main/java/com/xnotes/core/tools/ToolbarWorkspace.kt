@@ -29,6 +29,8 @@ data class ToolbarGeometry(
 ) {
     /** Clamp untrusted persisted dimensions before rendering; do not force an exact size on auto bars. */
     fun constrained(): ToolbarGeometry = copy(
+        // CENTER is kept in the enum only to read older saved layouts safely.
+        anchor = if (anchor == ToolbarAnchor.CENTER) ToolbarAnchor.TOP_CENTER else anchor,
         widthDp = widthDp?.coerceIn(48, 2048),
         heightDp = heightDp?.coerceIn(48, 2048),
         columns = columns.coerceIn(1, 6),

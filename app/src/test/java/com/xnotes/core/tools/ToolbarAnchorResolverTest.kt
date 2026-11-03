@@ -5,14 +5,18 @@ import org.junit.Assert.assertNull
 import org.junit.Test
 
 class ToolbarAnchorResolverTest {
-    @Test fun allNineAnchors() {
+    @Test fun allEightEdgeAndCornerAnchors() {
         val positions = listOf(10f, 150f, 290f)
         for (row in 0..2) for (column in 0..2) {
+            if (row == 1 && column == 1) continue
             assertEquals(
                 ToolbarAnchor.entries[row * 3 + column],
                 ToolbarAnchorResolver.nearest(positions[column], positions[row], 300f, 300f),
             )
         }
+        // Center is never a valid snap target; ties prefer the top edge.
+        assertEquals(ToolbarAnchor.TOP_CENTER,
+            ToolbarAnchorResolver.nearest(150f, 150f, 300f, 300f))
     }
 
     @Test fun independentPaneSizeAndOutOfBoundsMovement() {
@@ -20,7 +24,7 @@ class ToolbarAnchorResolverTest {
             ToolbarAnchorResolver.nearest(1500f, 800f, 600f, 400f))
         assertEquals(ToolbarAnchor.TOP_LEFT,
             ToolbarAnchorResolver.nearest(-60f, -90f, 600f, 400f))
-        assertEquals(ToolbarAnchor.CENTER,
+        assertEquals(ToolbarAnchor.TOP_CENTER,
             ToolbarAnchorResolver.nearest(300f, 200f, 600f, 400f))
     }
 

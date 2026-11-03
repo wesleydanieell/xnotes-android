@@ -101,7 +101,7 @@ internal object ToolbarWorkspaceJson {
                     entries.add(ToolbarEntry(
                         item = item,
                         visible = entry.optBoolean("visible", true),
-                        lane = entry.optInt("lane", legacyLane).coerceIn(0, 1),
+                        lane = entry.optInt("lane", legacyLane).coerceIn(0, 2),
                         colorPart = entry.optInt("color_part", 0).coerceIn(0, 63),
                         colorParts = entry.optInt("color_parts", 1).coerceIn(1, 64),
                     ))

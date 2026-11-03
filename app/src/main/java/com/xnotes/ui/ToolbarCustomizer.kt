@@ -102,6 +102,8 @@ fun ToolbarCustomizerBody(
             if (draggingSection && sectionDropTarget == sec) SectionCaret()
             SectionCard(
                 canDelete = layout.sections.size > 1,
+                lanes = section.lanes,
+                onLanesChange = { onLanesChange(sec, it) },
                 targeted = dragging && dropTarget?.first == sec,
                 dimmed = dragSection == sec,
                 onDelete = { onDelete(sec) },
@@ -113,7 +115,6 @@ fun ToolbarCustomizerBody(
                 onGrabCancel = onSectionCancel,
             ) {
                 Column(verticalArrangement = Arrangement.spacedBy(5.dp)) {
-                    SectionLaneModes(section) { lanes -> onLanesChange(sec, lanes) }
                     repeat(section.lanes) { lane ->
                         val cells = section.entries.withIndex().filter { it.value.lane == lane }
                         Row(
@@ -164,27 +165,6 @@ fun ToolbarCustomizerBody(
     }
 }
 
-/** A section owns its independent lanes; there are no fixed grid dimensions. */
-@Composable
-private fun SectionLaneModes(section: ToolbarSection, onSelect: (Int) -> Unit) {
-    val palette = LocalPalette.current
-    Row(horizontalArrangement = Arrangement.spacedBy(3.dp)) {
-        for ((lanes, title) in listOf(1 to "1 linha", 2 to "2 linhas")) {
-            val active = section.lanes == lanes
-            Text(
-                title,
-                color = (if (active) palette.accent else palette.textDim).toComposeColor(),
-                fontSize = 10.sp,
-                modifier = Modifier
-                    .clip(RoundedCornerShape(6.dp))
-                    .border(1.dp, (if (active) palette.accent else palette.border).toComposeColor(), RoundedCornerShape(6.dp))
-                    .clickable { onSelect(lanes) }
-                    .padding(horizontal = 5.dp, vertical = 3.dp),
-            )
-        }
-    }
-}
-
 /**
  * Resolve the drop slot (sectionIndex, entryIndex) for a finger position in root coordinates. The
  * section is the card the finger is inside, else the nearest card. Within it, the first chip the
@@ -211,7 +191,7 @@ internal fun toolbarDropTarget(
     }
     if (sec < 0) return null
     val section = layout.sections[sec]
-    val lane = if (section.lanes == 1) 0 else (0..1).minByOrNull { row ->
+    val lane = if (section.lanes == 1) 0 else (0 until section.lanes).minByOrNull { row ->
         val r = laneBounds[sec to row] ?: return@minByOrNull Float.MAX_VALUE
         val dx = maxOf(r.left - finger.x, 0f, finger.x - r.right)
         val dy = maxOf(r.top - finger.y, 0f, finger.y - r.bottom)
@@ -250,6 +230,8 @@ internal fun toolbarSectionDropTarget(
 @Composable
 private fun SectionCard(
     canDelete: Boolean,
+    lanes: Int,
+    onLanesChange: (Int) -> Unit,
     targeted: Boolean,
     dimmed: Boolean,
     onDelete: () -> Unit,
@@ -262,6 +244,7 @@ private fun SectionCard(
     content: @Composable () -> Unit,
 ) {
     val palette = LocalPalette.current
+    var sectionMenuOpen by remember { mutableStateOf(false) }
     SectionCardScaffold(
         modifier = Modifier
             .alpha(if (dimmed) 0.35f else 1f)
@@ -281,6 +264,31 @@ private fun SectionCard(
                     onDrop = onGrabDrop,
                     onCancel = onGrabCancel,
                 )
+                Box {
+                    Tooltip("Configurar linhas da section") {
+                        IconButton(onClick = { sectionMenuOpen = true }, modifier = Modifier.size(26.dp)) {
+                            Icon(
+                                XnotesIcons.more, "Configurar linhas da section",
+                                tint = palette.textDim.toComposeColor(),
+                                modifier = Modifier.size(14.dp),
+                            )
+                        }
+                    }
+                    DropdownMenu(expanded = sectionMenuOpen, onDismissRequest = { sectionMenuOpen = false }) {
+                        for (count in 1..3) {
+                            DropdownMenuItem(
+                                text = { Text(if (count == 1) "1 linha" else "$count linhas") },
+                                leadingIcon = if (lanes == count) {
+                                    { Icon(XnotesIcons.check, null, modifier = Modifier.size(16.dp)) }
+                                } else null,
+                                onClick = {
+                                    sectionMenuOpen = false
+                                    onLanesChange(count)
+                                },
+                            )
+                        }
+                    }
+                }
                 Tooltip(stringResource(R.string.delete_section)) {
                     IconButton(onClick = onDelete, enabled = canDelete, modifier = Modifier.size(26.dp)) {
                         Icon(
@@ -487,6 +495,10 @@ private fun AddSectionChip(onClick: (Int) -> Unit) {
             DropdownMenuItem(text = { Text("Duas linhas") }, onClick = {
                 menuOpen = false
                 onClick(2)
+            })
+            DropdownMenuItem(text = { Text("Três linhas") }, onClick = {
+                menuOpen = false
+                onClick(3)
             })
         }
     }

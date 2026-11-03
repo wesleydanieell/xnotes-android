@@ -77,7 +77,7 @@ data class ToolbarEntry(
     }
 }
 
-/** Each section contains one or two independently ordered lanes.
+/** Each section contains one to three independently ordered lanes.
  * Horizontal bars render them as rows; vertical bars transpose them into columns. */
 data class ToolbarSection(
     val entries: List<ToolbarEntry>,
@@ -85,12 +85,12 @@ data class ToolbarSection(
 ) {
     val visibleEntries: List<ToolbarEntry> get() = entries.filter { it.visible }
     val hasVisible: Boolean get() = entries.any { it.visible }
-    val crossCells: Int get() = if (lanes == 2 && visibleEntries.any { it.lane == 1 }) 2 else 1
+    val crossCells: Int get() = (visibleEntries.maxOfOrNull { it.lane } ?: 0) + 1
     fun entriesInLane(lane: Int): List<ToolbarEntry> =
         visibleEntries.filter { it.lane == lane.coerceIn(0, lanes - 1) }
     fun normalized(): ToolbarSection = copy(
-        lanes = lanes.coerceIn(1, 2),
-        entries = entries.map { it.copy(lane = it.lane.coerceIn(0, lanes.coerceIn(1, 2) - 1)) },
+        lanes = lanes.coerceIn(1, 3),
+        entries = entries.map { it.copy(lane = it.lane.coerceIn(0, lanes.coerceIn(1, 3) - 1)) },
     )
 }
 
@@ -100,14 +100,16 @@ data class ToolbarLayout(val sections: List<ToolbarSection>) {
     val visibleSections: List<ToolbarSection> get() = sections.filter { it.hasVisible }
 
     fun addSection(lanes: Int = 1): ToolbarLayout =
-        if (lanes !in 1..2) this else copy(sections = sections + ToolbarSection(emptyList(), lanes))
+        if (lanes !in 1..3) this else copy(sections = sections + ToolbarSection(emptyList(), lanes))
 
     fun setSectionLanes(sectionIndex: Int, lanes: Int): ToolbarLayout {
-        if (lanes !in 1..2) return this
+        if (lanes !in 1..3) return this
         val section = sections.getOrNull(sectionIndex) ?: return this
         val updated = section.copy(
             lanes = lanes,
-            entries = section.entries.map { if (lanes == 1) it.copy(lane = 0) else it },
+            // Reducing 3 → 2 (or 2 → 1) merges removed lanes into the last
+            // surviving one; no tool is left in an invisible row.
+            entries = section.entries.map { it.copy(lane = it.lane.coerceIn(0, lanes - 1)) },
         )
         return copy(sections = sections.toMutableList().also { it[sectionIndex] = updated })
     }
@@ -136,7 +138,7 @@ data class ToolbarLayout(val sections: List<ToolbarSection>) {
             val prototype = mutable[s][i]
             val section = sections[s]
             repeat(count - existing.size) { offset ->
-                val lane = if (section.lanes == 2) (prototype.lane + offset + 1) % 2 else 0
+                val lane = (prototype.lane + offset + 1) % section.lanes
                 mutable[s].add(i + 1 + offset, prototype.copy(lane = lane))
             }
         }
