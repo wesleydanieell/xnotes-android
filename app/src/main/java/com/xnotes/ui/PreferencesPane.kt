@@ -6,6 +6,7 @@ import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.gestures.scrollBy
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
@@ -29,6 +30,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Checkbox
+import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
@@ -113,6 +115,8 @@ private val tapGestureOptions = listOf(
     "toggle_previous" to R.string.toggle_previous,
 )
 
+private enum class ToolbarPropertyTab { BARS, DIMENSIONS, ELEMENTS, COLORS }
+
 /**
  * Preferences as a backstage pane (spec 10 §8). Edits apply live — each change is
  * pushed straight to the [Editor] (and persisted), so theme/page tweaks are seen
@@ -148,12 +152,16 @@ fun PreferencesPane(
     LaunchedEffect(editor.prefsVersion) { prefs = editor.preferences }
 
     val scrollState = rememberScrollState()
+    val toolbarPropertiesScroll = rememberScrollState()
+    var toolbarPropertyTab by remember { mutableStateOf(ToolbarPropertyTab.BARS) }
     var toolbarEditorOpen by remember { mutableStateOf(false) }
     LaunchedEffect(toolbarEditorOpen) { scrollState.scrollTo(0) }
+    LaunchedEffect(toolbarPropertyTab) { toolbarPropertiesScroll.scrollTo(0) }
     // Which bar the toolbar section is arranging. The two are separate layouts, so the drag state
     // below always belongs to whichever is on screen.
     var canvasTab by remember { mutableStateOf(false) }
     var selectedBarId by remember { mutableStateOf<String?>(null) }
+    var barMenuExpanded by remember { mutableStateOf(false) }
     var selectedEntry by remember { mutableStateOf<Pair<Int, Int>?>(null) }
     fun editedWorkspace(): ToolbarWorkspace =
         if (canvasTab) editor.toolbarWorkspaces.canvas else editor.toolbarWorkspaces.note
@@ -273,7 +281,7 @@ fun PreferencesPane(
         Column(
             // Ending at the keyboard's edge scrolls a focused field up out from under it.
             Modifier.fillMaxSize().imePadding().verticalScroll(scrollState)
-                .onGloballyPositioned { viewport = it.boundsInRoot() },
+                .onGloballyPositioned { if (!toolbarEditorOpen) viewport = it.boundsInRoot() },
             verticalArrangement = Arrangement.spacedBy(14.dp),
         ) {
             if (!toolbarEditorOpen) {
@@ -613,6 +621,9 @@ fun PreferencesPane(
                 )
                 TextButton(onClick = { toolbarEditorOpen = true }) { Text(stringResource(R.string.toolbar_configure)) }
             } else {
+            val barLabel = stringResource(R.string.pref_toolbar)
+            val workspace = editedWorkspace()
+            val currentBar = selectedBar()
             Row(
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(6.dp),
@@ -620,15 +631,49 @@ fun PreferencesPane(
                 Chip("xnote", selected = !canvasTab) { showTab(false) }
                 Chip("xcanvas", selected = canvasTab) { showTab(true) }
                 Spacer(Modifier.weight(1f))
-                TextButton(
-                    onClick = {
-                        applyEdited(if (canvasTab) ToolbarLayout.CANVAS_DEFAULT else ToolbarLayout.DEFAULT)
-                    },
-                ) { Text(stringResource(R.string.reset), fontSize = 13.sp) }
+                Box {
+                    TextButton(onClick = { barMenuExpanded = true }) {
+                        Text("${currentBar.name} ▾", maxLines = 1)
+                    }
+                    DropdownMenu(
+                        expanded = barMenuExpanded,
+                        onDismissRequest = { barMenuExpanded = false },
+                    ) {
+                        workspace.bars.forEachIndexed { index, bar ->
+                            DropdownMenuItem(
+                                text = { Text("${index + 1}. ${bar.name}") },
+                                onClick = {
+                                    showBar(bar.id)
+                                    barMenuExpanded = false
+                                },
+                            )
+                        }
+                    }
+                }
+                TextButton(onClick = {
+                    applyEdited(if (canvasTab) ToolbarLayout.CANVAS_DEFAULT else ToolbarLayout.DEFAULT)
+                }) { Text(stringResource(R.string.reset), fontSize = 13.sp) }
             }
-            val barLabel = stringResource(R.string.pref_toolbar)
-            val workspace = editedWorkspace()
-            val currentBar = selectedBar()
+            Row(
+                Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
+                horizontalArrangement = Arrangement.spacedBy(6.dp),
+            ) {
+                Chip("Barras", toolbarPropertyTab == ToolbarPropertyTab.BARS) {
+                    selectedEntry = null
+                    toolbarPropertyTab = ToolbarPropertyTab.BARS
+                }
+                Chip("Dimensões", toolbarPropertyTab == ToolbarPropertyTab.DIMENSIONS) {
+                    selectedEntry = null
+                    toolbarPropertyTab = ToolbarPropertyTab.DIMENSIONS
+                }
+                Chip("Elementos", toolbarPropertyTab == ToolbarPropertyTab.ELEMENTS) {
+                    toolbarPropertyTab = ToolbarPropertyTab.ELEMENTS
+                }
+                Chip("Cores", toolbarPropertyTab == ToolbarPropertyTab.COLORS) {
+                    selectedEntry = null
+                    toolbarPropertyTab = ToolbarPropertyTab.COLORS
+                }
+            }
             FieldLabel(stringResource(R.string.toolbar_preview))
             val entryPosition = selectedEntry
             val activeEntry = entryPosition?.let { (section, index) ->
@@ -653,10 +698,15 @@ fun PreferencesPane(
                     pageCount = editor.pageCount,
                     zoomLabel = "${editor.zoomPercent}%",
                     titleLabel = editor.title,
-                    onSelectBar = { id -> showBar(id); selectedEntry = null },
+                    onSelectBar = { id ->
+                        showBar(id)
+                        selectedEntry = null
+                        toolbarPropertyTab = ToolbarPropertyTab.BARS
+                    },
                     onSelectEntry = { id, section, index ->
                         showBar(id)
                         selectedEntry = section to index
+                        toolbarPropertyTab = ToolbarPropertyTab.ELEMENTS
                     },
                     onMoveBar = { id, anchor ->
                         editor.moveToolbarBar(
@@ -666,50 +716,37 @@ fun PreferencesPane(
                     },
                 )
             }
-            val properties: @Composable () -> Unit = {
-                Column(Modifier.heightIn(max = 320.dp).verticalScroll(rememberScrollState())) {
+            val inspector: @Composable () -> Unit = {
+                Column(
+                    Modifier.fillMaxWidth().heightIn(max = 500.dp)
+                        .onGloballyPositioned { viewport = it.boundsInRoot() }
+                        .verticalScroll(toolbarPropertiesScroll),
+                    verticalArrangement = Arrangement.spacedBy(12.dp),
+                ) {
                     Text("Propriedades · ${currentBar.name}", style = MaterialTheme.typography.titleSmall)
-                    if (activeEntry != null) {
-                        TextButton(onClick = { selectedEntry = null }) { Text("Voltar à barra") }
-                        ToolbarEntrySizeControls(
-                            entry = activeEntry,
-                            defaultSizeDp = defaultEntrySize,
-                            onChange = { size ->
-                                applyEdited(editedLayout().setEntrySize(entryPosition.first, entryPosition.second, size))
-                            },
-                        )
-                    } else {
+                    HorizontalDivider(color = palette.border.toComposeColor())
+                    if (toolbarPropertyTab == ToolbarPropertyTab.DIMENSIONS) {
                         ToolbarGeometryControls(
                             geometry = currentBar.geometry,
                             onChange = { next -> updateSelectedBar { it.copy(geometry = next.constrained()) } },
                         )
-                        Text("Toque em uma ferramenta do preview para definir um tamanho próprio.",
-                            style = MaterialTheme.typography.bodySmall)
                     }
-                }
-            }
-            BoxWithConstraints(Modifier.fillMaxWidth()) {
-                if (maxWidth >= 600.dp) {
-                    Row(horizontalArrangement = Arrangement.spacedBy(12.dp), verticalAlignment = Alignment.Top) {
-                        Box(Modifier.weight(1f)) { preview() }
-                        Box(Modifier.width(252.dp)) { properties() }
+                    if (toolbarPropertyTab == ToolbarPropertyTab.ELEMENTS) {
+                        if (activeEntry != null) {
+                            TextButton(onClick = { selectedEntry = null }) { Text("Voltar aos elementos") }
+                            ToolbarEntrySizeControls(
+                                entry = activeEntry,
+                                defaultSizeDp = defaultEntrySize,
+                                onChange = { size ->
+                                    applyEdited(editedLayout().setEntrySize(entryPosition.first, entryPosition.second, size))
+                                },
+                            )
+                        } else {
+                            Text("Toque em uma ferramenta do preview para ajustar seu tamanho.",
+                                style = MaterialTheme.typography.bodySmall)
+                        }
                     }
-                } else {
-                    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                        preview()
-                        properties()
-                    }
-                }
-            }
-            FieldLabel(stringResource(R.string.toolbar_select))
-            FlowRow(
-                horizontalArrangement = Arrangement.spacedBy(6.dp),
-                verticalArrangement = Arrangement.spacedBy(6.dp),
-            ) {
-                workspace.bars.forEachIndexed { index, bar ->
-                    Chip("${index + 1}. ${bar.name}", bar.id == currentBar.id) { showBar(bar.id) }
-                }
-            }
+                    if (toolbarPropertyTab == ToolbarPropertyTab.BARS) {
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 TextButton(onClick = {
                     val old = editedWorkspace()
@@ -879,7 +916,8 @@ fun PreferencesPane(
                     }
                 }
             }
-            // Dimensions are edited beside the preview above, not in this long options list.
+                    }
+                    if (toolbarPropertyTab == ToolbarPropertyTab.COLORS) {
             // The ink palette is global; its toolbar presentation is per selected bar.
             FieldLabel(stringResource(R.string.pref_toolbar_colours_n, editor.toolbarColorCount))
             Slider(
@@ -904,7 +942,8 @@ fun PreferencesPane(
                     modifier = Modifier.width(280.dp),
                 )
             }
-            HorizontalDivider(color = palette.border.toComposeColor())
+                    }
+                    if (toolbarPropertyTab == ToolbarPropertyTab.ELEMENTS) {
             FieldLabel(stringResource(R.string.toolbar_tools_groups))
             val unifiedPenEnabled = layout.sections.any { section ->
                 section.entries.any { entry -> entry.item == ToolbarItem.UNIFIED_PEN && entry.visible }
@@ -986,6 +1025,23 @@ fun PreferencesPane(
                     sectionDropTarget = null
                 },
             )
+                    }
+                }
+            }
+            BoxWithConstraints(Modifier.fillMaxWidth()) {
+                if (maxWidth >= 760.dp) {
+                    val sideWidth = if (toolbarPropertyTab == ToolbarPropertyTab.ELEMENTS) 390.dp else 330.dp
+                    Row(horizontalArrangement = Arrangement.spacedBy(12.dp), verticalAlignment = Alignment.Top) {
+                        Box(Modifier.weight(1f)) { preview() }
+                        Box(Modifier.width(sideWidth)) { inspector() }
+                    }
+                } else {
+                    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        preview()
+                        inspector()
+                    }
+                }
+            }
             }
 
             if (!toolbarEditorOpen) {
@@ -1030,7 +1086,7 @@ fun PreferencesPane(
                 else -> 0f
             }
             if (delta != 0f) {
-                scrollState.scrollBy(delta)
+                if (toolbarEditorOpen) toolbarPropertiesScroll.scrollBy(delta) else scrollState.scrollBy(delta)
                 if (dragItem != null) retarget() else retargetSection()
             }
             delay(16L)

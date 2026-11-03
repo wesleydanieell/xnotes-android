@@ -315,3 +315,11 @@ Camadas ficam fora desta branch.
    reinício, retrato/paisagem e layout compacto; corrigir diferenças visuais.
 3. Implementar atalho simples dentro da nota para abrir o configurador dedicado,
    sem reintroduzir editor ou redimensionamento in-note.
+
+## Checkpoint M4.2 — navegação de propriedades acima da prévia (03/11/2026)
+
+- As categorias `Barras / Dimensões / Elementos / Cores` passaram para uma faixa horizontal acima do preview, sem consumir o espaço da coluna de propriedades.
+- O cabeçalho concentra perfil xnote/xcanvas, escolha da barra em menu suspenso e ação de restauração. O painel de propriedades continua ao lado da prévia em janelas largas e abaixo em janelas estreitas.
+- Selecionar uma ferramenta na prévia abre a categoria Elementos e seus controles individuais.
+- `git diff --check` e `:app:testDebugUnitTest :app:assembleDebug --offline` passaram no CachyOS (`BUILD SUCCESSFUL`, 50 tarefas). QA físico no Redmi Pad 2 ainda pendente.
+- Próxima fase: faixas de encaixe por borda e ocupação sem colisões, com testes de capacidade e comparação preview/nota/canvas.
