@@ -26,10 +26,10 @@ Camadas são um projeto futuro separado: docs/layers-roadmap.md.
 | M0 Clone/branch/debug | FEITO | Clone isolado, commits importados e build/testes/instalação ADB aprovados em 28/10 |
 | M1 Modelos/migração | PARCIAL | ToolbarWorkspace, codec JSON e testes JVM existem; rever casos extremos |
 | M2 Renderer/gestos | PARCIAL | Barras extra; principal pode mover; container longpress; sem QA de conflitos |
-| M3 Editor/preview | PARCIAL | Config view, CRUD, grade 3x3 e live preview simples; sem undo/apply |
+| M3 Editor/preview | PARCIAL | Config view, CRUD, oito encaixes com centro vazio, live preview; sem undo/apply; QA físico pendente |
 | M4 Dimensões essenciais | PENDENTE | Escopo revisado: largura, altura, padding, espaçamento e tamanho por elemento; presets existentes não satisfazem tudo |
 | M5 Elementos/cores | PARCIAL | Cores globais divididas dinamicamente em N blocos por barra, controle na tela dedicada; ainda faltam tamanho/spacing por elemento e QA |
-| M6 Sections em faixas | PARCIAL | Sections de uma/duas linhas independentes (colunas em barras laterais), sem limite arbitrário; codec v3 migra v1/v2; renderer/preview comuns, arraste por linha; QA físico pendente |
+| M6 Sections em faixas | PARCIAL | Sections de 1–3 linhas independentes (colunas em barras laterais), sem limite por linha; codec v4 migra v1/v2/v3; renderer/preview comuns, arraste por linha; QA físico pendente |
 | M7 Caneta unificada | PARCIAL | Lançador opcional, leque radial com animação e painel único de configurações por tipo; QA de stylus e migração/schema avançado pendentes |
 | M8 Atalho in-note | PENDENTE | A pedido do usuário, NÃO implementar edição/resize dentro da nota; apenas entrada rápida para configuração dedicada |
 | M9 Perfis/QA/performance | PARCIAL | Dados note/canvas separados; UI de shared não terminada |
@@ -62,13 +62,16 @@ não substitui o Git como fonte de verdade.
   Quick-select usa teste de proximidade aos centros reais dos ícones na tela, com
   setor angular como fallback. **Validar com dedo e Xiaomi Smart Pen nas quatro bordas.**
 - Nova estrutura após revisão com o usuário: presets 1×2/2×2/3×2 substituídos
-  por `ToolbarSection.lanes` (1 ou 2), sem limite de itens por faixa. Na lateral,
-  as faixas viram colunas. Criar section abre escolha de linhas; o padrão é 1.
-  DnD identifica ocorrências por seção/índice. O seletor global de cores ganhou
+  por `ToolbarSection.lanes` (1–3), sem limite de itens por faixa. Na lateral,
+  as faixas viram colunas. Criar section abre escolha de 1/2/3 linhas; o padrão
+  é 1. Alteração posterior por menu no cabeçalho, sem botões repetidos em toda
+  section. DnD identifica ocorrências por seção/índice. O seletor global de cores ganhou
   distribuição da barra em N blocos, sem botões ou números nos chips. Os intervalos
   são frações da paleta **atual** (5 cores/2 blocos → 3+2; 10/2 → 5+5).
   JSON v4 migra intervalos absolutos v3, grades v2 e arrays v1. Renderer idêntico
-  na nota/canvas/preview. **Exige QA físico das faixas e cores no Redmi Pad 2.**
+  na nota/canvas/preview. O snap exclui CENTER e resolve para o ponto mais próximo
+  entre oito; barras legadas no centro migram para TOP_CENTER.
+  **Exige QA físico de 3 faixas, cores e snap nas bordas no Redmi Pad 2.**
 - Testes JVM adicionados para geometria do leque, seleção por posição real,
   capacidade de grupo e persistência v1/v2. O fato de compilar NÃO substitui QA visual.
 - Decisão atual do usuário: personalização de barra SOMENTE na tela dedicada.

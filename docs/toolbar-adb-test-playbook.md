@@ -18,18 +18,24 @@ No Redmi Pad 2 real, com Xiaomi Smart Pen e dedo:
    deve reabrir no primeiro toque, sem exigir estado de duplo clique anterior.
 4. Conferir ícones em claro/escuro: grupo do tamanho normal da toolbar, sem bolinha
    cortada; nomes individuais visíveis no seletor completo e pontas reconhecíveis.
-5. Clicar em **Adicionar section**, escolher 2 linhas e arrastar 7+
-   ferramentas livremente entre as faixas, incluindo controle composto.
-   Criar outra section escolhendo 1 linha. Conferir preview, nota e canvas.
+5. Clicar em **Adicionar section** e escolher 3 linhas; arrastar 7+
+   ferramentas entre as três faixas, incluindo controle composto.
+   Alterar a mesma section para 2 e depois 1 linha pelo menu no cabeçalho
+   (não deve haver seletor repetido dentro da section). Criar outra com 1 linha,
+   o padrão. Conferir preview, nota e canvas.
 6. No configurador, selecionar 5 cores globais e **Dividir em 2 blocos**:
    esperar 3+2 cores sem repetições. Aumentar o total para 10 sem mexer no
    número de blocos: agora devem aparecer 5+5, imediatamente. Testar 3 blocos,
    arrastar cada ocorrência entre as faixas, fechar/reabrir e reiniciar o app
    para validar persistência. Não deve haver `+` nem números dentro de Colors.
 7. Rotacionar tablet e testar toolbar superior/lateral e xcanvas. Na lateral,
-   as duas linhas devem virar **duas colunas** com ordem preservada. Persistir,
+   as três linhas devem virar **três colunas** com ordem preservada. Persistir,
    reiniciar app e verificar migração/intervalos, sem misturar perfis.
    Testar espaço limitado, múltiplas barras e scroll.
+8. Testar os oito encaixes: quatro cantos e centros das quatro bordas.
+   Confirmar que o meio do seletor 3×3 está vazio e que soltar uma barra no
+   centro do canvas escolhe uma borda, nunca o centro. Configuração legada
+   CENTER deve abrir no TOP_CENTER, sem desaparecer.
 
 **Só registrar aprovado após observação física**; build e ADB `Success` não bastam.
 

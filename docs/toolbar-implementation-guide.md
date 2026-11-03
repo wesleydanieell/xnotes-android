@@ -18,11 +18,13 @@ propriedades, resize livre ou grade de configuração sobre a página. Preservar
 movimento de contêiner por long-press já implementado até QA mostrar o contrário.
 
 **Decisão substitutiva sobre as grades (03/11/2026):** o usuário rejeitou presets
-rígidos de 1×2/2×2/3×2. A própria `ToolbarSection` aceita 1 ou 2 faixas sem
-limite arbitrário de itens: linhas no dock horizontal e colunas nas laterais.
-Arrastar de uma faixa para outra muda apenas o posicionamento na section.
+rígidos de 1×2/2×2/3×2. A própria `ToolbarSection` aceita 1, 2 ou 3
+faixas sem limite arbitrário de itens: linhas no dock horizontal e colunas
+nas laterais. Arrastar de uma faixa para outra muda apenas o posicionamento.
 Seções existentes continuam, por padrão, com uma linha; ao clicar em **Adicionar
-section**, o editor pergunta se a nova terá **uma ou duas linhas**.
+section**, o editor pergunta se a nova terá **1, 2 ou 3 linhas**. Para alterar
+uma seção existente, usar o menu discreto no cabeçalho da section: **não**
+mostrar botões 1/2/3 repetidos dentro de cada seção.
 Controles compostos, como `Colors`, mantêm dimensões naturais.
 
 O seletor **Quantidade de cores** determina quantas tintas globais ficam
@@ -30,7 +32,7 @@ visíveis. Ao lado dele, o controle **Dividir cores em X blocos** determina o
 número de instâncias de `Colors` na barra selecionada. A mesma paleta é
 distribuída em frações consecutivas e **recalculada dinamicamente** quando o
 número de cores muda (5 cores em 2 blocos = 3+2; 10 = 5+5).
-Os blocos podem ser arrastados independentemente entre as duas linhas e
+Os blocos podem ser arrastados independentemente entre as faixas e
 não contêm botões de duplicar nem rótulos de intervalos no próprio chip.
 Não criar paletas independentes sem novo requisito.
 
@@ -39,8 +41,13 @@ Não criar paletas independentes sem novo requisito.
 v3 (intervalos absolutos), v2 (`grid_columns`) e v1 (arrays). Esta decisão
 prevalece sobre todas as menções a grades fixas mais abaixo neste guia.
 
+**Decisão sobre encaixes (03/11):** somente oito pontos: quatro cantos,
+centros das quatro bordas. O centro exato da tela não é destino magnético
+no controle de posicionamento nem nos gestos. O valor legado `CENTER` ainda
+pode ser lido e é migrado para `TOP_CENTER` sem perder a barra.
+
 Pendente antes de considerar M6 pronto: teste físico de posicionamento em
-quatro docks e nove âncoras, espaços vazios/overflow, drag para dentro/fora
+quatro docks e oito âncoras, espaços vazios/overflow, drag para dentro/fora
 com capacidade cheia, preview fiel e prevenção de toque roubado da escrita.
 
 ## 1. Objetivo e limites
