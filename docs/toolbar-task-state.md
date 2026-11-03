@@ -27,11 +27,11 @@ Camadas são um projeto futuro separado: docs/layers-roadmap.md.
 | M1 Modelos/migração | PARCIAL | ToolbarWorkspace, codec JSON e testes JVM existem; rever casos extremos |
 | M2 Renderer/gestos | PARCIAL | Barras extra; principal pode mover; container longpress; sem QA de conflitos |
 | M3 Editor/preview | PARCIAL | Config view, CRUD, grade 3x3 e live preview simples; sem undo/apply |
-| M4 Aparência/tamanho | PENDENTE | Só presets básicos; width/height e aparência precisam implementação |
+| M4 Dimensões essenciais | PENDENTE | Escopo revisado: largura, altura, padding, espaçamento e tamanho por elemento; presets existentes não satisfazem tudo |
 | M5 Elementos/cores | PENDENTE | Contagem global legado existe; quantidade/layout por barra não |
-| M6 Grupos/grades | PENDENTE | Seções planas; schema de Group/Grid ainda não implementado |
+| M6 Grupos/grades | PARCIAL | Seções já aceitam linear, 1×2, 2×2 e 3×2; codec v2, renderer e preview compartilhados, editor por preset; QA visual/ADB pendente |
 | M7 Caneta unificada | PARCIAL | Lançador opcional, leque radial com animação e painel único de configurações por tipo; QA de stylus e migração/schema avançado pendentes |
-| M8 Contextual/resize | PENDENTE | Sem menu de barra e modo resize transacional |
+| M8 Atalho in-note | PENDENTE | A pedido do usuário, NÃO implementar edição/resize dentro da nota; apenas entrada rápida para configuração dedicada |
 | M9 Perfis/QA/performance | PARCIAL | Dados note/canvas separados; UI de shared não terminada |
 | M10 PRs upstream | PENDENTE | Só branch de integração no fork; nenhum PR desta feature aberto |
 
@@ -50,6 +50,26 @@ Camadas são um projeto futuro separado: docs/layers-roadmap.md.
 
 Confira git log ao retomar; pode haver commits posteriores. Este checkpoint
 não substitui o Git como fonte de verdade.
+
+## Último checkpoint de execução — 03/11/2026
+
+- Redmi Pad 2 confirmado em ADB: serial `pfcmu4dutsylceus`; APK isolado
+  `com.xnotes.toolbarsdebug` instalado com `Success` nesta sessão (sem mexer no XNotes principal).
+- Correção de empilhamento: barra arrastada recebe zIndex enquanto segura; camada de
+  barras flutuantes fica acima do desenho do canvas. **Revalidar em split-view.**
+- Pen Group: ícones vetoriais de contorno mais compactos, sem bolinha cortada no lançador;
+  nomes visíveis no painel; toque na caneta já ativa abre painel imediatamente.
+  Quick-select usa teste de proximidade aos centros reais dos ícones na tela, com
+  setor angular como fallback. **Validar com dedo e Xiaomi Smart Pen nas quatro bordas.**
+- Grupos: modelo `ToolbarSection.gridColumns` (0/1/2/3), capacidade máxima de duas
+  fileiras, rejeição segura para controles compostos e grupos cheios, codec JSON v2
+  aceita arrays legados v1, renderer `ToolbarSectionGrid` reutilizado no xnote/xcanvas
+  e preview. Presets disponíveis em cada seção do editor.
+- Testes JVM adicionados para geometria do leque, seleção por posição real,
+  capacidade de grupo e persistência v1/v2. O fato de compilar NÃO substitui QA visual.
+- Decisão atual do usuário: personalização de barra SOMENTE na tela dedicada.
+  Propriedades finais: largura, altura, padding, espaçamento e tamanho de elementos;
+  acesso rápido pelo editor ainda precisa implementar.
 
 ## Fila priorizada por dependências
 

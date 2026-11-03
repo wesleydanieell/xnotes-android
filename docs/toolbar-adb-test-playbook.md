@@ -4,6 +4,29 @@ Leia docs/toolbar-implementation-guide.md e docs/toolbar-task-state.md antes
 de executar. Objetivo: o Codex deve COMPILAR, INSTALAR, ABRIR, TESTAR e
 DIAGNOSTICAR a versão de toolbars sem tocar no XNotes normal do usuário.
 
+## Matriz de QA desta entrega (03/11/2026)
+
+No Redmi Pad 2 real, com Xiaomi Smart Pen e dedo:
+
+1. Barra no topo/baixo/esquerda/direita: pressionar e arrastar a barra para dentro
+   do canvas. Ela deve permanecer **visível por cima do desenho** até soltar,
+   inclusive no split-view e com barras secundárias. Verificar zIndex e clipping.
+2. Pen Group em cada lateral: segurar, visitar os círculos das duas extremidades,
+   mudar de opção e soltar. A ferramenta escolhida deve ser a do **círculo tocado**;
+   se sair sem escolher, o leque fecha sem ativar outra ferramenta.
+3. Caneta já selecionada: abrir e fechar o painel, tocar novamente uma vez. Ele
+   deve reabrir no primeiro toque, sem exigir estado de duplo clique anterior.
+4. Conferir ícones em claro/escuro: grupo do tamanho normal da toolbar, sem bolinha
+   cortada; nomes individuais visíveis no seletor completo e pontas reconhecíveis.
+5. Nova seção vazia: escolher 1×2, 2×2 ou 3×2; arrastar ferramentas elegíveis,
+   conferir espessura e ordem no preview e no canvas reais. A capacidade máxima
+   nunca pode ocultar nem apagar itens. Seção linear deve continuar idêntica.
+6. Rotacionar tablet e testar toolbar superior/lateral e xcanvas. Persistir,
+   reiniciar app e verificar se as grades sobrevivem e se perfis note/canvas não se
+   misturam. Testar também espaço limitado, múltiplas barras e scroll.
+
+**Só registrar aprovado após observação física**; build e ADB `Success` não bastam.
+
 ## 1. Alvos e segurança
 
 - Diretório: /home/wesley/Projetos/xnotes-customizable-toolbars

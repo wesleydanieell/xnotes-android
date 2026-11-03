@@ -6,6 +6,23 @@ Este documento é o índice de produto; o detalhamento técnico das toolbars est
 em [toolbar-task-state.md](toolbar-task-state.md) e os testes no
 [toolbar-adb-test-playbook.md](toolbar-adb-test-playbook.md).
 
+## Decisão consolidada em 03/11/2026
+
+- **Toda edição de toolbars fica na tela dedicada de configuração.** A nota terá apenas
+  um atalho direto para abrir essa tela; sem painel de propriedades ou resize in-note.
+  O gesto já existente de mover uma barra continua sujeito a QA, não vira editor visual.
+- **Aparência individual simplificada:** largura, altura, padding, espaçamento e
+  tamanho dos elementos. Manter cores e cantos coerentes com o tema do aplicativo;
+  remover do escopo futuro blur/opacidade/borda/cor/raio por barra.
+- **Grupos e grades:** primeira etapa reutiliza seções como grupos com layouts linear,
+  1×2, 2×2 e 3×2; no máximo duas fileiras e somente controles de célula única.
+  O schema de grupos aninhados fica fora do MVP. Editor, toolbar real e preview devem
+  usar a mesma organização e validar capacidade antes de aceitar arrastes.
+- **Pen Group:** grupo opcional, separado das canetas individuais. Primeiro toque arma
+  a ferramenta anterior se não estiver ativa; tocar quando já está ativa abre opções.
+  Segurar + arrastar escolhe pelo círculo exibido; ícones devem ser reconhecíveis e
+  visualmente coerentes com os demais do app.
+
 ## Decisão de produto
 
 O problema inicial é a saturação da barra atual. A solução não deve exigir que

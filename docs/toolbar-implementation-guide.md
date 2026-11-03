@@ -5,6 +5,29 @@
 > Código: branch feat/customizable-toolbars, fork wesleydanieell/xnotes-android.
 > Fonte de verdade upstream: shardulvs/xnotes-android, branch master.
 
+## Atualização de escopo (03/11/2026) — prevalece sobre a versão 1.0 abaixo
+
+A versão original deste guia descreve opções de fundo, borda, blur, raio e edição
+in-note que o usuário **cancelou**. Não implementar essas opções sem novo pedido.
+O escopo visual atual é **largura, altura, padding, espaçamento e tamanho dos
+controles**. As cores e os cantos seguem os temas/padrões do próprio XNotes.
+
+Toda manipulação de estrutura/aparência acontece na **tela dedicada de toolbars**.
+Dentro da nota/canvas haverá um **atalho para abrir essa tela**, sem editor de
+propriedades, resize livre ou grade de configuração sobre a página. Preservar
+movimento de contêiner por long-press já implementado até QA mostrar o contrário.
+
+A primeira fase de grupos reutiliza a seção (`ToolbarSection`) com
+`gridColumns = 0` (linear), `1` (1×2), `2` (2×2), `3` (3×2), até duas fileiras e
+somente ferramentas de uma célula; controles compostos não entram. `ToolbarSectionGrid`
+compõe os mesmos itens no xnote, xcanvas e preview; `ToolbarFrame` calcula a espessura
+pela maior quantidade de células transversais. `ToolbarWorkspaceJson` v2 grava
+`grid_columns` e lê também seções array do v1.
+
+Pendente antes de considerar M6 pronto: teste físico de posicionamento em
+quatro docks e nove âncoras, espaços vazios/overflow, drag para dentro/fora
+com capacidade cheia, preview fiel e prevenção de toque roubado da escrita.
+
 ## 1. Objetivo e limites
 
 Criar um sistema de múltiplas barras independentes, totalmente configuráveis, disponível
