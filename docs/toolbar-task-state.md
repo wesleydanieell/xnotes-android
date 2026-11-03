@@ -138,9 +138,20 @@ usuário encontradas no worktree e não invente sucesso nem background jobs.
 - `Small_Tablet` estava com override de celular (1080×2400/420 dpi); restaurados
   1920×1200/320 dpi. Build anterior instalou no emulador com sucesso.
 
+## Evidências — grupo compacto (03/11/2026)
+
+- Commit `b1054517`: criado `ToolbarToolGroup` imutável, com escolhas de escrita,
+  deduplicação, última ferramenta selecionada e projeção não destrutiva por contexto.
+- Testes JVM de seleção, fallback e validação; `:app:testDebugUnitTest
+  :app:compileDebugKotlin` passou (25 tarefas, BUILD SUCCESSFUL em 7 s).
+- **Ainda não visível na UI**: a próxima etapa de P1 é conectar um lançador
+  compacto ao renderer compartilhado e ao schema versionado, sem alterar
+  o layout legado automaticamente.
+
 ## Próxima ação (uma por vez)
 
-Executar o P0: reproduzir e corrigir conflitos entre long-press do contêiner
-principal/secundário e long-press de ferramentas. Comparar o preview e a barra
-real no emulador; registrar testes com ADB. Depois implementar `GeometryResolver`
-puro e compartilhado, antes de expandir para grupos. Não iniciar camadas nesta branch.
+Executar P0: reproduzir e corrigir conflitos entre long-press do contêiner
+principal/secundário e long-press das ferramentas. Comparar o preview e a barra
+real no emulador; registrar evidências com ADB. Em seguida adicionar renderer
+compartilhado do grupo compacto com seleção/último item, e persistência versionada
+como ToolbarNode v3, mantendo layouts legados intactos. Camadas ficam fora desta branch.
