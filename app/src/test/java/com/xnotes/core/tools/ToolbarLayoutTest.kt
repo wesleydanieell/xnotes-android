@@ -99,6 +99,33 @@ class ToolbarLayoutTest {
         assertTrue(fromDefault.sections.flatMap { it.entries }.first { it.item == ToolbarItem.PEN }.visible)
     }
 
+    @Test fun sectionGridPresetsValidateCapacityAndCompositeControls() {
+        val linear = ToolbarLayout(listOf(sec(ToolbarItem.PEN, ToolbarItem.DASHED, ToolbarItem.CALLIGRAPHY)))
+        val grouped = linear.setSectionGrid(0, 2)
+        assertEquals(2, grouped.sections.single().gridColumns)
+        assertEquals(4, grouped.sections.single().gridCapacity)
+        assertEquals(2, grouped.sections.single().crossCells)
+        assertEquals(grouped, grouped.setSectionGrid(0, 1)) // three tools cannot fit 1×2
+        assertEquals(3, grouped.setSectionGrid(0, 3).sections.single().gridColumns)
+        assertEquals(linear, linear.setSectionGrid(0, 0))
+
+        val composite = ToolbarLayout(listOf(sec(ToolbarItem.COLORS, ToolbarItem.PEN)))
+        assertEquals(composite, composite.setSectionGrid(0, 2))
+    }
+
+    @Test fun movingIntoFullGroupIsRejectedWithoutLosingItems() {
+        val first = sec(ToolbarItem.PEN, ToolbarItem.DASHED, ToolbarItem.CALLIGRAPHY, ToolbarItem.SPEED)
+        val other = sec(ToolbarItem.HIGHLIGHTER, ToolbarItem.COLORS)
+        val layout = ToolbarLayout(listOf(first, other)).setSectionGrid(0, 2)
+        assertEquals(layout, layout.moveItem(1, 0, 0, 4))
+        val movedOut = layout.moveItem(0, 3, 1, 1)
+        assertEquals(3, movedOut.sections[0].entries.size)
+        assertEquals(2, movedOut.sections[0].gridColumns)
+        assertEquals(3, movedOut.sections[1].entries.size)
+        val rejectedComposite = movedOut.moveItem(1, 2, 0, 2)
+        assertEquals(movedOut, rejectedComposite)
+    }
+
     @Test fun emptyRawYieldsDefault() {
         assertEquals(ToolbarLayout.DEFAULT, ToolbarLayout.fromRaw(emptyList()))
         assertEquals(ToolbarLayout.DEFAULT, ToolbarLayout.fromRaw(listOf(emptyList(), emptyList())))

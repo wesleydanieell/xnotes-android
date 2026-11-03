@@ -125,12 +125,12 @@ fun Toolbar(
     var switcherIndex by remember { mutableStateOf<Int?>(null) }
     var renaming by remember { mutableStateOf(false) }
     // Pinned outside the scrolling strip so closing a split pane is always one tap away.
-    ToolbarFrame(armed = editor.tool, trailing = onClosePane?.let { { ClosePaneButton(it) } }) {
+    ToolbarFrame(armed = editor.tool, layout = layout, trailing = onClosePane?.let { { ClosePaneButton(it) } }) {
         // The bar is driven by the user-customisable layout; separators sit between non-empty
         // sections, and each item dispatches to its renderer (see ToolbarItemView).
         layout.visibleSections.forEachIndexed { si, section ->
             if (si > 0) Separator()
-            section.visibleEntries.forEach { entry ->
+            ToolbarSectionGrid(section) { entry ->
                 ToolbarItemView(
                     editor = editor,
                     item = entry.item,

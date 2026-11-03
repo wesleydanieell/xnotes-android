@@ -69,6 +69,7 @@ fun ToolbarCustomizerBody(
     sectionBounds: MutableMap<Int, Rect>,
     sectionGrabBounds: MutableMap<Int, Rect>,
     onToggle: (Int, Int) -> Unit,
+    onGridChange: (Int, Int) -> Unit,
     onDelete: (Int) -> Unit,
     onAdd: () -> Unit,
     onDragStart: (ToolbarItem, Offset) -> Unit,
@@ -102,6 +103,8 @@ fun ToolbarCustomizerBody(
                 onGrabDrop = onSectionDrop,
                 onGrabCancel = onSectionCancel,
             ) {
+                Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                    SectionGridModes(section) { columns -> onGridChange(sec, columns) }
                 if (section.entries.isEmpty()) {
                     Text(
                         stringResource(R.string.drop_here),
@@ -131,10 +134,35 @@ fun ToolbarCustomizerBody(
                         if (dragging && dropTarget == sec to section.entries.size) InsertionCaret()
                     }
                 }
+                }
             }
         }
         if (draggingSection && sectionDropTarget == layout.sections.size) SectionCaret()
         AddSectionChip(onClick = onAdd)
+    }
+}
+
+/** Compact layout presets for one section. Disabled choices preserve tools rather than dropping
+ * overflow cells, and a new empty section can accept any of the supported grid shapes. */
+@Composable
+private fun SectionGridModes(section: ToolbarSection, onSelect: (Int) -> Unit) {
+    val palette = LocalPalette.current
+    Row(horizontalArrangement = Arrangement.spacedBy(3.dp)) {
+        for ((columns, title) in listOf(0 to "Linear", 1 to "1×2", 2 to "2×2", 3 to "3×2")) {
+            val enabled = columns == 0 || section.supportsGrid(columns)
+            val active = section.gridColumns == columns
+            Text(
+                title,
+                color = (if (active) palette.accent else palette.textDim).toComposeColor(),
+                fontSize = 10.sp,
+                modifier = Modifier
+                    .alpha(if (enabled) 1f else .3f)
+                    .clip(RoundedCornerShape(6.dp))
+                    .border(1.dp, (if (active) palette.accent else palette.border).toComposeColor(), RoundedCornerShape(6.dp))
+                    .clickable(enabled = enabled) { onSelect(columns) }
+                    .padding(horizontal = 5.dp, vertical = 3.dp),
+            )
+        }
     }
 }
 

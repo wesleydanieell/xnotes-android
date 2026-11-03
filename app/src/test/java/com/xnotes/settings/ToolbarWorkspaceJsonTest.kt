@@ -66,6 +66,25 @@ class ToolbarWorkspaceJsonTest {
         assertEquals(245, restored.toolbarWorkspaces!!.note.bars[1].geometry.widthDp)
     }
 
+    @Test fun gridSectionsRoundTripAndV1ArraysStillLoad() {
+        val group = compactLayout(ToolbarItem.PEN, ToolbarItem.DASHED, ToolbarItem.CALLIGRAPHY)
+            .setSectionGrid(0, 2)
+        val profiles = ToolbarWorkspaces.fromLegacy(group, ToolbarLayout.CANVAS_DEFAULT)
+        val json = ToolbarWorkspaceJson.write(profiles)
+        assertEquals(2, json.getInt("version"))
+        assertEquals(group, ToolbarWorkspaceJson.read(json)!!.note.bars.single().layout)
+
+        // Legacy v1 section arrays have no grid data, but must still load unchanged.
+        val oldJson = ToolbarWorkspaceJson.write(profiles).put("version", 1)
+        val first = oldJson.getJSONObject("note").getJSONArray("bars").getJSONObject(0)
+        first.put("sections", JSONArray().put(JSONArray()
+            .put(JSONObject().put("id", "pen"))
+            .put(JSONObject().put("id", "dashed"))))
+        val oldSection = ToolbarWorkspaceJson.read(oldJson)!!.note.bars.single().layout.sections.single()
+        assertEquals(0, oldSection.gridColumns)
+        assertEquals(listOf(ToolbarItem.PEN, ToolbarItem.DASHED), oldSection.entries.map { it.item })
+    }
+
     @Test fun unsupportedSchemaFallsBackToLegacySettingsSafely() {
         val json = Settings().toJson()
         json.put("toolbar_workspaces", ToolbarWorkspaceJson.write(

@@ -35,6 +35,7 @@ import androidx.compose.ui.unit.DpOffset
 import androidx.compose.ui.unit.TextUnit
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.xnotes.core.tools.ToolbarLayout
 import com.xnotes.settings.ToolbarLook
 import com.xnotes.settings.ToolbarPosition
 import com.xnotes.settings.ToolbarSize
@@ -85,6 +86,7 @@ internal fun ColumnScope.ToolbarAround(
     bar: @Composable () -> Unit,
     onCover: (Double, Double, Double, Double) -> Unit,
     suppressBar: Boolean = false,
+    barLayout: ToolbarLayout? = null,
     content: @Composable (floatingBar: @Composable BoxScope.() -> Unit) -> Unit,
 ) {
     val look = LocalToolbarLook.current
@@ -108,7 +110,8 @@ internal fun ColumnScope.ToolbarAround(
         }
         return
     }
-    val depth = barMetrics(look.size).thickness + FLOAT_MARGIN
+    val metrics = barMetrics(look.size)
+    val depth = metrics.thickness + (metrics.button + 2.dp) * (toolbarCrossCells(barLayout) - 1) + FLOAT_MARGIN
     val px = with(LocalDensity.current) { depth.toPx().toDouble() }
     val position = look.position
     SideEffect {
@@ -138,11 +141,13 @@ internal fun ColumnScope.ToolbarAround(
 @Composable
 internal fun ToolbarFrame(
     armed: Any?,
+    layout: ToolbarLayout,
     trailing: (@Composable () -> Unit)? = null,
     content: @Composable () -> Unit,
 ) {
     val look = LocalToolbarLook.current
     val bar = barMetrics(look.size).copy(vertical = look.position.vertical)
+    val depth = bar.thickness + (bar.button + 2.dp) * (toolbarCrossCells(layout) - 1)
     val glide = remember { ToolGlide() }
     val palette = LocalPalette.current
     val shape = MaterialTheme.shapes.extraLarge
@@ -163,7 +168,7 @@ internal fun ToolbarFrame(
     }
     // Material places a menu below its anchor; shifting it one bar across and one button up puts it
     // beside the rail, and on a right rail material mirrors it to the left side on its own.
-    val menuOffset = if (bar.vertical) DpOffset(bar.thickness, -bar.button) else DpOffset.Zero
+    val menuOffset = if (bar.vertical) DpOffset(depth, -bar.button) else DpOffset.Zero
     val tipSide = when (look.position) {
         ToolbarPosition.TOP -> TipSide.BELOW
         ToolbarPosition.BOTTOM -> TipSide.ABOVE
@@ -173,7 +178,7 @@ internal fun ToolbarFrame(
     CompositionLocalProvider(LocalToolGlide provides glide, LocalBar provides bar, LocalMenuOffset provides menuOffset, LocalTipSide provides tipSide) {
         if (bar.vertical) {
             Column(
-                stretch.width(bar.thickness).then(surface),
+                stretch.width(depth).then(surface),
                 horizontalAlignment = Alignment.CenterHorizontally,
             ) {
                 Column(
@@ -188,7 +193,7 @@ internal fun ToolbarFrame(
             }
         } else {
             Row(
-                stretch.height(bar.thickness).then(surface),
+                stretch.height(depth).then(surface),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 Row(

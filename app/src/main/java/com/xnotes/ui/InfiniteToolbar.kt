@@ -84,11 +84,11 @@ fun InfiniteToolbar(
     var switcherIndex by remember { mutableStateOf<Int?>(null) }
 
     // Pinned outside the scrolling strip so closing a split pane is always one tap away.
-    ToolbarFrame(armed = editor.tool, trailing = onClosePane?.let { { ClosePaneButton(it) } }) {
+    ToolbarFrame(armed = editor.tool, layout = layout, trailing = onClosePane?.let { { ClosePaneButton(it) } }) {
         val sections = layout.visibleSections
         sections.forEachIndexed { index, section ->
             if (index > 0) Separator()
-            for (entry in section.visibleEntries) {
+            ToolbarSectionGrid(section) { entry ->
                 when (val item = entry.item) {
                     ToolbarItem.HOME -> ToolbarIcon(XnotesIcons.prev, stringResource(R.string.toolbar_home)) { onOpenBackstage() }
                     ToolbarItem.UNIFIED_PEN -> UnifiedPenLauncher(

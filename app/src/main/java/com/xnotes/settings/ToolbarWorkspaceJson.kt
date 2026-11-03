@@ -19,7 +19,7 @@ import org.json.JSONObject
  * correct for migrating a legacy single bar but wrong for a secondary/compact bar.
  */
 internal object ToolbarWorkspaceJson {
-    private const val VERSION = 1
+    private const val VERSION = 2
     private const val MAX_BARS = 32
     private const val MAX_SECTIONS = 32
     private const val MAX_ENTRIES = 128
@@ -31,10 +31,11 @@ internal object ToolbarWorkspaceJson {
         .put("canvas", writeWorkspace(value.canvas))
 
     fun read(value: JSONObject?): ToolbarWorkspaces? {
-        if (value?.optInt("version", -1) != VERSION) return null
-        val note = readWorkspace(value.optJSONObject("note"), ToolbarLayout.NOTE_ITEMS) ?: return null
-        val canvas = readWorkspace(value.optJSONObject("canvas"), ToolbarLayout.CANVAS_ITEMS) ?: return null
-        return ToolbarWorkspaces(note, canvas, shared = value.optBoolean("shared", false))
+        val raw = value ?: return null
+        if (raw.optInt("version", -1) !in 1..VERSION) return null
+        val note = readWorkspace(raw.optJSONObject("note"), ToolbarLayout.NOTE_ITEMS) ?: return null
+        val canvas = readWorkspace(raw.optJSONObject("canvas"), ToolbarLayout.CANVAS_ITEMS) ?: return null
+        return ToolbarWorkspaces(note, canvas, shared = raw.optBoolean("shared", false))
     }
 
     private fun writeWorkspace(workspace: ToolbarWorkspace): JSONObject =
@@ -45,11 +46,13 @@ internal object ToolbarWorkspaceJson {
                 .put("visible", bar.visible)
                 .put("geometry", writeGeometry(bar.geometry))
                 .put("sections", JSONArray().apply {
-                    for (section in bar.layout.sections) put(JSONArray().apply {
-                        for (entry in section.entries) put(JSONObject()
-                            .put("id", entry.item.id)
-                            .put("visible", entry.visible))
-                    })
+                    for (section in bar.layout.sections) put(JSONObject()
+                        .put("grid_columns", section.gridColumns)
+                        .put("entries", JSONArray().apply {
+                            for (entry in section.entries) put(JSONObject()
+                                .put("id", entry.item.id)
+                                .put("visible", entry.visible))
+                        }))
                 }))
         })
 
@@ -78,14 +81,21 @@ internal object ToolbarWorkspaceJson {
             val sections = ArrayList<ToolbarSection>()
             for (i in 0 until minOf(rawSections.length(), MAX_SECTIONS)) {
                 val entries = ArrayList<ToolbarEntry>()
-                val rawEntries = rawSections.optJSONArray(i) ?: continue
+                // v1 stores each section as an array; v2 stores grid metadata alongside entries.
+                val rawSection = rawSections.opt(i)
+                val rawEntries = when (rawSection) {
+                    is JSONArray -> rawSection
+                    is JSONObject -> rawSection.optJSONArray("entries")
+                    else -> null
+                } ?: continue
                 for (j in 0 until minOf(rawEntries.length(), MAX_ENTRIES)) {
                     val entry = rawEntries.optJSONObject(j) ?: continue
                     val item = ToolbarItem.fromId(entry.optString("id")) ?: continue
                     if (item !in available || !seen.add(item)) continue
                     entries.add(ToolbarEntry(item, entry.optBoolean("visible", true)))
                 }
-                sections.add(ToolbarSection(entries))
+                val columns = (rawSection as? JSONObject)?.optInt("grid_columns", 0) ?: 0
+                sections.add(ToolbarSection(entries, columns).normalized())
             }
             bars.add(ToolbarBar(
                 id = id,

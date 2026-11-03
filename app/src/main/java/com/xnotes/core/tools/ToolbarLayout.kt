@@ -61,10 +61,26 @@ enum class ToolbarItem(val id: String) {
 
 data class ToolbarEntry(val item: ToolbarItem, val visible: Boolean = true)
 
-data class ToolbarSection(val entries: List<ToolbarEntry>) {
+/** A section is either linear (0), or a compact group with 1–3 columns and at most 2 rows.
+ * Only single-button tools can occupy a grid cell: composite controls need their own section. */
+data class ToolbarSection(val entries: List<ToolbarEntry>, val gridColumns: Int = 0) {
     val visibleEntries: List<ToolbarEntry> get() = entries.filter { it.visible }
     val hasVisible: Boolean get() = entries.any { it.visible }
+    val gridCapacity: Int get() = if (gridColumns in 1..3) gridColumns * 2 else Int.MAX_VALUE
+    val crossCells: Int get() = if (gridColumns in 1..3)
+        ((visibleEntries.size + gridColumns - 1) / gridColumns).coerceIn(1, 2) else 1
+
+    fun supportsGrid(columns: Int): Boolean = columns in 1..3 &&
+        entries.size <= columns * 2 && entries.all { it.item.supportsGridCell }
+
+    fun normalized(): ToolbarSection = if (gridColumns == 0 || supportsGrid(gridColumns)) this
+        else copy(gridColumns = 0)
 }
+
+/** Labels and multi-control clusters cannot be shrunk into one grid button. */
+val ToolbarItem.supportsGridCell: Boolean get() = this !in setOf(
+    ToolbarItem.TITLE, ToolbarItem.COLORS, ToolbarItem.PAGE_NAV, ToolbarItem.ZOOM,
+)
 
 data class ToolbarLayout(val sections: List<ToolbarSection>) {
 
@@ -72,6 +88,14 @@ data class ToolbarLayout(val sections: List<ToolbarSection>) {
     val visibleSections: List<ToolbarSection> get() = sections.filter { it.hasVisible }
 
     fun addSection(): ToolbarLayout = copy(sections = sections + ToolbarSection(emptyList()))
+
+    /** Invalid size/content combinations are ignored, so existing tools are never lost. */
+    fun setSectionGrid(sectionIndex: Int, columns: Int): ToolbarLayout {
+        if (columns !in 0..3) return this
+        val section = sections.getOrNull(sectionIndex) ?: return this
+        if (columns != 0 && !section.supportsGrid(columns)) return this
+        return copy(sections = sections.toMutableList().also { it[sectionIndex] = section.copy(gridColumns = columns) })
+    }
 
     /**
      * Opt in to the unified pen without changing standalone pen visibility or introducing
@@ -104,14 +128,14 @@ data class ToolbarLayout(val sections: List<ToolbarSection>) {
                     val entries = section.entries.toMutableList()
                     entries.add(position + 1, ToolbarEntry(ToolbarItem.UNIFIED_PEN))
                     val updated = sections.toMutableList()
-                    updated[sectionIndex] = section.copy(entries = entries)
+                    updated[sectionIndex] = section.copy(entries = entries).normalized()
                     return copy(sections = updated)
                 }
             }
         }
         if (sections.isEmpty()) return ToolbarLayout(listOf(ToolbarSection(listOf(ToolbarEntry(ToolbarItem.UNIFIED_PEN)))))
         val last = sections.last()
-        return copy(sections = sections.dropLast(1) + last.copy(entries = last.entries + ToolbarEntry(ToolbarItem.UNIFIED_PEN)))
+        return copy(sections = sections.dropLast(1) + last.copy(entries = last.entries + ToolbarEntry(ToolbarItem.UNIFIED_PEN)).normalized())
     }
 
     /** Hiding the group never hides any standalone pen or removes its saved placement. */
@@ -136,7 +160,7 @@ data class ToolbarLayout(val sections: List<ToolbarSection>) {
         val rebuilt = sections.mapIndexedNotNull { idx, sec ->
             when (idx) {
                 i -> null
-                target -> sec.copy(entries = if (target < i) sec.entries + moved else moved + sec.entries)
+                target -> sec.copy(entries = if (target < i) sec.entries + moved else moved + sec.entries).normalized()
                 else -> sec
             }
         }
@@ -165,6 +189,10 @@ data class ToolbarLayout(val sections: List<ToolbarSection>) {
         val src = sections.getOrNull(fromSection) ?: return this
         val entry = src.entries.getOrNull(fromIndex) ?: return this
         if (toSection !in sections.indices) return this
+        val destination = sections[toSection]
+        if (fromSection != toSection && destination.gridColumns != 0 &&
+            (destination.entries.size >= destination.gridCapacity || !entry.item.supportsGridCell)
+        ) return this
         val mutable = sections.map { it.entries.toMutableList() }.toMutableList()
         mutable[fromSection].removeAt(fromIndex)
         val adjusted = if (toSection == fromSection && toIndex > fromIndex) toIndex - 1 else toIndex
@@ -193,12 +221,12 @@ data class ToolbarLayout(val sections: List<ToolbarSection>) {
                 val i = sec.entries.indexOfFirst { it.item == anchor }
                 if (i >= 0) {
                     val entries = sec.entries.toMutableList().also { it.add(i + 1, entry) }
-                    return copy(sections = sections.toMutableList().also { it[si] = sec.copy(entries = entries) })
+                    return copy(sections = sections.toMutableList().also { it[si] = sec.copy(entries = entries).normalized() })
                 }
             }
         }
         val last = sections.last()
-        return copy(sections = sections.dropLast(1) + last.copy(entries = last.entries + entry))
+        return copy(sections = sections.dropLast(1) + last.copy(entries = last.entries + entry).normalized())
     }
 
     companion object {

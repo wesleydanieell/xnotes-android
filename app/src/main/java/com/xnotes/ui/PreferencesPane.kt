@@ -857,6 +857,7 @@ fun PreferencesPane(
                 sectionBounds = sectionBounds,
                 sectionGrabBounds = sectionGrabBounds,
                 onToggle = { s, i -> applyEdited(editedLayout().toggleVisible(s, i)) },
+                onGridChange = { s, columns -> applyEdited(editedLayout().setSectionGrid(s, columns)) },
                 onDelete = { s -> applyEdited(editedLayout().removeSection(s)) },
                 onAdd = { applyEdited(editedLayout().addSection()) },
                 onDragStart = { item, local ->

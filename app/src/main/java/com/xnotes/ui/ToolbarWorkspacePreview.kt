@@ -102,7 +102,9 @@ internal fun ToolbarWorkspacePreview(
     val primary = workspace.bars.firstOrNull()?.takeIf { it.visible }
     val docked = primary != null && !primary.geometry.floating && !look.floating
     val dockSize = look.size
-    val dockDepth = if (docked) barMetrics(dockSize).thickness else 0.dp
+    val dockMetrics = barMetrics(dockSize)
+    val dockDepth = if (docked) dockMetrics.thickness +
+        (dockMetrics.button + 2.dp) * (toolbarCrossCells(primary?.layout) - 1) else 0.dp
     BoxWithConstraints(
         Modifier
             .fillMaxWidth()
@@ -219,6 +221,7 @@ private fun PreviewBar(
 ) {
     val palette = LocalPalette.current
     val metrics = barMetrics(effectiveSize).copy(vertical = vertical)
+    val depth = metrics.thickness + (metrics.button + 2.dp) * (toolbarCrossCells(bar.layout) - 1)
     val shape = RoundedCornerShape(if (floating) 24.dp else 0.dp)
     val surface = Modifier
         .then(if (floating) Modifier.shadow(6.dp, shape) else Modifier)
@@ -235,7 +238,7 @@ private fun PreviewBar(
         Column(
             surface
                 .then(if (floating) Modifier.heightIn(max = availableHeight) else Modifier.fillMaxHeight())
-                .width(metrics.thickness)
+                .width(depth)
                 .verticalScroll(rememberScrollState())
                 .padding(vertical = 4.dp),
             horizontalAlignment = Alignment.CenterHorizontally,
@@ -246,7 +249,7 @@ private fun PreviewBar(
         Row(
             surface
                 .then(if (floating) Modifier.widthIn(max = availableWidth) else Modifier.fillMaxWidth())
-                .height(metrics.thickness)
+                .height(depth)
                 .horizontalScroll(rememberScrollState())
                 .padding(horizontal = 4.dp),
             verticalAlignment = Alignment.CenterVertically,
@@ -274,7 +277,7 @@ private fun PreviewSections(
     CompositionLocalProvider(LocalBar provides metrics) {
         layout.visibleSections.forEachIndexed { sectionIndex, section ->
             if (sectionIndex > 0) Separator()
-            section.visibleEntries.forEach { entry ->
+            ToolbarSectionGrid(section) { entry ->
                 PreviewTool(
                     entry.item, colors, activeColorIndex, pageNumber, pageCount,
                     zoomLabel, titleLabel, onSelect, vertical,
