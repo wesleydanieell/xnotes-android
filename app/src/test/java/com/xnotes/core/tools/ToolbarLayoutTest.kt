@@ -19,10 +19,11 @@ class ToolbarLayoutTest {
         assertEquals(
             listOf(
                 ToolbarItem.PEN, ToolbarItem.DASHED, ToolbarItem.CALLIGRAPHY, ToolbarItem.SPEED,
-                ToolbarItem.TAPER, ToolbarItem.HIGHLIGHTER, ToolbarItem.ERASER,
+                ToolbarItem.TAPER, ToolbarItem.HIGHLIGHTER, ToolbarItem.UNIFIED_PEN, ToolbarItem.ERASER,
             ),
             d.sections[2].entries.map { it.item },
         )
+        assertFalse(d.sections[2].entries.first { it.item == ToolbarItem.UNIFIED_PEN }.visible)
         assertEquals(
             listOf(ToolbarItem.PAN, ToolbarItem.SELECT, ToolbarItem.LASSO, ToolbarItem.SCREENSHOT),
             d.sections[3].entries.map { it.item },
@@ -42,6 +43,60 @@ class ToolbarLayoutTest {
 
     @Test fun defaultRoundTripsThroughRaw() {
         assertEquals(ToolbarLayout.DEFAULT, ToolbarLayout.fromRaw(ToolbarLayout.DEFAULT.toRaw()))
+    }
+
+    @Test fun unifiedPenIsOptInAndCoexistsWithIndividualPens() {
+        val fromOldSettings = ToolbarLayout.fromRaw(
+            ToolbarLayout.DEFAULT.toRaw().map { section ->
+                section.filterNot { (id, _) -> id == ToolbarItem.UNIFIED_PEN.id }
+            },
+        )
+        val entries = fromOldSettings.sections.flatMap { it.entries }
+        assertFalse(entries.first { it.item == ToolbarItem.UNIFIED_PEN }.visible)
+        assertTrue(entries.first { it.item == ToolbarItem.PEN }.visible)
+        assertTrue(entries.first { it.item == ToolbarItem.HIGHLIGHTER }.visible)
+
+        val groupSection = fromOldSettings.sections.indexOfFirst { section ->
+            section.entries.any { it.item == ToolbarItem.UNIFIED_PEN }
+        }
+        val groupIndex = fromOldSettings.sections[groupSection].entries.indexOfFirst {
+            it.item == ToolbarItem.UNIFIED_PEN
+        }
+        val enabled = fromOldSettings.toggleVisible(groupSection, groupIndex)
+        assertTrue(enabled.sections[groupSection].entries[groupIndex].visible)
+        assertTrue(enabled.sections.flatMap { it.entries }.any {
+            it.item == ToolbarItem.PEN && it.visible
+        })
+    }
+
+    @Test fun addUnifiedPenToExistingAndMinimalBars() {
+        val legacy = ToolbarLayout(
+            listOf(
+                sec(ToolbarItem.HOME),
+                sec(ToolbarItem.PEN, ToolbarItem.HIGHLIGHTER, ToolbarItem.ERASER),
+            ),
+        )
+        val added = legacy.withUnifiedPenVisible()
+        assertEquals(
+            listOf(ToolbarItem.PEN, ToolbarItem.HIGHLIGHTER, ToolbarItem.UNIFIED_PEN, ToolbarItem.ERASER),
+            added.sections[1].entries.map { it.item },
+        )
+        assertTrue(added.sections[1].entries.all { it.visible })
+        assertEquals(added, added.withUnifiedPenVisible())
+        val hiddenAgain = added.withUnifiedPenHidden()
+        assertFalse(hiddenAgain.sections[1].entries.first { it.item == ToolbarItem.UNIFIED_PEN }.visible)
+        assertEquals(added.items(), hiddenAgain.items())
+        assertEquals(hiddenAgain, hiddenAgain.withUnifiedPenHidden())
+        assertEquals(legacy, legacy.withUnifiedPenHidden())
+
+        val minimal = ToolbarLayout(listOf(sec(ToolbarItem.UNDO)))
+        val minimalAdded = minimal.withUnifiedPenVisible()
+        assertEquals(listOf(ToolbarItem.UNDO, ToolbarItem.UNIFIED_PEN), minimalAdded.items())
+        assertTrue(minimalAdded.sections[0].entries.all { it.visible })
+
+        val fromDefault = ToolbarLayout.DEFAULT.withUnifiedPenVisible()
+        assertTrue(fromDefault.sections.flatMap { it.entries }.first { it.item == ToolbarItem.UNIFIED_PEN }.visible)
+        assertTrue(fromDefault.sections.flatMap { it.entries }.first { it.item == ToolbarItem.PEN }.visible)
     }
 
     @Test fun emptyRawYieldsDefault() {

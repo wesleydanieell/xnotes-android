@@ -829,6 +829,19 @@ fun PreferencesPane(
             }
             HorizontalDivider(color = palette.border.toComposeColor())
             FieldLabel(stringResource(R.string.toolbar_tools_groups))
+            val unifiedPenEnabled = layout.sections.any { section ->
+                section.entries.any { entry -> entry.item == ToolbarItem.UNIFIED_PEN && entry.visible }
+            }
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Checkbox(
+                    checked = unifiedPenEnabled,
+                    onCheckedChange = { enabled ->
+                        val current = editedLayout()
+                        applyEdited(if (enabled) current.withUnifiedPenVisible() else current.withUnifiedPenHidden())
+                    },
+                )
+                Text(stringResource(R.string.toolbar_unified_pen), color = palette.text.toComposeColor(), fontSize = 13.sp)
+            }
             Text(
                 stringResource(R.string.pref_toolbar_help),
                 color = palette.textDim.toComposeColor(),

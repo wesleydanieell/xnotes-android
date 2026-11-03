@@ -301,6 +301,10 @@ private fun PreviewTool(
             ToolbarItem.COLORS -> colors.forEachIndexed { index, color ->
                 Swatch(color.toComposeColor(), active = index == activeColorIndex, onClick = onSelect)
             }
+            ToolbarItem.UNIFIED_PEN -> UnifiedPenPreview(
+                ink = colors.getOrNull(activeColorIndex)?.toComposeColor() ?: Color.Black,
+                onSelect = onSelect,
+            )
             ToolbarItem.PAGE_NAV -> {
                 ToolbarIcon(XnotesIcons.prev, stringResource(R.string.previous_page), onClick = onSelect)
                 PageCounter(pageNumber, pageCount, Modifier)

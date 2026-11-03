@@ -19,6 +19,8 @@ enum class ToolbarItem(val id: String) {
     SPEED("speed"),
     TAPER("taper"),
     HIGHLIGHTER("highlighter"),
+    /** Optional group launcher. It is hidden by default so individual pens remain available. */
+    UNIFIED_PEN("unified_pen"),
     ERASER("eraser"),
     PAN("pan"),
     SELECT("select"),
@@ -70,6 +72,58 @@ data class ToolbarLayout(val sections: List<ToolbarSection>) {
     val visibleSections: List<ToolbarSection> get() = sections.filter { it.hasVisible }
 
     fun addSection(): ToolbarLayout = copy(sections = sections + ToolbarSection(emptyList()))
+
+    /**
+     * Opt in to the unified pen without changing standalone pen visibility or introducing
+     * unrelated tools into a deliberately minimal secondary toolbar.
+     */
+    fun withUnifiedPenVisible(): ToolbarLayout {
+        for ((sectionIndex, section) in sections.withIndex()) {
+            val entryIndex = section.entries.indexOfFirst { it.item == ToolbarItem.UNIFIED_PEN }
+            if (entryIndex >= 0) {
+                if (section.entries[entryIndex].visible) return this
+                val entries = section.entries.toMutableList()
+                entries[entryIndex] = entries[entryIndex].copy(visible = true)
+                val updated = sections.toMutableList()
+                updated[sectionIndex] = section.copy(entries = entries)
+                return copy(sections = updated)
+            }
+        }
+        val anchorCandidates = listOf(
+            ToolbarItem.HIGHLIGHTER,
+            ToolbarItem.TAPER,
+            ToolbarItem.SPEED,
+            ToolbarItem.CALLIGRAPHY,
+            ToolbarItem.DASHED,
+            ToolbarItem.PEN,
+        )
+        for (anchor in anchorCandidates) {
+            for ((sectionIndex, section) in sections.withIndex()) {
+                val position = section.entries.indexOfFirst { it.item == anchor }
+                if (position >= 0) {
+                    val entries = section.entries.toMutableList()
+                    entries.add(position + 1, ToolbarEntry(ToolbarItem.UNIFIED_PEN))
+                    val updated = sections.toMutableList()
+                    updated[sectionIndex] = section.copy(entries = entries)
+                    return copy(sections = updated)
+                }
+            }
+        }
+        if (sections.isEmpty()) return ToolbarLayout(listOf(ToolbarSection(listOf(ToolbarEntry(ToolbarItem.UNIFIED_PEN)))))
+        val last = sections.last()
+        return copy(sections = sections.dropLast(1) + last.copy(entries = last.entries + ToolbarEntry(ToolbarItem.UNIFIED_PEN)))
+    }
+
+    /** Hiding the group never hides any standalone pen or removes its saved placement. */
+    fun withUnifiedPenHidden(): ToolbarLayout {
+        sections.forEachIndexed { sectionIndex, section ->
+            val entryIndex = section.entries.indexOfFirst { it.item == ToolbarItem.UNIFIED_PEN }
+            if (entryIndex >= 0) {
+                return if (section.entries[entryIndex].visible) toggleVisible(sectionIndex, entryIndex) else this
+            }
+        }
+        return this
+    }
 
     /**
      * Remove section [i], merging its entries into the previous section, or the next one when [i]
@@ -133,22 +187,24 @@ data class ToolbarLayout(val sections: List<ToolbarSection>) {
 
     private fun insertMissing(item: ToolbarItem): ToolbarLayout {
         val anchor = INSERT_AFTER[item]
+        val entry = ToolbarEntry(item, visible = item != ToolbarItem.UNIFIED_PEN)
         if (anchor != null) {
             sections.forEachIndexed { si, sec ->
                 val i = sec.entries.indexOfFirst { it.item == anchor }
                 if (i >= 0) {
-                    val entries = sec.entries.toMutableList().also { it.add(i + 1, ToolbarEntry(item)) }
+                    val entries = sec.entries.toMutableList().also { it.add(i + 1, entry) }
                     return copy(sections = sections.toMutableList().also { it[si] = sec.copy(entries = entries) })
                 }
             }
         }
         val last = sections.last()
-        return copy(sections = sections.dropLast(1) + last.copy(entries = last.entries + ToolbarEntry(item)))
+        return copy(sections = sections.dropLast(1) + last.copy(entries = last.entries + entry))
     }
 
     companion object {
         /** Later-added items that belong beside an existing one in stored layouts. */
         private val INSERT_AFTER = mapOf(
+            ToolbarItem.UNIFIED_PEN to ToolbarItem.HIGHLIGHTER,
             ToolbarItem.TEXT_BOX to ToolbarItem.TEXT,
             ToolbarItem.VIEW to ToolbarItem.STYLES,
             ToolbarItem.MARGINS to ToolbarItem.STYLES,
@@ -166,7 +222,7 @@ data class ToolbarLayout(val sections: List<ToolbarSection>) {
         val CANVAS_ITEMS: Set<ToolbarItem> = setOf(
             ToolbarItem.HOME, ToolbarItem.TITLE,
             ToolbarItem.PEN, ToolbarItem.DASHED, ToolbarItem.CALLIGRAPHY, ToolbarItem.SPEED,
-            ToolbarItem.TAPER, ToolbarItem.HIGHLIGHTER, ToolbarItem.ERASER,
+            ToolbarItem.TAPER, ToolbarItem.HIGHLIGHTER, ToolbarItem.UNIFIED_PEN, ToolbarItem.ERASER,
             ToolbarItem.PAN, ToolbarItem.SELECT, ToolbarItem.LASSO, ToolbarItem.WAND,
             ToolbarItem.TAPE, ToolbarItem.SHAPE,
             ToolbarItem.IMAGE, ToolbarItem.COLORS, ToolbarItem.UNDO, ToolbarItem.REDO,
@@ -184,7 +240,7 @@ data class ToolbarLayout(val sections: List<ToolbarSection>) {
             listOf(ToolbarItem.SIDEBAR),
             listOf(
                 ToolbarItem.PEN, ToolbarItem.DASHED, ToolbarItem.CALLIGRAPHY, ToolbarItem.SPEED,
-                ToolbarItem.TAPER, ToolbarItem.HIGHLIGHTER, ToolbarItem.ERASER,
+                ToolbarItem.TAPER, ToolbarItem.HIGHLIGHTER, ToolbarItem.UNIFIED_PEN, ToolbarItem.ERASER,
             ),
             listOf(ToolbarItem.PAN, ToolbarItem.SELECT, ToolbarItem.LASSO, ToolbarItem.SCREENSHOT),
             listOf(ToolbarItem.WAND, ToolbarItem.TAPE, ToolbarItem.SHAPE, ToolbarItem.RULER, ToolbarItem.TEXT, ToolbarItem.TEXT_BOX, ToolbarItem.MARKUP),
@@ -201,7 +257,7 @@ data class ToolbarLayout(val sections: List<ToolbarSection>) {
             listOf(ToolbarItem.HOME, ToolbarItem.TITLE),
             listOf(
                 ToolbarItem.PEN, ToolbarItem.DASHED, ToolbarItem.CALLIGRAPHY, ToolbarItem.SPEED,
-                ToolbarItem.TAPER, ToolbarItem.HIGHLIGHTER, ToolbarItem.ERASER,
+                ToolbarItem.TAPER, ToolbarItem.HIGHLIGHTER, ToolbarItem.UNIFIED_PEN, ToolbarItem.ERASER,
             ),
             listOf(ToolbarItem.PAN, ToolbarItem.SELECT, ToolbarItem.LASSO),
             listOf(ToolbarItem.WAND, ToolbarItem.TAPE, ToolbarItem.SHAPE),
@@ -213,7 +269,7 @@ data class ToolbarLayout(val sections: List<ToolbarSection>) {
         )
 
         private fun of(vararg groups: List<ToolbarItem>): ToolbarLayout =
-            ToolbarLayout(groups.map { g -> ToolbarSection(g.map { ToolbarEntry(it) }) })
+            ToolbarLayout(groups.map { g -> ToolbarSection(g.map { ToolbarEntry(it, visible = it != ToolbarItem.UNIFIED_PEN) }) })
 
         /**
          * Build from raw (id, visible) pairs per section as read from storage: ids outside [among]

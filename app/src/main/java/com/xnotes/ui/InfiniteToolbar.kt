@@ -91,6 +91,13 @@ fun InfiniteToolbar(
             for (entry in section.visibleEntries) {
                 when (val item = entry.item) {
                     ToolbarItem.HOME -> ToolbarIcon(XnotesIcons.prev, stringResource(R.string.toolbar_home)) { onOpenBackstage() }
+                    ToolbarItem.UNIFIED_PEN -> UnifiedPenLauncher(
+                        host = editor,
+                        armedTool = editor.tool,
+                        ink = editor.toolbarColors[editor.activeColorIndex.coerceIn(0, editor.toolbarColors.lastIndex)].toComposeColor(),
+                        onChooseTool = editor::armTool,
+                        onSelectColor = editor::pickColor,
+                    )
                     // A name has no room down a side rail.
                     ToolbarItem.TITLE -> if (!LocalBar.current.vertical) Label(if (editor.document.displayName == null && editor.document.path == null) stringResource(R.string.untitled) else editor.title, Modifier.padding(end = 4.dp))
 

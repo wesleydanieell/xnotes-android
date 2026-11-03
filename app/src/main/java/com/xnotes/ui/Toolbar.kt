@@ -204,6 +204,14 @@ private fun ToolbarItemView(
         ToolbarItem.SIDEBAR ->
             ToolbarIcon(XnotesIcons.sidebar, stringResource(R.string.side_panel), active = editor.sidebarVisible, shortcut = Keys.SIDEBAR) { editor.toggleSidebar() }
 
+        ToolbarItem.UNIFIED_PEN -> UnifiedPenLauncher(
+            host = editor,
+            armedTool = editor.tool,
+            ink = editor.toolbarColors[editor.activeColorIndex.coerceIn(0, editor.toolbarColors.lastIndex)].toComposeColor(),
+            onChooseTool = editor::selectTool,
+            onSelectColor = editor::pickColor,
+        )
+
         ToolbarItem.PEN, ToolbarItem.DASHED, ToolbarItem.CALLIGRAPHY, ToolbarItem.SPEED,
         ToolbarItem.TAPER, ToolbarItem.HIGHLIGHTER, ToolbarItem.ERASER, ToolbarItem.PAN,
         ToolbarItem.SELECT, ToolbarItem.LASSO, ToolbarItem.SCREENSHOT, ToolbarItem.SHAPE,

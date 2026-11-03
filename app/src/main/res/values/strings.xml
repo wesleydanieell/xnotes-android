@@ -43,6 +43,8 @@
     <string name="toolbar_zoom_lock">Zoom lock</string>
     <string name="toolbar_fullscreen">Full screen</string>
     <string name="toolbar_colours">Colours</string>
+    <string name="toolbar_unified_pen">Pen group</string>
+    <string name="toolbar_pen_advanced_settings">Advanced pen settings</string>
     <string name="toolbar_waypoints">Waypoints</string>
     <string name="toolbar_minimap">Minimap</string>
     <string name="edge_left">Left</string>
