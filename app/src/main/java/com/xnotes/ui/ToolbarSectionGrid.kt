@@ -4,7 +4,6 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.runtime.Composable
-import androidx.compose.ui.unit.dp
 import com.xnotes.core.tools.ToolbarEntry
 import com.xnotes.core.tools.ToolbarLayout
 import com.xnotes.core.tools.ToolbarSection
@@ -26,17 +25,17 @@ internal fun ToolbarSectionGrid(
         return
     }
     if (LocalBar.current.vertical) {
-        Row(horizontalArrangement = Arrangement.spacedBy(2.dp)) {
+        Row(horizontalArrangement = Arrangement.spacedBy(LocalBar.current.spacing)) {
             repeat(section.lanes) { lane ->
-                Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                Column(verticalArrangement = Arrangement.spacedBy(LocalBar.current.spacing)) {
                     section.entriesInLane(lane).forEach { cell(it) }
                 }
             }
         }
     } else {
-        Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+        Column(verticalArrangement = Arrangement.spacedBy(LocalBar.current.spacing)) {
             repeat(section.lanes) { lane ->
-                Row(horizontalArrangement = Arrangement.spacedBy(2.dp)) {
+                Row(horizontalArrangement = Arrangement.spacedBy(LocalBar.current.spacing)) {
                     section.entriesInLane(lane).forEach { cell(it) }
                 }
             }

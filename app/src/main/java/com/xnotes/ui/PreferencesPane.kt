@@ -822,6 +822,11 @@ fun PreferencesPane(
                     }
                 }
             }
+            HorizontalDivider(color = palette.border.toComposeColor())
+            ToolbarGeometryControls(
+                geometry = currentBar.geometry,
+                onChange = { next -> updateSelectedBar { it.copy(geometry = next.constrained()) } },
+            )
             // The ink palette is global; its toolbar presentation is per selected bar.
             FieldLabel(stringResource(R.string.pref_toolbar_colours_n, editor.toolbarColorCount))
             Slider(

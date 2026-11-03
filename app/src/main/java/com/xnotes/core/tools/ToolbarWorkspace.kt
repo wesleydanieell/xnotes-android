@@ -25,6 +25,10 @@ data class ToolbarGeometry(
     val movable: Boolean = true,
     val widthDp: Int? = null,
     val heightDp: Int? = null,
+    /** Null means the usual size for the selected compact/regular/comfortable preset. */
+    val paddingDp: Int? = null,
+    val spacingDp: Int? = null,
+    val elementSizeDp: Int? = null,
     val columns: Int = 1,
 ) {
     /** Clamp untrusted persisted dimensions before rendering; do not force an exact size on auto bars. */
@@ -33,6 +37,9 @@ data class ToolbarGeometry(
         anchor = if (anchor == ToolbarAnchor.CENTER) ToolbarAnchor.TOP_CENTER else anchor,
         widthDp = widthDp?.coerceIn(48, 2048),
         heightDp = heightDp?.coerceIn(48, 2048),
+        paddingDp = paddingDp?.coerceIn(0, 32),
+        spacingDp = spacingDp?.coerceIn(0, 32),
+        elementSizeDp = elementSizeDp?.coerceIn(28, 72),
         columns = columns.coerceIn(1, 6),
     )
 }

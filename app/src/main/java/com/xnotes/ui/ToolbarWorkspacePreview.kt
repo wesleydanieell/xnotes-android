@@ -102,9 +102,11 @@ internal fun ToolbarWorkspacePreview(
     val primary = workspace.bars.firstOrNull()?.takeIf { it.visible }
     val docked = primary != null && !primary.geometry.floating && !look.floating
     val dockSize = look.size
-    val dockMetrics = barMetrics(dockSize)
-    val dockDepth = if (docked) dockMetrics.thickness +
-        (dockMetrics.button + 2.dp) * (toolbarCrossCells(primary?.layout) - 1) else 0.dp
+    val dockMetrics = resolvedBarMetrics(dockSize, primary?.geometry)
+    val dockDepth = if (docked) {
+        if (look.position.vertical) toolbarWidth(dockMetrics, primary?.layout, primary?.geometry)
+        else toolbarHeight(dockMetrics, primary?.layout, primary?.geometry)
+    } else 0.dp
     BoxWithConstraints(
         Modifier
             .fillMaxWidth()
@@ -167,6 +169,7 @@ internal fun ToolbarWorkspacePreview(
                             else if (!floating) Modifier.fillMaxWidth()
                             else Modifier,
                         ),
+                    contentAlignment = Alignment.Center,
                 ) {
                     ToolbarDragSurface(
                         id = bar.id,
@@ -220,8 +223,7 @@ private fun PreviewBar(
     onSelect: () -> Unit,
 ) {
     val palette = LocalPalette.current
-    val metrics = barMetrics(effectiveSize).copy(vertical = vertical)
-    val depth = metrics.thickness + (metrics.button + 2.dp) * (toolbarCrossCells(bar.layout) - 1)
+    val metrics = resolvedBarMetrics(effectiveSize, bar.geometry).copy(vertical = vertical)
     val shape = RoundedCornerShape(if (floating) 24.dp else 0.dp)
     val surface = Modifier
         .then(if (floating) Modifier.shadow(6.dp, shape) else Modifier)
@@ -237,10 +239,11 @@ private fun PreviewBar(
     if (vertical) {
         Column(
             surface
-                .then(if (floating) Modifier.heightIn(max = availableHeight) else Modifier.fillMaxHeight())
-                .width(depth)
+                .then(if (bar.geometry.heightDp != null) Modifier.height(bar.geometry.heightDp.dp)
+                    else if (floating) Modifier.heightIn(max = availableHeight) else Modifier.fillMaxHeight())
+                .width(toolbarWidth(metrics, bar.layout, bar.geometry))
                 .verticalScroll(rememberScrollState())
-                .padding(vertical = 4.dp),
+                .padding(vertical = metrics.padding),
             horizontalAlignment = Alignment.CenterHorizontally,
         ) {
             PreviewSections(bar.layout, metrics, colors, activeColorIndex, pageNumber, pageCount, zoomLabel, titleLabel, onSelect, vertical = true)
@@ -248,10 +251,11 @@ private fun PreviewBar(
     } else {
         Row(
             surface
-                .then(if (floating) Modifier.widthIn(max = availableWidth) else Modifier.fillMaxWidth())
-                .height(depth)
+                .then(if (bar.geometry.widthDp != null) Modifier.width(bar.geometry.widthDp.dp)
+                    else if (floating) Modifier.widthIn(max = availableWidth) else Modifier.fillMaxWidth())
+                .height(toolbarHeight(metrics, bar.layout, bar.geometry))
                 .horizontalScroll(rememberScrollState())
-                .padding(horizontal = 4.dp),
+                .padding(horizontal = metrics.padding),
             verticalAlignment = Alignment.CenterVertically,
         ) {
             PreviewSections(bar.layout, metrics, colors, activeColorIndex, pageNumber, pageCount, zoomLabel, titleLabel, onSelect, vertical = false)

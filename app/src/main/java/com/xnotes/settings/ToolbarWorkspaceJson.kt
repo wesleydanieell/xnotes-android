@@ -69,6 +69,9 @@ internal object ToolbarWorkspaceJson {
         .apply {
             g.widthDp?.let { put("width_dp", it) }
             g.heightDp?.let { put("height_dp", it) }
+            g.paddingDp?.let { put("padding_dp", it) }
+            g.spacingDp?.let { put("spacing_dp", it) }
+            g.elementSizeDp?.let { put("element_size_dp", it) }
         }
 
     private fun readWorkspace(value: JSONObject?, available: Set<ToolbarItem>, schemaVersion: Int): ToolbarWorkspace? {
@@ -146,6 +149,9 @@ internal object ToolbarWorkspaceJson {
             movable = raw.optBoolean("movable", true),
             widthDp = raw.optInt("width_dp").takeIf { raw.has("width_dp") },
             heightDp = raw.optInt("height_dp").takeIf { raw.has("height_dp") },
+            paddingDp = raw.optInt("padding_dp").takeIf { raw.has("padding_dp") },
+            spacingDp = raw.optInt("spacing_dp").takeIf { raw.has("spacing_dp") },
+            elementSizeDp = raw.optInt("element_size_dp").takeIf { raw.has("element_size_dp") },
             columns = raw.optInt("columns", 1),
         ).constrained()
     }

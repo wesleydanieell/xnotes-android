@@ -35,6 +35,7 @@ import androidx.compose.ui.unit.DpOffset
 import androidx.compose.ui.unit.TextUnit
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.xnotes.core.tools.ToolbarGeometry
 import com.xnotes.core.tools.ToolbarLayout
 import com.xnotes.settings.ToolbarLook
 import com.xnotes.settings.ToolbarPosition
@@ -54,9 +55,11 @@ internal data class BarMetrics(
     val rule: Dp,
     val label: TextUnit,
     val vertical: Boolean = false,
+    val padding: Dp = 4.dp,
+    val spacing: Dp = 2.dp,
 ) {
-    /** Across the bar: one button with a little air either side. */
-    val thickness: Dp get() = button + 8.dp
+    /** Across the bar: a button with configurable breathing room on each side. */
+    val thickness: Dp get() = button + padding * 2
 }
 
 internal fun barMetrics(size: ToolbarSize): BarMetrics = when (size) {
@@ -64,6 +67,32 @@ internal fun barMetrics(size: ToolbarSize): BarMetrics = when (size) {
     ToolbarSize.REGULAR -> BarMetrics(42.dp, 34.dp, 22.dp, 28.dp, 26.dp, 12.sp)
     ToolbarSize.COMFORTABLE -> BarMetrics(50.dp, 40.dp, 26.dp, 34.dp, 30.dp, 13.sp)
 }
+
+/** Shared geometry for real toolbars and the miniature editor preview. */
+internal fun resolvedBarMetrics(size: ToolbarSize, geometry: ToolbarGeometry?): BarMetrics {
+    val base = barMetrics(size)
+    val button = geometry?.elementSizeDp?.dp ?: base.button
+    val factor = button.value / base.button.value
+    return base.copy(
+        button = button,
+        circle = base.circle * factor,
+        icon = base.icon * factor,
+        swatch = base.swatch * factor,
+        rule = base.rule * factor,
+        label = (base.label.value * factor).sp,
+        padding = geometry?.paddingDp?.dp ?: base.padding,
+        spacing = geometry?.spacingDp?.dp ?: base.spacing,
+    )
+}
+
+internal fun toolbarDepth(bar: BarMetrics, layout: ToolbarLayout?): Dp =
+    bar.thickness + (bar.button + bar.spacing) * (toolbarCrossCells(layout) - 1)
+
+internal fun toolbarWidth(bar: BarMetrics, layout: ToolbarLayout?, geometry: ToolbarGeometry?): Dp =
+    maxOf(toolbarDepth(bar, layout), geometry?.widthDp?.dp ?: 0.dp)
+
+internal fun toolbarHeight(bar: BarMetrics, layout: ToolbarLayout?, geometry: ToolbarGeometry?): Dp =
+    maxOf(toolbarDepth(bar, layout), geometry?.heightDp?.dp ?: 0.dp)
 
 internal val LocalBar = staticCompositionLocalOf { barMetrics(ToolbarSize.REGULAR) }
 
@@ -87,6 +116,7 @@ internal fun ColumnScope.ToolbarAround(
     onCover: (Double, Double, Double, Double) -> Unit,
     suppressBar: Boolean = false,
     barLayout: ToolbarLayout? = null,
+    barGeometry: ToolbarGeometry? = null,
     content: @Composable (floatingBar: @Composable BoxScope.() -> Unit) -> Unit,
 ) {
     val look = LocalToolbarLook.current
@@ -100,18 +130,29 @@ internal fun ColumnScope.ToolbarAround(
     if (!look.floating) {
         SideEffect { onCover(0.0, 0.0, 0.0, 0.0) }
         val docked: @Composable BoxScope.() -> Unit = {}
+        // Match the preview: manually shortened docked bars stay centered on their edge.
+        val dockedBar: @Composable () -> Unit = {
+            when {
+                !look.position.vertical && barGeometry?.widthDp != null ->
+                    Box(Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) { bar() }
+                look.position.vertical && barGeometry?.heightDp != null ->
+                    Box(Modifier.fillMaxHeight(), contentAlignment = Alignment.Center) { bar() }
+                else -> bar()
+            }
+        }
         // Left and right are the screen's, as the canvas insets are, whatever the language.
         val across = Arrangement.Absolute.Left
         when (look.position) {
-            ToolbarPosition.TOP -> { bar(); Box(rest) { content(docked) } }
-            ToolbarPosition.BOTTOM -> { Box(rest) { content(docked) }; bar() }
-            ToolbarPosition.LEFT -> Row(rest, across) { bar(); Box(Modifier.weight(1f).fillMaxHeight()) { content(docked) } }
-            ToolbarPosition.RIGHT -> Row(rest, across) { Box(Modifier.weight(1f).fillMaxHeight()) { content(docked) }; bar() }
+            ToolbarPosition.TOP -> { dockedBar(); Box(rest) { content(docked) } }
+            ToolbarPosition.BOTTOM -> { Box(rest) { content(docked) }; dockedBar() }
+            ToolbarPosition.LEFT -> Row(rest, across) { dockedBar(); Box(Modifier.weight(1f).fillMaxHeight()) { content(docked) } }
+            ToolbarPosition.RIGHT -> Row(rest, across) { Box(Modifier.weight(1f).fillMaxHeight()) { content(docked) }; dockedBar() }
         }
         return
     }
-    val metrics = barMetrics(look.size)
-    val depth = metrics.thickness + (metrics.button + 2.dp) * (toolbarCrossCells(barLayout) - 1) + FLOAT_MARGIN
+    val metrics = resolvedBarMetrics(look.size, barGeometry)
+    val depth = (if (look.position.vertical) toolbarWidth(metrics, barLayout, barGeometry)
+        else toolbarHeight(metrics, barLayout, barGeometry)) + FLOAT_MARGIN
     val px = with(LocalDensity.current) { depth.toPx().toDouble() }
     val position = look.position
     SideEffect {
@@ -142,12 +183,13 @@ internal fun ColumnScope.ToolbarAround(
 internal fun ToolbarFrame(
     armed: Any?,
     layout: ToolbarLayout,
+    geometry: ToolbarGeometry? = null,
     trailing: (@Composable () -> Unit)? = null,
     content: @Composable () -> Unit,
 ) {
     val look = LocalToolbarLook.current
-    val bar = barMetrics(look.size).copy(vertical = look.position.vertical)
-    val depth = bar.thickness + (bar.button + 2.dp) * (toolbarCrossCells(layout) - 1)
+    val bar = resolvedBarMetrics(look.size, geometry).copy(vertical = look.position.vertical)
+    val depth = toolbarDepth(bar, layout)
     val glide = remember { ToolGlide() }
     val palette = LocalPalette.current
     val shape = MaterialTheme.shapes.extraLarge
@@ -162,8 +204,13 @@ internal fun ToolbarFrame(
             .border(1.dp, palette.border.toComposeColor(), shape)
     }
     val stretch = when {
+        bar.vertical -> when {
+            geometry?.heightDp != null -> Modifier.height(geometry.heightDp.dp)
+            look.floating -> Modifier
+            else -> Modifier.fillMaxHeight()
+        }
+        geometry?.widthDp != null -> Modifier.width(geometry.widthDp.dp)
         look.floating -> Modifier
-        bar.vertical -> Modifier.fillMaxHeight()
         else -> Modifier.fillMaxWidth()
     }
     // Material places a menu below its anchor; shifting it one bar across and one button up puts it
@@ -178,14 +225,14 @@ internal fun ToolbarFrame(
     CompositionLocalProvider(LocalToolGlide provides glide, LocalBar provides bar, LocalMenuOffset provides menuOffset, LocalTipSide provides tipSide) {
         if (bar.vertical) {
             Column(
-                stretch.width(depth).then(surface),
+                stretch.width(toolbarWidth(bar, layout, geometry)).then(surface),
                 horizontalAlignment = Alignment.CenterHorizontally,
             ) {
                 Column(
                     Modifier
                         .weight(1f, fill = !look.floating)
                         .verticalScroll(rememberScrollState())
-                        .padding(vertical = 4.dp)
+                        .padding(vertical = bar.padding)
                         .toolGlide(glide, armed),
                     horizontalAlignment = Alignment.CenterHorizontally,
                 ) { content() }
@@ -193,14 +240,14 @@ internal fun ToolbarFrame(
             }
         } else {
             Row(
-                stretch.height(depth).then(surface),
+                stretch.height(toolbarHeight(bar, layout, geometry)).then(surface),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 Row(
                     Modifier
                         .weight(1f, fill = !look.floating)
                         .horizontalScroll(rememberScrollState())
-                        .padding(horizontal = 4.dp)
+                        .padding(horizontal = bar.padding)
                         .toolGlide(glide, armed),
                     verticalAlignment = Alignment.CenterVertically,
                 ) { content() }

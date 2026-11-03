@@ -73,6 +73,7 @@ import com.xnotes.R
 import com.xnotes.core.model.Rgba
 import com.xnotes.core.tools.Tool
 import com.xnotes.core.tools.ToolbarItem
+import com.xnotes.core.tools.ToolbarGeometry
 import com.xnotes.core.tools.ToolbarLayout
 import com.xnotes.platform.ImageDecoder
 import com.xnotes.ui.icons.XnotesIcons
@@ -100,6 +101,7 @@ fun Toolbar(
     onRecordAudio: () -> Unit = {},
     onTakePhoto: () -> Unit = {},
     layout: ToolbarLayout = editor.toolbarLayout,
+    geometry: ToolbarGeometry? = null,
 ) {
     // The five stroke tools use the designed vector drawables (res/drawable/ic_stroke_*),
     // tinted at the call site like every other icon; the rest use the built-in line set.
@@ -125,7 +127,7 @@ fun Toolbar(
     var switcherIndex by remember { mutableStateOf<Int?>(null) }
     var renaming by remember { mutableStateOf(false) }
     // Pinned outside the scrolling strip so closing a split pane is always one tap away.
-    ToolbarFrame(armed = editor.tool, layout = layout, trailing = onClosePane?.let { { ClosePaneButton(it) } }) {
+    ToolbarFrame(armed = editor.tool, layout = layout, geometry = geometry, trailing = onClosePane?.let { { ClosePaneButton(it) } }) {
         // The bar is driven by the user-customisable layout; separators sit between non-empty
         // sections, and each item dispatches to its renderer (see ToolbarItemView).
         layout.visibleSections.forEachIndexed { si, section ->

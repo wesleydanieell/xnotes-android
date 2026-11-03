@@ -54,6 +54,10 @@ class ToolbarWorkspaceJsonTest {
                 anchor = ToolbarAnchor.BOTTOM_RIGHT,
                 floating = true,
                 widthDp = 245,
+                heightDp = 100,
+                paddingDp = 7,
+                spacingDp = 5,
+                elementSizeDp = 48,
                 columns = 3,
             ),
         )

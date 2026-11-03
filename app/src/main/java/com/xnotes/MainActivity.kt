@@ -1479,6 +1479,7 @@ private fun EditorPane(
                         onInsertAudio = { actions.onInsertAudio(editor) },
                         onRecordAudio = { actions.onRecordAudio(editor) },
                         onTakePhoto = { actions.onTakePhoto(editor) },
+                        geometry = primary?.geometry,
                     )
                 }
                 val bar: @Composable () -> Unit = {
@@ -1489,7 +1490,7 @@ private fun EditorPane(
                         ) { bareBar() }
                     } else bareBar()
                 }
-                ToolbarAround(bar, onCover = canvas::setToolbarCover, suppressBar = primary?.geometry?.floating == true, barLayout = primary?.layout) { floatingBar ->
+                ToolbarAround(bar, onCover = canvas::setToolbarCover, suppressBar = primary?.geometry?.floating == true, barLayout = primary?.layout, barGeometry = primary?.geometry) { floatingBar ->
                     Box(modifier = Modifier.fillMaxSize().clipToBounds()) {
                         AndroidView(
                             factory = { detached(canvas.surfaces) },
@@ -1513,6 +1514,7 @@ private fun EditorPane(
                                 onRecordAudio = { actions.onRecordAudio(editor) },
                                 onTakePhoto = { actions.onTakePhoto(editor) },
                                 layout = extraBar.layout,
+                                geometry = extraBar.geometry,
                             )
                         }
                         com.xnotes.ui.SelectionMenu(
@@ -1551,7 +1553,7 @@ private fun EditorPane(
                         ) { bareBar() }
                     } else bareBar()
                 }
-                ToolbarAround(bar, onCover = editor::setToolbarCover, suppressBar = primary?.geometry?.floating == true, barLayout = primary?.layout) { floatingBar ->
+                ToolbarAround(bar, onCover = editor::setToolbarCover, suppressBar = primary?.geometry?.floating == true, barLayout = primary?.layout, barGeometry = primary?.geometry) { floatingBar ->
                     Row(modifier = Modifier.fillMaxSize()) {
                         if (editor.sidebarVisible) {
                             com.xnotes.ui.SidePanel(
@@ -1590,6 +1592,7 @@ private fun EditorPane(
                                     onRecordAudio = { actions.onRecordAudio(editor) },
                                     onTakePhoto = { actions.onTakePhoto(editor) },
                                     layout = extraBar.layout,
+                                    geometry = extraBar.geometry,
                                 )
                             }
                             com.xnotes.ui.SelectionMenu(

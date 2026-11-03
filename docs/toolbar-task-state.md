@@ -27,7 +27,7 @@ Camadas são um projeto futuro separado: docs/layers-roadmap.md.
 | M1 Modelos/migração | PARCIAL | ToolbarWorkspace, codec JSON e testes JVM existem; rever casos extremos |
 | M2 Renderer/gestos | PARCIAL | Barras extra; principal pode mover; container longpress; sem QA de conflitos |
 | M3 Editor/preview | PARCIAL | Config view, CRUD, oito encaixes com centro vazio, live preview; sem undo/apply; QA físico pendente |
-| M4 Dimensões essenciais | PENDENTE | Escopo revisado: largura, altura, padding, espaçamento e tamanho por elemento; presets existentes não satisfazem tudo |
+| M4 Dimensões essenciais | PARCIAL | Cinco controles por barra, overrides opcionais e resolvedor de métricas compartilhado; QA físico e edição por elemento individual ainda pendentes |
 | M5 Elementos/cores | PARCIAL | Cores globais divididas dinamicamente em N blocos por barra, controle na tela dedicada; ainda faltam tamanho/spacing por elemento e QA |
 | M6 Sections em faixas | PARCIAL | Sections de 1–3 linhas independentes (colunas em barras laterais), sem limite por linha; codec v4 migra v1/v2/v3; renderer/preview comuns, arraste por linha; QA físico pendente |
 | M7 Caneta unificada | PARCIAL | Lançador opcional, leque radial com animação e painel único de configurações por tipo; QA de stylus e migração/schema avançado pendentes |
@@ -88,7 +88,7 @@ não substitui o Git como fonte de verdade.
       entre drag do contêiner e long-press próprios de ferramentas/cores.
 - [ ] [M2] Testar dock principal topo/baixo/esquerda/direita com mover por hold;
       garantir que esquerda/direita não são convertidas inadvertidamente em float.
-- [ ] [M2] Testar 9 posições float note/canvas em retrato, landscape e split.
+- [ ] [M2] Testar 8 posições float note/canvas em retrato, landscape e split.
 - [ ] [M2] Verificar suporte a insets, barra fora da tela e overlap com duas barras.
 - [ ] [M3] Abrir configurador no emulator e validar visualmente preview e grade,
       com seleção por toque, arraste, duplicação, exclusão e restauração.
@@ -97,20 +97,20 @@ não substitui o Git como fonte de verdade.
 
 - [ ] [M1] Revisar persistência versionada, invalidação de IDs e migração legado.
 - [ ] [M3] Criar view-model de edição em rascunho com undo/redo, aplicar/cancelar.
-- [ ] [M4] Definir GeometryResolver puro e testes; width/height auto/manual.
-- [ ] [M4] Adicionar cores, fundo, opacidade, borda, raio, padding, blur/fallback.
-- [ ] [M3/M4] Fazer preview utilizar o MESMO resolvedor de geometria do renderer.
+- [x] [M4] Resolver métricas e dimensões auto/manuais de forma determinística, com testes JVM.
+- [ ] [M4] Validar visualmente limites de largura, altura, padding, espaçamento e tamanho nas barras fixas, flutuantes e laterais.
+- [ ] [M3/M4] Confirmar no Redmi Pad 2 equivalência geométrica completa do preview e renderer; ambos usam o mesmo resolvedor de métricas.
 
 ### P2 — Customização estrutural e ações
 
-- [ ] [M5] Tamanho/espaço/hitbox por elemento.
+- [ ] [M5] Refinar tamanho/espaço/hitbox por elemento individual; tamanho geral por barra está disponível.
 - [ ] [M5] Número de cores por barra e grade de swatches.
 - [x] [M6] Sections com 1–2 faixas independentes e migração v1/v2 → v3, testes JVM.
 - [ ] [M6] QA físico do arraste entre linhas/colunas, overflow e Colors duplicado;
       não reintroduzir presets fixos 2×2/3×2.
 - [ ] [M7] Caneta unificada usando tipos existentes.
 - [ ] [M8] Menu de contexto em longpress sem deslocamento.
-- [ ] [M8] Lock/Unlock e resize on-canvas em modo edit transacional.
+- [ ] [M8] Atalho in-note para abrir a configuração dedicada, sem resize in-note (decisão do usuário).
 - [ ] [M9] UI de compartilhamento/independência xnote/xcanvas.
 
 ### P3 — Lançamento e PRs
@@ -256,3 +256,39 @@ cancelamento do leque ao levantar sem selecionar. Depois testar arrastar com
 Xiaomi Smart Pen no Redmi Pad 2 (quando conectado), corrigir colisões com
 drag de toolbar, registrar QA e planejar persistência por perfil/toolbar.
 Camadas ficam fora desta branch.
+
+## Checkpoint M4 — geometria essencial (03/11/2026)
+
+- Introduzidos overrides opcionais por toolbar: `widthDp`, `heightDp`,
+  `paddingDp`, `spacingDp` e `elementSizeDp`. Valores nulos continuam
+  usando o preset original. Limites: dimensão 48–2048 dp (controle visual
+  de largura até 1200 e altura até 800), padding/spacing 0–32 dp e elemento
+  28–72 dp.
+- `resolvedBarMetrics` e `toolbarDepth` alimentam barra real de notas,
+  canvas e preview com as mesmas medidas. Geometria manual de docked é
+  centralizada na borda; dimensões transversais respeitam o mínimo
+  necessário para até três faixas. O controle fica somente no configurador.
+- JSON v4 recebeu os campos opcionais sem quebrar layouts anteriores.
+  Testes de clamp, round-trip e resolução de métricas adicionados.
+- `:app:testDebugUnitTest :app:assembleDebug --console=plain --offline`
+  passou no CachyOS, `BUILD SUCCESSFUL` (50 tarefas). `git diff --check`
+  passou. APK isolado instalado em `emulator-5554` com `Success`.
+- Emulador confirmado com `wm size 1920x1200`, `wm density 320`.
+  Tela dedicada abriu; os cinco ajustes foram vistos; tocar no slider de
+  padding mudou para 20 dp com opção Auto. Foi corrigido o salto de layout
+  ao surgir essa opção. A build final após a correção passou novamente:
+  `BUILD SUCCESSFUL` (50 tarefas, 7 s). O ajuste final do botão Auto
+  ainda não foi comparado visualmente em nova instalação.
+- O Redmi Pad 2 **não estava listado** por `adb devices -l` nesta
+  execução. Não houve instalação nem teste físico desta versão nele.
+  Comparação real/preview, orientação, toques com caneta e split-view
+  continuam pendentes. Nenhum PR foi aberto ou alterado.
+
+### Próxima ação vigente
+
+1. Recompilar após o ajuste de layout e revisar a diff; fazer commit.
+2. Com o Redmi Pad 2 reconectado, instalar só `com.xnotes.toolbarsdebug`
+   e testar 4 docks, 8 âncoras, dimensionamento e todas as faixas;
+   comparar visualmente preview/notas/canvas.
+3. Implementar o atalho simples dentro da nota para abrir o configurador
+   dedicado. Não reintroduzir editor/resize in-note.
