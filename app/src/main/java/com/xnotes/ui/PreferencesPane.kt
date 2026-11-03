@@ -627,6 +627,7 @@ fun PreferencesPane(
                 workspace = workspace.onlyItems(if (canvasTab) ToolbarLayout.CANVAS_ITEMS else ToolbarLayout.NOTE_ITEMS),
                 look = prefs.toolbarLook,
                 selectedId = currentBar.id,
+                colors = editor.toolbarColors.take(editor.toolbarColorCount),
                 onSelectBar = { showBar(it) },
                 onMoveBar = { id, anchor ->
                     editor.moveToolbarBar(
