@@ -59,42 +59,95 @@ enum class ToolbarItem(val id: String) {
     }
 }
 
-data class ToolbarEntry(val item: ToolbarItem, val visible: Boolean = true)
-
-/** A section is either linear (0), or a compact group with 1–3 columns and at most 2 rows.
- * Only single-button tools can occupy a grid cell: composite controls need their own section. */
-data class ToolbarSection(val entries: List<ToolbarEntry>, val gridColumns: Int = 0) {
-    val visibleEntries: List<ToolbarEntry> get() = entries.filter { it.visible }
-    val hasVisible: Boolean get() = entries.any { it.visible }
-    val gridCapacity: Int get() = if (gridColumns in 1..3) gridColumns * 2 else Int.MAX_VALUE
-    val crossCells: Int get() = if (gridColumns in 1..3)
-        ((visibleEntries.size + gridColumns - 1) / gridColumns).coerceIn(1, 2) else 1
-
-    fun supportsGrid(columns: Int): Boolean = columns in 1..3 &&
-        entries.size <= columns * 2 && entries.all { it.item.supportsGridCell }
-
-    fun normalized(): ToolbarSection = if (gridColumns == 0 || supportsGrid(gridColumns)) this
-        else copy(gridColumns = 0)
+/** A movable occurrence. Each Colors block owns a fraction of the CURRENT enabled palette.
+ * Fractions survive changes to the number of swatches without leaving gaps or stale indices. */
+data class ToolbarEntry(
+    val item: ToolbarItem,
+    val visible: Boolean = true,
+    val lane: Int = 0,
+    val colorPart: Int = 0,
+    val colorParts: Int = 1,
+) {
+    fun colorIndices(total: Int): IntRange {
+        val safeTotal = total.coerceAtLeast(0)
+        val denominator = colorParts.coerceIn(1, 64)
+        val part = colorPart.coerceIn(0, denominator - 1)
+        fun boundary(position: Int) = (safeTotal * position + denominator - 1) / denominator
+        return boundary(part) until boundary(part + 1)
+    }
 }
 
-/** Labels and multi-control clusters cannot be shrunk into one grid button. */
-val ToolbarItem.supportsGridCell: Boolean get() = this !in setOf(
-    ToolbarItem.TITLE, ToolbarItem.COLORS, ToolbarItem.PAGE_NAV, ToolbarItem.ZOOM,
-)
+/** Each section contains one or two independently ordered lanes.
+ * Horizontal bars render them as rows; vertical bars transpose them into columns. */
+data class ToolbarSection(
+    val entries: List<ToolbarEntry>,
+    val lanes: Int = 1,
+) {
+    val visibleEntries: List<ToolbarEntry> get() = entries.filter { it.visible }
+    val hasVisible: Boolean get() = entries.any { it.visible }
+    val crossCells: Int get() = if (lanes == 2 && visibleEntries.any { it.lane == 1 }) 2 else 1
+    fun entriesInLane(lane: Int): List<ToolbarEntry> =
+        visibleEntries.filter { it.lane == lane.coerceIn(0, lanes - 1) }
+    fun normalized(): ToolbarSection = copy(
+        lanes = lanes.coerceIn(1, 2),
+        entries = entries.map { it.copy(lane = it.lane.coerceIn(0, lanes.coerceIn(1, 2) - 1)) },
+    )
+}
 
 data class ToolbarLayout(val sections: List<ToolbarSection>) {
 
     /** Sections that paint on the real bar; a separator goes between consecutive ones. */
     val visibleSections: List<ToolbarSection> get() = sections.filter { it.hasVisible }
 
-    fun addSection(): ToolbarLayout = copy(sections = sections + ToolbarSection(emptyList()))
+    fun addSection(lanes: Int = 1): ToolbarLayout =
+        if (lanes !in 1..2) this else copy(sections = sections + ToolbarSection(emptyList(), lanes))
 
-    /** Invalid size/content combinations are ignored, so existing tools are never lost. */
-    fun setSectionGrid(sectionIndex: Int, columns: Int): ToolbarLayout {
-        if (columns !in 0..3) return this
+    fun setSectionLanes(sectionIndex: Int, lanes: Int): ToolbarLayout {
+        if (lanes !in 1..2) return this
         val section = sections.getOrNull(sectionIndex) ?: return this
-        if (columns != 0 && !section.supportsGrid(columns)) return this
-        return copy(sections = sections.toMutableList().also { it[sectionIndex] = section.copy(gridColumns = columns) })
+        val updated = section.copy(
+            lanes = lanes,
+            entries = section.entries.map { if (lanes == 1) it.copy(lane = 0) else it },
+        )
+        return copy(sections = sections.toMutableList().also { it[sectionIndex] = updated })
+    }
+
+    /** Number of color strips in this toolbar. They always share one global palette. */
+    val colorBlockCount: Int get() = sections.sumOf { section ->
+        section.entries.count { it.item == ToolbarItem.COLORS }
+    }
+
+    /** Set how many strips share the enabled swatches, keeping retained blocks in place.
+     * New blocks are added after the last existing one and alternate lanes when possible.
+     * Existing blocks are never moved or hidden by a colour-count change. */
+    fun setColorBlocks(count: Int): ToolbarLayout {
+        if (count !in 1..InkPalette.MAX_SWATCHES) return this
+        val existing = sections.flatMapIndexed { s, section ->
+            section.entries.mapIndexedNotNull { i, entry ->
+                if (entry.item == ToolbarItem.COLORS) s to i else null
+            }
+        }
+        if (existing.isEmpty()) return this
+        val mutable = sections.map { it.entries.toMutableList() }.toMutableList()
+        if (count < existing.size) {
+            existing.drop(count).asReversed().forEach { (s, i) -> mutable[s].removeAt(i) }
+        } else if (count > existing.size) {
+            val (s, i) = existing.last()
+            val prototype = mutable[s][i]
+            val section = sections[s]
+            repeat(count - existing.size) { offset ->
+                val lane = if (section.lanes == 2) (prototype.lane + offset + 1) % 2 else 0
+                mutable[s].add(i + 1 + offset, prototype.copy(lane = lane))
+            }
+        }
+        var ordinal = 0
+        return copy(sections = sections.mapIndexed { s, section ->
+            section.copy(entries = mutable[s].map { entry ->
+                if (entry.item == ToolbarItem.COLORS)
+                    entry.copy(colorPart = ordinal++, colorParts = count)
+                else entry
+            })
+        })
     }
 
     /**
@@ -185,18 +238,15 @@ data class ToolbarLayout(val sections: List<ToolbarSection>) {
      * Move the entry at ([fromSection], [fromIndex]) to ([toSection], [toIndex]), keeping its
      * visibility. The target index is interpreted against the layout after the source is removed.
      */
-    fun moveItem(fromSection: Int, fromIndex: Int, toSection: Int, toIndex: Int): ToolbarLayout {
+    fun moveItem(fromSection: Int, fromIndex: Int, toSection: Int, toIndex: Int, toLane: Int = 0): ToolbarLayout {
         val src = sections.getOrNull(fromSection) ?: return this
         val entry = src.entries.getOrNull(fromIndex) ?: return this
         if (toSection !in sections.indices) return this
-        val destination = sections[toSection]
-        if (fromSection != toSection && destination.gridColumns != 0 &&
-            (destination.entries.size >= destination.gridCapacity || !entry.item.supportsGridCell)
-        ) return this
         val mutable = sections.map { it.entries.toMutableList() }.toMutableList()
         mutable[fromSection].removeAt(fromIndex)
         val adjusted = if (toSection == fromSection && toIndex > fromIndex) toIndex - 1 else toIndex
-        mutable[toSection].add(adjusted.coerceIn(0, mutable[toSection].size), entry)
+        val destinationLane = toLane.coerceIn(0, sections[toSection].lanes - 1)
+        mutable[toSection].add(adjusted.coerceIn(0, mutable[toSection].size), entry.copy(lane = destinationLane))
         return copy(sections = mutable.mapIndexed { idx, e -> sections[idx].copy(entries = e) })
     }
 

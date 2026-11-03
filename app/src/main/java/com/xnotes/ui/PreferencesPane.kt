@@ -161,11 +161,12 @@ fun PreferencesPane(
     // Toolbar drag state, hoisted here so the floating "ghost" chip can be drawn at the pane
     // root (above and outside the scroll, so it is never clipped). Bounds are plain maps read
     // only at drag time; observable state is just the dragged item, finger, and drop slot.
-    var dragItem by remember { mutableStateOf<ToolbarItem?>(null) }
+    var dragItem by remember { mutableStateOf<Pair<Int, Int>?>(null) }
     var dragFinger by remember { mutableStateOf(Offset.Zero) }
     var dragGrab by remember { mutableStateOf(Offset.Zero) }
-    var dropTarget by remember { mutableStateOf<Pair<Int, Int>?>(null) }
-    val chipBounds = remember { mutableMapOf<ToolbarItem, Rect>() }
+    var dropTarget by remember { mutableStateOf<Triple<Int, Int, Int>?>(null) }
+    val chipBounds = remember { mutableMapOf<Pair<Int, Int>, Rect>() }
+    val laneBounds = remember { mutableMapOf<Pair<Int, Int>, Rect>() }
     val sectionBounds = remember { mutableMapOf<Int, Rect>() }
     val sectionGrabBounds = remember { mutableMapOf<Int, Rect>() }
     // Section-drag state (the whole card, by its grip handle); shares the finger/grab with the
@@ -192,7 +193,7 @@ fun PreferencesPane(
         editor.applyToolbarWorkspaces(if (canvasTab) profiles.copy(canvas = changed) else profiles.copy(note = changed))
     }
     fun retarget() {
-        dropTarget = toolbarDropTarget(editedLayout(), dragFinger, chipBounds, sectionBounds)
+        dropTarget = toolbarDropTarget(editedLayout(), dragFinger, chipBounds, laneBounds, sectionBounds)
     }
     fun retargetSection() {
         sectionDropTarget = toolbarSectionDropTarget(editedLayout(), dragFinger, sectionBounds)
@@ -204,6 +205,7 @@ fun PreferencesPane(
         // The bounds maps are keyed by item and the two bars share most items, so stale entries
         // from the other tab would aim a drop at a chip that is no longer there.
         chipBounds.clear()
+        laneBounds.clear()
         sectionBounds.clear()
         sectionGrabBounds.clear()
         dragItem = null
@@ -215,6 +217,7 @@ fun PreferencesPane(
         if (selectedBarId == id) return
         selectedBarId = id
         chipBounds.clear()
+        laneBounds.clear()
         sectionBounds.clear()
         sectionGrabBounds.clear()
         dragItem = null
@@ -818,12 +821,28 @@ fun PreferencesPane(
                         }
                     }
                 }
-                FieldLabel(stringResource(R.string.pref_toolbar_colours_n, editor.toolbarColorCount))
+            }
+            // The ink palette is global; its toolbar presentation is per selected bar.
+            FieldLabel(stringResource(R.string.pref_toolbar_colours_n, editor.toolbarColorCount))
+            Slider(
+                value = editor.toolbarColorCount.toFloat(),
+                onValueChange = {
+                    val total = Math.round(it)
+                    editor.applyToolbarColorCount(total)
+                    val current = editedLayout().colorBlockCount
+                    if (current > total) applyEdited(editedLayout().setColorBlocks(total))
+                },
+                valueRange = 1f..InkPalette.MAX_SWATCHES.toFloat(),
+                steps = InkPalette.MAX_SWATCHES - 2,
+                modifier = Modifier.width(280.dp),
+            )
+            FieldLabel("Dividir cores em ${layout.colorBlockCount} blocos nesta barra")
+            if (editor.toolbarColorCount > 1 && layout.colorBlockCount > 0) {
                 Slider(
-                    value = editor.toolbarColorCount.toFloat(),
-                    onValueChange = { editor.applyToolbarColorCount(Math.round(it)) },
-                    valueRange = 1f..InkPalette.MAX_SWATCHES.toFloat(),
-                    steps = InkPalette.MAX_SWATCHES - 2,
+                    value = layout.colorBlockCount.coerceIn(1, editor.toolbarColorCount).toFloat(),
+                    onValueChange = { applyEdited(editedLayout().setColorBlocks(Math.round(it))) },
+                    valueRange = 1f..editor.toolbarColorCount.toFloat(),
+                    steps = (editor.toolbarColorCount - 2).coerceAtLeast(0),
                     modifier = Modifier.width(280.dp),
                 )
             }
@@ -854,16 +873,18 @@ fun PreferencesPane(
                 dragSection = dragSection,
                 sectionDropTarget = sectionDropTarget,
                 chipBounds = chipBounds,
+                laneBounds = laneBounds,
                 sectionBounds = sectionBounds,
                 sectionGrabBounds = sectionGrabBounds,
                 onToggle = { s, i -> applyEdited(editedLayout().toggleVisible(s, i)) },
-                onGridChange = { s, columns -> applyEdited(editedLayout().setSectionGrid(s, columns)) },
+                onLanesChange = { s, lanes -> applyEdited(editedLayout().setSectionLanes(s, lanes)) },
                 onDelete = { s -> applyEdited(editedLayout().removeSection(s)) },
-                onAdd = { applyEdited(editedLayout().addSection()) },
-                onDragStart = { item, local ->
-                    dragItem = item
+                onAdd = { lanes -> applyEdited(editedLayout().addSection(lanes)) },
+                onDragStart = { section, index, local ->
+                    val key = section to index
+                    dragItem = key
                     dragGrab = local
-                    dragFinger = (chipBounds[item]?.topLeft ?: Offset.Zero) + local
+                    dragFinger = (chipBounds[key]?.topLeft ?: Offset.Zero) + local
                     retarget()
                 },
                 onDrag = { delta -> dragFinger += delta; retarget() },
@@ -871,12 +892,9 @@ fun PreferencesPane(
                     val target = dropTarget
                     val moving = dragItem
                     if (target != null && moving != null) {
-                        val cur = editedLayout()
-                        val fSec = cur.sections.indexOfFirst { s -> s.entries.any { it.item == moving } }
-                        val fIdx = if (fSec >= 0) cur.sections[fSec].entries.indexOfFirst { it.item == moving } else -1
-                        if (fSec >= 0 && fIdx >= 0) {
-                            applyEdited(cur.moveItem(fSec, fIdx, target.first, target.second))
-                        }
+                        applyEdited(editedLayout().moveItem(
+                            moving.first, moving.second, target.first, target.third, target.second,
+                        ))
                     }
                     dragItem = null
                     dropTarget = null
@@ -927,7 +945,9 @@ fun PreferencesPane(
         // The dragged chip/section's floating copy: a pane-root sibling so the scroll never clips it.
         val gx = (dragFinger.x - dragGrab.x - paneTopLeft.x).toInt()
         val gy = (dragFinger.y - dragGrab.y - paneTopLeft.y).toInt()
-        val ghostChip = dragItem
+        val ghostChip = dragItem?.let { (sec, idx) ->
+            editedLayout().sections.getOrNull(sec)?.entries?.getOrNull(idx)?.item
+        }
         val ghostSecIdx = dragSection
         if (ghostChip != null) {
             Box(Modifier.offset { IntOffset(gx, gy) }) { ToolbarDragGhost(ghostChip) }

@@ -11,20 +11,28 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
@@ -61,18 +69,19 @@ import com.xnotes.ui.theme.toComposeColor
 @Composable
 fun ToolbarCustomizerBody(
     layout: ToolbarLayout,
-    dragItem: ToolbarItem?,
-    dropTarget: Pair<Int, Int>?,
+    dragItem: Pair<Int, Int>?,
+    dropTarget: Triple<Int, Int, Int>?,
     dragSection: Int?,
     sectionDropTarget: Int?,
-    chipBounds: MutableMap<ToolbarItem, Rect>,
+    chipBounds: MutableMap<Pair<Int, Int>, Rect>,
+    laneBounds: MutableMap<Pair<Int, Int>, Rect>,
     sectionBounds: MutableMap<Int, Rect>,
     sectionGrabBounds: MutableMap<Int, Rect>,
     onToggle: (Int, Int) -> Unit,
-    onGridChange: (Int, Int) -> Unit,
+    onLanesChange: (Int, Int) -> Unit,
     onDelete: (Int) -> Unit,
-    onAdd: () -> Unit,
-    onDragStart: (ToolbarItem, Offset) -> Unit,
+    onAdd: (Int) -> Unit,
+    onDragStart: (Int, Int, Offset) -> Unit,
     onDrag: (Offset) -> Unit,
     onDrop: () -> Unit,
     onCancel: () -> Unit,
@@ -103,37 +112,50 @@ fun ToolbarCustomizerBody(
                 onGrabDrop = onSectionDrop,
                 onGrabCancel = onSectionCancel,
             ) {
-                Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                    SectionGridModes(section) { columns -> onGridChange(sec, columns) }
-                if (section.entries.isEmpty()) {
-                    Text(
-                        stringResource(R.string.drop_here),
-                        color = (if (dragging && dropTarget == sec to 0) palette.accent else palette.textDim).toComposeColor(),
-                        fontSize = 11.sp,
-                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 6.dp),
-                    )
-                } else {
-                    FlowRow(
-                        horizontalArrangement = Arrangement.spacedBy(4.dp),
-                        verticalArrangement = Arrangement.spacedBy(4.dp),
-                    ) {
-                        section.entries.forEachIndexed { idx, entry ->
-                            if (dragging && dropTarget == sec to idx) InsertionCaret()
-                            ChipCell(
-                                item = entry.item,
-                                visible = entry.visible,
-                                dragging = dragItem == entry.item,
-                                onTap = { onToggle(sec, idx) },
-                                onDragStart = { local -> onDragStart(entry.item, local) },
-                                onDrag = onDrag,
-                                onDrop = onDrop,
-                                onCancel = onCancel,
-                                onBounds = { chipBounds[entry.item] = it },
-                            )
+                Column(verticalArrangement = Arrangement.spacedBy(5.dp)) {
+                    SectionLaneModes(section) { lanes -> onLanesChange(sec, lanes) }
+                    repeat(section.lanes) { lane ->
+                        val cells = section.entries.withIndex().filter { it.value.lane == lane }
+                        Row(
+                            modifier = Modifier
+                                .widthIn(max = 520.dp)
+                                .horizontalScroll(rememberScrollState())
+                                .onGloballyPositioned { laneBounds[sec to lane] = it.boundsInRoot() }
+                                .border(
+                                    1.dp,
+                                    (if (dragging && dropTarget?.first == sec && dropTarget.second == lane)
+                                        palette.accent else palette.border).toComposeColor(),
+                                    RoundedCornerShape(6.dp),
+                                )
+                                .padding(4.dp),
+                            horizontalArrangement = Arrangement.spacedBy(4.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            if (cells.isEmpty()) {
+                                Text(
+                                    stringResource(R.string.drop_here),
+                                    color = palette.textDim.toComposeColor(),
+                                    fontSize = 11.sp,
+                                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 6.dp),
+                                )
+                            }
+                            cells.forEach { (idx, entry) ->
+                                if (dragging && dropTarget == Triple(sec, lane, idx)) InsertionCaret()
+                                ChipCell(
+                                    item = entry.item,
+                                    visible = entry.visible,
+                                    dragging = dragItem == (sec to idx),
+                                    onTap = { onToggle(sec, idx) },
+                                    onDragStart = { local -> onDragStart(sec, idx, local) },
+                                    onDrag = onDrag,
+                                    onDrop = onDrop,
+                                    onCancel = onCancel,
+                                    onBounds = { chipBounds[sec to idx] = it },
+                                )
+                            }
+                            if (dragging && dropTarget == Triple(sec, lane, cells.lastOrNull()?.index?.plus(1) ?: section.entries.size)) InsertionCaret()
                         }
-                        if (dragging && dropTarget == sec to section.entries.size) InsertionCaret()
                     }
-                }
                 }
             }
         }
@@ -142,24 +164,21 @@ fun ToolbarCustomizerBody(
     }
 }
 
-/** Compact layout presets for one section. Disabled choices preserve tools rather than dropping
- * overflow cells, and a new empty section can accept any of the supported grid shapes. */
+/** A section owns its independent lanes; there are no fixed grid dimensions. */
 @Composable
-private fun SectionGridModes(section: ToolbarSection, onSelect: (Int) -> Unit) {
+private fun SectionLaneModes(section: ToolbarSection, onSelect: (Int) -> Unit) {
     val palette = LocalPalette.current
     Row(horizontalArrangement = Arrangement.spacedBy(3.dp)) {
-        for ((columns, title) in listOf(0 to "Linear", 1 to "1×2", 2 to "2×2", 3 to "3×2")) {
-            val enabled = columns == 0 || section.supportsGrid(columns)
-            val active = section.gridColumns == columns
+        for ((lanes, title) in listOf(1 to "1 linha", 2 to "2 linhas")) {
+            val active = section.lanes == lanes
             Text(
                 title,
                 color = (if (active) palette.accent else palette.textDim).toComposeColor(),
                 fontSize = 10.sp,
                 modifier = Modifier
-                    .alpha(if (enabled) 1f else .3f)
                     .clip(RoundedCornerShape(6.dp))
                     .border(1.dp, (if (active) palette.accent else palette.border).toComposeColor(), RoundedCornerShape(6.dp))
-                    .clickable(enabled = enabled) { onSelect(columns) }
+                    .clickable { onSelect(lanes) }
                     .padding(horizontal = 5.dp, vertical = 3.dp),
             )
         }
@@ -175,9 +194,10 @@ private fun SectionGridModes(section: ToolbarSection, onSelect: (Int) -> Unit) {
 internal fun toolbarDropTarget(
     layout: ToolbarLayout,
     finger: Offset,
-    chipBounds: Map<ToolbarItem, Rect>,
+    chipBounds: Map<Pair<Int, Int>, Rect>,
+    laneBounds: Map<Pair<Int, Int>, Rect>,
     sectionBounds: Map<Int, Rect>,
-): Pair<Int, Int>? {
+): Triple<Int, Int, Int>? {
     var sec = layout.sections.indices.firstOrNull { sectionBounds[it]?.contains(finger) == true } ?: -1
     if (sec < 0) {
         var best = Float.MAX_VALUE
@@ -190,14 +210,22 @@ internal fun toolbarDropTarget(
         }
     }
     if (sec < 0) return null
-    val entries = layout.sections[sec].entries
-    if (entries.isEmpty()) return sec to 0
-    fun before(r: Rect): Boolean = finger.y < r.top || (finger.y <= r.bottom && finger.x < r.center.x)
-    for (idx in entries.indices) {
-        val r = chipBounds[entries[idx].item] ?: continue
-        if (before(r)) return sec to idx
+    val section = layout.sections[sec]
+    val lane = if (section.lanes == 1) 0 else (0..1).minByOrNull { row ->
+        val r = laneBounds[sec to row] ?: return@minByOrNull Float.MAX_VALUE
+        val dx = maxOf(r.left - finger.x, 0f, finger.x - r.right)
+        val dy = maxOf(r.top - finger.y, 0f, finger.y - r.bottom)
+        dx * dx + dy * dy
+    } ?: 0
+    val indexed = section.entries.withIndex().filter { it.value.lane == lane }
+    if (indexed.isEmpty()) return Triple(sec, lane, section.entries.size)
+    fun before(r: Rect): Boolean =
+        finger.y < r.top || (finger.y <= r.bottom && finger.x < r.center.x)
+    for ((idx, _) in indexed) {
+        val r = chipBounds[sec to idx] ?: continue
+        if (before(r)) return Triple(sec, lane, idx)
     }
-    return sec to entries.size
+    return Triple(sec, lane, indexed.last().index + 1)
 }
 
 /** Resolve the section insertion index (0..size) for a finger position in root coordinates. */
@@ -421,30 +449,46 @@ fun SectionCardGhost(section: ToolbarSection, widthPx: Float) {
                 modifier = Modifier.padding(horizontal = 8.dp, vertical = 6.dp),
             )
         } else {
-            FlowRow(
-                horizontalArrangement = Arrangement.spacedBy(4.dp),
-                verticalArrangement = Arrangement.spacedBy(4.dp),
-            ) {
-                section.entries.forEach { e -> ChipFace(e.item, e.visible) }
+            Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                repeat(section.lanes) { lane ->
+                    Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                        section.entries.filter { it.lane == lane }.forEach { e ->
+                            ChipFace(e.item, e.visible)
+                        }
+                    }
+                }
             }
         }
     }
 }
 
 @Composable
-private fun AddSectionChip(onClick: () -> Unit) {
+private fun AddSectionChip(onClick: (Int) -> Unit) {
     val palette = LocalPalette.current
-    Row(
-        Modifier
-            .clip(MaterialTheme.shapes.small)
-            .border(1.dp, palette.accent.toComposeColor(), MaterialTheme.shapes.small)
-            .clickable(onClick = onClick)
-            .padding(horizontal = 10.dp, vertical = 10.dp),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        Icon(XnotesIcons.plus, stringResource(R.string.add_section), tint = palette.accent.toComposeColor(), modifier = Modifier.size(14.dp))
-        Spacer(Modifier.width(4.dp))
-        Text(stringResource(R.string.add_section), color = palette.accent.toComposeColor(), fontSize = 12.sp)
+    var menuOpen by remember { mutableStateOf(false) }
+    Box {
+        Row(
+            Modifier
+                .clip(MaterialTheme.shapes.small)
+                .border(1.dp, palette.accent.toComposeColor(), MaterialTheme.shapes.small)
+                .clickable { menuOpen = true }
+                .padding(horizontal = 10.dp, vertical = 10.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Icon(XnotesIcons.plus, stringResource(R.string.add_section), tint = palette.accent.toComposeColor(), modifier = Modifier.size(14.dp))
+            Spacer(Modifier.width(4.dp))
+            Text(stringResource(R.string.add_section), color = palette.accent.toComposeColor(), fontSize = 12.sp)
+        }
+        DropdownMenu(expanded = menuOpen, onDismissRequest = { menuOpen = false }) {
+            DropdownMenuItem(text = { Text("Uma linha") }, onClick = {
+                menuOpen = false
+                onClick(1)
+            })
+            DropdownMenuItem(text = { Text("Duas linhas") }, onClick = {
+                menuOpen = false
+                onClick(2)
+            })
+        }
     }
 }
 

@@ -66,23 +66,61 @@ class ToolbarWorkspaceJsonTest {
         assertEquals(245, restored.toolbarWorkspaces!!.note.bars[1].geometry.widthDp)
     }
 
-    @Test fun gridSectionsRoundTripAndV1ArraysStillLoad() {
+    @Test fun sectionsRoundTripAndLegacyGridAndV1ArraysMigrate() {
         val group = compactLayout(ToolbarItem.PEN, ToolbarItem.DASHED, ToolbarItem.CALLIGRAPHY)
-            .setSectionGrid(0, 2)
+            .setSectionLanes(0, 2).moveItem(0, 2, 0, 3, toLane = 1)
         val profiles = ToolbarWorkspaces.fromLegacy(group, ToolbarLayout.CANVAS_DEFAULT)
         val json = ToolbarWorkspaceJson.write(profiles)
-        assertEquals(2, json.getInt("version"))
+        assertEquals(4, json.getInt("version"))
         assertEquals(group, ToolbarWorkspaceJson.read(json)!!.note.bars.single().layout)
 
-        // Legacy v1 section arrays have no grid data, but must still load unchanged.
+        // Legacy v1 section arrays have no section metadata.
         val oldJson = ToolbarWorkspaceJson.write(profiles).put("version", 1)
         val first = oldJson.getJSONObject("note").getJSONArray("bars").getJSONObject(0)
         first.put("sections", JSONArray().put(JSONArray()
             .put(JSONObject().put("id", "pen"))
             .put(JSONObject().put("id", "dashed"))))
         val oldSection = ToolbarWorkspaceJson.read(oldJson)!!.note.bars.single().layout.sections.single()
-        assertEquals(0, oldSection.gridColumns)
+        assertEquals(1, oldSection.lanes)
         assertEquals(listOf(ToolbarItem.PEN, ToolbarItem.DASHED), oldSection.entries.map { it.item })
+
+        // v2 grid of 2 columns migrated to two separate rows, preserving original order.
+        val oldGrid = ToolbarWorkspaceJson.write(profiles).put("version", 2)
+        oldGrid.getJSONObject("note").getJSONArray("bars").getJSONObject(0)
+            .put("sections", JSONArray().put(JSONObject().put("grid_columns", 2)
+                .put("entries", JSONArray()
+                    .put(JSONObject().put("id", "pen"))
+                    .put(JSONObject().put("id", "dashed"))
+                    .put(JSONObject().put("id", "calligraphy")))))
+        val migrated = ToolbarWorkspaceJson.read(oldGrid)!!.note.bars.single().layout.sections.single()
+        assertEquals(2, migrated.lanes)
+        assertEquals(listOf(0, 0, 1), migrated.entries.map { it.lane })
+    }
+
+    @Test fun colorBlocksPersistAndV3AbsoluteRangesMigrateToDynamic() {
+        val layout = compactLayout(ToolbarItem.COLORS).setSectionLanes(0, 2).setColorBlocks(2)
+        val json = ToolbarWorkspaceJson.write(
+            ToolbarWorkspaces.fromLegacy(layout, ToolbarLayout.CANVAS_DEFAULT),
+        )
+        val restored = ToolbarWorkspaceJson.read(json)!!.note.bars.single().layout
+        assertEquals(layout, restored)
+        assertEquals((0..4).toList(), restored.sections.single().entries[0].colorIndices(10).toList())
+        assertEquals((5..9).toList(), restored.sections.single().entries[1].colorIndices(10).toList())
+
+        // v3 saved absolute ranges, and must be converted to fractions on load.
+        val oldV3 = JSONObject(json.toString()).put("version", 3)
+        val entries = oldV3.getJSONObject("note").getJSONArray("bars")
+            .getJSONObject(0).getJSONArray("sections").getJSONObject(0).getJSONArray("entries")
+        entries.getJSONObject(0).put("color_start", 0).put("color_count", 3)
+            .remove("color_part")
+        entries.getJSONObject(0).remove("color_parts")
+        entries.getJSONObject(1).put("color_start", 3).put("color_count", 2)
+            .remove("color_part")
+        entries.getJSONObject(1).remove("color_parts")
+        val migrated = ToolbarWorkspaceJson.read(oldV3)!!.note.bars.single().layout
+        assertEquals(layout, migrated)
+        assertEquals((0..4).toList(), migrated.sections.single().entries[0].colorIndices(10).toList())
+        assertEquals((5..9).toList(), migrated.sections.single().entries[1].colorIndices(10).toList())
     }
 
     @Test fun unsupportedSchemaFallsBackToLegacySettingsSafely() {

@@ -279,7 +279,7 @@ private fun PreviewSections(
             if (sectionIndex > 0) Separator()
             ToolbarSectionGrid(section) { entry ->
                 PreviewTool(
-                    entry.item, colors, activeColorIndex, pageNumber, pageCount,
+                    entry, colors, activeColorIndex, pageNumber, pageCount,
                     zoomLabel, titleLabel, onSelect, vertical,
                 )
             }
@@ -289,7 +289,7 @@ private fun PreviewSections(
 
 @Composable
 private fun PreviewTool(
-    item: ToolbarItem,
+    entry: com.xnotes.core.tools.ToolbarEntry,
     colors: List<Rgba>,
     activeColorIndex: Int,
     pageNumber: Int,
@@ -299,10 +299,11 @@ private fun PreviewTool(
     onSelect: () -> Unit,
     vertical: Boolean,
 ) {
+    val item = entry.item
     val controls: @Composable () -> Unit = {
         when (item) {
-            ToolbarItem.COLORS -> colors.forEachIndexed { index, color ->
-                Swatch(color.toComposeColor(), active = index == activeColorIndex, onClick = onSelect)
+            ToolbarItem.COLORS -> entry.colorIndices(colors.size).forEach { index ->
+                Swatch(colors[index].toComposeColor(), active = index == activeColorIndex, onClick = onSelect)
             }
             ToolbarItem.UNIFIED_PEN -> UnifiedPenPreview(
                 ink = colors.getOrNull(activeColorIndex)?.toComposeColor() ?: Color.Black,

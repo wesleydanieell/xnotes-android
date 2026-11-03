@@ -19,7 +19,7 @@ import org.json.JSONObject
  * correct for migrating a legacy single bar but wrong for a secondary/compact bar.
  */
 internal object ToolbarWorkspaceJson {
-    private const val VERSION = 2
+    private const val VERSION = 4
     private const val MAX_BARS = 32
     private const val MAX_SECTIONS = 32
     private const val MAX_ENTRIES = 128
@@ -33,8 +33,9 @@ internal object ToolbarWorkspaceJson {
     fun read(value: JSONObject?): ToolbarWorkspaces? {
         val raw = value ?: return null
         if (raw.optInt("version", -1) !in 1..VERSION) return null
-        val note = readWorkspace(raw.optJSONObject("note"), ToolbarLayout.NOTE_ITEMS) ?: return null
-        val canvas = readWorkspace(raw.optJSONObject("canvas"), ToolbarLayout.CANVAS_ITEMS) ?: return null
+        val version = raw.optInt("version")
+        val note = readWorkspace(raw.optJSONObject("note"), ToolbarLayout.NOTE_ITEMS, version) ?: return null
+        val canvas = readWorkspace(raw.optJSONObject("canvas"), ToolbarLayout.CANVAS_ITEMS, version) ?: return null
         return ToolbarWorkspaces(note, canvas, shared = raw.optBoolean("shared", false))
     }
 
@@ -47,11 +48,14 @@ internal object ToolbarWorkspaceJson {
                 .put("geometry", writeGeometry(bar.geometry))
                 .put("sections", JSONArray().apply {
                     for (section in bar.layout.sections) put(JSONObject()
-                        .put("grid_columns", section.gridColumns)
+                        .put("lanes", section.lanes)
                         .put("entries", JSONArray().apply {
                             for (entry in section.entries) put(JSONObject()
                                 .put("id", entry.item.id)
-                                .put("visible", entry.visible))
+                                .put("visible", entry.visible)
+                                .put("lane", entry.lane)
+                                .put("color_part", entry.colorPart)
+                                .put("color_parts", entry.colorParts))
                         }))
                 }))
         })
@@ -67,7 +71,7 @@ internal object ToolbarWorkspaceJson {
             g.heightDp?.let { put("height_dp", it) }
         }
 
-    private fun readWorkspace(value: JSONObject?, available: Set<ToolbarItem>): ToolbarWorkspace? {
+    private fun readWorkspace(value: JSONObject?, available: Set<ToolbarItem>, schemaVersion: Int): ToolbarWorkspace? {
         val rawBars = value?.optJSONArray("bars") ?: return null
         if (rawBars.length() == 0) return null
         val ids = HashSet<String>()
@@ -81,7 +85,7 @@ internal object ToolbarWorkspaceJson {
             val sections = ArrayList<ToolbarSection>()
             for (i in 0 until minOf(rawSections.length(), MAX_SECTIONS)) {
                 val entries = ArrayList<ToolbarEntry>()
-                // v1 stores each section as an array; v2 stores grid metadata alongside entries.
+                // v1 stores arrays, v2 rigid grid columns, v3 independent section lanes.
                 val rawSection = rawSections.opt(i)
                 val rawEntries = when (rawSection) {
                     is JSONArray -> rawSection
@@ -91,16 +95,37 @@ internal object ToolbarWorkspaceJson {
                 for (j in 0 until minOf(rawEntries.length(), MAX_ENTRIES)) {
                     val entry = rawEntries.optJSONObject(j) ?: continue
                     val item = ToolbarItem.fromId(entry.optString("id")) ?: continue
-                    if (item !in available || !seen.add(item)) continue
-                    entries.add(ToolbarEntry(item, entry.optBoolean("visible", true)))
+                    if (item !in available || (item != ToolbarItem.COLORS && !seen.add(item))) continue
+                    val columns = (rawSection as? JSONObject)?.optInt("grid_columns", 0) ?: 0
+                    val legacyLane = if (columns in 1..3 && j >= columns) 1 else 0
+                    entries.add(ToolbarEntry(
+                        item = item,
+                        visible = entry.optBoolean("visible", true),
+                        lane = entry.optInt("lane", legacyLane).coerceIn(0, 1),
+                        colorPart = entry.optInt("color_part", 0).coerceIn(0, 63),
+                        colorParts = entry.optInt("color_parts", 1).coerceIn(1, 64),
+                    ))
                 }
-                val columns = (rawSection as? JSONObject)?.optInt("grid_columns", 0) ?: 0
-                sections.add(ToolbarSection(entries, columns).normalized())
+                val sectionObject = rawSection as? JSONObject
+                val columns = sectionObject?.optInt("grid_columns", 0) ?: 0
+                val lanes = sectionObject?.optInt("lanes", if (columns in 1..3) 2 else 1) ?: 1
+                sections.add(ToolbarSection(entries, lanes).normalized())
             }
+            // The transient v3 preview stored absolute colour intervals. Convert its copies
+            // into dynamic fractions so changing the global swatch count never leaves stale rows.
+            val migratedSections = if (schemaVersion == 3) {
+                val total = sections.sumOf { sec -> sec.entries.count { it.item == ToolbarItem.COLORS } }
+                var ordinal = 0
+                sections.map { sec -> sec.copy(entries = sec.entries.map { entry ->
+                    if (entry.item == ToolbarItem.COLORS && total > 0)
+                        entry.copy(colorPart = ordinal++, colorParts = total)
+                    else entry
+                }) }
+            } else sections
             bars.add(ToolbarBar(
                 id = id,
                 name = raw.optString("name", "Toolbar").take(64),
-                layout = ToolbarLayout(sections.ifEmpty { listOf(ToolbarSection(emptyList())) }),
+                layout = ToolbarLayout(migratedSections.ifEmpty { listOf(ToolbarSection(emptyList())) }),
                 visible = raw.optBoolean("visible", true),
                 geometry = readGeometry(raw.optJSONObject("geometry")),
             ))

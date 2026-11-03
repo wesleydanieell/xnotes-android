@@ -153,7 +153,8 @@ fun InfiniteToolbar(
                     )
 
                     ToolbarItem.COLORS ->
-                        editor.toolbarColors.take(editor.toolbarColorCount).forEachIndexed { i, color ->
+                        entry.colorIndices(editor.toolbarColorCount).forEach { i ->
+                            val color = editor.toolbarColors[i]
                             Box {
                                 Swatch(color.toComposeColor(), active = editor.activeColorIndex == i, drag = editor, ink = color) {
                                     if (editor.activeColorIndex == i) switcherIndex = i else editor.pickColor(i)

@@ -133,7 +133,7 @@ fun Toolbar(
             ToolbarSectionGrid(section) { entry ->
                 ToolbarItemView(
                     editor = editor,
-                    item = entry.item,
+                    entry = entry,
                     toolIcons = toolIcons,
                     configForTool = configForTool,
                     setConfigForTool = { configForTool = it },
@@ -170,7 +170,7 @@ fun Toolbar(
 @Composable
 private fun ToolbarItemView(
     editor: Editor,
-    item: ToolbarItem,
+    entry: com.xnotes.core.tools.ToolbarEntry,
     toolIcons: Map<Tool, ImageVector>,
     configForTool: Tool?,
     setConfigForTool: (Tool?) -> Unit,
@@ -186,7 +186,7 @@ private fun ToolbarItemView(
     onRecordAudio: () -> Unit,
     onTakePhoto: () -> Unit,
 ) {
-    when (item) {
+    when (val item = entry.item) {
         // Canvas-only items; a stored paged layout can never hold one, so nothing is drawn.
         ToolbarItem.WAYPOINTS, ToolbarItem.MINIMAP -> Unit
 
@@ -280,7 +280,8 @@ private fun ToolbarItemView(
 
         ToolbarItem.FULLSCREEN -> ToolbarIcon(XnotesIcons.fullscreen, stringResource(R.string.toolbar_fullscreen), shortcut = Keys.FULLSCREEN) { onToggleFullscreen() }
 
-        ToolbarItem.COLORS -> editor.toolbarColors.take(editor.toolbarColorCount).forEachIndexed { i, color ->
+        ToolbarItem.COLORS -> entry.colorIndices(editor.toolbarColorCount).forEach { i ->
+            val color = editor.toolbarColors[i]
             Box {
                 Swatch(
                     color = color.toComposeColor(),
