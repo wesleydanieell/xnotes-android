@@ -30,7 +30,7 @@ Camadas são um projeto futuro separado: docs/layers-roadmap.md.
 | M4 Aparência/tamanho | PENDENTE | Só presets básicos; width/height e aparência precisam implementação |
 | M5 Elementos/cores | PENDENTE | Contagem global legado existe; quantidade/layout por barra não |
 | M6 Grupos/grades | PENDENTE | Seções planas; schema de Group/Grid ainda não implementado |
-| M7 Caneta unificada | PENDENTE | Não implementada |
+| M7 Caneta unificada | PARCIAL | Lançador opcional, leque radial com animação e painel único de configurações por tipo; QA de stylus e migração/schema avançado pendentes |
 | M8 Contextual/resize | PENDENTE | Sem menu de barra e modo resize transacional |
 | M9 Perfis/QA/performance | PARCIAL | Dados note/canvas separados; UI de shared não terminada |
 | M10 PRs upstream | PENDENTE | Só branch de integração no fork; nenhum PR desta feature aberto |
@@ -188,10 +188,43 @@ usuário encontradas no worktree e não invente sucesso nem background jobs.
   testar long-press/scroll sem colisões, além de alinhar o tamanho da viewport
   ao painel real quando houver sidebar e split.
 
+## Implementação M7 — caneta unificada (03/11/2026)
+
+- Commit de implementação `8313ec18` (`feat(toolbar): add unified pen fan and inline settings`).
+  Última verificação: `:app:testDebugUnitTest :app:assembleDebug` com
+  `BUILD SUCCESSFUL` (50 tarefas, 8 s), `git diff --check` sem erros e
+  instalação `adb -s emulator-5554 install -r` com resposta `Success`.
+- `ToolbarItem.UNIFIED_PEN` é opt-in, oculto por padrão. Cada caneta individual
+  continua independente. O checkbox em `Toolbar > Tools and groups` adiciona,
+  exibe ou oculta o grupo também em layouts persistidos antigos, sem acrescentar
+  outras ferramentas a barras secundárias mínimas.
+- Em `Toolbar.kt` e `InfiniteToolbar.kt`, toque curto seleciona a última caneta.
+  O segundo toque na caneta ativa abre o painel completo. Segurar apresenta seis
+  escolhas circulares, animadas em arco conforme a posição da toolbar, com
+  feedback tátil. Arrastar e soltar sobre uma escolha ativa a ferramenta;
+  soltar sem escolha deve fechar o leque.
+- `UnifiedPenDetails.kt` mostra na MESMA janela a caneta selecionada, largura,
+  amostra de traço e cores reais. `Advanced pen settings` expande abaixo,
+  adaptando parâmetros a cada tipo (pressão, sensibilidade, caligrafia, speed,
+  taper, tracejada, marca-texto e neon). Não há um segundo popup de ferramenta.
+  O painel compacto tem cores de 22 dp em alvos de toque de 30 dp, instrumentos
+  verticais sem rótulos sobrepostos e sliders visualmente reduzidos.
+- Os desenhos das pontas são vetoriais Compose, verticais e com friso/bico de
+  cor dinâmica. `PenFanGestureTest` cobre as quatro direções e o alvo de toque.
+- `./gradlew :app:testDebugUnitTest :app:assembleDebug` passou nas iterações
+  iniciais; a build foi instalada no `Small_Tablet`. Capturas ADB verificaram
+  barra real e círculo radial; o usuário pediu refinamentos após testar.
+  **Não confundir isso com QA de caneta real:** Redmi Pad 2 ainda não conectado.
+- Ainda pendente: verificar que o Popup não perde o evento de UP no longpress;
+  movimento contínuo com stylus, cancelamento, rotação, bordas da tela,
+  split-view, persistência do último tipo entre relançamentos e configurações
+  de cor individuais por caneta. A implementação atual usa `rememberSaveable`
+  para a última caneta e não muda o schema para ToolbarNode v3.
+
 ## Próxima ação (uma por vez)
 
-Executar P0: reproduzir e corrigir conflitos entre long-press do contêiner
-principal/secundário e long-press das ferramentas. Comparar o preview e a barra
-real no emulador; registrar evidências com ADB. Em seguida adicionar renderer
-compartilhado do grupo compacto com seleção/último item, e persistência versionada
-como ToolbarNode v3, mantendo layouts legados intactos. Camadas ficam fora desta branch.
+Validar no AVD a janela única com avançadas expandidas, o checkbox e o
+cancelamento do leque ao levantar sem selecionar. Depois testar arrastar com
+Xiaomi Smart Pen no Redmi Pad 2 (quando conectado), corrigir colisões com
+drag de toolbar, registrar QA e planejar persistência por perfil/toolbar.
+Camadas ficam fora desta branch.
