@@ -27,6 +27,7 @@ import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import com.xnotes.core.tools.ToolbarAnchor
+import com.xnotes.core.tools.ToolbarAnchorResolver
 import com.xnotes.core.tools.ToolbarBar
 import com.xnotes.core.tools.ToolbarScale
 import com.xnotes.core.tools.ToolbarWorkspace
@@ -63,19 +64,11 @@ fun ToolbarDragSurface(
                 drag = Offset.Zero
                 if (moved.getDistance() >= 12f && barBounds != Rect.Zero && paneBounds != Rect.Zero) {
                     val center = barBounds.center + moved - paneBounds.topLeft
-                    val width = paneBounds.width
-                    val height = paneBounds.height
-                    val col = when {
-                        center.x < width / 3f -> 0
-                        center.x > width * 2f / 3f -> 2
-                        else -> 1
+                    ToolbarAnchorResolver.nearest(
+                        center.x, center.y, paneBounds.width, paneBounds.height,
+                    )?.let { target ->
+                        if (target != anchor) onMoveBar(id, target)
                     }
-                    val row = when {
-                        center.y < height / 3f -> 0
-                        center.y > height * 2f / 3f -> 2
-                        else -> 1
-                    }
-                    onMoveBar(id, ToolbarAnchor.entries[row * 3 + col])
                 }
             },
             onDragCancel = { drag = Offset.Zero },
