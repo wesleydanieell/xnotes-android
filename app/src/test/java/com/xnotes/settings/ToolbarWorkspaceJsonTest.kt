@@ -49,7 +49,7 @@ class ToolbarWorkspaceJsonTest {
         val second = ToolbarBar(
             id = "colors-1",
             name = "Quick colors",
-            layout = compactLayout(ToolbarItem.COLORS, ToolbarItem.PEN),
+            layout = compactLayout(ToolbarItem.COLORS, ToolbarItem.PEN).setEntrySize(0, 0, 57),
             geometry = ToolbarGeometry(
                 anchor = ToolbarAnchor.BOTTOM_RIGHT,
                 floating = true,

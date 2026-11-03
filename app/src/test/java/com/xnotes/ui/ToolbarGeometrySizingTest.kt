@@ -38,5 +38,8 @@ class ToolbarGeometrySizingTest {
         assertEquals(131.dp, toolbarDepth(metrics, layout))
         assertEquals(260.dp, toolbarWidth(metrics, layout, geometry))
         assertEquals(131.dp, toolbarHeight(metrics, layout, geometry))
+        val sized = layout.setEntrySize(0, 0, 72)
+        assertEquals(72.dp, entryBarMetrics(metrics, sized.sections[0].entries[0]).button)
+        assertEquals(147.dp, toolbarDepth(metrics, sized))
     }
 }

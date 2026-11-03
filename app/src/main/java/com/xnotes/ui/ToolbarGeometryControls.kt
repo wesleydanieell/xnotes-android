@@ -15,6 +15,8 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.res.stringResource
+import com.xnotes.core.tools.ToolbarEntry
 import com.xnotes.core.tools.ToolbarGeometry
 import kotlin.math.roundToInt
 
@@ -85,4 +87,32 @@ private fun ToolbarMeasure(
             modifier = Modifier.width(230.dp),
         )
     }
+}
+
+/** A preview tool can have its own button size, without resizing other occurrences. */
+@Composable
+internal fun ToolbarEntrySizeControls(
+    entry: ToolbarEntry?,
+    defaultSizeDp: Int,
+    onChange: (Int?) -> Unit,
+) {
+    if (entry == null) {
+        Text(
+            "Toque em uma ferramenta do preview para ajustar o tamanho somente dela.",
+            style = MaterialTheme.typography.bodySmall,
+        )
+        return
+    }
+    Text(
+        stringResource(entry.item.labelRes),
+        style = MaterialTheme.typography.titleSmall,
+    )
+    ToolbarMeasure(
+        title = "Tamanho individual",
+        value = entry.sizeDp,
+        defaultValue = defaultSizeDp.coerceIn(28, 72),
+        minimum = 28,
+        maximum = 72,
+        onChange = onChange,
+    )
 }

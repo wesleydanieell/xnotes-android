@@ -254,17 +254,22 @@ Milestones dependentes não devem ser dados como concluídos sem QA.
   preset restaurar e criação guiada.
 - Gate: prévia e tela real concordam nos testes de referência.
 
-### M4 — Aparência e geometria [PENDENTE]
-- Modelo/persistência de width/height auto/manual, escala, padding,
-  fundo, alfa, borda, cor, raio, blur com fallback, alinhamento.
-- Um GeometryResolver calcula limites, orientação, largura e altura
-  antes da composição; snapshots para tamanhos extremos.
+### M4 — Aparência e geometria [PARCIAL]
+- Entregues overrides auto/manual de largura, altura, padding,
+  espaçamento e tamanho base. O mesmo resolver de medidas atende a barra
+  real e a prévia; controles dimensionais estão adjacentes à prévia.
+- Pendente: revisão de limites/safe area, persistência e QA físico em
+  posições/orientações diversas. Fundo/blur/bordas não são prioridade no
+  escopo visual simplificado atual.
 - Gate: ícones não somem nem sobrepõem; conf. sobrevive restart.
 
-### M5 — Elementos individuais e cores [PENDENTE]
-- Painel de tamanho visual/hitbox/espaço de cada elemento.
-- Controle do número de cores por barra e grade NxM, preservando paleta
-  de tinta real sem cópias mutáveis.
+### M5 — Elementos individuais e cores [PARCIAL]
+- Entregue tamanho individual por ocorrência (`ToolbarEntry.sizeDp`) com
+  seleção por toque diretamente na prévia, Auto e persistência JSON v4;
+  `Colours` duplicados têm ajustes independentes. A barra com múltiplas
+  faixas mede sua profundidade considerando o maior elemento por faixa.
+- Pendente: área de toque/acessibilidade por elemento, dimensionamento
+  com hitboxes pequenas, verificação na nota/canvas e QA físico.
 - Gate: cores atuais mudam sem atrasos; espaços não quebram popup.
 
 ### M6 — Grupos e grades aninhadas [PENDENTE]

@@ -67,6 +67,8 @@ data class ToolbarEntry(
     val lane: Int = 0,
     val colorPart: Int = 0,
     val colorParts: Int = 1,
+    /** Optional visual size for this occurrence; null inherits the toolbar's preset. */
+    val sizeDp: Int? = null,
 ) {
     fun colorIndices(total: Int): IntRange {
         val safeTotal = total.coerceAtLeast(0)
@@ -101,6 +103,18 @@ data class ToolbarLayout(val sections: List<ToolbarSection>) {
 
     fun addSection(lanes: Int = 1): ToolbarLayout =
         if (lanes !in 1..3) this else copy(sections = sections + ToolbarSection(emptyList(), lanes))
+
+    /** Target an occurrence by position, not tool ID (Colors may occur several times). */
+    fun setEntrySize(sectionIndex: Int, entryIndex: Int, sizeDp: Int?): ToolbarLayout {
+        if (sizeDp != null && sizeDp !in 28..72) return this
+        val section = sections.getOrNull(sectionIndex) ?: return this
+        val entry = section.entries.getOrNull(entryIndex) ?: return this
+        val entries = section.entries.toMutableList()
+        entries[entryIndex] = entry.copy(sizeDp = sizeDp)
+        val changed = sections.toMutableList()
+        changed[sectionIndex] = section.copy(entries = entries)
+        return copy(sections = changed)
+    }
 
     fun setSectionLanes(sectionIndex: Int, lanes: Int): ToolbarLayout {
         if (lanes !in 1..3) return this

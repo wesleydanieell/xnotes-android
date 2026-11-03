@@ -8,6 +8,7 @@ import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.gestures.scrollBy
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.FlowRow
@@ -153,6 +154,7 @@ fun PreferencesPane(
     // below always belongs to whichever is on screen.
     var canvasTab by remember { mutableStateOf(false) }
     var selectedBarId by remember { mutableStateOf<String?>(null) }
+    var selectedEntry by remember { mutableStateOf<Pair<Int, Int>?>(null) }
     fun editedWorkspace(): ToolbarWorkspace =
         if (canvasTab) editor.toolbarWorkspaces.canvas else editor.toolbarWorkspaces.note
     fun selectedBar(): ToolbarBar = editedWorkspace().bars.firstOrNull { it.id == selectedBarId }
@@ -202,6 +204,7 @@ fun PreferencesPane(
         if (canvasTab == canvas) return
         canvasTab = canvas
         selectedBarId = null
+        selectedEntry = null
         // The bounds maps are keyed by item and the two bars share most items, so stale entries
         // from the other tab would aim a drop at a chip that is no longer there.
         chipBounds.clear()
@@ -216,6 +219,7 @@ fun PreferencesPane(
     fun showBar(id: String) {
         if (selectedBarId == id) return
         selectedBarId = id
+        selectedEntry = null
         chipBounds.clear()
         laneBounds.clear()
         sectionBounds.clear()
@@ -626,24 +630,77 @@ fun PreferencesPane(
             val workspace = editedWorkspace()
             val currentBar = selectedBar()
             FieldLabel(stringResource(R.string.toolbar_preview))
-            ToolbarWorkspacePreview(
-                workspace = workspace.onlyItems(if (canvasTab) ToolbarLayout.CANVAS_ITEMS else ToolbarLayout.NOTE_ITEMS),
-                look = prefs.toolbarLook,
-                selectedId = currentBar.id,
-                colors = editor.toolbarColors.take(editor.toolbarColorCount),
-                activeColorIndex = editor.activeColorIndex,
-                pageNumber = editor.pageIndex + 1,
-                pageCount = editor.pageCount,
-                zoomLabel = "${editor.zoomPercent}%",
-                titleLabel = editor.title,
-                onSelectBar = { showBar(it) },
-                onMoveBar = { id, anchor ->
-                    editor.moveToolbarBar(
-                        if (canvasTab) com.xnotes.core.tools.ToolbarContext.CANVAS else com.xnotes.core.tools.ToolbarContext.NOTE,
-                        id, anchor,
-                    )
-                },
-            )
+            val entryPosition = selectedEntry
+            val activeEntry = entryPosition?.let { (section, index) ->
+                currentBar.layout.sections.getOrNull(section)?.entries?.getOrNull(index)
+            }
+            val barSize = if (currentBar.id == workspace.bars.first().id) prefs.toolbarLook.size
+                else when (currentBar.geometry.scale) {
+                    com.xnotes.core.tools.ToolbarScale.COMPACT -> ToolbarSize.COMPACT
+                    com.xnotes.core.tools.ToolbarScale.REGULAR -> ToolbarSize.REGULAR
+                    com.xnotes.core.tools.ToolbarScale.COMFORTABLE -> ToolbarSize.COMFORTABLE
+                }
+            val defaultEntrySize = resolvedBarMetrics(barSize, currentBar.geometry).button.value.toInt()
+            val preview: @Composable () -> Unit = {
+                ToolbarWorkspacePreview(
+                    workspace = workspace.onlyItems(if (canvasTab) ToolbarLayout.CANVAS_ITEMS else ToolbarLayout.NOTE_ITEMS),
+                    look = prefs.toolbarLook,
+                    selectedId = currentBar.id,
+                    selectedEntry = selectedEntry,
+                    colors = editor.toolbarColors.take(editor.toolbarColorCount),
+                    activeColorIndex = editor.activeColorIndex,
+                    pageNumber = editor.pageIndex + 1,
+                    pageCount = editor.pageCount,
+                    zoomLabel = "${editor.zoomPercent}%",
+                    titleLabel = editor.title,
+                    onSelectBar = { id -> showBar(id); selectedEntry = null },
+                    onSelectEntry = { id, section, index ->
+                        showBar(id)
+                        selectedEntry = section to index
+                    },
+                    onMoveBar = { id, anchor ->
+                        editor.moveToolbarBar(
+                            if (canvasTab) com.xnotes.core.tools.ToolbarContext.CANVAS else com.xnotes.core.tools.ToolbarContext.NOTE,
+                            id, anchor,
+                        )
+                    },
+                )
+            }
+            val properties: @Composable () -> Unit = {
+                Column(Modifier.heightIn(max = 320.dp).verticalScroll(rememberScrollState())) {
+                    Text("Propriedades · ${currentBar.name}", style = MaterialTheme.typography.titleSmall)
+                    if (activeEntry != null) {
+                        TextButton(onClick = { selectedEntry = null }) { Text("Voltar à barra") }
+                        ToolbarEntrySizeControls(
+                            entry = activeEntry,
+                            defaultSizeDp = defaultEntrySize,
+                            onChange = { size ->
+                                applyEdited(editedLayout().setEntrySize(entryPosition.first, entryPosition.second, size))
+                            },
+                        )
+                    } else {
+                        ToolbarGeometryControls(
+                            geometry = currentBar.geometry,
+                            onChange = { next -> updateSelectedBar { it.copy(geometry = next.constrained()) } },
+                        )
+                        Text("Toque em uma ferramenta do preview para definir um tamanho próprio.",
+                            style = MaterialTheme.typography.bodySmall)
+                    }
+                }
+            }
+            BoxWithConstraints(Modifier.fillMaxWidth()) {
+                if (maxWidth >= 600.dp) {
+                    Row(horizontalArrangement = Arrangement.spacedBy(12.dp), verticalAlignment = Alignment.Top) {
+                        Box(Modifier.weight(1f)) { preview() }
+                        Box(Modifier.width(252.dp)) { properties() }
+                    }
+                } else {
+                    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        preview()
+                        properties()
+                    }
+                }
+            }
             FieldLabel(stringResource(R.string.toolbar_select))
             FlowRow(
                 horizontalArrangement = Arrangement.spacedBy(6.dp),
@@ -822,11 +879,7 @@ fun PreferencesPane(
                     }
                 }
             }
-            HorizontalDivider(color = palette.border.toComposeColor())
-            ToolbarGeometryControls(
-                geometry = currentBar.geometry,
-                onChange = { next -> updateSelectedBar { it.copy(geometry = next.constrained()) } },
-            )
+            // Dimensions are edited beside the preview above, not in this long options list.
             // The ink palette is global; its toolbar presentation is per selected bar.
             FieldLabel(stringResource(R.string.pref_toolbar_colours_n, editor.toolbarColorCount))
             Slider(

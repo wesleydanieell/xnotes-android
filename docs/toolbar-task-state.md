@@ -284,11 +284,34 @@ Camadas ficam fora desta branch.
   Comparação real/preview, orientação, toques com caneta e split-view
   continuam pendentes. Nenhum PR foi aberto ou alterado.
 
+## Checkpoint M4.1 — tamanho individual junto à prévia (03/11/2026)
+
+- `ToolbarEntry.sizeDp` permite override opcional de 28–72 dp para cada
+  ocorrência de ferramenta. Mesmo tipo repetido (inclusive `Colours`) não
+  compartilha override. `ToolbarLayout.setEntrySize(sectionIndex, entryIndex, sizeDp)`
+  atualiza de forma imutável; JSON v4 registra `size_dp` apenas quando definido.
+- `entryBarMetrics` aplica a escala relativa à métrica da barra no renderer
+  compartilhado para xnote, xcanvas e preview. `toolbarDepth` considera o maior
+  elemento em cada faixa de sections com 1–3 linhas.
+- O configurador apresenta os cinco controles de dimensão ao lado da prévia
+  no tablet e logo abaixo em janelas estreitas. Tocar um elemento da prévia
+  seleciona sua ocorrência, mostra controle individual e botão para voltar às
+  dimensões da barra. A prévia continua acessível durante o ajuste.
+- `:app:testDebugUnitTest :app:assembleDebug --offline` e `git diff --check`
+  passaram. Testes cobrem duas ocorrências de `Colours`, reset automático,
+  round-trip JSON, escala individual e profundidade de barra com duas faixas.
+- Debug instalado em `emulator-5554`. QA visual em 1920×1200/320 dpi:
+  painel adjacente à prévia, seleção `Pen group`, ajuste de 58 dp refletido
+  imediatamente na prévia, retorno a Auto e seleção de `Colours` confirmados.
+- Não foi instalado no Redmi Pad 2 (não conectado nesta rodada). Persistência
+  após reiniciar app, diferentes posições de dock, rotação, notas/canvas reais
+  e gestos com Xiaomi Smart Pen ainda requerem QA físico.
+
 ### Próxima ação vigente
 
-1. Recompilar após o ajuste de layout e revisar a diff; fazer commit.
-2. Com o Redmi Pad 2 reconectado, instalar só `com.xnotes.toolbarsdebug`
-   e testar 4 docks, 8 âncoras, dimensionamento e todas as faixas;
-   comparar visualmente preview/notas/canvas.
-3. Implementar o atalho simples dentro da nota para abrir o configurador
-   dedicado. Não reintroduzir editor/resize in-note.
+1. Com Redmi Pad 2 conectado, instalar só `com.xnotes.toolbarsdebug` e comparar
+   tamanhos individuais entre prévia, nota e canvas (docked e floating).
+2. Verificar persistência com ferramentas duplicadas/sections de várias linhas,
+   reinício, retrato/paisagem e layout compacto; corrigir diferenças visuais.
+3. Implementar atalho simples dentro da nota para abrir o configurador dedicado,
+   sem reintroduzir editor ou redimensionamento in-note.

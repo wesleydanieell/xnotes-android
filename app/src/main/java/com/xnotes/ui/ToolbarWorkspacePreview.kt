@@ -91,6 +91,8 @@ internal fun ToolbarWorkspacePreview(
     zoomLabel: String,
     titleLabel: String,
     onSelectBar: (String) -> Unit,
+    onSelectEntry: (String, Int, Int) -> Unit,
+    selectedEntry: Pair<Int, Int>?,
     onMoveBar: (String, ToolbarAnchor) -> Unit,
 ) {
     val palette = LocalPalette.current
@@ -197,6 +199,8 @@ internal fun ToolbarWorkspacePreview(
                             zoomLabel = zoomLabel,
                             titleLabel = titleLabel,
                             onSelect = { onSelectBar(bar.id) },
+                            onSelectEntry = { section, entry -> onSelectEntry(bar.id, section, entry) },
+                            selectedEntry = if (bar.id == selectedId) selectedEntry else null,
                         )
                     }
                 }
@@ -221,6 +225,8 @@ private fun PreviewBar(
     zoomLabel: String,
     titleLabel: String,
     onSelect: () -> Unit,
+    onSelectEntry: (Int, Int) -> Unit,
+    selectedEntry: Pair<Int, Int>?,
 ) {
     val palette = LocalPalette.current
     val metrics = resolvedBarMetrics(effectiveSize, bar.geometry).copy(vertical = vertical)
@@ -246,7 +252,7 @@ private fun PreviewBar(
                 .padding(vertical = metrics.padding),
             horizontalAlignment = Alignment.CenterHorizontally,
         ) {
-            PreviewSections(bar.layout, metrics, colors, activeColorIndex, pageNumber, pageCount, zoomLabel, titleLabel, onSelect, vertical = true)
+            PreviewSections(bar.layout, metrics, colors, activeColorIndex, pageNumber, pageCount, zoomLabel, titleLabel, onSelectEntry, selectedEntry, vertical = true)
         }
     } else {
         Row(
@@ -258,7 +264,7 @@ private fun PreviewBar(
                 .padding(horizontal = metrics.padding),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            PreviewSections(bar.layout, metrics, colors, activeColorIndex, pageNumber, pageCount, zoomLabel, titleLabel, onSelect, vertical = false)
+            PreviewSections(bar.layout, metrics, colors, activeColorIndex, pageNumber, pageCount, zoomLabel, titleLabel, onSelectEntry, selectedEntry, vertical = false)
         }
     }
 }
@@ -273,19 +279,35 @@ private fun PreviewSections(
     pageCount: Int,
     zoomLabel: String,
     titleLabel: String,
-    onSelect: () -> Unit,
+    onSelectEntry: (Int, Int) -> Unit,
+    selectedEntry: Pair<Int, Int>?,
     vertical: Boolean,
 ) {
+    val palette = LocalPalette.current
     // Use the same controls, swatches, labels and separators as a live toolbar.
     // Preview clicks select the edited bar; they never edit the open document.
     CompositionLocalProvider(LocalBar provides metrics) {
-        layout.visibleSections.forEachIndexed { sectionIndex, section ->
-            if (sectionIndex > 0) Separator()
+        val visible = layout.sections.withIndex().filter { it.value.hasVisible }
+        visible.forEachIndexed { visualIndex, indexed ->
+            if (visualIndex > 0) Separator()
+            val section = indexed.value
             ToolbarSectionGrid(section) { entry ->
-                PreviewTool(
-                    entry, colors, activeColorIndex, pageNumber, pageCount,
-                    zoomLabel, titleLabel, onSelect, vertical,
-                )
+                // Reference identity distinguishes repeated Colors occurrences with equal values.
+                val entryIndex = section.entries.indexOfFirst { it === entry }
+                val selected = selectedEntry == (indexed.index to entryIndex)
+                Box(
+                    Modifier
+                        .then(if (selected) Modifier.border(
+                            1.dp, palette.accent.toComposeColor(), RoundedCornerShape(5.dp),
+                        ) else Modifier)
+                        .clickable { onSelectEntry(indexed.index, entryIndex) },
+                ) {
+                    PreviewTool(
+                        entry, colors, activeColorIndex, pageNumber, pageCount,
+                        zoomLabel, titleLabel,
+                        { onSelectEntry(indexed.index, entryIndex) }, vertical,
+                    )
+                }
             }
         }
     }

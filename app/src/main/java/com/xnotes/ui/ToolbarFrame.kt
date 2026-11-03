@@ -35,6 +35,7 @@ import androidx.compose.ui.unit.DpOffset
 import androidx.compose.ui.unit.TextUnit
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.xnotes.core.tools.ToolbarEntry
 import com.xnotes.core.tools.ToolbarGeometry
 import com.xnotes.core.tools.ToolbarLayout
 import com.xnotes.settings.ToolbarLook
@@ -85,8 +86,30 @@ internal fun resolvedBarMetrics(size: ToolbarSize, geometry: ToolbarGeometry?): 
     )
 }
 
-internal fun toolbarDepth(bar: BarMetrics, layout: ToolbarLayout?): Dp =
-    bar.thickness + (bar.button + bar.spacing) * (toolbarCrossCells(layout) - 1)
+internal fun entryBarMetrics(base: BarMetrics, entry: ToolbarEntry): BarMetrics {
+    val size = entry.sizeDp?.dp ?: return base
+    val factor = size.value / base.button.value
+    return base.copy(
+        button = size,
+        circle = base.circle * factor,
+        icon = base.icon * factor,
+        swatch = base.swatch * factor,
+        rule = base.rule * factor,
+        label = (base.label.value * factor).sp,
+    )
+}
+
+/** Largest transverse lane stack, including individually oversized controls. */
+internal fun toolbarDepth(bar: BarMetrics, layout: ToolbarLayout?): Dp {
+    val measured = layout?.visibleSections?.maxOfOrNull { section ->
+        (0 until section.crossCells).fold(0.dp) { total, lane ->
+            val laneButton = section.entriesInLane(lane)
+                .maxOfOrNull { entry -> entry.sizeDp?.dp ?: bar.button } ?: bar.button
+            total + maxOf(bar.button, laneButton)
+        } + bar.spacing * (section.crossCells - 1)
+    } ?: bar.button
+    return measured + bar.padding * 2
+}
 
 internal fun toolbarWidth(bar: BarMetrics, layout: ToolbarLayout?, geometry: ToolbarGeometry?): Dp =
     maxOf(toolbarDepth(bar, layout), geometry?.widthDp?.dp ?: 0.dp)

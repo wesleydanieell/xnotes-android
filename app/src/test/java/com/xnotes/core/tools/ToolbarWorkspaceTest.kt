@@ -70,6 +70,19 @@ class ToolbarWorkspaceTest {
             .forContext(ToolbarContext.CANVAS).bars.single().layout.sections.single().entries.single().item)
     }
 
+    @Test fun individualToolSizesDoNotLeakAcrossRepeatedColors() {
+        val colors = ToolbarLayout(listOf(ToolbarSection(listOf(
+            ToolbarEntry(ToolbarItem.COLORS, colorPart = 0, colorParts = 2),
+            ToolbarEntry(ToolbarItem.COLORS, colorPart = 1, colorParts = 2),
+        ))))
+        val changed = colors.setEntrySize(0, 1, 60)
+        assertEquals(null, colors.sections[0].entries[0].sizeDp)
+        assertEquals(null, changed.sections[0].entries[0].sizeDp)
+        assertEquals(60, changed.sections[0].entries[1].sizeDp)
+        assertEquals(null, changed.setEntrySize(0, 1, null).sections[0].entries[1].sizeDp)
+        assertSame(changed, changed.setEntrySize(0, 1, 200))
+    }
+
     @Test fun dimensionsAreClampedAndAutoSizeRemainsAuto() {
         assertEquals(ToolbarGeometry(), ToolbarGeometry().constrained())
         val limited = ToolbarGeometry(

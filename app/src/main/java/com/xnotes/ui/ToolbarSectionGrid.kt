@@ -4,6 +4,7 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import com.xnotes.core.tools.ToolbarEntry
 import com.xnotes.core.tools.ToolbarLayout
 import com.xnotes.core.tools.ToolbarSection
@@ -20,15 +21,21 @@ internal fun ToolbarSectionGrid(
     section: ToolbarSection,
     cell: @Composable (ToolbarEntry) -> Unit,
 ) {
+    val base = LocalBar.current
+    val measuredCell: @Composable (ToolbarEntry) -> Unit = { entry ->
+        CompositionLocalProvider(LocalBar provides entryBarMetrics(base, entry)) {
+            cell(entry)
+        }
+    }
     if (section.lanes == 1) {
-        section.visibleEntries.forEach { cell(it) }
+        section.visibleEntries.forEach { measuredCell(it) }
         return
     }
     if (LocalBar.current.vertical) {
         Row(horizontalArrangement = Arrangement.spacedBy(LocalBar.current.spacing)) {
             repeat(section.lanes) { lane ->
                 Column(verticalArrangement = Arrangement.spacedBy(LocalBar.current.spacing)) {
-                    section.entriesInLane(lane).forEach { cell(it) }
+                    section.entriesInLane(lane).forEach { measuredCell(it) }
                 }
             }
         }
@@ -36,7 +43,7 @@ internal fun ToolbarSectionGrid(
         Column(verticalArrangement = Arrangement.spacedBy(LocalBar.current.spacing)) {
             repeat(section.lanes) { lane ->
                 Row(horizontalArrangement = Arrangement.spacedBy(LocalBar.current.spacing)) {
-                    section.entriesInLane(lane).forEach { cell(it) }
+                    section.entriesInLane(lane).forEach { measuredCell(it) }
                 }
             }
         }

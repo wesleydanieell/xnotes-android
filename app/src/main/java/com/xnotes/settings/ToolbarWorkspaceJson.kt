@@ -55,7 +55,8 @@ internal object ToolbarWorkspaceJson {
                                 .put("visible", entry.visible)
                                 .put("lane", entry.lane)
                                 .put("color_part", entry.colorPart)
-                                .put("color_parts", entry.colorParts))
+                                .put("color_parts", entry.colorParts)
+                                .apply { entry.sizeDp?.let { put("size_dp", it) } })
                         }))
                 }))
         })
@@ -107,6 +108,7 @@ internal object ToolbarWorkspaceJson {
                         lane = entry.optInt("lane", legacyLane).coerceIn(0, 2),
                         colorPart = entry.optInt("color_part", 0).coerceIn(0, 63),
                         colorParts = entry.optInt("color_parts", 1).coerceIn(1, 64),
+                        sizeDp = entry.optInt("size_dp").takeIf { entry.has("size_dp") }?.coerceIn(28, 72),
                     ))
                 }
                 val sectionObject = rawSection as? JSONObject
