@@ -148,6 +148,22 @@ usuário encontradas no worktree e não invente sucesso nem background jobs.
   compacto ao renderer compartilhado e ao schema versionado, sem alterar
   o layout legado automaticamente.
 
+## Evidências — fidelidade do preview (03/11/2026)
+
+- Commit `27fc3fba` (`fix(toolbar): match preview sizing and distinguish docked from floating`).
+- Removidos os tamanhos fictícios de 21 dp, o limite artificial de 5/9 itens e as
+  três cores de exemplo. A prévia usa `barMetrics` (36/42/50 dp), cores reais,
+  múltiplos controles de paginação/zoom e rolagem para conteúdo excedente.
+- Docked ocupa a borda e reserva visualmente espaço do papel; Floating usa
+  cápsula com margem e sombra sobre o papel.
+- `:app:compileDebugKotlin :app:testDebugUnitTest :app:assembleDebug` passou
+  (50 tarefas, BUILD SUCCESSFUL em 8 s), APK instalado com ADB no Small_Tablet.
+- QA visual com capturas no emulador: xnote docked topo, xnote floating topo e
+  xcanvas floating inferior renderizaram sem crash. Teste de gestos/caneta no
+  Redmi Pad 2 e comparação pixel-perfect com barra real ainda PENDENTES.
+- Ainda existem placeholders para título/página/zoom e falta resolver colisões
+  entre várias barras e escalas manuais: não declarar fidelidade completa.
+
 ## Próxima ação (uma por vez)
 
 Executar P0: reproduzir e corrigir conflitos entre long-press do contêiner
