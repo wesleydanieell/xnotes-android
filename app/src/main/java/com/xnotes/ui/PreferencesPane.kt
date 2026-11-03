@@ -628,6 +628,11 @@ fun PreferencesPane(
                 look = prefs.toolbarLook,
                 selectedId = currentBar.id,
                 colors = editor.toolbarColors.take(editor.toolbarColorCount),
+                activeColorIndex = editor.activeColorIndex,
+                pageNumber = editor.pageIndex + 1,
+                pageCount = editor.pageCount,
+                zoomLabel = "${editor.zoomPercent}%",
+                titleLabel = editor.title,
                 onSelectBar = { showBar(it) },
                 onMoveBar = { id, anchor ->
                     editor.moveToolbarBar(

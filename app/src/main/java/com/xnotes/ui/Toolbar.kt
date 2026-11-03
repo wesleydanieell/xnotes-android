@@ -602,7 +602,7 @@ private fun Rule() {
 
 /** "3 / 12" along the bar; down a side rail, where that is too wide, the two numbers stack. */
 @Composable
-private fun PageCounter(current: Int, count: Int, modifier: Modifier) {
+internal fun PageCounter(current: Int, count: Int, modifier: Modifier) {
     if (!LocalBar.current.vertical) {
         Label("$current / $count", modifier)
         return

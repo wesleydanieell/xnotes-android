@@ -7,9 +7,9 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
+import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxHeight
@@ -18,13 +18,11 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material3.Icon
-import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -37,10 +35,14 @@ import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.boundsInRoot
 import androidx.compose.ui.layout.onGloballyPositioned
-import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.platform.LocalConfiguration
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.unit.Density
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
+import com.xnotes.R
+import com.xnotes.ui.icons.XnotesIcons
 import com.xnotes.core.model.Rgba
 import com.xnotes.core.tools.ToolbarAnchor
 import com.xnotes.core.tools.ToolbarBar
@@ -55,9 +57,27 @@ import com.xnotes.ui.theme.LocalPalette
 import com.xnotes.ui.theme.toComposeColor
 
 /**
- * A note-like stage with 1:1 dp toolbar controls. Oversized bars scroll like the real
- * ToolbarFrame rather than shrinking their icons or silently omitting tools.
- * This is still a non-executable preview: tools are represented, not dispatched.
+ * Scale a toolbar editor preview as a miniature of the real screen, rather than
+ * rendering full-size controls into an arbitrarily narrow preferences column.
+ */
+internal fun toolbarPreviewScale(previewWidth: Dp, screenWidth: Dp): Float {
+    val available = previewWidth.value
+    val reference = screenWidth.value
+    if (!available.isFinite() || !reference.isFinite() || available <= 0f || reference <= 0f) return 1f
+    return (available / reference).coerceIn(0.25f, 1f)
+}
+
+internal fun toolbarPreviewAspectRatio(screenWidth: Dp, screenHeight: Dp): Float {
+    val width = screenWidth.value
+    val height = screenHeight.value
+    if (!width.isFinite() || !height.isFinite() || width <= 0f || height <= 0f) return 16f / 10f
+    return width / height
+}
+
+/**
+ * A note-like preview of the actual window width. Controls use the same dp/sp sizes
+ * and composables as the live ToolbarFrame, all scaled by the same viewport ratio.
+ * Tool clicks select a bar and never dispatch actions to the document.
  */
 @Composable
 internal fun ToolbarWorkspacePreview(
@@ -65,10 +85,19 @@ internal fun ToolbarWorkspacePreview(
     look: ToolbarLook,
     selectedId: String,
     colors: List<Rgba>,
+    activeColorIndex: Int,
+    pageNumber: Int,
+    pageCount: Int,
+    zoomLabel: String,
+    titleLabel: String,
     onSelectBar: (String) -> Unit,
     onMoveBar: (String, ToolbarAnchor) -> Unit,
 ) {
     val palette = LocalPalette.current
+    val configuration = LocalConfiguration.current
+    val screenWidth = configuration.screenWidthDp.dp
+    val screenHeight = configuration.screenHeightDp.dp
+    val screenDensity = LocalDensity.current
     var stageBounds by remember { mutableStateOf(Rect.Zero) }
     val primary = workspace.bars.firstOrNull()?.takeIf { it.visible }
     val docked = primary != null && !primary.geometry.floating && !look.floating
@@ -77,82 +106,94 @@ internal fun ToolbarWorkspacePreview(
     BoxWithConstraints(
         Modifier
             .fillMaxWidth()
-            .height(340.dp)
+            .aspectRatio(toolbarPreviewAspectRatio(screenWidth, screenHeight))
             .clip(RoundedCornerShape(14.dp))
             .background(Color(0xFFE7EAF0))
             .border(1.dp, palette.border.toComposeColor(), RoundedCornerShape(14.dp))
             .onGloballyPositioned { stageBounds = it.boundsInRoot() },
     ) {
-        val stageWidth = maxWidth
-        val stageHeight = maxHeight
-        Canvas(Modifier.fillMaxSize()) {
-            val depth = dockDepth.toPx()
-            val left = if (docked && look.position == ToolbarPosition.LEFT) depth else 0f
-            val top = if (docked && look.position == ToolbarPosition.TOP) depth else 0f
-            val right = if (docked && look.position == ToolbarPosition.RIGHT) depth else 0f
-            val bottom = if (docked && look.position == ToolbarPosition.BOTTOM) depth else 0f
-            val paperWidth = (size.width - left - right).coerceAtLeast(0f)
-            val paperHeight = (size.height - top - bottom).coerceAtLeast(0f)
-            drawRect(
-                Color(0xFFFAFAFD),
-                topLeft = androidx.compose.ui.geometry.Offset(left, top),
-                size = androidx.compose.ui.geometry.Size(paperWidth, paperHeight),
-            )
-            val inset = 14.dp.toPx()
-            val rule = 30.dp.toPx()
-            var y = top + 54.dp.toPx()
-            while (y < size.height - bottom - inset) {
-                drawLine(
-                    Color(0xFFE8EDF5),
-                    androidx.compose.ui.geometry.Offset(left + inset, y),
-                    androidx.compose.ui.geometry.Offset(size.width - right - inset, y),
-                    1.dp.toPx(),
+        // Layout against the actual window width, then scale all dp/sp measurements together.
+        // This preserves the bar-to-screen ratio even in a narrower settings pane.
+        val scale = toolbarPreviewScale(maxWidth, screenWidth)
+        val stageWidth = maxWidth / scale
+        val stageHeight = maxHeight / scale
+        CompositionLocalProvider(
+            LocalDensity provides Density(screenDensity.density * scale, screenDensity.fontScale),
+        ) {
+            Canvas(Modifier.fillMaxSize()) {
+                val depth = dockDepth.toPx()
+                val left = if (docked && look.position == ToolbarPosition.LEFT) depth else 0f
+                val top = if (docked && look.position == ToolbarPosition.TOP) depth else 0f
+                val right = if (docked && look.position == ToolbarPosition.RIGHT) depth else 0f
+                val bottom = if (docked && look.position == ToolbarPosition.BOTTOM) depth else 0f
+                val paperWidth = (size.width - left - right).coerceAtLeast(0f)
+                val paperHeight = (size.height - top - bottom).coerceAtLeast(0f)
+                drawRect(
+                    Color(0xFFFAFAFD),
+                    topLeft = androidx.compose.ui.geometry.Offset(left, top),
+                    size = androidx.compose.ui.geometry.Size(paperWidth, paperHeight),
                 )
-                y += rule
-            }
-        }
-        workspace.bars.forEachIndexed { index, bar ->
-            if (!bar.visible) return@forEachIndexed
-            val floating = index != 0 || bar.geometry.floating || look.floating
-            val anchor = if (index == 0 && !bar.geometry.floating) when (look.position) {
-                ToolbarPosition.TOP -> ToolbarAnchor.TOP_CENTER
-                ToolbarPosition.BOTTOM -> ToolbarAnchor.BOTTOM_CENTER
-                ToolbarPosition.LEFT -> ToolbarAnchor.CENTER_LEFT
-                ToolbarPosition.RIGHT -> ToolbarAnchor.CENTER_RIGHT
-            } else bar.geometry.anchor
-            val vertical = anchor == ToolbarAnchor.CENTER_LEFT || anchor == ToolbarAnchor.CENTER_RIGHT
-            Box(
-                Modifier
-                    .align(anchor.alignment())
-                    .padding(if (floating) 8.dp else 1.dp)
-                    .then(
-                        if (!floating && vertical) Modifier.fillMaxHeight()
-                        else if (!floating) Modifier.fillMaxWidth()
-                        else Modifier,
-                    ),
-            ) {
-                ToolbarDragSurface(
-                    id = bar.id,
-                    anchor = anchor,
-                    movable = bar.geometry.movable,
-                    paneBounds = stageBounds,
-                    onMoveBar = onMoveBar,
-                ) {
-                    PreviewBar(
-                        bar = bar,
-                        selected = bar.id == selectedId,
-                        effectiveSize = if (index == 0 && !bar.geometry.floating) look.size else when (bar.geometry.scale) {
-                            ToolbarScale.COMPACT -> ToolbarSize.COMPACT
-                            ToolbarScale.REGULAR -> ToolbarSize.REGULAR
-                            ToolbarScale.COMFORTABLE -> ToolbarSize.COMFORTABLE
-                        },
-                        vertical = vertical,
-                        floating = floating,
-                        availableWidth = stageWidth - 20.dp,
-                        availableHeight = stageHeight - 20.dp,
-                        colors = colors,
-                        onSelect = { onSelectBar(bar.id) },
+                val inset = 14.dp.toPx()
+                val rule = 30.dp.toPx()
+                var y = top + 54.dp.toPx()
+                while (y < size.height - bottom - inset) {
+                    drawLine(
+                        Color(0xFFE8EDF5),
+                        androidx.compose.ui.geometry.Offset(left + inset, y),
+                        androidx.compose.ui.geometry.Offset(size.width - right - inset, y),
+                        1.dp.toPx(),
                     )
+                    y += rule
+                }
+            }
+            workspace.bars.forEachIndexed { index, bar ->
+                if (!bar.visible) return@forEachIndexed
+                val floating = index != 0 || bar.geometry.floating || look.floating
+                val anchor = if (index == 0 && !bar.geometry.floating) when (look.position) {
+                    ToolbarPosition.TOP -> ToolbarAnchor.TOP_CENTER
+                    ToolbarPosition.BOTTOM -> ToolbarAnchor.BOTTOM_CENTER
+                    ToolbarPosition.LEFT -> ToolbarAnchor.CENTER_LEFT
+                    ToolbarPosition.RIGHT -> ToolbarAnchor.CENTER_RIGHT
+                } else bar.geometry.anchor
+                val vertical = anchor == ToolbarAnchor.CENTER_LEFT || anchor == ToolbarAnchor.CENTER_RIGHT
+                Box(
+                    Modifier
+                        .align(anchor.alignment())
+                        .padding(if (floating) 8.dp else 0.dp)
+                        .then(
+                            if (!floating && vertical) Modifier.fillMaxHeight()
+                            else if (!floating) Modifier.fillMaxWidth()
+                            else Modifier,
+                        ),
+                ) {
+                    ToolbarDragSurface(
+                        id = bar.id,
+                        anchor = anchor,
+                        movable = bar.geometry.movable,
+                        paneBounds = stageBounds,
+                        onMoveBar = onMoveBar,
+                    ) {
+                        PreviewBar(
+                            bar = bar,
+                            selected = bar.id == selectedId,
+                            effectiveSize = if (index == 0 && !bar.geometry.floating) look.size else when (bar.geometry.scale) {
+                                ToolbarScale.COMPACT -> ToolbarSize.COMPACT
+                                ToolbarScale.REGULAR -> ToolbarSize.REGULAR
+                                ToolbarScale.COMFORTABLE -> ToolbarSize.COMFORTABLE
+                            },
+                            vertical = vertical,
+                            floating = floating,
+                            availableWidth = stageWidth - 20.dp,
+                            availableHeight = stageHeight - 20.dp,
+                            colors = colors,
+                            activeColorIndex = activeColorIndex,
+                            pageNumber = pageNumber,
+                            pageCount = pageCount,
+                            zoomLabel = zoomLabel,
+                            titleLabel = titleLabel,
+                            onSelect = { onSelectBar(bar.id) },
+                        )
+                    }
                 }
             }
         }
@@ -169,6 +210,11 @@ private fun PreviewBar(
     availableWidth: Dp,
     availableHeight: Dp,
     colors: List<Rgba>,
+    activeColorIndex: Int,
+    pageNumber: Int,
+    pageCount: Int,
+    zoomLabel: String,
+    titleLabel: String,
     onSelect: () -> Unit,
 ) {
     val palette = LocalPalette.current
@@ -188,24 +234,24 @@ private fun PreviewBar(
     if (vertical) {
         Column(
             surface
-                .heightIn(max = availableHeight)
-                .then(if (!floating) Modifier.fillMaxHeight() else Modifier)
+                .then(if (floating) Modifier.heightIn(max = availableHeight) else Modifier.fillMaxHeight())
+                .width(metrics.thickness)
                 .verticalScroll(rememberScrollState())
                 .padding(vertical = 4.dp),
             horizontalAlignment = Alignment.CenterHorizontally,
         ) {
-            PreviewSections(bar.layout, metrics, colors, vertical = true)
+            PreviewSections(bar.layout, metrics, colors, activeColorIndex, pageNumber, pageCount, zoomLabel, titleLabel, onSelect, vertical = true)
         }
     } else {
         Row(
             surface
-                .widthIn(max = availableWidth)
-                .then(if (!floating) Modifier.fillMaxWidth() else Modifier)
+                .then(if (floating) Modifier.widthIn(max = availableWidth) else Modifier.fillMaxWidth())
+                .height(metrics.thickness)
                 .horizontalScroll(rememberScrollState())
                 .padding(horizontal = 4.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            PreviewSections(bar.layout, metrics, colors, vertical = false)
+            PreviewSections(bar.layout, metrics, colors, activeColorIndex, pageNumber, pageCount, zoomLabel, titleLabel, onSelect, vertical = false)
         }
     }
 }
@@ -215,71 +261,70 @@ private fun PreviewSections(
     layout: ToolbarLayout,
     metrics: BarMetrics,
     colors: List<Rgba>,
+    activeColorIndex: Int,
+    pageNumber: Int,
+    pageCount: Int,
+    zoomLabel: String,
+    titleLabel: String,
+    onSelect: () -> Unit,
     vertical: Boolean,
 ) {
-    // A flat sequence is used here because the actual strip draws separators between sections.
-    layout.visibleSections.forEachIndexed { sectionIndex, section ->
-        if (sectionIndex > 0) {
-            val palette = LocalPalette.current
-            Box(
-                Modifier
-                    .padding(if (vertical) 4.dp else 3.dp)
-                    .then(
-                        if (vertical) Modifier.size(metrics.rule, 1.dp)
-                        else Modifier.size(1.dp, metrics.rule),
-                    )
-                    .background(palette.border.toComposeColor()),
-            )
-        }
-        section.visibleEntries.forEach { entry ->
-            PreviewTool(entry.item, metrics, colors, vertical)
+    // Use the same controls, swatches, labels and separators as a live toolbar.
+    // Preview clicks select the edited bar; they never edit the open document.
+    CompositionLocalProvider(LocalBar provides metrics) {
+        layout.visibleSections.forEachIndexed { sectionIndex, section ->
+            if (sectionIndex > 0) Separator()
+            section.visibleEntries.forEach { entry ->
+                PreviewTool(
+                    entry.item, colors, activeColorIndex, pageNumber, pageCount,
+                    zoomLabel, titleLabel, onSelect, vertical,
+                )
+            }
         }
     }
 }
 
 @Composable
-private fun PreviewTool(item: ToolbarItem, metrics: BarMetrics, colors: List<Rgba>, vertical: Boolean) {
-    val palette = LocalPalette.current
-    if (item == ToolbarItem.COLORS) {
-        if (vertical) {
-            Column(verticalArrangement = Arrangement.spacedBy(6.dp), horizontalAlignment = Alignment.CenterHorizontally) {
-                colors.forEach { color ->
-                    Box(Modifier.size(metrics.swatch).clip(CircleShape).background(color.toComposeColor()))
-                }
+private fun PreviewTool(
+    item: ToolbarItem,
+    colors: List<Rgba>,
+    activeColorIndex: Int,
+    pageNumber: Int,
+    pageCount: Int,
+    zoomLabel: String,
+    titleLabel: String,
+    onSelect: () -> Unit,
+    vertical: Boolean,
+) {
+    val controls: @Composable () -> Unit = {
+        when (item) {
+            ToolbarItem.COLORS -> colors.forEachIndexed { index, color ->
+                Swatch(color.toComposeColor(), active = index == activeColorIndex, onClick = onSelect)
             }
-        } else {
-            Row(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
-                colors.forEach { color ->
-                    Box(Modifier.size(metrics.swatch).clip(CircleShape).background(color.toComposeColor()))
-                }
+            ToolbarItem.PAGE_NAV -> {
+                ToolbarIcon(XnotesIcons.prev, stringResource(R.string.previous_page), onClick = onSelect)
+                PageCounter(pageNumber, pageCount, Modifier)
+                ToolbarIcon(XnotesIcons.next, stringResource(R.string.next_page), onClick = onSelect)
+            }
+            ToolbarItem.ZOOM -> {
+                ToolbarIcon(XnotesIcons.zoomOut, stringResource(R.string.zoom_out), onClick = onSelect)
+                Label(zoomLabel)
+                ToolbarIcon(XnotesIcons.zoomIn, stringResource(R.string.zoom_in), onClick = onSelect)
+            }
+            ToolbarItem.TITLE -> {
+                if (!vertical) Label(titleLabel, Modifier.widthIn(max = 160.dp))
+            }
+            else -> {
+                // The real document/canvas toolbar uses the back arrow, not the Home house icon.
+                val icon = if (item == ToolbarItem.HOME) XnotesIcons.prev else itemIcon(item)
+                ToolbarIcon(icon, stringResource(item.labelRes), onClick = onSelect)
             }
         }
+    }
+    if (item == ToolbarItem.COLORS || item == ToolbarItem.PAGE_NAV || item == ToolbarItem.ZOOM) {
+        if (vertical) Column(horizontalAlignment = Alignment.CenterHorizontally) { controls() }
+        else Row(verticalAlignment = Alignment.CenterVertically) { controls() }
     } else {
-        // Composite items occupy multiple controls in both real toolbars.
-        val count = when (item) {
-            ToolbarItem.PAGE_NAV, ToolbarItem.ZOOM -> 3
-            else -> 1
-        }
-        val cells: @Composable () -> Unit = {
-            repeat(count) { index ->
-                Box(Modifier.size(metrics.button), contentAlignment = Alignment.Center) {
-                    if (item == ToolbarItem.TITLE) {
-                        Text("Note", maxLines = 1, overflow = TextOverflow.Ellipsis,
-                            fontSize = metrics.label.value.sp, color = palette.textDim.toComposeColor())
-                    } else {
-                        Icon(
-                            itemIcon(item), contentDescription = null,
-                            modifier = Modifier.size(metrics.icon),
-                            tint = palette.text.toComposeColor(),
-                        )
-                    }
-                }
-            }
-        }
-        if (vertical) {
-            Column(horizontalAlignment = Alignment.CenterHorizontally) { cells() }
-        } else {
-            Row(verticalAlignment = Alignment.CenterVertically) { cells() }
-        }
+        controls()
     }
 }
