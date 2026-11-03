@@ -28,8 +28,8 @@ Camadas são um projeto futuro separado: docs/layers-roadmap.md.
 | M2 Renderer/gestos | PARCIAL | Barras extra; principal pode mover; container longpress; sem QA de conflitos |
 | M3 Editor/preview | PARCIAL | Config view, CRUD, grade 3x3 e live preview simples; sem undo/apply |
 | M4 Dimensões essenciais | PENDENTE | Escopo revisado: largura, altura, padding, espaçamento e tamanho por elemento; presets existentes não satisfazem tudo |
-| M5 Elementos/cores | PENDENTE | Contagem global legado existe; quantidade/layout por barra não |
-| M6 Grupos/grades | PARCIAL | Seções já aceitam linear, 1×2, 2×2 e 3×2; codec v2, renderer e preview compartilhados, editor por preset; QA visual/ADB pendente |
+| M5 Elementos/cores | PARCIAL | Cores globais divididas dinamicamente em N blocos por barra, controle na tela dedicada; ainda faltam tamanho/spacing por elemento e QA |
+| M6 Sections em faixas | PARCIAL | Sections de uma/duas linhas independentes (colunas em barras laterais), sem limite arbitrário; codec v3 migra v1/v2; renderer/preview comuns, arraste por linha; QA físico pendente |
 | M7 Caneta unificada | PARCIAL | Lançador opcional, leque radial com animação e painel único de configurações por tipo; QA de stylus e migração/schema avançado pendentes |
 | M8 Atalho in-note | PENDENTE | A pedido do usuário, NÃO implementar edição/resize dentro da nota; apenas entrada rápida para configuração dedicada |
 | M9 Perfis/QA/performance | PARCIAL | Dados note/canvas separados; UI de shared não terminada |
@@ -61,10 +61,14 @@ não substitui o Git como fonte de verdade.
   nomes visíveis no painel; toque na caneta já ativa abre painel imediatamente.
   Quick-select usa teste de proximidade aos centros reais dos ícones na tela, com
   setor angular como fallback. **Validar com dedo e Xiaomi Smart Pen nas quatro bordas.**
-- Grupos: modelo `ToolbarSection.gridColumns` (0/1/2/3), capacidade máxima de duas
-  fileiras, rejeição segura para controles compostos e grupos cheios, codec JSON v2
-  aceita arrays legados v1, renderer `ToolbarSectionGrid` reutilizado no xnote/xcanvas
-  e preview. Presets disponíveis em cada seção do editor.
+- Nova estrutura após revisão com o usuário: presets 1×2/2×2/3×2 substituídos
+  por `ToolbarSection.lanes` (1 ou 2), sem limite de itens por faixa. Na lateral,
+  as faixas viram colunas. Criar section abre escolha de linhas; o padrão é 1.
+  DnD identifica ocorrências por seção/índice. O seletor global de cores ganhou
+  distribuição da barra em N blocos, sem botões ou números nos chips. Os intervalos
+  são frações da paleta **atual** (5 cores/2 blocos → 3+2; 10/2 → 5+5).
+  JSON v4 migra intervalos absolutos v3, grades v2 e arrays v1. Renderer idêntico
+  na nota/canvas/preview. **Exige QA físico das faixas e cores no Redmi Pad 2.**
 - Testes JVM adicionados para geometria do leque, seleção por posição real,
   capacidade de grupo e persistência v1/v2. O fato de compilar NÃO substitui QA visual.
 - Decisão atual do usuário: personalização de barra SOMENTE na tela dedicada.
@@ -98,8 +102,9 @@ não substitui o Git como fonte de verdade.
 
 - [ ] [M5] Tamanho/espaço/hitbox por elemento.
 - [ ] [M5] Número de cores por barra e grade de swatches.
-- [ ] [M6] Schema ToolbarNode v3 com Group/Grid e migração + testes.
-- [ ] [M6] Grid 2x2, 3x2, auto fit e drag/drop entre grupos.
+- [x] [M6] Sections com 1–2 faixas independentes e migração v1/v2 → v3, testes JVM.
+- [ ] [M6] QA físico do arraste entre linhas/colunas, overflow e Colors duplicado;
+      não reintroduzir presets fixos 2×2/3×2.
 - [ ] [M7] Caneta unificada usando tipos existentes.
 - [ ] [M8] Menu de contexto em longpress sem deslocamento.
 - [ ] [M8] Lock/Unlock e resize on-canvas em modo edit transacional.

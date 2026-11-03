@@ -17,12 +17,27 @@ Dentro da nota/canvas haverá um **atalho para abrir essa tela**, sem editor de
 propriedades, resize livre ou grade de configuração sobre a página. Preservar
 movimento de contêiner por long-press já implementado até QA mostrar o contrário.
 
-A primeira fase de grupos reutiliza a seção (`ToolbarSection`) com
-`gridColumns = 0` (linear), `1` (1×2), `2` (2×2), `3` (3×2), até duas fileiras e
-somente ferramentas de uma célula; controles compostos não entram. `ToolbarSectionGrid`
-compõe os mesmos itens no xnote, xcanvas e preview; `ToolbarFrame` calcula a espessura
-pela maior quantidade de células transversais. `ToolbarWorkspaceJson` v2 grava
-`grid_columns` e lê também seções array do v1.
+**Decisão substitutiva sobre as grades (03/11/2026):** o usuário rejeitou presets
+rígidos de 1×2/2×2/3×2. A própria `ToolbarSection` aceita 1 ou 2 faixas sem
+limite arbitrário de itens: linhas no dock horizontal e colunas nas laterais.
+Arrastar de uma faixa para outra muda apenas o posicionamento na section.
+Seções existentes continuam, por padrão, com uma linha; ao clicar em **Adicionar
+section**, o editor pergunta se a nova terá **uma ou duas linhas**.
+Controles compostos, como `Colors`, mantêm dimensões naturais.
+
+O seletor **Quantidade de cores** determina quantas tintas globais ficam
+visíveis. Ao lado dele, o controle **Dividir cores em X blocos** determina o
+número de instâncias de `Colors` na barra selecionada. A mesma paleta é
+distribuída em frações consecutivas e **recalculada dinamicamente** quando o
+número de cores muda (5 cores em 2 blocos = 3+2; 10 = 5+5).
+Os blocos podem ser arrastados independentemente entre as duas linhas e
+não contêm botões de duplicar nem rótulos de intervalos no próprio chip.
+Não criar paletas independentes sem novo requisito.
+
+`ToolbarSectionGrid` compõe o mesmo layout no xnote, xcanvas e preview;
+`ToolbarWorkspaceJson` v4 grava faixas, ocorrências e frações de cores; migra
+v3 (intervalos absolutos), v2 (`grid_columns`) e v1 (arrays). Esta decisão
+prevalece sobre todas as menções a grades fixas mais abaixo neste guia.
 
 Pendente antes de considerar M6 pronto: teste físico de posicionamento em
 quatro docks e nove âncoras, espaços vazios/overflow, drag para dentro/fora
