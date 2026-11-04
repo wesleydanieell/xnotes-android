@@ -693,26 +693,6 @@ fun PreferencesPane(
                     applyEdited(if (canvasTab) ToolbarLayout.CANVAS_DEFAULT else ToolbarLayout.DEFAULT)
                 }) { Text(stringResource(R.string.reset), fontSize = 13.sp) }
             }
-            Row(
-                Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
-                horizontalArrangement = Arrangement.spacedBy(6.dp),
-            ) {
-                Chip("Barras", toolbarPropertyTab == ToolbarPropertyTab.BARS) {
-                    selectedEntry = null
-                    toolbarPropertyTab = ToolbarPropertyTab.BARS
-                }
-                Chip("Dimensões", toolbarPropertyTab == ToolbarPropertyTab.DIMENSIONS) {
-                    selectedEntry = null
-                    toolbarPropertyTab = ToolbarPropertyTab.DIMENSIONS
-                }
-                Chip("Elementos", toolbarPropertyTab == ToolbarPropertyTab.ELEMENTS) {
-                    toolbarPropertyTab = ToolbarPropertyTab.ELEMENTS
-                }
-                Chip("Cores", toolbarPropertyTab == ToolbarPropertyTab.COLORS) {
-                    selectedEntry = null
-                    toolbarPropertyTab = ToolbarPropertyTab.COLORS
-                }
-            }
             if (toolbarPropertyTab != ToolbarPropertyTab.ELEMENTS) FieldLabel(stringResource(R.string.toolbar_preview))
             val entryPosition = selectedEntry
             val activeEntry = entryPosition?.let { (section, index) ->
@@ -755,6 +735,28 @@ fun PreferencesPane(
                     },
                 )
             }
+            val propertyTabs: @Composable () -> Unit = {
+                Row(
+                    Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
+                    horizontalArrangement = Arrangement.spacedBy(6.dp),
+                ) {
+                    Chip("Barras", toolbarPropertyTab == ToolbarPropertyTab.BARS) {
+                        selectedEntry = null
+                        toolbarPropertyTab = ToolbarPropertyTab.BARS
+                    }
+                    Chip("Dimensões", toolbarPropertyTab == ToolbarPropertyTab.DIMENSIONS) {
+                        selectedEntry = null
+                        toolbarPropertyTab = ToolbarPropertyTab.DIMENSIONS
+                    }
+                    Chip("Elementos", toolbarPropertyTab == ToolbarPropertyTab.ELEMENTS) {
+                        toolbarPropertyTab = ToolbarPropertyTab.ELEMENTS
+                    }
+                    Chip("Cores", toolbarPropertyTab == ToolbarPropertyTab.COLORS) {
+                        selectedEntry = null
+                        toolbarPropertyTab = ToolbarPropertyTab.COLORS
+                    }
+                }
+            }
             val inspector: @Composable () -> Unit = {
                 Column(
                     Modifier.fillMaxWidth()
@@ -765,17 +767,15 @@ fun PreferencesPane(
                         .then(if (toolbarPropertyTab == ToolbarPropertyTab.ELEMENTS) Modifier else Modifier.verticalScroll(toolbarPropertiesScroll)),
                     verticalArrangement = Arrangement.spacedBy(12.dp),
                 ) {
-                    Text("Propriedades · ${currentBar.name}", style = MaterialTheme.typography.titleSmall)
-                    HorizontalDivider(color = palette.border.toComposeColor())
-                    if (toolbarPropertyTab == ToolbarPropertyTab.DIMENSIONS) {
-                        ToolbarGeometryControls(
-                            geometry = currentBar.geometry,
-                            onChange = { next -> configureDock(next) },
-                        )
-                    }
                     if (toolbarPropertyTab == ToolbarPropertyTab.ELEMENTS) {
+                        FieldLabel(stringResource(R.string.toolbar_preview))
+                        Box(Modifier.widthIn(max = 480.dp).align(Alignment.CenterHorizontally)) { preview() }
                         if (activeEntry != null) {
-                            TextButton(onClick = { selectedEntry = null }) { Text("Voltar aos elementos") }
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Text("Tamanho do elemento", style = MaterialTheme.typography.titleSmall)
+                                Spacer(Modifier.weight(1f))
+                                TextButton(onClick = { selectedEntry = null }) { Text("Fechar") }
+                            }
                             ToolbarEntrySizeControls(
                                 entry = activeEntry,
                                 defaultSizeDp = defaultEntrySize,
@@ -783,10 +783,16 @@ fun PreferencesPane(
                                     applyEdited(editedLayout().setEntrySize(entryPosition.first, entryPosition.second, size))
                                 },
                             )
-                        } else {
-                            Text("Toque em uma ferramenta do preview para ajustar seu tamanho.",
-                                style = MaterialTheme.typography.bodySmall)
                         }
+                    } else {
+                        Text("Propriedades · ${currentBar.name}", style = MaterialTheme.typography.titleSmall)
+                        HorizontalDivider(color = palette.border.toComposeColor())
+                    }
+                    if (toolbarPropertyTab == ToolbarPropertyTab.DIMENSIONS) {
+                        ToolbarGeometryControls(
+                            geometry = currentBar.geometry,
+                            onChange = { next -> configureDock(next) },
+                        )
                     }
                     if (toolbarPropertyTab == ToolbarPropertyTab.BARS) {
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -1115,19 +1121,17 @@ fun PreferencesPane(
             }
                     }
                     if (toolbarPropertyTab == ToolbarPropertyTab.ELEMENTS) {
-            FieldLabel(stringResource(R.string.toolbar_distribution))
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
+                Text(stringResource(R.string.toolbar_distribution), color = palette.textDim.toComposeColor(), fontSize = 12.sp)
                 Chip(stringResource(R.string.toolbar_continuous), layout.distribution == ToolbarDistribution.CONTINUOUS) {
+                    selectedEntry = null
                     applyEdited(editedLayout().setDistribution(ToolbarDistribution.CONTINUOUS))
                 }
                 Chip(stringResource(R.string.toolbar_regions), layout.distribution == ToolbarDistribution.REGIONS) {
+                    selectedEntry = null
                     applyEdited(editedLayout().setDistribution(ToolbarDistribution.REGIONS))
                 }
             }
-            if (layout.distribution == ToolbarDistribution.REGIONS) {
-                Text(stringResource(R.string.toolbar_regions_help), color = palette.textDim.toComposeColor(), fontSize = 12.sp)
-            }
-            FieldLabel(stringResource(R.string.toolbar_tools_groups))
             val unifiedPenEnabled = layout.sections.any { section ->
                 section.entries.any { entry -> entry.item == ToolbarItem.UNIFIED_PEN && entry.visible }
             }
@@ -1141,13 +1145,6 @@ fun PreferencesPane(
                 )
                 Text(stringResource(R.string.toolbar_unified_pen), color = palette.text.toComposeColor(), fontSize = 13.sp)
             }
-            Text(
-                stringResource(R.string.pref_toolbar_help),
-                color = palette.textDim.toComposeColor(),
-                fontSize = 12.sp,
-            )
-            FieldLabel(stringResource(R.string.toolbar_preview))
-            Box(Modifier.widthIn(max = 480.dp).align(Alignment.CenterHorizontally)) { preview() }
             ToolbarCustomizerBody(
                 layout = layout,
                 availableItems = if (canvasTab) ToolbarLayout.CANVAS_ITEMS else ToolbarLayout.NOTE_ITEMS,
@@ -1226,6 +1223,7 @@ fun PreferencesPane(
                     }
                 }
             }
+            propertyTabs()
             BoxWithConstraints(Modifier.fillMaxWidth()) {
                 if (toolbarPropertyTab == ToolbarPropertyTab.ELEMENTS) {
                     inspector()

@@ -13,24 +13,27 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class ToolbarSectionDistributionTest {
-    @Test fun centeredRegionKeepsPhysicalCenterWhenThereIsRoom() {
-        val plan = toolbarRegionPositions(600, listOf(120, 100, 80), 8)
-        assertEquals(600, plan.extent)
-        assertEquals(listOf(0, 250, 520), plan.offsets)
+    @Test fun groupsUseOriginalIndicesWithoutMixingRegions() {
+        val layout = ToolbarLayout(listOf(
+            ToolbarSection(listOf(ToolbarEntry(ToolbarItem.PEN)), region = ToolbarRegion.END),
+            ToolbarSection(listOf(ToolbarEntry(ToolbarItem.HOME)), region = ToolbarRegion.START),
+            ToolbarSection(listOf(ToolbarEntry(ToolbarItem.TITLE, visible = false)), region = ToolbarRegion.CENTER),
+            ToolbarSection(listOf(ToolbarEntry(ToolbarItem.COLORS)), region = ToolbarRegion.CENTER),
+            ToolbarSection(listOf(ToolbarEntry(ToolbarItem.ERASER)), region = ToolbarRegion.START),
+        ), distribution = ToolbarDistribution.REGIONS)
+        val groups = toolbarRegionGroups(layout)
+        assertEquals(listOf(1, 4), groups.getValue(ToolbarRegion.START).map { it.index })
+        assertEquals(listOf(3), groups.getValue(ToolbarRegion.CENTER).map { it.index })
+        assertEquals(listOf(0), groups.getValue(ToolbarRegion.END).map { it.index })
     }
 
-    @Test fun constrainedViewportExpandsTheScrollableStripInsteadOfOverlapping() {
-        val sizes = listOf(120, 100, 80)
-        val plan = toolbarRegionPositions(230, sizes, 8)
-        assertEquals(316, plan.extent)
-        assertEquals(listOf(0, 128, 236), plan.offsets)
-        assertTrue(plan.offsets[1] >= plan.offsets[0] + sizes[0] + 8)
-        assertTrue(plan.offsets[2] >= plan.offsets[1] + sizes[1] + 8)
-    }
-
-    @Test fun missingCenterDoesNotMoveEdgeGroupsFromTheirAnchors() {
-        assertEquals(listOf(0, 0, 220), toolbarRegionPositions(300, listOf(80, 0, 80), 8).offsets)
-        assertEquals(listOf(0, 125, 250), toolbarRegionPositions(300, listOf(0, 50, 50), 8).offsets)
+    @Test fun emptyCenterAndEndKeepTheirSeparateSlots() {
+        val layout = ToolbarLayout(listOf(ToolbarSection(listOf(ToolbarEntry(ToolbarItem.PEN)))),
+            distribution = ToolbarDistribution.REGIONS)
+        val groups = toolbarRegionGroups(layout)
+        assertEquals(1, groups.getValue(ToolbarRegion.START).size)
+        assertTrue(groups.getValue(ToolbarRegion.CENTER).isEmpty())
+        assertTrue(groups.getValue(ToolbarRegion.END).isEmpty())
     }
 
     @Test fun sectionCanBeDroppedInAnEmptyCenterColumn() {

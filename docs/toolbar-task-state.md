@@ -350,6 +350,13 @@ A tinta selecionada colore somente os acentos dentro dos pictogramas das canetas
 - `git diff --check` + `:app:testDebugUnitTest :app:assembleDebug --offline` concluíram com BUILD SUCCESSFUL. APK `com.xnotes.toolbarsdebug` instalado em `emulator-5554` com Success. QA visual da tela de colunas e preview executado no Small_Tablet: criar uma section de duas linhas no Center, arrastar uma section Start→Center e mover Undo entre sections funcionaram.
 - **Pendente**: Redmi Pad 2 ausente do ADB; validar com Xiaomi Smart Pen, gestos nas laterais, xcanvas real, rotação, persistência após reiniciar, overflow em largura reduzida e retorno do atalho in-note. Sem PR ou push nesta sessão até aqui.
 
+## Correções — regiões e hierarquia do editor (04/11/2026)
+
+- Corrigida a faixa de regiões no renderer compartilhado: Start, Center e End têm visores próprios, alinhados fisicamente nas quatro orientações. Overflow de uma região rola localmente, sem deslocar as outras. O cálculo legado de largura expandida foi removido.
+- Ao converter uma barra contínua antiga, ainda totalmente marcada Start, para três regiões, sections são distribuídas em grupos contíguos com carga de ferramentas visíveis equilibrada. Sections não são quebradas, e as regiões atribuídas depois persistem nas trocas de modo. Testes JVM adicionados para agrupamento e round-trip.
+- As abas `Barras / Dimensões / Elementos / Cores` **continuam acima do preview**, conforme correção do usuário. No editor de elementos, controles de tamanho, modo de distribuição e Pen Group ficam abaixo da prévia, junto das colunas de sections; textos redundantes foram removidos.
+- `git diff --check`, `:app:testDebugUnitTest :app:assembleDebug --offline` passaram (`BUILD SUCCESSFUL`); debug instalado em `emulator-5554`. QA funcional completo das faixas na barra real, retrato/paisagem e Redmi Pad 2 continua pendente.
+
 ### Próxima ação
 
 1. Conectar Redmi Pad 2 via ADB e instalar apenas `com.xnotes.toolbarsdebug`.

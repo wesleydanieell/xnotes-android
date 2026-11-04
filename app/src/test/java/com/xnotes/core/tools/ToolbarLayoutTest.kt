@@ -28,6 +28,39 @@ class ToolbarLayoutTest {
             .setSectionRegion(1, ToolbarRegion.START).setSectionLanes(1, 1))
     }
 
+    @Test fun switchingModesPreservesRegionAssignmentsAndLinearVisualOrder() {
+        val layout = ToolbarLayout(listOf(
+            ToolbarSection(listOf(ToolbarEntry(ToolbarItem.PEN)), region = ToolbarRegion.END),
+            ToolbarSection(listOf(ToolbarEntry(ToolbarItem.HOME)), region = ToolbarRegion.START),
+            ToolbarSection(listOf(ToolbarEntry(ToolbarItem.TITLE)), region = ToolbarRegion.CENTER),
+            ToolbarSection(listOf(ToolbarEntry(ToolbarItem.ERASER)), region = ToolbarRegion.START),
+        ), distribution = ToolbarDistribution.REGIONS)
+        val continuous = layout.setDistribution(ToolbarDistribution.CONTINUOUS)
+        assertEquals(listOf(ToolbarItem.HOME, ToolbarItem.ERASER, ToolbarItem.TITLE, ToolbarItem.PEN),
+            continuous.sections.flatMap { it.entries }.map { it.item })
+        assertEquals(listOf(ToolbarRegion.START, ToolbarRegion.START, ToolbarRegion.CENTER, ToolbarRegion.END),
+            continuous.sections.map { it.region })
+        assertEquals(continuous, continuous.setDistribution(ToolbarDistribution.CONTINUOUS))
+        val roundTrip = continuous.setDistribution(ToolbarDistribution.REGIONS)
+        assertEquals(continuous.sections, roundTrip.sections)
+        assertEquals(ToolbarDistribution.REGIONS, roundTrip.distribution)
+    }
+
+    @Test fun firstRegionSwitchBalancesLegacySectionsWithoutSplittingThem() {
+        val continuous = ToolbarLayout.DEFAULT
+        val regions = continuous.setDistribution(ToolbarDistribution.REGIONS)
+        assertEquals(ToolbarDistribution.REGIONS, regions.distribution)
+        assertEquals(continuous.sections.map { it.entries }, regions.sections.map { it.entries })
+        assertEquals(setOf(ToolbarRegion.START, ToolbarRegion.CENTER, ToolbarRegion.END),
+            regions.sections.map { it.region }.toSet())
+        assertEquals(regions.sections, regions.setDistribution(ToolbarDistribution.CONTINUOUS)
+            .setDistribution(ToolbarDistribution.REGIONS).sections)
+        val weights = ToolbarRegion.entries.map { region ->
+            regions.sections.filter { it.region == region }.sumOf { it.visibleEntries.size }
+        }
+        assertTrue(weights.max() - weights.min() <= 4)
+    }
+
     @Test fun defaultMirrorsToolbarGrouping() {
         val d = ToolbarLayout.DEFAULT
         assertEquals(11, d.sections.size)

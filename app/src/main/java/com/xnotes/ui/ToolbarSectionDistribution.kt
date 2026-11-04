@@ -3,17 +3,14 @@ package com.xnotes.ui
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.foundation.layout.BoxWithConstraints
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.layout.Layout
-import androidx.compose.ui.platform.LocalDensity
-import androidx.compose.ui.unit.Constraints
-import androidx.compose.ui.unit.dp
+import androidx.compose.ui.draw.clipToBounds
 import com.xnotes.core.tools.ToolbarDistribution
 import com.xnotes.core.tools.ToolbarLayout
 import com.xnotes.core.tools.ToolbarRegion
@@ -38,19 +35,25 @@ internal fun ToolbarSections(
         }
         return
     }
+    if (visible.isEmpty()) return
     val vertical = LocalBar.current.vertical
-    val regions = ToolbarRegion.entries.map { region -> visible.filter { it.value.region == region } }
-    val content: List<@Composable () -> Unit> = regions.map { group ->
-        {
+    val groups = toolbarRegionGroups(layout)
+    val present = groups.filterValues { it.isNotEmpty() }.keys
+
+    // Each region owns its viewport: an oversized Start section can scroll locally without
+    // pushing Center and End off-screen. The center always means the physical center.
+    val regionContent: @Composable (ToolbarRegion) -> Unit = { region ->
+        androidx.compose.runtime.key(region) {
+            val group = groups.getValue(region)
             if (vertical) {
-                Column {
+                Column(Modifier.verticalScroll(rememberScrollState())) {
                     group.forEachIndexed { index, indexed ->
                         if (index > 0) Separator()
                         sectionContent(indexed.index, indexed.value)
                     }
                 }
             } else {
-                Row {
+                Row(Modifier.horizontalScroll(rememberScrollState())) {
                     group.forEachIndexed { index, indexed ->
                         if (index > 0) Separator()
                         sectionContent(indexed.index, indexed.value)
@@ -59,56 +62,54 @@ internal fun ToolbarSections(
             }
         }
     }
-    BoxWithConstraints(if (vertical) Modifier.fillMaxHeight() else Modifier.fillMaxWidth()) {
-        val available = with(LocalDensity.current) {
-            if (vertical) maxHeight.roundToPx() else maxWidth.roundToPx()
+    if (present.size == 1) {
+        val region = present.single()
+        val alignment = if (vertical) when (region) {
+            ToolbarRegion.START -> androidx.compose.ui.Alignment.TopCenter
+            ToolbarRegion.CENTER -> androidx.compose.ui.Alignment.Center
+            ToolbarRegion.END -> androidx.compose.ui.Alignment.BottomCenter
+        } else when (region) {
+            ToolbarRegion.START -> androidx.compose.ui.Alignment.CenterStart
+            ToolbarRegion.CENTER -> androidx.compose.ui.Alignment.Center
+            ToolbarRegion.END -> androidx.compose.ui.Alignment.CenterEnd
         }
-        val gap = with(LocalDensity.current) { 8.dp.roundToPx() }
-        Layout(
-            contents = content,
-            modifier = if (vertical) Modifier.verticalScroll(rememberScrollState())
-                else Modifier.horizontalScroll(rememberScrollState()),
-        ) { measurables, constraints ->
-            val loose = Constraints(
-                maxWidth = if (vertical) constraints.maxWidth else Constraints.Infinity,
-                maxHeight = if (vertical) Constraints.Infinity else constraints.maxHeight,
-            )
-            val children = measurables.map { it.single().measure(loose) }
-            val lengths = children.map { if (vertical) it.height else it.width }
-            val positions = toolbarRegionPositions(available, lengths, gap)
-            val crossSize = children.maxOfOrNull { if (vertical) it.width else it.height } ?: 0
-            if (vertical) {
-                layout(crossSize.coerceIn(constraints.minWidth, constraints.maxWidth), positions.extent) {
-                    children.forEachIndexed { index, child ->
-                        child.place((crossSize - child.width) / 2, positions.offsets[index])
-                    }
+        Box(if (vertical) Modifier.fillMaxHeight() else Modifier.fillMaxWidth(), contentAlignment = alignment) {
+            regionContent(region)
+        }
+    } else if (vertical) {
+        Column(Modifier.fillMaxHeight()) {
+            ToolbarRegion.entries.forEach { region ->
+                val alignment = when (region) {
+                    ToolbarRegion.START -> androidx.compose.ui.Alignment.TopCenter
+                    ToolbarRegion.CENTER -> androidx.compose.ui.Alignment.Center
+                    ToolbarRegion.END -> androidx.compose.ui.Alignment.BottomCenter
                 }
-            } else {
-                layout(positions.extent, crossSize.coerceIn(constraints.minHeight, constraints.maxHeight)) {
-                    children.forEachIndexed { index, child ->
-                        child.place(positions.offsets[index], (crossSize - child.height) / 2)
-                    }
+                Box(Modifier.weight(1f).clipToBounds(), contentAlignment = alignment) {
+                    regionContent(region)
+                }
+            }
+        }
+    } else {
+        Row(Modifier.fillMaxWidth()) {
+            ToolbarRegion.entries.forEach { region ->
+                val alignment = when (region) {
+                    ToolbarRegion.START -> androidx.compose.ui.Alignment.CenterStart
+                    ToolbarRegion.CENTER -> androidx.compose.ui.Alignment.Center
+                    ToolbarRegion.END -> androidx.compose.ui.Alignment.CenterEnd
+                }
+                Box(Modifier.weight(1f).clipToBounds(), contentAlignment = alignment) {
+                    regionContent(region)
                 }
             }
         }
     }
 }
 
-internal data class ToolbarRegionPositions(val extent: Int, val offsets: List<Int>)
-
-/**
- * Stable physical positions for Start/Center/End groups. Center stays mathematically centered
- * when there is room; otherwise it moves just far enough to clear the two edge groups.
- */
-internal fun toolbarRegionPositions(available: Int, lengths: List<Int>, gap: Int): ToolbarRegionPositions {
-    require(lengths.size == 3)
-    val present = lengths.count { it > 0 }
-    val spacing = gap.coerceAtLeast(0)
-    val needed = lengths.sum() + spacing * (present - 1).coerceAtLeast(0)
-    val extent = maxOf(available, needed, 0)
-    val end = extent - lengths[2]
-    val centerMin = if (lengths[0] > 0) lengths[0] + spacing else 0
-    val centerMax = if (lengths[2] > 0) end - lengths[1] - spacing else extent - lengths[1]
-    val center = if (lengths[1] > 0) ((extent - lengths[1]) / 2).coerceIn(centerMin, centerMax) else 0
-    return ToolbarRegionPositions(extent, listOf(0, center, end))
+/** The preview and live toolbars consume the same stable, original section indices.
+ * Empty and hidden sections remain editable but never claim visible toolbar space. */
+internal fun toolbarRegionGroups(layout: ToolbarLayout): Map<ToolbarRegion, List<IndexedValue<ToolbarSection>>> {
+    val visible = layout.sections.withIndex().filter { it.value.hasVisible }
+    return ToolbarRegion.entries.associateWith { region ->
+        visible.filter { it.value.region == region }
+    }
 }
