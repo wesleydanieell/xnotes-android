@@ -343,6 +343,22 @@ data class ToolbarLayout(
         val destinationLane = toLane.coerceIn(0, sections[toSection].lanes - 1)
         mutable[toSection].add(adjusted.coerceIn(0, mutable[toSection].size), entry.copy(lane = destinationLane))
         return copy(sections = mutable.mapIndexed { idx, e -> sections[idx].copy(entries = e) })
+            .repartitionColors()
+    }
+
+    /** Move an individual tool into an empty region by creating a one-lane section there.
+     * The old section remains editable, and all other tools retain their order and settings. */
+    fun moveItemToNewRegionSection(fromSection: Int, fromIndex: Int, region: ToolbarRegion): ToolbarLayout {
+        if (distribution != ToolbarDistribution.REGIONS) return this
+        val source = sections.getOrNull(fromSection) ?: return this
+        val entry = source.entries.getOrNull(fromIndex) ?: return this
+        val rebuilt = sections.toMutableList()
+        rebuilt[fromSection] = source.copy(entries = source.entries.toMutableList().also { it.removeAt(fromIndex) })
+        val insertAt = (rebuilt.indexOfLast { it.region == region }.takeIf { it >= 0 }?.plus(1)
+            ?: rebuilt.indexOfFirst { it.region.ordinal > region.ordinal }.takeIf { it >= 0 }
+            ?: rebuilt.size)
+        rebuilt.add(insertAt, ToolbarSection(listOf(entry.copy(lane = 0)), region = region))
+        return copy(sections = rebuilt).repartitionColors()
     }
 
     /** Add any of [among] missing from this layout, visible, so the bar never goes stale

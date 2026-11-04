@@ -388,6 +388,38 @@ class ToolbarLayoutTest {
         assertEquals(listOf(ToolbarItem.TITLE, ToolbarItem.SIDEBAR), r.sections[1].entries.map { it.item })
     }
 
+    @Test fun movingOneToolIntoEmptyRegionCreatesASectionWithoutChangingOtherTools() {
+        val original = ToolbarLayout(listOf(
+            ToolbarSection(listOf(ToolbarEntry(ToolbarItem.PEN, sizeDp = 60), ToolbarEntry(ToolbarItem.COLORS)),
+                lanes = 2, region = ToolbarRegion.START),
+            ToolbarSection(listOf(ToolbarEntry(ToolbarItem.ERASER)), region = ToolbarRegion.END),
+        ), distribution = ToolbarDistribution.REGIONS)
+        val moved = original.moveItemToNewRegionSection(0, 0, ToolbarRegion.CENTER)
+        assertEquals(listOf(ToolbarRegion.START, ToolbarRegion.CENTER, ToolbarRegion.END),
+            moved.sections.map { it.region })
+        assertEquals(2, moved.sections[0].lanes)
+        assertEquals(listOf(ToolbarItem.COLORS), moved.sections[0].entries.map { it.item })
+        assertEquals(ToolbarItem.PEN, moved.sections[1].entries.single().item)
+        assertEquals(60, moved.sections[1].entries.single().sizeDp)
+        assertEquals(0, moved.sections[1].entries.single().lane)
+        assertEquals(ToolbarItem.ERASER, moved.sections[2].entries.single().item)
+        assertEquals(original, original.moveItemToNewRegionSection(0, 99, ToolbarRegion.CENTER))
+    }
+
+    @Test fun draggingDuplicatedColorsRepartitionsTheirSwatches() {
+        val original = ToolbarLayout(listOf(
+            ToolbarSection(listOf(ToolbarEntry(ToolbarItem.COLORS, colorPart = 0, colorParts = 2)),
+                region = ToolbarRegion.START),
+            ToolbarSection(listOf(ToolbarEntry(ToolbarItem.COLORS, colorPart = 1, colorParts = 2)),
+                region = ToolbarRegion.END),
+        ), distribution = ToolbarDistribution.REGIONS)
+        val moved = original.moveItemToNewRegionSection(0, 0, ToolbarRegion.CENTER)
+        assertEquals(0, moved.sections[1].entries.single().colorPart)
+        assertEquals(1, moved.sections[2].entries.single().colorPart)
+        val reordered = original.moveItem(0, 0, 1, 1)
+        assertEquals(listOf(0, 1), reordered.sections[1].entries.map { it.colorPart })
+    }
+
     @Test fun toggleVisibleFlipsOnlyTarget() {
         val l = ToolbarLayout(listOf(sec(ToolbarItem.HOME, ToolbarItem.TITLE)))
         val r = l.toggleVisible(0, 0)

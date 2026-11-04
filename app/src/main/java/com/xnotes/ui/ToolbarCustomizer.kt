@@ -72,6 +72,7 @@ fun ToolbarCustomizerBody(
     availableItems: Set<ToolbarItem>,
     dragItem: Pair<Int, Int>?,
     dropTarget: Triple<Int, Int, Int>?,
+    dragRegionTarget: ToolbarRegion?,
     dragSection: Int?,
     sectionDropTarget: ToolbarSectionTarget?,
     chipBounds: MutableMap<Pair<Int, Int>, Rect>,
@@ -109,7 +110,8 @@ fun ToolbarCustomizerBody(
             Column(
                 (if (compactColumns) Modifier.width(260.dp) else Modifier.weight(1f)).then(if (region != null)
                     Modifier.onGloballyPositioned { regionBounds[region] = it.boundsInRoot() }
-                        .border(1.dp, palette.border.toComposeColor(), MaterialTheme.shapes.medium).padding(10.dp)
+                        .border(1.dp, (if (dragging && dragRegionTarget == region) palette.accent else palette.border)
+                            .toComposeColor(), MaterialTheme.shapes.medium).padding(10.dp)
                     else Modifier),
                 verticalArrangement = Arrangement.spacedBy(8.dp),
             ) {
@@ -209,6 +211,9 @@ fun ToolbarCustomizerBody(
             }
         }
         if (draggingSection && sectionDropTarget == ToolbarSectionTarget(region ?: ToolbarRegion.START, null)) SectionCaret()
+        if (dragging && region != null && dragRegionTarget == region && dropTarget == null) {
+            Text("Solte para criar uma section aqui", color = palette.accent.toComposeColor(), fontSize = 12.sp)
+        }
         AddSectionChip(onClick = { lines -> onAdd(lines, region ?: ToolbarRegion.START) })
             }
             }
@@ -259,6 +264,29 @@ internal fun toolbarDropTarget(
     return Triple(sec, lane, indexed.last().index + 1)
 }
 
+internal data class ToolbarItemTarget(val region: ToolbarRegion?, val slot: Triple<Int, Int, Int>?)
+
+internal fun toolbarItemDropTarget(
+    layout: ToolbarLayout, finger: Offset,
+    chipBounds: Map<Pair<Int, Int>, Rect>, laneBounds: Map<Pair<Int, Int>, Rect>,
+    sectionBounds: Map<Int, Rect>, regionBounds: Map<ToolbarRegion, Rect>,
+): ToolbarItemTarget? {
+    if (layout.distribution == ToolbarDistribution.CONTINUOUS) {
+        return toolbarDropTarget(layout, finger, chipBounds, laneBounds, sectionBounds)
+            ?.let { ToolbarItemTarget(null, it) }
+    }
+    val region = nearestToolbarRegion(finger, regionBounds) ?: return null
+    val withinRegion = sectionBounds.filterKeys { layout.sections.getOrNull(it)?.region == region }
+    return ToolbarItemTarget(region, toolbarDropTarget(layout, finger, chipBounds, laneBounds, withinRegion))
+}
+
+private fun nearestToolbarRegion(finger: Offset, bounds: Map<ToolbarRegion, Rect>): ToolbarRegion? =
+    bounds.entries.minByOrNull { (_, rect) ->
+        val dx = maxOf(rect.left - finger.x, 0f, finger.x - rect.right)
+        val dy = maxOf(rect.top - finger.y, 0f, finger.y - rect.bottom)
+        dx * dx + dy * dy
+    }?.key
+
 /** Target column and position before a section; null means append to that column. */
 data class ToolbarSectionTarget(val region: ToolbarRegion, val beforeSection: Int? = null)
 
@@ -275,11 +303,7 @@ internal fun toolbarSectionDropTarget(
         return ToolbarSectionTarget(ToolbarRegion.START, before)
     }
     // A drop can reach an empty region: use the column bounds, not the card bounds.
-    val region = regionBounds.entries.minByOrNull { (_, r) ->
-        val dx = maxOf(r.left - finger.x, 0f, finger.x - r.right)
-        val dy = maxOf(r.top - finger.y, 0f, finger.y - r.bottom)
-        dx * dx + dy * dy
-    }?.key ?: ToolbarRegion.START
+    val region = nearestToolbarRegion(finger, regionBounds) ?: ToolbarRegion.START
     val before = layout.sections.indices.firstOrNull { index ->
         layout.sections[index].region == region &&
             sectionBounds[index]?.let { finger.y < it.center.y } == true

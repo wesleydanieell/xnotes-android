@@ -185,6 +185,7 @@ fun PreferencesPane(
     var dragFinger by remember { mutableStateOf(Offset.Zero) }
     var dragGrab by remember { mutableStateOf(Offset.Zero) }
     var dropTarget by remember { mutableStateOf<Triple<Int, Int, Int>?>(null) }
+    var dragRegionTarget by remember { mutableStateOf<ToolbarRegion?>(null) }
     val chipBounds = remember { mutableMapOf<Pair<Int, Int>, Rect>() }
     val laneBounds = remember { mutableMapOf<Pair<Int, Int>, Rect>() }
     val sectionBounds = remember { mutableMapOf<Int, Rect>() }
@@ -238,7 +239,10 @@ fun PreferencesPane(
         if (nextLook != prefs.toolbarLook) updateHome(prefs.copy(toolbarLook = nextLook))
     }
     fun retarget() {
-        dropTarget = toolbarDropTarget(editedLayout(), dragFinger, chipBounds, laneBounds, sectionBounds)
+        val target = toolbarItemDropTarget(editedLayout(), dragFinger, chipBounds, laneBounds,
+            sectionBounds, regionBounds)
+        dropTarget = target?.slot
+        dragRegionTarget = target?.region
     }
     fun retargetSection() {
         sectionDropTarget = toolbarSectionDropTarget(editedLayout(), dragFinger, sectionBounds, regionBounds)
@@ -258,6 +262,7 @@ fun PreferencesPane(
         dragItem = null
         dragSection = null
         dropTarget = null
+        dragRegionTarget = null
         sectionDropTarget = null
     }
     fun showBar(id: String) {
@@ -272,6 +277,7 @@ fun PreferencesPane(
         dragItem = null
         dragSection = null
         dropTarget = null
+        dragRegionTarget = null
         sectionDropTarget = null
     }
 
@@ -1157,6 +1163,7 @@ fun PreferencesPane(
                 availableItems = if (canvasTab) ToolbarLayout.CANVAS_ITEMS else ToolbarLayout.NOTE_ITEMS,
                 dragItem = dragItem,
                 dropTarget = dropTarget,
+                dragRegionTarget = dragRegionTarget,
                 dragSection = dragSection,
                 sectionDropTarget = sectionDropTarget,
                 chipBounds = chipBounds,
@@ -1184,18 +1191,29 @@ fun PreferencesPane(
                 onDrag = { delta -> dragFinger += delta; retarget() },
                 onDrop = {
                     val target = dropTarget
+                    val region = dragRegionTarget
                     val moving = dragItem
-                    if (target != null && moving != null) {
-                        applyEdited(editedLayout().moveItem(
-                            moving.first, moving.second, target.first, target.third, target.second,
-                        ))
+                    if (moving != null) {
+                        val current = editedLayout()
+                        val next = when {
+                            target != null -> current.moveItem(moving.first, moving.second,
+                                target.first, target.third, target.second)
+                            region != null -> current.moveItemToNewRegionSection(moving.first, moving.second, region)
+                            else -> current
+                        }
+                        if (next != current) {
+                            applyEdited(next)
+                            selectedEntry = null
+                        }
                     }
                     dragItem = null
                     dropTarget = null
+                    dragRegionTarget = null
                 },
                 onCancel = {
                     dragItem = null
                     dropTarget = null
+                    dragRegionTarget = null
                 },
                 onSectionDragStart = { sec, local ->
                     dragSection = sec

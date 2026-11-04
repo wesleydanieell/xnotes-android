@@ -47,6 +47,36 @@ class ToolbarSectionDistributionTest {
         assertEquals(ToolbarSectionTarget(ToolbarRegion.CENTER), target)
     }
 
+    @Test fun toolCanBeDroppedInAnEmptyCenterColumn() {
+        val layout = ToolbarLayout(listOf(ToolbarSection(listOf(ToolbarEntry(ToolbarItem.PEN)))),
+            distribution = ToolbarDistribution.REGIONS)
+        val regions = mapOf(
+            ToolbarRegion.START to Rect(0f, 0f, 100f, 400f),
+            ToolbarRegion.CENTER to Rect(110f, 0f, 210f, 400f),
+            ToolbarRegion.END to Rect(220f, 0f, 320f, 400f),
+        )
+        val target = toolbarItemDropTarget(layout, Offset(160f, 80f), emptyMap(), emptyMap(),
+            mapOf(0 to Rect(0f, 40f, 100f, 150f)), regions)
+        assertEquals(ToolbarItemTarget(ToolbarRegion.CENTER, null), target)
+    }
+
+    @Test fun toolDropTargetsOnlySectionsInsideTheHoveredRegion() {
+        val layout = ToolbarLayout(listOf(
+            ToolbarSection(listOf(ToolbarEntry(ToolbarItem.PEN)), region = ToolbarRegion.START),
+            ToolbarSection(listOf(ToolbarEntry(ToolbarItem.ERASER)), region = ToolbarRegion.END),
+        ), distribution = ToolbarDistribution.REGIONS)
+        val regions = mapOf(
+            ToolbarRegion.START to Rect(0f, 0f, 100f, 400f),
+            ToolbarRegion.CENTER to Rect(110f, 0f, 210f, 400f),
+            ToolbarRegion.END to Rect(220f, 0f, 320f, 400f),
+        )
+        val sections = mapOf(0 to Rect(0f, 40f, 100f, 160f), 1 to Rect(220f, 40f, 320f, 160f))
+        assertEquals(1, toolbarItemDropTarget(layout, Offset(260f, 80f), emptyMap(), emptyMap(),
+            sections, regions)?.slot?.first)
+        assertEquals(ToolbarItemTarget(ToolbarRegion.CENTER, null),
+            toolbarItemDropTarget(layout, Offset(160f, 80f), emptyMap(), emptyMap(), sections, regions))
+    }
+
     @Test fun verticalLayerDropChecksRowMidpointNotHorizontalPosition() {
         val layout = ToolbarLayout(listOf(ToolbarSection(listOf(
             ToolbarEntry(ToolbarItem.HOME), ToolbarEntry(ToolbarItem.TITLE)))))

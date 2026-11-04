@@ -369,3 +369,12 @@ A tinta selecionada colore somente os acentos dentro dos pictogramas das canetas
 1. Conectar Redmi Pad 2 via ADB e instalar apenas `com.xnotes.toolbarsdebug`.
 2. Validar os arrastes de ferramenta/section e alinhamentos Start/Center/End na barra real (topo, base e laterais), depois em xcanvas.
 3. Testar persistência/recuperação de barras e sections após reiniciar, além de janelas pequenas/split; registrar divergências entre preview e runtime.
+
+## Ajuste — arraste entre regiões e centro físico (04/11/2026)
+
+- Referência de UX: Noctalia (configuração de widgets em Start/Center/End, suporte ao arraste entre faixas e centro ancorado ao meio físico da barra), documentação: https://docs.noctalia.dev/noctalia/v5.2.1/bar/ . Código de distribuição: https://github.com/noctalia-dev/noctalia/blob/main/src/shell/bar/bar.cpp .
+- O alvo do arraste de uma **ferramenta individual** agora é primeiro determinado pela coluna sob o dedo. Entre as sections dessa região escolhe a posição mais próxima; em região vazia, soltar cria automaticamente uma section de uma linha. A ferramenta mantém suas propriedades e o rateio de amostras `Colors` é recalculado.
+- Na barra real e na prévia, as regiões ocupam faixas que não se sobrepõem: início e fim dividem igualmente o espaço restante em torno do conteúdo central, que tem largura/altura natural limitada a metade da barra e fica ancorado ao centro físico. Com conteúdo excedente, as regiões rolam de modo independente; laterais usam a mesma regra no eixo vertical.
+- Não há reorganização automática quando se alterna **Contínuo** ↔ **Início/Centro/Fim**; a ordem original da main toolbar é preservada. As abas `Barras / Dimensões / Elementos / Cores` permanecem acima da prévia.
+- Casos JVM novos: arraste para Centro vazio, seleção somente de sections dentro da região, nova section com preservação de ferramentas e redivisão de `Colors` duplicadas. `git diff --check` e `:app:testDebugUnitTest :app:assembleDebug --offline` passaram (`BUILD SUCCESSFUL`). APK debug instalado em `emulator-5554` (`Success`).
+- **Pendente**: conferir manualmente no editor e em nota/canvas a posição central após arraste, em barra horizontal e lateral, com janela compacta, retrato/paisagem e depois no Redmi Pad 2 com Xiaomi Smart Pen. Sem push nesta etapa.
