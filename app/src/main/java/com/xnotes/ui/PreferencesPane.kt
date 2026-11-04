@@ -1,6 +1,8 @@
 package com.xnotes.ui
 
 import android.os.Build
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -61,6 +63,7 @@ import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.boundsInRoot
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.platform.LocalFocusManager
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
@@ -68,6 +71,7 @@ import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.selected
 import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.font.FontWeight
@@ -121,7 +125,7 @@ private val tapGestureOptions = listOf(
     "toggle_previous" to R.string.toggle_previous,
 )
 
-private enum class ToolbarPropertyTab { BARS, DIMENSIONS, ELEMENTS, COLORS }
+private enum class ToolbarPropertyTab { BARS, DIMENSIONS, ELEMENTS }
 
 /**
  * Preferences as a backstage pane (spec 10 §8). Edits apply live — each change is
@@ -143,6 +147,7 @@ fun PreferencesPane(
 ) {
     val palette = LocalPalette.current
     val focusManager = LocalFocusManager.current
+    val context = LocalContext.current
     val screenConfiguration = LocalConfiguration.current
     var prefs by remember { mutableStateOf(editor.preferences) }
     fun update(p: Preferences) {
@@ -162,6 +167,7 @@ fun PreferencesPane(
     val scrollState = rememberScrollState()
     val toolbarPropertiesScroll = rememberScrollState()
     var toolbarPropertyTab by remember { mutableStateOf(ToolbarPropertyTab.BARS) }
+    var colorControlsExpanded by remember { mutableStateOf(false) }
     var dockError by remember { mutableStateOf<String?>(null) }
     var toolbarEditorOpen by remember { mutableStateOf(openToolbarEditor) }
     LaunchedEffect(openToolbarEditor) { if (openToolbarEditor) toolbarEditorOpen = true }
@@ -172,6 +178,53 @@ fun PreferencesPane(
     var canvasTab by remember { mutableStateOf(false) }
     var selectedBarId by remember { mutableStateOf<String?>(null) }
     var barMenuExpanded by remember { mutableStateOf(false) }
+    var transferDraft by remember { mutableStateOf<com.xnotes.core.tools.ToolbarTransferDraft?>(null) }
+    var workspacesDialogOpen by remember { mutableStateOf(false) }
+    var savedWorkspaces by remember { mutableStateOf(editor.toolbarWorkspacePresets) }
+    var restorePending by remember { mutableStateOf<com.xnotes.settings.ToolbarWorkspacePreset?>(null) }
+    var workspaceFileContent by remember { mutableStateOf("") }
+    var workspaceFileMessage by remember { mutableStateOf<String?>(null) }
+    val exportWorkspaceLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.CreateDocument("application/json"),
+    ) { uri ->
+        if (uri != null) {
+            runCatching {
+                context.contentResolver.openOutputStream(uri)?.use { out ->
+                    out.write(workspaceFileContent.toByteArray(Charsets.UTF_8))
+                } ?: error("Não foi possível abrir o arquivo.")
+            }.onSuccess { workspaceFileMessage = "Workspace exportado com sucesso." }
+                .onFailure { workspaceFileMessage = "Falha ao exportar: ${it.message}" }
+        }
+    }
+    val importWorkspaceLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.OpenDocument(),
+    ) { uri ->
+        if (uri != null) {
+            runCatching {
+                val raw = context.contentResolver.openInputStream(uri)?.bufferedReader()?.use { it.readText() }
+                    ?: error("Não foi possível ler o arquivo.")
+                require(raw.length <= 1_000_000) { "Arquivo muito grande." }
+                val imported = com.xnotes.settings.ToolbarWorkspaceExchangeJson.import(raw)
+                editor.importToolbarWorkspacePresets(imported)
+            }.onSuccess { count ->
+                savedWorkspaces = editor.toolbarWorkspacePresets
+                workspaceFileMessage = if (count > 0) "$count workspace(s) importado(s)."
+                    else "Limite de 20 workspaces salvos atingido."
+            }.onFailure { workspaceFileMessage = "Falha ao importar: ${it.message}" }
+        }
+    }
+    fun exportWorkspaceFile(presets: List<com.xnotes.settings.ToolbarWorkspacePreset>, filename: String) {
+        workspaceFileContent = com.xnotes.settings.ToolbarWorkspaceExchangeJson.export(presets)
+        exportWorkspaceLauncher.launch(filename)
+    }
+    fun activeWorkspacePreset() = com.xnotes.settings.ToolbarWorkspacePreset(
+        id = "current-export",
+        name = "Workspace atual",
+        workspaces = editor.toolbarWorkspaces,
+        look = prefs.toolbarLook,
+        colors = editor.toolbarColors,
+        colorCount = editor.toolbarColorCount,
+    )
     var selectedEntry by remember { mutableStateOf<Pair<Int, Int>?>(null) }
     fun editedWorkspace(): ToolbarWorkspace =
         if (canvasTab) editor.toolbarWorkspaces.canvas else editor.toolbarWorkspaces.note
@@ -238,6 +291,54 @@ fun PreferencesPane(
         updateSelectedBar { it.copy(geometry = next.constrained()) }
         if (nextLook != prefs.toolbarLook) updateHome(prefs.copy(toolbarLook = nextLook))
     }
+
+    fun beginCopyToolbar() {
+        val profiles = editor.toolbarWorkspaces
+        if (canvasTab && profiles.shared) {
+            dockError = "Desative o perfil compartilhado antes de copiar uma barra do XCanvas."
+            return
+        }
+        val targetCanvas = !canvasTab
+        val destination = if (targetCanvas) profiles.canvas else profiles.note
+        val target = if (targetCanvas) com.xnotes.core.tools.ToolbarContext.CANVAS
+            else com.xnotes.core.tools.ToolbarContext.NOTE
+        val source = selectedBar()
+        val initial = com.xnotes.core.tools.prepareToolbarTransfer(source, destination, target)
+        if (initial.retainedCount == 0) {
+            dockError = "Esta barra não possui elementos compatíveis com o editor de destino."
+            return
+        }
+        // A primary toolbar inherits its docking from the global look. Make that placement
+        // explicit when the copy becomes a secondary toolbar in the other context.
+        val isPrimary = editedWorkspace().bars.first().id == source.id
+        val geometry = if (isPrimary) {
+            if (source.geometry.floating || prefs.toolbarLook.floating)
+                source.geometry.copy(floating = true, dockEdge = null)
+            else source.geometry.copy(
+                dockEdge = source.geometry.dockEdge ?: prefs.toolbarLook.position.dockEdge(),
+                floating = false,
+            )
+        } else source.geometry
+        val candidates = listOf(geometry) + ToolbarAnchor.entries.filter { it != ToolbarAnchor.CENTER }
+            .map { geometry.copy(floating = true, dockEdge = null, anchor = it, dockLane = 0) }
+        val placed = candidates.firstOrNull { position ->
+            val candidate = destination.addBar(initial.bar.copy(geometry = position))
+            val docked = toolbarDockPlan(candidate, prefs.toolbarLook,
+                screenConfiguration.screenWidthDp.dp, screenConfiguration.screenHeightDp.dp)
+            val floated = toolbarFloatingPlan(candidate, prefs.toolbarLook,
+                screenConfiguration.screenWidthDp.dp - docked.leftInset.dp - docked.rightInset.dp,
+                screenConfiguration.screenHeightDp.dp - docked.topInset.dp - docked.bottomInset.dp,
+                editor.toolbarColorCount)
+            docked.rejected.isEmpty() && floated.rejected.isEmpty()
+        }
+        if (placed == null) {
+            dockError = "Não há espaço para esta barra no destino. Reduza suas dimensões antes de copiar."
+            return
+        }
+        dockError = null
+        transferDraft = initial.copy(bar = initial.bar.copy(geometry = placed))
+    }
+
     fun retarget() {
         val target = toolbarItemDropTarget(editedLayout(), dragFinger, chipBounds, laneBounds,
             sectionBounds, regionBounds)
@@ -279,6 +380,78 @@ fun PreferencesPane(
         dropTarget = null
         dragRegionTarget = null
         sectionDropTarget = null
+    }
+
+    transferDraft?.let { draft ->
+        val profiles = editor.toolbarWorkspaces
+        val targetCanvas = !canvasTab
+        val destination = if (targetCanvas) profiles.canvas else profiles.note
+        ToolbarCopyDialog(
+            targetLabel = if (targetCanvas) "XCanvas" else "XNotes",
+            candidate = destination.addBar(draft.bar),
+            draft = draft,
+            look = prefs.toolbarLook,
+            colors = editor.toolbarColors.take(editor.toolbarColorCount),
+            activeColorIndex = editor.activeColorIndex,
+            sharedCanvasWillDisable = targetCanvas && profiles.shared,
+            onCopy = {
+                val changed = destination.addBar(draft.bar)
+                editor.applyToolbarWorkspaces(
+                    if (targetCanvas) profiles.copy(canvas = changed, shared = false)
+                    else profiles.copy(note = changed),
+                )
+                transferDraft = null
+                showTab(targetCanvas)
+                showBar(draft.bar.id)
+            },
+            onDismiss = { transferDraft = null },
+        )
+    }
+    if (workspacesDialogOpen) {
+        ToolbarPresetsDialog(
+            presets = savedWorkspaces,
+            templates = com.xnotes.settings.ToolbarWorkspaceTemplates.presets,
+            statusMessage = workspaceFileMessage,
+            onExportOne = { preset ->
+                val basename = preset.name.replace(Regex("[^a-zA-Z0-9_-]"), "_").take(40)
+                exportWorkspaceFile(listOf(preset), "$basename.xworkspaces.json")
+            },
+            onExportCurrent = { exportWorkspaceFile(listOf(activeWorkspacePreset()), "toolbar-atual.xworkspaces.json") },
+            onExportAll = { exportWorkspaceFile(savedWorkspaces, "toolbars-salvas.xworkspaces.json") },
+            onImport = { importWorkspaceLauncher.launch(arrayOf("application/json", "application/octet-stream")) },
+            onUseTemplate = { template ->
+                workspacesDialogOpen = false
+                restorePending = template
+            },
+            onSave = { name ->
+                editor.saveToolbarWorkspacePreset(name).also { saved ->
+                    if (saved) savedWorkspaces = editor.toolbarWorkspacePresets
+                }
+            },
+            onRestore = { preset ->
+                workspacesDialogOpen = false
+                restorePending = preset
+            },
+            onDelete = { id ->
+                editor.deleteToolbarWorkspacePreset(id)
+                savedWorkspaces = editor.toolbarWorkspacePresets
+            },
+            onDismiss = { workspacesDialogOpen = false },
+        )
+    }
+    restorePending?.let { preset ->
+        ToolbarPresetPreviewDialog(
+            preset = preset,
+            canvasInitially = canvasTab,
+            onApply = {
+                editor.applyToolbarWorkspacePreset(preset)
+                prefs = editor.preferences
+                selectedBarId = null
+                selectedEntry = null
+                restorePending = null
+            },
+            onDismiss = { restorePending = null },
+        )
     }
 
     // A tap on empty space dismisses the template field's focus; children consume their own taps.
@@ -677,8 +850,9 @@ fun PreferencesPane(
                 Chip("xcanvas", selected = canvasTab) { showTab(true) }
                 Spacer(Modifier.weight(1f))
                 Box {
-                    TextButton(onClick = { barMenuExpanded = true }) {
-                        Text("${currentBar.name} ▾", maxLines = 1)
+                    TextButton(onClick = { barMenuExpanded = true },
+                        modifier = Modifier.widthIn(max = 120.dp)) {
+                        Text("${currentBar.name} ▾", maxLines = 1, overflow = TextOverflow.Ellipsis)
                     }
                     DropdownMenu(
                         expanded = barMenuExpanded,
@@ -693,11 +867,21 @@ fun PreferencesPane(
                                 },
                             )
                         }
+                        HorizontalDivider()
+                        DropdownMenuItem(
+                            text = { Text(stringResource(R.string.reset)) },
+                            onClick = {
+                                applyEdited(if (canvasTab) ToolbarLayout.CANVAS_DEFAULT else ToolbarLayout.DEFAULT)
+                                barMenuExpanded = false
+                            },
+                        )
                     }
                 }
                 TextButton(onClick = {
-                    applyEdited(if (canvasTab) ToolbarLayout.CANVAS_DEFAULT else ToolbarLayout.DEFAULT)
-                }) { Text(stringResource(R.string.reset), fontSize = 13.sp) }
+                    savedWorkspaces = editor.toolbarWorkspacePresets
+                    workspaceFileMessage = null
+                    workspacesDialogOpen = true
+                }) { Text("Workspaces ▾", maxLines = 1) }
             }
             if (toolbarPropertyTab != ToolbarPropertyTab.ELEMENTS) FieldLabel(stringResource(R.string.toolbar_preview))
             val entryPosition = selectedEntry
@@ -757,11 +941,7 @@ fun PreferencesPane(
                     Chip("Elementos", toolbarPropertyTab == ToolbarPropertyTab.ELEMENTS) {
                         toolbarPropertyTab = ToolbarPropertyTab.ELEMENTS
                     }
-                    Chip("Cores", toolbarPropertyTab == ToolbarPropertyTab.COLORS) {
-                        selectedEntry = null
-                        toolbarPropertyTab = ToolbarPropertyTab.COLORS
-                    }
-                }
+                 }
             }
             val inspector: @Composable () -> Unit = {
                 Column(
@@ -878,6 +1058,9 @@ fun PreferencesPane(
                         showBar(changed.bars.first().id)
                     }) { Text(stringResource(R.string.remove)) }
                 }
+            }
+            TextButton(onClick = { beginCopyToolbar() }) {
+                Text("Copiar para " + if (canvasTab) "XNotes" else "XCanvas")
             }
             HorizontalDivider(color = palette.border.toComposeColor())
             FieldLabel(stringResource(R.string.toolbar_selected))
@@ -1100,31 +1283,40 @@ fun PreferencesPane(
             }
             dockError?.let { Text(it, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall) }
                     }
-                    if (toolbarPropertyTab == ToolbarPropertyTab.COLORS) {
-            // The ink palette is global; its toolbar presentation is per selected bar.
-            FieldLabel(stringResource(R.string.pref_toolbar_colours_n, editor.toolbarColorCount))
-            Slider(
-                value = editor.toolbarColorCount.toFloat(),
-                onValueChange = {
-                    val total = Math.round(it)
-                    editor.applyToolbarColorCount(total)
-                    val current = editedLayout().colorBlockCount
-                    if (current > total) applyEdited(editedLayout().setColorBlocks(total))
-                },
-                valueRange = 1f..InkPalette.MAX_SWATCHES.toFloat(),
-                steps = InkPalette.MAX_SWATCHES - 2,
-                modifier = Modifier.width(280.dp),
-            )
-            FieldLabel("Dividir cores em ${layout.colorBlockCount} blocos nesta barra")
-            if (editor.toolbarColorCount > 1 && layout.colorBlockCount > 0) {
-                Slider(
-                    value = layout.colorBlockCount.coerceIn(1, editor.toolbarColorCount).toFloat(),
-                    onValueChange = { applyEdited(editedLayout().setColorBlocks(Math.round(it))) },
-                    valueRange = 1f..editor.toolbarColorCount.toFloat(),
-                    steps = (editor.toolbarColorCount - 2).coerceAtLeast(0),
-                    modifier = Modifier.width(280.dp),
-                )
-            }
+                    if (toolbarPropertyTab == ToolbarPropertyTab.ELEMENTS) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Text("Paleta de cores", style = MaterialTheme.typography.titleSmall)
+                            Spacer(Modifier.weight(1f))
+                            TextButton(onClick = { colorControlsExpanded = !colorControlsExpanded }) {
+                                Text(if (colorControlsExpanded) "Recolher" else "Configurar")
+                            }
+                        }
+                        if (colorControlsExpanded) {
+                            // Palette is shared; only the number of blocks belongs to this bar.
+                            FieldLabel(stringResource(R.string.pref_toolbar_colours_n, editor.toolbarColorCount))
+                            Slider(
+                                value = editor.toolbarColorCount.toFloat(),
+                                onValueChange = {
+                                    val total = Math.round(it)
+                                    editor.applyToolbarColorCount(total)
+                                    if (editedLayout().colorBlockCount > total)
+                                        applyEdited(editedLayout().setColorBlocks(total))
+                                },
+                                valueRange = 1f..InkPalette.MAX_SWATCHES.toFloat(),
+                                steps = InkPalette.MAX_SWATCHES - 2,
+                                modifier = Modifier.width(280.dp),
+                            )
+                            FieldLabel("Distribuir cores em ${layout.colorBlockCount} blocos")
+                            if (editor.toolbarColorCount > 1 && layout.colorBlockCount > 0) {
+                                Slider(
+                                    value = layout.colorBlockCount.coerceIn(1, editor.toolbarColorCount).toFloat(),
+                                    onValueChange = { applyEdited(editedLayout().setColorBlocks(Math.round(it))) },
+                                    valueRange = 1f..editor.toolbarColorCount.toFloat(),
+                                    steps = (editor.toolbarColorCount - 2).coerceAtLeast(0),
+                                    modifier = Modifier.width(280.dp),
+                                )
+                            }
+                        }
                     }
                     if (toolbarPropertyTab == ToolbarPropertyTab.ELEMENTS) {
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {

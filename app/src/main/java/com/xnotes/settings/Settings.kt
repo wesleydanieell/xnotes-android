@@ -59,6 +59,8 @@ data class Settings(
     val canvasToolbarLayout: ToolbarLayout = ToolbarLayout.CANVAS_DEFAULT,
     /** Null means legacy settings: derive a workspace from the existing single-bar layouts. */
     val toolbarWorkspaces: ToolbarWorkspaces? = null,
+    /** Named snapshots of the note and canvas toolbar profiles. */
+    val toolbarWorkspacePresets: List<ToolbarWorkspacePreset> = emptyList(),
     val activeColor: Int = 0,
     /** The tool armed when the app was last paused, re-armed on the next launch. */
     val lastTool: Tool = Tool.DEFAULT,
@@ -145,6 +147,7 @@ data class Settings(
             .put("toolbar_layout", toolbarLayoutJson(toolbarLayout))
             .put("canvas_toolbar_layout", toolbarLayoutJson(canvasToolbarLayout))
             .apply { toolbarWorkspaces?.let { put("toolbar_workspaces", ToolbarWorkspaceJson.write(it)) } }
+            .put("toolbar_workspace_presets", ToolbarWorkspacePresetsJson.write(toolbarWorkspacePresets))
             .put("active_color", activeColor)
             .put("last_tool", lastTool.id)
             .put("recent_colors", JSONArray().apply { recentColors.forEach { put(rgbaArr(it)) } })
@@ -201,6 +204,7 @@ data class Settings(
                     ToolbarLayout.CANVAS_DEFAULT,
                 ),
                 toolbarWorkspaces = ToolbarWorkspaceJson.read(o.optJSONObject("toolbar_workspaces")),
+                toolbarWorkspacePresets = ToolbarWorkspacePresetsJson.read(o.optJSONArray("toolbar_workspace_presets")),
                 activeColor = o.optInt("active_color", 0).coerceIn(0, InkPalette.MAX_SWATCHES - 1),
                 // Only tools the toolbar can arm come back; a transient one (e.g. TEXT_BOX) would
                 // leave the bar showing a tool the user never picked.

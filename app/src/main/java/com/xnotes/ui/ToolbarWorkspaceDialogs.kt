@@ -1,0 +1,248 @@
+package com.xnotes.ui
+
+import androidx.compose.foundation.border
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.FilterChip
+import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.unit.dp
+import com.xnotes.core.model.Rgba
+import com.xnotes.core.tools.ToolbarContext
+import com.xnotes.core.tools.ToolbarTransferDraft
+import com.xnotes.core.tools.ToolbarWorkspace
+import com.xnotes.settings.ToolbarLook
+import com.xnotes.settings.ToolbarWorkspacePreset
+
+/** Review the destination as it will look, including existing bars and omitted tools. */
+@Composable
+internal fun ToolbarCopyDialog(
+    targetLabel: String,
+    candidate: ToolbarWorkspace,
+    draft: ToolbarTransferDraft,
+    look: ToolbarLook,
+    colors: List<Rgba>,
+    activeColorIndex: Int,
+    sharedCanvasWillDisable: Boolean,
+    onCopy: () -> Unit,
+    onDismiss: () -> Unit,
+) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Copiar barra para $targetLabel") },
+        text = {
+            Column(Modifier.heightIn(max = 450.dp).verticalScroll(rememberScrollState()),
+                verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Text("Pré-visualização no destino · ${draft.retainedCount} elementos compatíveis")
+                ToolbarWorkspacePreview(
+                    workspace = candidate,
+                    look = look,
+                    selectedId = draft.bar.id,
+                    selectedEntry = null,
+                    colors = colors,
+                    activeColorIndex = activeColorIndex,
+                    pageNumber = 1,
+                    pageCount = 1,
+                    zoomLabel = "100%",
+                    titleLabel = targetLabel,
+                    onSelectBar = {},
+                    onSelectEntry = { _, _, _ -> },
+                    onMoveBar = { _, _ -> },
+                )
+                if (draft.omitted.isNotEmpty()) {
+                    Text("Não serão copiados (${draft.omitted.size}): " +
+                        draft.omitted.joinToString { it.id.replace('_', ' ') })
+                } else Text("Todos os elementos são compatíveis.")
+                if (sharedCanvasWillDisable) {
+                    Text("O XCanvas usa o perfil compartilhado. Ao confirmar, seu perfil individual será ativado.")
+                }
+                Text("Dimensões, seções, espaçamento e alinhamento da barra serão preservados.")
+            }
+        },
+        confirmButton = {
+            TextButton(onClick = onCopy, enabled = draft.retainedCount > 0) { Text("Copiar barra") }
+        },
+        dismissButton = { TextButton(onClick = onDismiss) { Text("Cancelar") } },
+    )
+}
+
+/** A compact library with saved profiles and built-in layouts in separate sections. */
+@Composable
+internal fun ToolbarPresetsDialog(
+    presets: List<ToolbarWorkspacePreset>,
+    templates: List<ToolbarWorkspacePreset>,
+    statusMessage: String?,
+    onUseTemplate: (ToolbarWorkspacePreset) -> Unit,
+    onSave: (String) -> Boolean,
+    onRestore: (ToolbarWorkspacePreset) -> Unit,
+    onDelete: (String) -> Unit,
+    onExportOne: (ToolbarWorkspacePreset) -> Unit,
+    onExportCurrent: () -> Unit,
+    onExportAll: () -> Unit,
+    onImport: () -> Unit,
+    onDismiss: () -> Unit,
+) {
+    var tab by remember { mutableStateOf(0) }
+    var saving by remember { mutableStateOf(false) }
+    var name by remember { mutableStateOf("") }
+    var error by remember { mutableStateOf<String?>(null) }
+    var pendingDelete by remember { mutableStateOf<String?>(null) }
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Workspaces") },
+        text = {
+            Column(Modifier.heightIn(max = 460.dp).verticalScroll(rememberScrollState()),
+                verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    FilterChip(selected = tab == 0, onClick = { tab = 0 }, label = { Text("Meus salvos") })
+                    FilterChip(selected = tab == 1, onClick = { tab = 1 }, label = { Text("Modelos") })
+                }
+                statusMessage?.let { Text(it, style = MaterialTheme.typography.bodySmall) }
+                if (tab == 0) {
+                    Text("Conjuntos de barras dos dois editores, com aparência e cores.",
+                        style = MaterialTheme.typography.bodySmall)
+                    Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                        TextButton(onClick = { saving = !saving }) { Text("Salvar atual") }
+                        TextButton(onClick = onImport) { Text("Importar") }
+                        TextButton(onClick = onExportCurrent) { Text("Exportar atual") }
+                    }
+                    if (saving) {
+                        OutlinedTextField(
+                            value = name,
+                            onValueChange = { name = it.take(48); error = null },
+                            label = { Text("Nome do workspace") },
+                            singleLine = true,
+                            modifier = Modifier.fillMaxWidth(),
+                        )
+                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            TextButton(onClick = {
+                                if (onSave(name)) {
+                                    saving = false
+                                    name = ""
+                                    error = null
+                                } else error = "Use um nome diferente (limite de 20)."
+                            }) { Text("Salvar") }
+                            TextButton(onClick = { saving = false }) { Text("Cancelar") }
+                        }
+                        error?.let { Text(it, color = MaterialTheme.colorScheme.error) }
+                    }
+                    if (presets.isEmpty()) Text("Nenhum workspace salvo ainda.")
+                    presets.forEach { preset ->
+                        Column(Modifier.fillMaxWidth()
+                            .border(1.dp, MaterialTheme.colorScheme.outlineVariant, RoundedCornerShape(12.dp))
+                            .padding(10.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                            Text(preset.name, style = MaterialTheme.typography.titleSmall)
+                            Text("${preset.workspaces.note.bars.size} barras XNotes · ${preset.workspaces.canvas.bars.size} XCanvas",
+                                style = MaterialTheme.typography.bodySmall)
+                            if (pendingDelete == preset.id) {
+                                Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                                    TextButton(onClick = { onDelete(preset.id); pendingDelete = null }) { Text("Excluir mesmo") }
+                                    TextButton(onClick = { pendingDelete = null }) { Text("Cancelar") }
+                                }
+                            } else {
+                                Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                                    TextButton(onClick = { onRestore(preset) }) { Text("Prévia") }
+                                    TextButton(onClick = { onExportOne(preset) }) { Text("Exportar") }
+                                    TextButton(onClick = { pendingDelete = preset.id }) { Text("Excluir") }
+                                }
+                            }
+                        }
+                    }
+                    if (presets.isNotEmpty()) {
+                        HorizontalDivider()
+                        TextButton(onClick = onExportAll) { Text("Exportar todos os salvos") }
+                    }
+                } else {
+                    Text("Layouts inspirados em interfaces de escrita. Escolha um para ver o resultado antes de aplicar.",
+                        style = MaterialTheme.typography.bodySmall)
+                    templates.forEach { template ->
+                        Column(Modifier.fillMaxWidth()
+                            .border(1.dp, MaterialTheme.colorScheme.outlineVariant, RoundedCornerShape(12.dp))
+                            .padding(10.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                            Text(template.name, style = MaterialTheme.typography.titleSmall)
+                            Text(workspaceTemplateDescription(template.id),
+                                style = MaterialTheme.typography.bodySmall)
+                            TextButton(onClick = { onUseTemplate(template) }) { Text("Visualizar e aplicar") }
+                        }
+                    }
+                }
+            }
+        },
+        confirmButton = { TextButton(onClick = onDismiss) { Text("Fechar") } },
+    )
+}
+
+private fun workspaceTemplateDescription(id: String): String = when (id) {
+    "builtin-original" -> "Barra padrão do XNotes, para recomeçar uma personalização."
+    "builtin-focus" -> "Uma única barra inferior, compacta, para escrever sem distrações."
+    "builtin-study" -> "Navegação superior e escrita em uma barra independente na parte inferior."
+    "builtin-pdf" -> "Navegação de documentos acima e ferramentas de anotação à direita."
+    "builtin-drawing" -> "Traços organizados em duas linhas, paleta inferior e ações no topo."
+    "builtin-markup" -> "Estojo inferior de marcação com controles de documento separados."
+    "builtin-complete" -> "Todas as ações principais no topo, alinhadas em início, centro e fim."
+    "builtin-two-rows" -> "Ferramentas em duas fileiras na parte inferior e navegação no topo."
+    else -> "Outra disposição de ferramentas."
+}
+
+/** Preview both profiles before replacing the live workspace with a saved or built-in layout. */
+@Composable
+internal fun ToolbarPresetPreviewDialog(
+    preset: ToolbarWorkspacePreset,
+    canvasInitially: Boolean,
+    onApply: () -> Unit,
+    onDismiss: () -> Unit,
+) {
+    var canvasPreview by remember(preset.id) { mutableStateOf(canvasInitially) }
+    val context = if (canvasPreview) ToolbarContext.CANVAS else ToolbarContext.NOTE
+    val workspace = preset.workspaces.forContext(context)
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(preset.name) },
+        text = {
+            Column(Modifier.heightIn(max = 460.dp).verticalScroll(rememberScrollState()),
+                verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    FilterChip(selected = !canvasPreview, onClick = { canvasPreview = false },
+                        label = { Text("XNotes") })
+                    FilterChip(selected = canvasPreview, onClick = { canvasPreview = true },
+                        label = { Text("XCanvas") })
+                }
+                ToolbarWorkspacePreview(
+                    workspace = workspace,
+                    look = preset.look,
+                    selectedId = workspace.bars.first().id,
+                    selectedEntry = null,
+                    colors = preset.colors.take(preset.colorCount),
+                    activeColorIndex = 0,
+                    pageNumber = 1,
+                    pageCount = 1,
+                    zoomLabel = "100%",
+                    titleLabel = if (canvasPreview) "Canvas" else "Note",
+                    onSelectBar = {},
+                    onSelectEntry = { _, _, _ -> },
+                    onMoveBar = { _, _ -> },
+                )
+                Text("Aplicar substituirá as barras nos dois editores. Salve o workspace atual antes se quiser mantê-lo.")
+            }
+        },
+        confirmButton = { TextButton(onClick = onApply) { Text("Aplicar") } },
+        dismissButton = { TextButton(onClick = onDismiss) { Text("Cancelar") } },
+    )
+}

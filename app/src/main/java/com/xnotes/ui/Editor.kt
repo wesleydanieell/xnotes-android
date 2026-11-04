@@ -2854,10 +2854,84 @@ class Editor(context: Context, val pane: Pane = Pane.PRIMARY) : ToolPopupHost, S
         settingsRepo.save(settings)
     }
 
-    /** Save a new multi-bar profile without changing the legacy toolbar fields. */
+    /** Save the full multi-bar profile, keeping legacy primary-bar fields in sync. */
     fun applyToolbarWorkspaces(workspaces: com.xnotes.core.tools.ToolbarWorkspaces) {
         toolbarWorkspaces = workspaces
-        settings = settings.copy(toolbarWorkspaces = workspaces)
+        toolbarLayout = workspaces.note.bars.first().layout
+        canvasToolbarLayout = workspaces.canvas.bars.first().layout
+        infiniteOrNull?.toolbarLayout = canvasToolbarLayout
+        settings = settings.copy(
+            toolbarWorkspaces = workspaces,
+            toolbarLayout = toolbarLayout,
+            canvasToolbarLayout = canvasToolbarLayout,
+        )
+        settingsRepo.save(settings)
+    }
+
+    val toolbarWorkspacePresets: List<com.xnotes.settings.ToolbarWorkspacePreset>
+        get() = settings.toolbarWorkspacePresets
+
+    fun saveToolbarWorkspacePreset(rawName: String): Boolean {
+        val name = rawName.trim().take(48)
+        val presets = settings.toolbarWorkspacePresets
+        if (name.isBlank() || presets.size >= 20 || presets.any { it.name.equals(name, ignoreCase = true) }) return false
+        val preset = com.xnotes.settings.ToolbarWorkspacePreset(
+            id = java.util.UUID.randomUUID().toString(),
+            name = name,
+            workspaces = toolbarWorkspaces,
+            look = toolbarLook,
+            colors = toolbarColors,
+            colorCount = toolbarColorCount,
+        )
+        settings = settings.copy(toolbarWorkspacePresets = presets + preset)
+        settingsRepo.save(settings)
+        return true
+    }
+
+    fun deleteToolbarWorkspacePreset(id: String) {
+        val remaining = settings.toolbarWorkspacePresets.filterNot { it.id == id }
+        if (remaining.size == settings.toolbarWorkspacePresets.size) return
+        settings = settings.copy(toolbarWorkspacePresets = remaining)
+        settingsRepo.save(settings)
+    }
+
+    /** Import as saved presets only. Existing snapshots and current bars remain untouched. */
+    fun importToolbarWorkspacePresets(incoming: List<com.xnotes.settings.ToolbarWorkspacePreset>): Int {
+        val original = settings.toolbarWorkspacePresets
+        val merged = original.toMutableList()
+        for (preset in incoming) {
+            if (merged.size >= 20) break
+            val basename = preset.name.trim().take(48).ifBlank { "Workspace" }
+            var candidate = basename
+            var suffix = 2
+            while (merged.any { it.name.equals(candidate, ignoreCase = true) }) {
+                val addition = " ($suffix)"
+                candidate = basename.take(48 - addition.length) + addition
+                suffix++
+            }
+            merged.add(preset.copy(id = java.util.UUID.randomUUID().toString(), name = candidate))
+        }
+        if (merged.size == original.size) return 0
+        settings = settings.copy(toolbarWorkspacePresets = merged)
+        settingsRepo.save(settings)
+        return merged.size - original.size
+    }
+
+    fun restoreToolbarWorkspacePreset(id: String): Boolean {
+        val preset = settings.toolbarWorkspacePresets.firstOrNull { it.id == id } ?: return false
+        applyToolbarWorkspacePreset(preset)
+        return true
+    }
+
+    fun applyToolbarWorkspacePreset(preset: com.xnotes.settings.ToolbarWorkspacePreset) {
+        toolbarColors = (preset.colors + InkPalette.presets.drop(preset.colors.size)).take(InkPalette.MAX_SWATCHES)
+        toolbarColorCount = preset.colorCount.coerceIn(1, InkPalette.MAX_SWATCHES)
+        infiniteOrNull?.toolbarColors = toolbarColors
+        infiniteOrNull?.toolbarColorCount = toolbarColorCount
+        pickColor(activeColorIndex.coerceIn(0, toolbarColorCount - 1))
+        applyHomePreferences(settings.prefs.copy(toolbarLook = preset.look))
+        applyToolbarWorkspaces(preset.workspaces)
+        settings = settings.copy(toolbarColors = toolbarColors, toolbarColorCount = toolbarColorCount)
         settingsRepo.save(settings)
     }
 
