@@ -4,6 +4,8 @@ import androidx.compose.ui.unit.dp
 import com.xnotes.core.tools.ToolbarAnchor
 import com.xnotes.core.tools.ToolbarBar
 import com.xnotes.core.tools.ToolbarDockEdge
+import com.xnotes.core.tools.ToolbarDistribution
+import com.xnotes.core.tools.ToolbarRegion
 import com.xnotes.core.tools.ToolbarEntry
 import com.xnotes.core.tools.ToolbarGeometry
 import com.xnotes.core.tools.ToolbarItem
@@ -56,6 +58,28 @@ class ToolbarFloatingPlanTest {
         assertTrue(plan.rejected.isEmpty())
         assertEquals(0, plan.placement("primary")!!.lane)
         assertEquals(1, plan.placement("second")!!.lane)
+    }
+
+    @Test fun floatingRegionsReserveSpaceForTheLargerEdgeGroup() {
+        val sections = listOf(
+            ToolbarSection(listOf(ToolbarEntry(ToolbarItem.PEN),
+                ToolbarEntry(ToolbarItem.ERASER), ToolbarEntry(ToolbarItem.COLORS)),
+                region = ToolbarRegion.START),
+            ToolbarSection(listOf(ToolbarEntry(ToolbarItem.SIDEBAR)), region = ToolbarRegion.CENTER),
+            ToolbarSection(listOf(ToolbarEntry(ToolbarItem.UNIFIED_PEN)), region = ToolbarRegion.END),
+        )
+        for (anchor in listOf(ToolbarAnchor.TOP_CENTER, ToolbarAnchor.CENTER_LEFT)) {
+            val geometry = ToolbarGeometry(anchor = anchor, floating = true)
+            fun length(mode: ToolbarDistribution): Float {
+                val bar = ToolbarBar("regions", "Regions", ToolbarLayout(sections, mode),
+                    geometry = geometry)
+                val plan = toolbarFloatingPlan(ToolbarWorkspace(listOf(bar)), ToolbarLook(),
+                    1600.dp, 1600.dp, 6)
+                val placed = plan.placement("regions")!!
+                return if (anchor == ToolbarAnchor.CENTER_LEFT) placed.height else placed.width
+            }
+            assertTrue(length(ToolbarDistribution.REGIONS) > length(ToolbarDistribution.CONTINUOUS))
+        }
     }
 
     @Test fun naturalColourPaletteLengthAdaptsToSelectedCount() {

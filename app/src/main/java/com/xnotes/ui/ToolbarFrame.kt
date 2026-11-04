@@ -264,10 +264,12 @@ internal fun ToolbarFrame(
     val stretch = when {
         bar.vertical -> when {
             geometry?.heightDp != null -> Modifier.height(geometry.heightDp.dp)
+            look.floating && layout.distribution == ToolbarDistribution.REGIONS && geometry?.floating == true -> Modifier.fillMaxHeight()
             look.floating -> Modifier
             else -> Modifier.fillMaxHeight()
         }
         geometry?.widthDp != null -> Modifier.width(geometry.widthDp.dp)
+        look.floating && layout.distribution == ToolbarDistribution.REGIONS && geometry?.floating == true -> Modifier.fillMaxWidth()
         look.floating -> Modifier
         else -> Modifier.fillMaxWidth()
     }
@@ -288,7 +290,7 @@ internal fun ToolbarFrame(
             ) {
                 Column(
                     Modifier
-                        .weight(1f, fill = !look.floating)
+                        .weight(1f, fill = !look.floating || layout.distribution == ToolbarDistribution.REGIONS)
                         .then(if (layout.distribution == ToolbarDistribution.CONTINUOUS)
                             Modifier.verticalScroll(rememberScrollState()) else Modifier)
                         .padding(vertical = bar.padding)
@@ -304,7 +306,7 @@ internal fun ToolbarFrame(
             ) {
                 Row(
                     Modifier
-                        .weight(1f, fill = !look.floating)
+                        .weight(1f, fill = !look.floating || layout.distribution == ToolbarDistribution.REGIONS)
                         .then(if (layout.distribution == ToolbarDistribution.CONTINUOUS)
                             Modifier.horizontalScroll(rememberScrollState()) else Modifier)
                         .padding(horizontal = bar.padding)

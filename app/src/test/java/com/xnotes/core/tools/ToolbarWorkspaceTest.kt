@@ -70,6 +70,27 @@ class ToolbarWorkspaceTest {
             .forContext(ToolbarContext.CANVAS).bars.single().layout.sections.single().entries.single().item)
     }
 
+    @Test fun regionModeAndAnchorsSurviveContextFiltering() {
+        val layout = ToolbarLayout(listOf(
+            ToolbarSection(listOf(ToolbarEntry(ToolbarItem.PAGE_NAV)), region = ToolbarRegion.START),
+            ToolbarSection(listOf(ToolbarEntry(ToolbarItem.PEN)), region = ToolbarRegion.CENTER),
+            ToolbarSection(listOf(ToolbarEntry(ToolbarItem.IMAGE)), region = ToolbarRegion.END),
+        ), distribution = ToolbarDistribution.REGIONS)
+        val note = ToolbarWorkspace(listOf(ToolbarBar("primary", "Main", layout)))
+        val profiles = ToolbarWorkspaces(note, note, shared = true)
+
+        for (context in ToolbarContext.entries) {
+            val filtered = profiles.forContext(context).bars.single().layout
+            assertEquals(ToolbarDistribution.REGIONS, filtered.distribution)
+            assertEquals(listOf(ToolbarRegion.START, ToolbarRegion.CENTER, ToolbarRegion.END),
+                filtered.sections.map { it.region })
+            assertEquals(listOf(ToolbarItem.PEN), filtered.sections[1].visibleEntries.map { it.item })
+        }
+        assertTrue(profiles.forContext(ToolbarContext.CANVAS).bars.single()
+            .layout.sections[0].entries.isEmpty())
+        assertEquals(layout, note.bars.single().layout)
+    }
+
     @Test fun individualToolSizesDoNotLeakAcrossRepeatedColors() {
         val colors = ToolbarLayout(listOf(ToolbarSection(listOf(
             ToolbarEntry(ToolbarItem.COLORS, colorPart = 0, colorParts = 2),

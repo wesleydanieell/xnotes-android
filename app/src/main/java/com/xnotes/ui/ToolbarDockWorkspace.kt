@@ -8,6 +8,8 @@ import com.xnotes.core.tools.ToolbarDockEdge
 import com.xnotes.core.tools.ToolbarDockLayout
 import com.xnotes.core.tools.ToolbarDockPlan
 import com.xnotes.core.tools.ToolbarDockRequest
+import com.xnotes.core.tools.ToolbarDistribution
+import com.xnotes.core.tools.ToolbarRegion
 import com.xnotes.core.tools.ToolbarScale
 import com.xnotes.core.tools.ToolbarWorkspace
 import com.xnotes.settings.ToolbarLook
@@ -117,7 +119,7 @@ private fun estimatedFloatingLength(bar: ToolbarBar, index: Int, look: ToolbarLo
     val explicit = if (vertical) bar.geometry.heightDp else bar.geometry.widthDp
     if (explicit != null) return explicit.toFloat()
     val sections = bar.layout.visibleSections
-    val content = sections.sumOf { section ->
+    fun sectionLength(section: com.xnotes.core.tools.ToolbarSection): Float =
         (0 until section.crossCells).maxOfOrNull { lane ->
             section.entriesInLane(lane).sumOf { entry ->
                 val unit = entry.sizeDp?.toFloat() ?: m.button.value
@@ -130,9 +132,21 @@ private fun estimatedFloatingLength(bar: ToolbarBar, index: Int, look: ToolbarLo
                     else -> unit
                 }.toDouble()
             }.toFloat()
-        }?.toDouble() ?: 0.0
-    }.toFloat()
-    return maxOf(48f, content + 2f * m.padding.value + (sections.size - 1).coerceAtLeast(0) * 14f)
+        }?.toFloat() ?: 0f
+    fun groupLength(group: List<com.xnotes.core.tools.ToolbarSection>): Float =
+        group.sumOf { sectionLength(it).toDouble() }.toFloat() +
+            (group.size - 1).coerceAtLeast(0) * 14f
+    val total = groupLength(sections)
+    val content = if (bar.layout.distribution == ToolbarDistribution.REGIONS &&
+        sections.map { it.region }.distinct().size > 1) {
+        // Center owns the physical midpoint. Both edge viewports need enough room for the
+        // larger group; sizing by the ordinary sum would hide that group's last tools.
+        val start = groupLength(sections.filter { it.region == ToolbarRegion.START })
+        val center = groupLength(sections.filter { it.region == ToolbarRegion.CENTER })
+        val end = groupLength(sections.filter { it.region == ToolbarRegion.END })
+        2f * maxOf(start, end) + center
+    } else total
+    return maxOf(48f, content + 2f * m.padding.value)
 }
 
 /** Auto-packs floating bars into the next free lane; never reserves document space. */

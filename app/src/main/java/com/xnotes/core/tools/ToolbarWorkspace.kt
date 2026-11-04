@@ -100,7 +100,7 @@ data class ToolbarWorkspace(val bars: List<ToolbarBar>) {
      */
     fun onlyItems(allowed: Set<ToolbarItem>): ToolbarWorkspace = copy(
         bars = bars.map { bar ->
-            bar.copy(layout = ToolbarLayout(bar.layout.sections.map { section ->
+            bar.copy(layout = bar.layout.copy(sections = bar.layout.sections.map { section ->
                 section.copy(entries = section.entries.filter { it.item in allowed })
             }))
         },

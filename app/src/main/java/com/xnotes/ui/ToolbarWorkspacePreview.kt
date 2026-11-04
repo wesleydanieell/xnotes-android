@@ -240,6 +240,7 @@ private fun PreviewBar(
         Column(
             surface
                 .then(if (bar.geometry.heightDp != null) Modifier.height(bar.geometry.heightDp.dp)
+                    else if (bar.layout.distribution == ToolbarDistribution.REGIONS) Modifier.height(availableHeight)
                     else if (floating) Modifier.heightIn(max = availableHeight) else Modifier.fillMaxHeight())
                 .width(toolbarWidth(metrics, bar.layout, bar.geometry))
                 .then(if (bar.layout.distribution == ToolbarDistribution.CONTINUOUS)
@@ -247,12 +248,19 @@ private fun PreviewBar(
                 .padding(vertical = metrics.padding),
             horizontalAlignment = Alignment.CenterHorizontally,
         ) {
-            PreviewSections(bar.layout, metrics, colors, activeColorIndex, pageNumber, pageCount, zoomLabel, titleLabel, onSelectEntry, selectedEntry, vertical = true)
+            if (bar.layout.distribution == ToolbarDistribution.REGIONS) {
+                Box(Modifier.weight(1f).fillMaxWidth()) {
+                    PreviewSections(bar.layout, metrics, colors, activeColorIndex, pageNumber, pageCount, zoomLabel, titleLabel, onSelectEntry, selectedEntry, vertical = true)
+                }
+            } else {
+                PreviewSections(bar.layout, metrics, colors, activeColorIndex, pageNumber, pageCount, zoomLabel, titleLabel, onSelectEntry, selectedEntry, vertical = true)
+            }
         }
     } else {
         Row(
             surface
                 .then(if (bar.geometry.widthDp != null) Modifier.width(bar.geometry.widthDp.dp)
+                    else if (bar.layout.distribution == ToolbarDistribution.REGIONS) Modifier.width(availableWidth)
                     else if (floating) Modifier.widthIn(max = availableWidth) else Modifier.fillMaxWidth())
                 .height(toolbarHeight(metrics, bar.layout, bar.geometry))
                 .then(if (bar.layout.distribution == ToolbarDistribution.CONTINUOUS)
@@ -260,7 +268,13 @@ private fun PreviewBar(
                 .padding(horizontal = metrics.padding),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            PreviewSections(bar.layout, metrics, colors, activeColorIndex, pageNumber, pageCount, zoomLabel, titleLabel, onSelectEntry, selectedEntry, vertical = false)
+            if (bar.layout.distribution == ToolbarDistribution.REGIONS) {
+                Box(Modifier.weight(1f).fillMaxHeight()) {
+                    PreviewSections(bar.layout, metrics, colors, activeColorIndex, pageNumber, pageCount, zoomLabel, titleLabel, onSelectEntry, selectedEntry, vertical = false)
+                }
+            } else {
+                PreviewSections(bar.layout, metrics, colors, activeColorIndex, pageNumber, pageCount, zoomLabel, titleLabel, onSelectEntry, selectedEntry, vertical = false)
+            }
         }
     }
 }
