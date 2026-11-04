@@ -62,6 +62,7 @@ import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.boundsInRoot
 import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalConfiguration
@@ -237,6 +238,7 @@ fun PreferencesPane(
     var dragItem by remember { mutableStateOf<Pair<Int, Int>?>(null) }
     var dragFinger by remember { mutableStateOf(Offset.Zero) }
     var dragGrab by remember { mutableStateOf(Offset.Zero) }
+    val chipGhostGrabPx = with(LocalDensity.current) { 16.dp.toPx() }
     var dropTarget by remember { mutableStateOf<Triple<Int, Int, Int>?>(null) }
     var dragRegionTarget by remember { mutableStateOf<ToolbarRegion?>(null) }
     val chipBounds = remember { mutableMapOf<Pair<Int, Int>, Rect>() }
@@ -883,7 +885,6 @@ fun PreferencesPane(
                     workspacesDialogOpen = true
                 }) { Text("Workspaces ▾", maxLines = 1) }
             }
-            if (toolbarPropertyTab != ToolbarPropertyTab.ELEMENTS) FieldLabel(stringResource(R.string.toolbar_preview))
             val entryPosition = selectedEntry
             val activeEntry = entryPosition?.let { (section, index) ->
                 currentBar.layout.sections.getOrNull(section)?.entries?.getOrNull(index)
@@ -954,7 +955,6 @@ fun PreferencesPane(
                     verticalArrangement = Arrangement.spacedBy(12.dp),
                 ) {
                     if (toolbarPropertyTab == ToolbarPropertyTab.ELEMENTS) {
-                        FieldLabel(stringResource(R.string.toolbar_preview))
                         Box(Modifier.widthIn(max = 480.dp).align(Alignment.CenterHorizontally)) { preview() }
                         if (activeEntry != null) {
                             Row(verticalAlignment = Alignment.CenterVertically) {
@@ -1376,7 +1376,10 @@ fun PreferencesPane(
                 onDragStart = { section, index, local ->
                     val key = section to index
                     dragItem = key
-                    dragGrab = local
+                    // The dragged row can be much wider than its compact floating copy.
+                    // Anchor the ghost near the fingertip instead of keeping the original
+                    // row's grab offset, which could place the icon far from the finger.
+                    dragGrab = Offset(chipGhostGrabPx, chipGhostGrabPx)
                     dragFinger = (chipBounds[key]?.topLeft ?: Offset.Zero) + local
                     retarget()
                 },
@@ -1441,6 +1444,7 @@ fun PreferencesPane(
                 }
             }
             propertyTabs()
+            FieldLabel(stringResource(R.string.toolbar_preview))
             BoxWithConstraints(Modifier.fillMaxWidth()) {
                 if (toolbarPropertyTab == ToolbarPropertyTab.ELEMENTS) {
                     inspector()

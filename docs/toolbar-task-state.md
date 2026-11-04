@@ -443,3 +443,10 @@ A tinta selecionada colore somente os acentos dentro dos pictogramas das canetas
 - Editor de sections e elementos: cabeçalhos, chips e linhas usam a tipografia do app e áreas de toque mais confortáveis, sem alterar a semântica de arrastar, categorias ou alinhamentos.
 - Mantidos os gestos e o seletor radial já existentes; nenhuma tentativa de reintroduzir grupos genéricos.
 - Verificação inicial: `git diff --check`, testes JVM e montagem debug passaram. Interface de nota aberta e inspecionada em `emulator-5554`; comportamento com caneta real e inspeção do popup em todas as densidades ainda requerem QA.
+
+## Usabilidade — preview e gesto de reorganização (04/11/2026)
+
+- `Live preview` passa a ter um único cabeçalho estável acima da área de prévia nas três abas. Não existem mais dois caminhos de renderização do label (um dentro do inspector e outro fora dele).
+- Ghost de arraste de elemento agora usa um deslocamento constante próximo ao dedo, calculado em pixels conforme a densidade, independentemente da largura da linha de origem. O cálculo do alvo continua usando a coordenada real do dedo; o arraste de sections mantém a posição relativa original.
+- Reorganização isolada em callbacks e componente do ghost para permitir ajustes futuros sem alterar o modelo persistido ou o layout da barra.
+- `:app:testDebugUnitTest :app:assembleDebug --offline --quiet` e `git diff --check` passaram. Inspeção física com Smart Pen ainda necessária para avaliar a percepção do ghost e seus destinos.
