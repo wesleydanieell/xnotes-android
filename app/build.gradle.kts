@@ -91,6 +91,14 @@ android {
         }
         release {
             if (hasReleaseSigning) signingConfig = signingConfigs.getByName("release")
+            // Opt-in isolated, R8-optimised APK for on-device testing. It must not replace
+            // the regular com.xnotes package, and uses only the machine-local test key.
+            if (providers.gradleProperty("toolbarIsolatedRelease").orNull == "true") {
+                check(hasToolbarDebugSigning) { "Toolbar test signing key is required for isolated release" }
+                applicationIdSuffix = ".toolbarsrelease"
+                versionNameSuffix = "-toolbars-release"
+                signingConfig = signingConfigs.getByName("toolbarDebug")
+            }
             // R8 shrinks/optimises release builds (see proguard-rules.pro for the few keeps). R8
             // output is reproducible (pinned AGP fixes the R8 version + mapping); the one
             // non-reproducible artefact, the baseline profile, is dropped below (see ArtProfile).

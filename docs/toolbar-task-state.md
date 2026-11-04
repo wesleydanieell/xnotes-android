@@ -421,3 +421,10 @@ A tinta selecionada colore somente os acentos dentro dos pictogramas das canetas
 5. **P2 — Polimento/documentação:** acessibilidade e contraste claro/escuro, textos longos, toque mínimo, teclado, desempenho sob várias barras; consolidar roadmap, atualizar playbook ADB, preparar commits/PRs somente depois da matriz de QA.
 
 **Próxima ação recomendada:** conectar Redmi Pad 2 e executar P0 nas barras reais, com prioridade para conflito de gestos e divergência de geometria; depois testar todos os fluxos de portabilidade/persistência com seletor de arquivos do Android.
+
+## Build release isolada no Redmi Pad 2 (04/11/2026)
+
+- Gradle `:app:assembleRelease -PtoolbarIsolatedRelease=true --offline --console=plain` passou com `BUILD SUCCESSFUL` (R8 `isMinifyEnabled` e resource shrinking habilitados).
+- A propriedade opt-in `toolbarIsolatedRelease` aplica `applicationIdSuffix = .toolbarsrelease`, nome `0.9.6-toolbars-release` e assina com a chave local de **teste**, sem mudar a assinatura/ID da release normal `com.xnotes`. Nenhuma chave foi incluída no Git.
+- APK `app/build/outputs/apk/release/app-release.apk` de 35 MiB: `aapt` confirmou `com.xnotes.toolbarsrelease`, `apksigner verify` validou a assinatura v2. ADB no Redmi Pad 2 `pfcmu4dutsylceus`: `install -r` → `Success`; `monkey -p com.xnotes.toolbarsrelease 1` executou e `pidof` retornou processo ativo; sem crash fatal nas últimas 200 linhas de logcat.
+- XNotes normal `com.xnotes`, `com.xnotes.community` e build debug `com.xnotes.toolbarsdebug` não foram substituídos. QA de gestos, stylus, ações, import/export e produção de documentos ainda é manual e **não** está concluído.
