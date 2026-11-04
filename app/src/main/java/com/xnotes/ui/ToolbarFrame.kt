@@ -252,6 +252,8 @@ internal fun ToolbarFrame(
     val look = LocalToolbarLook.current
     val bar = resolvedBarMetrics(look.size, geometry).copy(vertical = look.position.vertical)
     val depth = toolbarDepth(bar, layout)
+    val compactRegions = toolbarCompactRegions(layout, look.floating,
+        if (bar.vertical) geometry?.heightDp else geometry?.widthDp)
     val glide = remember { ToolGlide() }
     val palette = LocalPalette.current
     val shape = MaterialTheme.shapes.extraLarge
@@ -286,7 +288,9 @@ internal fun ToolbarFrame(
         ToolbarPosition.LEFT -> TipSide.RIGHT
         ToolbarPosition.RIGHT -> TipSide.LEFT
     }
-    CompositionLocalProvider(LocalToolGlide provides glide, LocalBar provides bar, LocalMenuOffset provides menuOffset, LocalTipSide provides tipSide) {
+    CompositionLocalProvider(LocalToolGlide provides glide, LocalBar provides bar,
+        LocalCompactToolbarRegions provides compactRegions, LocalMenuOffset provides menuOffset,
+        LocalTipSide provides tipSide) {
         if (bar.vertical) {
             Column(
                 stretch.width(toolbarWidth(bar, layout, geometry)).then(surface),
@@ -294,8 +298,8 @@ internal fun ToolbarFrame(
             ) {
                 Column(
                     Modifier
-                        .weight(1f, fill = !look.floating || layout.distribution == ToolbarDistribution.REGIONS)
-                        .then(if (layout.distribution == ToolbarDistribution.CONTINUOUS)
+                        .weight(1f, fill = !look.floating || (layout.distribution == ToolbarDistribution.REGIONS && !compactRegions))
+                        .then(if (layout.distribution == ToolbarDistribution.CONTINUOUS || compactRegions)
                             Modifier.verticalScroll(rememberScrollState()) else Modifier)
                         .padding(vertical = bar.padding)
                         .toolGlide(glide, armed),
@@ -310,8 +314,8 @@ internal fun ToolbarFrame(
             ) {
                 Row(
                     Modifier
-                        .weight(1f, fill = !look.floating || layout.distribution == ToolbarDistribution.REGIONS)
-                        .then(if (layout.distribution == ToolbarDistribution.CONTINUOUS)
+                        .weight(1f, fill = !look.floating || (layout.distribution == ToolbarDistribution.REGIONS && !compactRegions))
+                        .then(if (layout.distribution == ToolbarDistribution.CONTINUOUS || compactRegions)
                             Modifier.horizontalScroll(rememberScrollState()) else Modifier)
                         .padding(horizontal = bar.padding)
                         .toolGlide(glide, armed),

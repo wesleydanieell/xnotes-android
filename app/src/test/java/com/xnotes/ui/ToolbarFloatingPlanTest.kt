@@ -60,7 +60,7 @@ class ToolbarFloatingPlanTest {
         assertEquals(1, plan.placement("second")!!.lane)
     }
 
-    @Test fun floatingRegionsReserveSpaceForTheLargerEdgeGroup() {
+    @Test fun floatingAutoRegionsUseCompactLengthEvenWithUnequalEdgeGroups() {
         val sections = listOf(
             ToolbarSection(listOf(ToolbarEntry(ToolbarItem.PEN),
                 ToolbarEntry(ToolbarItem.ERASER), ToolbarEntry(ToolbarItem.COLORS)),
@@ -78,7 +78,7 @@ class ToolbarFloatingPlanTest {
                 val placed = plan.placement("regions")!!
                 return if (anchor == ToolbarAnchor.CENTER_LEFT) placed.height else placed.width
             }
-            assertTrue(length(ToolbarDistribution.REGIONS) > length(ToolbarDistribution.CONTINUOUS))
+            assertEquals(length(ToolbarDistribution.CONTINUOUS), length(ToolbarDistribution.REGIONS), 0.01f)
         }
     }
 

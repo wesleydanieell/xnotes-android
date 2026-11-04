@@ -9,6 +9,7 @@ import com.xnotes.core.tools.ToolbarLayout
 import com.xnotes.core.tools.ToolbarRegion
 import com.xnotes.core.tools.ToolbarSection
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
@@ -25,6 +26,19 @@ class ToolbarSectionDistributionTest {
         assertEquals(listOf(1, 4), groups.getValue(ToolbarRegion.START).map { it.index })
         assertEquals(listOf(3), groups.getValue(ToolbarRegion.CENTER).map { it.index })
         assertEquals(listOf(0), groups.getValue(ToolbarRegion.END).map { it.index })
+        // The saved order stays untouched; only the compact rendering groups by region.
+        assertEquals(listOf(1, 4, 3, 0), toolbarCompactRegionSections(layout).map { it.index })
+        assertEquals(ToolbarRegion.END, layout.sections.first().region)
+    }
+
+    @Test fun onlyFloatingAutoLengthUsesCompactRegions() {
+        val regions = ToolbarLayout(listOf(ToolbarSection(listOf(ToolbarEntry(ToolbarItem.PEN)))),
+            distribution = ToolbarDistribution.REGIONS)
+        assertTrue(toolbarCompactRegions(regions, floating = true, explicitLengthDp = null))
+        assertFalse(toolbarCompactRegions(regions, floating = true, explicitLengthDp = 520))
+        assertFalse(toolbarCompactRegions(regions, floating = false, explicitLengthDp = null))
+        assertFalse(toolbarCompactRegions(regions.setDistribution(ToolbarDistribution.CONTINUOUS),
+            floating = true, explicitLengthDp = null))
     }
 
     @Test fun emptyCenterAndEndKeepTheirSeparateSlots() {

@@ -12,6 +12,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clipToBounds
 import com.xnotes.core.tools.ToolbarDistribution
@@ -19,10 +20,16 @@ import com.xnotes.core.tools.ToolbarLayout
 import com.xnotes.core.tools.ToolbarRegion
 import com.xnotes.core.tools.ToolbarSection
 
+/** The natural-size floating bar packs regions together; sized/docked bars keep physical anchors. */
+internal fun toolbarCompactRegions(layout: ToolbarLayout, floating: Boolean, explicitLengthDp: Int?): Boolean =
+    layout.distribution == ToolbarDistribution.REGIONS && floating && explicitLengthDp == null
+
+internal val LocalCompactToolbarRegions = staticCompositionLocalOf { false }
+
 /**
  * One section is the indivisible group: its one to three lanes stay together.
- * Regions anchor those groups to the start, physical center and end of a bar.
- * When the viewport is too small, the strip scrolls rather than overlapping tools.
+ * Automatic floating bars pack Start/Center/End groups in order without artificial gaps.
+ * Explicit-size and docked bars keep physical anchors; tight viewports scroll instead of overlapping tools.
  * Side toolbars use the identical algorithm on the vertical axis.
  */
 @Composable
@@ -31,8 +38,11 @@ internal fun ToolbarSections(
     sectionContent: @Composable (Int, ToolbarSection) -> Unit,
 ) {
     val visible = layout.sections.withIndex().filter { it.value.hasVisible }
-    if (layout.distribution == ToolbarDistribution.CONTINUOUS) {
-        visible.forEachIndexed { visual, indexed ->
+    if (layout.distribution == ToolbarDistribution.CONTINUOUS || LocalCompactToolbarRegions.current) {
+        // In compact floating bars, group labels still determine order, not fixed-width slots.
+        val arranged = if (layout.distribution == ToolbarDistribution.CONTINUOUS) visible
+            else toolbarCompactRegionSections(layout)
+        arranged.forEachIndexed { visual, indexed ->
             if (visual > 0) Separator()
             sectionContent(indexed.index, indexed.value)
         }
@@ -122,6 +132,9 @@ internal fun ToolbarSections(
 
 /** The preview and live toolbars consume the same stable, original section indices.
  * Empty and hidden sections remain editable but never claim visible toolbar space. */
+internal fun toolbarCompactRegionSections(layout: ToolbarLayout): List<IndexedValue<ToolbarSection>> =
+    layout.sections.withIndex().filter { it.value.hasVisible }.sortedBy { it.value.region.ordinal }
+
 internal fun toolbarRegionGroups(layout: ToolbarLayout): Map<ToolbarRegion, List<IndexedValue<ToolbarSection>>> {
     val visible = layout.sections.withIndex().filter { it.value.hasVisible }
     return ToolbarRegion.entries.associateWith { region ->

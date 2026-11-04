@@ -224,6 +224,8 @@ private fun PreviewBar(
 ) {
     val palette = LocalPalette.current
     val metrics = resolvedBarMetrics(effectiveSize, bar.geometry).copy(vertical = vertical)
+    val compactRegions = toolbarCompactRegions(bar.layout, floating,
+        if (vertical) bar.geometry.heightDp else bar.geometry.widthDp)
     val shape = RoundedCornerShape(if (floating) 24.dp else 0.dp)
     val surface = Modifier
         .then(if (floating) Modifier.shadow(6.dp, shape) else Modifier)
@@ -243,17 +245,17 @@ private fun PreviewBar(
                     else if (bar.layout.distribution == ToolbarDistribution.REGIONS) Modifier.height(availableHeight)
                     else if (floating) Modifier.heightIn(max = availableHeight) else Modifier.fillMaxHeight())
                 .width(toolbarWidth(metrics, bar.layout, bar.geometry))
-                .then(if (bar.layout.distribution == ToolbarDistribution.CONTINUOUS)
+                .then(if (bar.layout.distribution == ToolbarDistribution.CONTINUOUS || compactRegions)
                     Modifier.verticalScroll(rememberScrollState()) else Modifier)
                 .padding(vertical = metrics.padding),
             horizontalAlignment = Alignment.CenterHorizontally,
         ) {
-            if (bar.layout.distribution == ToolbarDistribution.REGIONS) {
+            if (bar.layout.distribution == ToolbarDistribution.REGIONS && !compactRegions) {
                 Box(Modifier.weight(1f).fillMaxWidth()) {
-                    PreviewSections(bar.layout, metrics, colors, activeColorIndex, pageNumber, pageCount, zoomLabel, titleLabel, onSelectEntry, selectedEntry, vertical = true)
+                    PreviewSections(bar.layout, metrics, colors, activeColorIndex, pageNumber, pageCount, zoomLabel, titleLabel, onSelectEntry, selectedEntry, vertical = true, compactRegions = compactRegions)
                 }
             } else {
-                PreviewSections(bar.layout, metrics, colors, activeColorIndex, pageNumber, pageCount, zoomLabel, titleLabel, onSelectEntry, selectedEntry, vertical = true)
+                PreviewSections(bar.layout, metrics, colors, activeColorIndex, pageNumber, pageCount, zoomLabel, titleLabel, onSelectEntry, selectedEntry, vertical = true, compactRegions = compactRegions)
             }
         }
     } else {
@@ -263,17 +265,17 @@ private fun PreviewBar(
                     else if (bar.layout.distribution == ToolbarDistribution.REGIONS) Modifier.width(availableWidth)
                     else if (floating) Modifier.widthIn(max = availableWidth) else Modifier.fillMaxWidth())
                 .height(toolbarHeight(metrics, bar.layout, bar.geometry))
-                .then(if (bar.layout.distribution == ToolbarDistribution.CONTINUOUS)
+                .then(if (bar.layout.distribution == ToolbarDistribution.CONTINUOUS || compactRegions)
                     Modifier.horizontalScroll(rememberScrollState()) else Modifier)
                 .padding(horizontal = metrics.padding),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            if (bar.layout.distribution == ToolbarDistribution.REGIONS) {
+            if (bar.layout.distribution == ToolbarDistribution.REGIONS && !compactRegions) {
                 Box(Modifier.weight(1f).fillMaxHeight()) {
-                    PreviewSections(bar.layout, metrics, colors, activeColorIndex, pageNumber, pageCount, zoomLabel, titleLabel, onSelectEntry, selectedEntry, vertical = false)
+                    PreviewSections(bar.layout, metrics, colors, activeColorIndex, pageNumber, pageCount, zoomLabel, titleLabel, onSelectEntry, selectedEntry, vertical = false, compactRegions = compactRegions)
                 }
             } else {
-                PreviewSections(bar.layout, metrics, colors, activeColorIndex, pageNumber, pageCount, zoomLabel, titleLabel, onSelectEntry, selectedEntry, vertical = false)
+                PreviewSections(bar.layout, metrics, colors, activeColorIndex, pageNumber, pageCount, zoomLabel, titleLabel, onSelectEntry, selectedEntry, vertical = false, compactRegions = compactRegions)
             }
         }
     }
@@ -292,11 +294,12 @@ private fun PreviewSections(
     onSelectEntry: (Int, Int) -> Unit,
     selectedEntry: Pair<Int, Int>?,
     vertical: Boolean,
+    compactRegions: Boolean,
 ) {
     val palette = LocalPalette.current
     // Use the same controls, swatches, labels and separators as a live toolbar.
     // Preview clicks select the edited bar; they never edit the open document.
-    CompositionLocalProvider(LocalBar provides metrics) {
+    CompositionLocalProvider(LocalBar provides metrics, LocalCompactToolbarRegions provides compactRegions) {
         ToolbarSections(layout) { sectionIndex, section ->
             ToolbarSectionGrid(section) { entry ->
                 // Reference identity distinguishes repeated Colors occurrences with equal values.

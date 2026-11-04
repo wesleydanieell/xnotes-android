@@ -394,3 +394,11 @@ A tinta selecionada colore somente os acentos dentro dos pictogramas das canetas
 - O modelo mantém `Spacer` opcional: barras antigas e o layout padrão da main toolbar não recebem nenhum espaço extra automaticamente. Ocorrências repetidas preservam ordem e medidas ao salvar/reabrir.
 - Distinção de UX: **REGIONS** mantém o Centro ancorado ao meio físico, criando espaços quando as regiões têm tamanhos desiguais; **CONTINUOUS + Spacer** permite especificar manualmente as distâncias desejadas. Não alterar a geometria automática de REGIONS ao inserir spacers.
 - `git diff --check`, `:app:testDebugUnitTest` (2445+ testes) e `:app:assembleDebug` passaram; APK instalado e inicializado em `emulator-5554`. Tablet real não conectado; QA manual dos espaçamentos pendente.
+
+## Fix — lacuna artificial entre Center e End (04/11/2026)
+
+- Causa: `estimatedFloatingLength` reservava `2 × max(Start,End) + Center` para alinhar o Centro ao meio físico, mesmo quando o comprimento da barra era automático. Com Start mais longo que End, a área simétrica criava um vão enorme no final.
+- **REGIONS + flutuante + dimensão automática** agora usa comprimento natural das sections, com grupos visualmente ordenados Start → Center → End, sem alterar a ordem salva nem suas linhas internas. O conteúdo pode rolar quando excede o espaço alocado.
+- **REGIONS + barra docked ou com dimensão principal explícita** mantém alinhamento físico Start/Center/End para respeitar a área que o usuário escolheu. `CONTINUOUS` não mudou.
+- Renderer compartilhado de notas/canvas e preview usam a mesma seleção de modo compacto; nenhum elemento é removido, nem redistribuído de uma coluna para outra. Cobertura JVM verifica o comprimento natural horizontal/vertical, as condições do modo compacto e a ordem visual versus persistida.
+- Gradle `:app:testDebugUnitTest :app:assembleDebug --offline` passou (`BUILD SUCCESSFUL`), APK reinstalado no `emulator-5554` e Activity iniciada. Validação visual manual com grupos assimétricos no Redmi Pad 2 permanece pendente; sem push.
