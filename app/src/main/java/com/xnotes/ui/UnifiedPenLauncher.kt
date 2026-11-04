@@ -1,6 +1,7 @@
 package com.xnotes.ui
 
 import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.spring
@@ -21,6 +22,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
@@ -33,6 +35,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Brush
@@ -84,6 +87,17 @@ internal fun UnifiedPenLauncher(
     val haptics = LocalHapticFeedback.current
     var lastId by rememberSaveable { mutableStateOf(ToolbarItem.PEN.id) }
     val lastItem = group.items.firstOrNull { it.id == lastId } ?: ToolbarItem.PEN
+    val glide = LocalToolGlide.current
+    val glideKey = Tool.fromId(lastItem.id)
+    val selection = palette.selectionBackground.toComposeColor()
+    val activeFill by animateFloatAsState(
+        if (armedTool.id == lastItem.id && glide == null) 1f else 0f,
+        tween(durationMillis = 150),
+        label = "unifiedPenSelection",
+    )
+    DisposableEffect(glide, glideKey) {
+        onDispose { if (glideKey != null) glide?.centers?.remove(glideKey) }
+    }
     var fanOpen by remember { mutableStateOf(false) }
     var fanMounted by remember { mutableStateOf(false) }
     var detailsOpen by remember { mutableStateOf(false) }
@@ -129,14 +143,11 @@ internal fun UnifiedPenLauncher(
         if (armedTool.id == lastItem.id) detailsOpen = true else choose(lastItem)
     }
 
-    val active = armedTool.id == lastItem.id
     val label = stringResource(R.string.toolbar_unified_pen)
     Box(Modifier.size(metrics.button), contentAlignment = Alignment.Center) {
         Box(
             Modifier
                 .size(metrics.button)
-                .clip(RoundedCornerShape(12.dp))
-                .background(if (active) palette.selectionBackground.toComposeColor() else Color.Transparent)
                 .onGloballyPositioned { launcherOnScreen = it.positionOnScreen() }
                 .semantics {
                     role = Role.Button
@@ -220,7 +231,28 @@ internal fun UnifiedPenLauncher(
         ) {
             // Match the native toolbar icon scale; the ink is shown in the settings panel,
             // not by an extra dot that gets cropped by this button's rounded container.
-            PenSilhouette(lastItem, ink, Modifier.width(metrics.icon * .72f).height(metrics.icon))
+            Box(
+                Modifier
+                    .size(metrics.circle)
+                    .onGloballyPositioned { coordinates ->
+                        if (glideKey != null) {
+                            glide?.row?.let { row ->
+                                glide.centers[glideKey] = row.localPositionOf(
+                                    coordinates,
+                                    Offset(coordinates.size.width / 2f, coordinates.size.height / 2f),
+                                )
+                            }
+                        }
+                    }
+                    .drawBehind {
+                        if (activeFill > 0f) {
+                            drawCircle(selection.copy(alpha = selection.alpha * activeFill))
+                        }
+                    },
+                contentAlignment = Alignment.Center,
+            ) {
+                PenSilhouette(lastItem, ink, Modifier.width(metrics.icon * .72f).height(metrics.icon))
+            }
         }
         if (fanMounted) {
             Popup(
