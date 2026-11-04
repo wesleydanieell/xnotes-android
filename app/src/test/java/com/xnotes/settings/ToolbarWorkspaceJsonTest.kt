@@ -31,6 +31,7 @@ class ToolbarWorkspaceJsonTest {
             .updateGroup(0, 0) { it.copy(
                 tools = listOf(ToolbarItem.ERASER, ToolbarItem.SHAPE, ToolbarItem.PEN),
                 name = "Ferramentas favoritas",
+                icon = com.xnotes.core.tools.ToolbarGroupIcon.LAYERS,
                 display = com.xnotes.core.tools.ToolbarGroupDisplay.EXPANDED,
             ) }
         val profiles = ToolbarWorkspaces.fromLegacy(layout, ToolbarLayout.CANVAS_DEFAULT)

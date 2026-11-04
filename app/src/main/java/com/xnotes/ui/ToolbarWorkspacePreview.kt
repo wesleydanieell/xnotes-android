@@ -354,7 +354,8 @@ private fun PreviewTool(
                     if (vertical) Column { buttons() } else Row { buttons() }
                 } else {
                     val member = members.firstOrNull() ?: ToolbarItem.PEN
-                    ToolbarIcon(itemIcon(member), entry.group?.name ?: "Grupo de ferramentas", onClick = onSelect)
+                    ToolbarIcon(toolbarGroupCoverIcon(entry.group?.icon ?: com.xnotes.core.tools.ToolbarGroupIcon.FOLDER, member),
+                        entry.group?.name ?: "Grupo de ferramentas", onClick = onSelect)
                 }
             }
             ToolbarItem.UNIFIED_PEN -> UnifiedPenPreview(

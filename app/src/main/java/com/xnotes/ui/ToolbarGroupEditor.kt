@@ -1,6 +1,7 @@
 package com.xnotes.ui
 
 import androidx.compose.foundation.gestures.detectDragGesturesAfterLongPress
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
@@ -36,6 +37,7 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import com.xnotes.core.tools.ToolbarGroupConfig
 import com.xnotes.core.tools.ToolbarGroupDisplay
+import com.xnotes.core.tools.ToolbarGroupIcon
 import com.xnotes.core.tools.ToolbarItem
 import com.xnotes.ui.icons.XnotesIcons
 import com.xnotes.ui.theme.LocalPalette
@@ -72,19 +74,42 @@ internal fun ToolbarGroupEditor(
             label = { Text("Nome do grupo") }, singleLine = true,
             modifier = Modifier.fillMaxWidth(),
         )
+        Text("Ícone da pasta", style = MaterialTheme.typography.labelMedium)
+        Row(
+            Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+            ToolbarGroupIcon.entries.forEach { icon ->
+                val label = when (icon) {
+                    ToolbarGroupIcon.FOLDER -> "Pasta"
+                    ToolbarGroupIcon.LAYERS -> "Camadas"
+                    ToolbarGroupIcon.PEN -> "Caneta"
+                    ToolbarGroupIcon.SHAPE -> "Formas"
+                    ToolbarGroupIcon.BOOKMARK -> "Marcador"
+                    ToolbarGroupIcon.LAST_USED -> "Última usada"
+                }
+                FilterChip(
+                    selected = config.icon == icon,
+                    onClick = { onUpdate(config.copy(icon = icon)) },
+                    label = { Text(label) },
+                    leadingIcon = { Icon(toolbarGroupCoverIcon(icon, config.tools.first()), null,
+                        modifier = Modifier.size(16.dp)) },
+                )
+            }
+        }
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             FilterChip(
                 selected = config.display == ToolbarGroupDisplay.COMPACT,
                 onClick = { onUpdate(config.copy(display = ToolbarGroupDisplay.COMPACT)) },
-                label = { Text("Compacto") },
+                label = { Text("Pasta") },
             )
             FilterChip(
                 selected = config.display == ToolbarGroupDisplay.EXPANDED,
                 onClick = { onUpdate(config.copy(display = ToolbarGroupDisplay.EXPANDED)) },
-                label = { Text("Expandido") },
+                label = { Text("Na barra") },
             )
         }
-        Text("Arraste pelo ícone para reordenar. Segure o grupo compacto e deslize até a ferramenta desejada.",
+        Text("Na pasta: toque para repetir a última ferramenta; toque duas vezes para abrir. Arraste pelo ícone para reordenar.",
             color = palette.textDim.toComposeColor(), style = MaterialTheme.typography.bodySmall)
         config.tools.forEachIndexed { index, item ->
             val reorder by rememberUpdatedState(onReorder)

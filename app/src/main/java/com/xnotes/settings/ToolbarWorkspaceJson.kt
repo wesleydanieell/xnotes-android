@@ -9,6 +9,7 @@ import com.xnotes.core.tools.ToolbarEntry
 import com.xnotes.core.tools.ToolbarGeometry
 import com.xnotes.core.tools.ToolbarGroupConfig
 import com.xnotes.core.tools.ToolbarGroupDisplay
+import com.xnotes.core.tools.ToolbarGroupIcon
 import com.xnotes.core.tools.ToolbarItem
 import com.xnotes.core.tools.ToolbarLayout
 import com.xnotes.core.tools.ToolbarScale
@@ -70,6 +71,7 @@ internal object ToolbarWorkspaceJson {
                                         put("group", JSONObject()
                                             .put("id", group.id)
                                             .put("name", group.name)
+                                            .put("icon", group.icon.name)
                                             .put("display", group.display.name)
                                             .put("tools", JSONArray(group.tools.map { it.id })))
                                     }
@@ -129,6 +131,8 @@ internal object ToolbarWorkspaceJson {
                         ToolbarGroupConfig(
                             id = json.optString("id"),
                             name = json.optString("name", "Grupo de ferramentas"),
+                            icon = ToolbarGroupIcon.entries.firstOrNull { it.name == json.optString("icon") }
+                                ?: ToolbarGroupIcon.FOLDER,
                             tools = tools,
                             display = ToolbarGroupDisplay.entries.firstOrNull { it.name == json.optString("display") }
                                 ?: ToolbarGroupDisplay.COMPACT,

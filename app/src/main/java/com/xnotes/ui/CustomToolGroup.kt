@@ -1,58 +1,55 @@
 package com.xnotes.ui
 
+import androidx.compose.foundation.ExperimentalFoundationApi
+import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.combinedClickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.background
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.mutableIntStateOf
-import androidx.compose.runtime.mutableStateMapOf
-import androidx.compose.runtime.rememberUpdatedState
-import androidx.compose.foundation.gestures.awaitEachGesture
-import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
-import androidx.compose.ui.geometry.Offset
-import androidx.compose.ui.input.pointer.pointerInput
-import androidx.compose.ui.hapticfeedback.HapticFeedbackType
-import androidx.compose.ui.layout.onGloballyPositioned
-import androidx.compose.ui.layout.positionOnScreen
-import androidx.compose.ui.platform.LocalHapticFeedback
-import androidx.compose.ui.semantics.Role
-import androidx.compose.ui.semantics.contentDescription
-import androidx.compose.ui.semantics.onClick
-import androidx.compose.ui.semantics.role
-import androidx.compose.ui.semantics.semantics
-import androidx.compose.ui.window.Popup
-import androidx.compose.ui.window.PopupProperties
-import kotlinx.coroutines.withTimeoutOrNull
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import com.xnotes.core.tools.Tool
 import com.xnotes.core.tools.ToolbarGroupConfig
 import com.xnotes.core.tools.ToolbarGroupDisplay
+import com.xnotes.core.tools.ToolbarGroupIcon
 import com.xnotes.core.tools.ToolbarItem
+import com.xnotes.ui.icons.XnotesIcons
 import com.xnotes.ui.theme.LocalPalette
 import com.xnotes.ui.theme.toComposeColor
 
 /**
- * One group is one movable layout entry. Compact: tap activates last tool, hold opens choices.
- * Expanded: each tool gets its own normal-size control. All gestures are consumed by the child
- * before a parent floating toolbar can interpret a long-press as a move.
+ * An ordinary folder on the toolbar: tap repeats the last member, double-tap opens its tools.
+ * Expanded presentation remains available for users who want always-visible buttons.
  */
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
 internal fun CustomToolGroup(
     config: ToolbarGroupConfig?,
@@ -91,75 +88,22 @@ internal fun CustomToolGroup(
     } else {
         val metrics = LocalBar.current
         val palette = LocalPalette.current
-        val direction = LocalToolbarLook.current.position.penFanDirection()
-        val haptics = LocalHapticFeedback.current
         val active = armedTool == last.second
-        val centers = remember(group.id) { mutableStateMapOf<Int, Offset>() }
-        var originOnScreen by remember { mutableStateOf(Offset.Zero) }
-        var hover by remember { mutableIntStateOf(-1) }
-        var open by remember { mutableStateOf(false) }
-        val chooseLatest by rememberUpdatedState(choose)
+        var open by remember(group.id) { mutableStateOf(false) }
+        val interaction = remember { MutableInteractionSource() }
         Box(Modifier.size(metrics.button), contentAlignment = Alignment.Center) {
             Box(
-                Modifier.size(metrics.button)
-                    .onGloballyPositioned { originOnScreen = it.positionOnScreen() }
-                    .semantics {
-                        role = Role.Button
-                        contentDescription = "Grupo de ferramentas"
-                        onClick { chooseLatest(last); true }
-                    }
-                    .pointerInput(group.id, group.tools) {
-                        awaitEachGesture {
-                            val down = awaitFirstDown(requireUnconsumed = false)
-                            down.consume() // A group owns its hold, never the parent toolbar's drag.
-                            val quickRelease = withTimeoutOrNull(viewConfiguration.longPressTimeoutMillis) {
-                                var result: Boolean? = null
-                                while (result == null) {
-                                    val change = awaitPointerEvent().changes.firstOrNull { it.id == down.id }
-                                    result = when {
-                                        change == null -> false
-                                        !change.pressed -> true
-                                        change.isConsumed -> false
-                                        (change.position - down.position).getDistance() > viewConfiguration.touchSlop -> false
-                                        else -> null
-                                    }
-                                }
-                                result
-                            }
-                            when (quickRelease) {
-                                true -> chooseLatest(last)
-                                false -> Unit
-                                null -> {
-                                    hover = -1
-                                    centers.clear()
-                                    open = true
-                                    haptics.performHapticFeedback(HapticFeedbackType.LongPress)
-                                    var tracking = true
-                                    while (tracking) {
-                                        val change = awaitPointerEvent().changes.firstOrNull { it.id == down.id }
-                                        if (change == null) tracking = false
-                                        else {
-                                            val target = penFanVisibleTarget(
-                                                pointerOnScreen = originOnScreen + change.position,
-                                                centersOnScreen = centers,
-                                                count = choices.size,
-                                                maxDistance = 35.dp.toPx(),
-                                            )
-                                            if (target != null && target != hover)
-                                                haptics.performHapticFeedback(HapticFeedbackType.TextHandleMove)
-                                            hover = target ?: -1
-                                            if (!change.pressed) {
-                                                if (target != null) chooseLatest(choices[target])
-                                                tracking = false
-                                            } else change.consume()
-                                        }
-                                    }
-                                    open = false
-                                    hover = -1
-                                }
-                            }
-                        }
-                    },
+                Modifier
+                    .size(metrics.button)
+                    .clip(CircleShape)
+                    .combinedClickable(
+                        interactionSource = interaction,
+                        indication = null,
+                        onClick = { choose(last) },
+                        onDoubleClick = { open = !open },
+                        // Consume a hold so a movable bar cannot steal the folder's gesture.
+                        onLongClick = {},
+                    ),
                 contentAlignment = Alignment.Center,
             ) {
                 Box(
@@ -168,57 +112,77 @@ internal fun CustomToolGroup(
                     contentAlignment = Alignment.Center,
                 ) {
                     Icon(
-                        itemIcon(last.first),
-                        contentDescription = null,
+                        toolbarGroupCoverIcon(group.icon, last.first),
+                        contentDescription = group.name,
                         tint = (if (active) palette.selectionForeground else palette.textDim).toComposeColor(),
                         modifier = Modifier.size(metrics.icon),
                     )
                 }
             }
-            if (open) {
-                Popup(
-                    alignment = when (direction) {
-                        PenFanDirection.DOWN -> Alignment.TopCenter
-                        PenFanDirection.UP -> Alignment.BottomCenter
-                        PenFanDirection.RIGHT -> Alignment.CenterStart
-                        PenFanDirection.LEFT -> Alignment.CenterEnd
-                    },
-                    onDismissRequest = { open = false },
-                    properties = PopupProperties(focusable = false),
+            DropdownMenu(
+                expanded = open,
+                onDismissRequest = { open = false },
+                modifier = Modifier.width(294.dp),
+            ) {
+                Row(
+                    Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 8.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(10.dp),
                 ) {
-                    Column(
-                        Modifier.clip(RoundedCornerShape(14.dp))
-                            .background(palette.menuBg.toComposeColor()).padding(8.dp),
-                        verticalArrangement = Arrangement.spacedBy(4.dp),
+                    Icon(toolbarGroupCoverIcon(group.icon, last.first), null, modifier = Modifier.size(22.dp))
+                    Column(Modifier.weight(1f)) {
+                        Text(group.name, style = MaterialTheme.typography.titleSmall, maxLines = 1)
+                        Text("${choices.size} ferramentas", style = MaterialTheme.typography.labelSmall,
+                            color = palette.textDim.toComposeColor())
+                    }
+                }
+                HorizontalDivider(color = palette.border.toComposeColor())
+                choices.chunked(3).forEach { row ->
+                    Row(
+                        Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 4.dp),
+                        horizontalArrangement = Arrangement.spacedBy(6.dp),
                     ) {
-                        choices.chunked(4).forEachIndexed { rowIndex, row ->
-                            Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-                                row.forEachIndexed { columnIndex, choice ->
-                                    val index = rowIndex * 4 + columnIndex
-                                    Box(
-                                        Modifier.size(44.dp)
-                                            .onGloballyPositioned { coords ->
-                                                centers[index] = coords.localToScreen(
-                                                    Offset(coords.size.width / 2f, coords.size.height / 2f),
-                                                )
-                                            }
-                                            .clip(CircleShape)
-                                            .background((if (hover == index) palette.selectionBackground else palette.surface).toComposeColor()),
-                                        contentAlignment = Alignment.Center,
-                                    ) {
-                                        Icon(
-                                            itemIcon(choice.first),
-                                            contentDescription = stringResource(choice.second.labelRes),
-                                            tint = (if (hover == index) palette.selectionForeground else palette.text).toComposeColor(),
-                                            modifier = Modifier.size(22.dp),
-                                        )
-                                    }
-                                }
+                        row.forEach { choice ->
+                            val selected = choice.second == armedTool
+                            Column(
+                                Modifier.weight(1f)
+                                    .clip(RoundedCornerShape(10.dp))
+                                    .background((if (selected) palette.selectionBackground else palette.surface).toComposeColor())
+                                    .clickable { open = false; choose(choice) }
+                                    .padding(horizontal = 4.dp, vertical = 10.dp),
+                                horizontalAlignment = Alignment.CenterHorizontally,
+                                verticalArrangement = Arrangement.spacedBy(5.dp),
+                            ) {
+                                Icon(
+                                    itemIcon(choice.first),
+                                    contentDescription = null,
+                                    tint = (if (selected) palette.selectionForeground else palette.text).toComposeColor(),
+                                    modifier = Modifier.size(24.dp),
+                                )
+                                Text(
+                                    stringResource(choice.second.labelRes),
+                                    fontSize = 10.sp,
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis,
+                                    color = (if (selected) palette.selectionForeground else palette.text).toComposeColor(),
+                                )
                             }
                         }
+                        repeat(3 - row.size) { Spacer(Modifier.weight(1f)) }
                     }
                 }
             }
         }
     }
+}
+
+/** A folder has its own persistent icon; changing tools doesn't unexpectedly repaint its cover. */
+@Composable
+internal fun toolbarGroupCoverIcon(icon: ToolbarGroupIcon, lastUsed: ToolbarItem): ImageVector = when (icon) {
+    ToolbarGroupIcon.FOLDER -> XnotesIcons.folder
+    ToolbarGroupIcon.LAYERS -> XnotesIcons.layers
+    ToolbarGroupIcon.PEN -> itemIcon(ToolbarItem.PEN)
+    ToolbarGroupIcon.SHAPE -> XnotesIcons.shape
+    ToolbarGroupIcon.BOOKMARK -> XnotesIcons.bookmark
+    ToolbarGroupIcon.LAST_USED -> itemIcon(lastUsed)
 }
