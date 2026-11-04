@@ -24,6 +24,9 @@ import org.json.JSONObject
  */
 internal object ToolbarWorkspaceJson {
     private const val VERSION = 6
+    // Read the experimental v7 settings after reverting Tool Groups; unknown group entries
+    // are skipped without discarding the user's other bars, positions and sections.
+    private const val MAX_READ_VERSION = 7
     private const val MAX_BARS = 32
     private const val MAX_SECTIONS = 32
     private const val MAX_ENTRIES = 128
@@ -36,7 +39,7 @@ internal object ToolbarWorkspaceJson {
 
     fun read(value: JSONObject?): ToolbarWorkspaces? {
         val raw = value ?: return null
-        if (raw.optInt("version", -1) !in 1..VERSION) return null
+        if (raw.optInt("version", -1) !in 1..MAX_READ_VERSION) return null
         val version = raw.optInt("version")
         val note = readWorkspace(raw.optJSONObject("note"), ToolbarLayout.NOTE_ITEMS, version) ?: return null
         val canvas = readWorkspace(raw.optJSONObject("canvas"), ToolbarLayout.CANVAS_ITEMS, version) ?: return null

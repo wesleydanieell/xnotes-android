@@ -24,6 +24,23 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class ToolbarWorkspaceJsonTest {
+    @Test fun experimentalGroupSettingsRollbackKeepsExistingBarsAndElements() {
+        val layout = ToolbarLayout(listOf(ToolbarSection(listOf(
+            ToolbarEntry(ToolbarItem.PEN), ToolbarEntry(ToolbarItem.ERASER),
+        ))))
+        val profiles = ToolbarWorkspaces.fromLegacy(layout, ToolbarLayout.CANVAS_DEFAULT)
+        val experimental = ToolbarWorkspaceJson.write(profiles).put("version", 7)
+        experimental.getJSONObject("note").getJSONArray("bars").getJSONObject(0)
+            .getJSONArray("sections").getJSONObject(0).getJSONArray("entries")
+            .put(JSONObject().put("id", "tool_group")
+                .put("group", JSONObject().put("id", "group-1")
+                    .put("tools", JSONArray().put("pen").put("eraser"))))
+        val restored = ToolbarWorkspaceJson.read(experimental)!!
+        assertEquals(layout, restored.note.bars.single().layout)
+        assertEquals(ToolbarLayout.CANVAS_DEFAULT, restored.canvas.bars.single().layout)
+        assertEquals(6, ToolbarWorkspaceJson.write(restored).getInt("version"))
+    }
+
     private fun compactLayout(vararg items: ToolbarItem): ToolbarLayout =
         ToolbarLayout(listOf(ToolbarSection(items.map { ToolbarEntry(it) })))
 
