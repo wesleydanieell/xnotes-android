@@ -562,22 +562,23 @@ private fun LayerFace(item: ToolbarItem, visible: Boolean, modifier: Modifier) {
     }
 }
 
-/** The floating chip that tracks the finger during a chip drag (drawn at the pane root). */
+/** A lifted copy of the actual editor row, kept at its measured width and grab point.
+ * The visual reuses LayerFace so new row actions/icons stay consistent automatically. */
 @Composable
-fun ToolbarDragGhost(item: ToolbarItem) {
+fun ToolbarDragGhost(item: ToolbarItem, visible: Boolean, widthPx: Float) {
     val palette = LocalPalette.current
-    Row(
+    val width = with(LocalDensity.current) { widthPx.toDp() }
+    Box(
         Modifier
-            .alpha(0.9f)
-            .clip(MaterialTheme.shapes.small)
-            .background(palette.surface.toComposeColor())
-            .border(1.dp, palette.accent.toComposeColor(), MaterialTheme.shapes.small)
-            .padding(horizontal = 8.dp, vertical = 6.dp),
-        verticalAlignment = Alignment.CenterVertically,
+            .width(width)
+            .alpha(0.94f)
+            .clip(MaterialTheme.shapes.small),
     ) {
-        Icon(itemIcon(item), null, tint = palette.accent.toComposeColor(), modifier = Modifier.size(14.dp))
-        Spacer(Modifier.width(4.dp))
-        Text(stringResource(item.labelRes), color = palette.accent.toComposeColor(), fontSize = 12.sp)
+        LayerFace(item, visible, Modifier.fillMaxWidth())
+        Box(
+            Modifier.matchParentSize()
+                .border(2.dp, palette.accent.toComposeColor(), MaterialTheme.shapes.small),
+        )
     }
 }
 

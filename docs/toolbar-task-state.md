@@ -450,3 +450,10 @@ A tinta selecionada colore somente os acentos dentro dos pictogramas das canetas
 - Ghost de arraste de elemento agora usa um deslocamento constante próximo ao dedo, calculado em pixels conforme a densidade, independentemente da largura da linha de origem. O cálculo do alvo continua usando a coordenada real do dedo; o arraste de sections mantém a posição relativa original.
 - Reorganização isolada em callbacks e componente do ghost para permitir ajustes futuros sem alterar o modelo persistido ou o layout da barra.
 - `:app:testDebugUnitTest :app:assembleDebug --offline --quiet` e `git diff --check` passaram. Inspeção física com Smart Pen ainda necessária para avaliar a percepção do ghost e seus destinos.
+
+## Arraste de container completo (04/11/2026)
+
+- O ghost de elementos usa o mesmo componente `LayerFace` do editor, com largura medida da linha e deslocamento original do ponto de toque. Ícone, nome, grip e visibilidade continuam representados ao arrastar.
+- A cópia mantém apenas o destaque visual da seleção; remoção e alteração de visibilidade continuam disponíveis exclusivamente no editor normal.
+- A lógica de destino e de sections não foi alterada; o renderer compartilhado reduz a manutenção quando surgirem novos elementos ou novos controles de linha.
+- `:app:testDebugUnitTest :app:assembleDebug --offline` e `git diff --check` passaram; QA físico do gesto com Smart Pen ainda pendente.

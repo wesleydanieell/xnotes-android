@@ -62,7 +62,6 @@ import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.boundsInRoot
 import androidx.compose.ui.layout.onGloballyPositioned
-import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalConfiguration
@@ -238,7 +237,6 @@ fun PreferencesPane(
     var dragItem by remember { mutableStateOf<Pair<Int, Int>?>(null) }
     var dragFinger by remember { mutableStateOf(Offset.Zero) }
     var dragGrab by remember { mutableStateOf(Offset.Zero) }
-    val chipGhostGrabPx = with(LocalDensity.current) { 16.dp.toPx() }
     var dropTarget by remember { mutableStateOf<Triple<Int, Int, Int>?>(null) }
     var dragRegionTarget by remember { mutableStateOf<ToolbarRegion?>(null) }
     val chipBounds = remember { mutableMapOf<Pair<Int, Int>, Rect>() }
@@ -1376,10 +1374,8 @@ fun PreferencesPane(
                 onDragStart = { section, index, local ->
                     val key = section to index
                     dragItem = key
-                    // The dragged row can be much wider than its compact floating copy.
-                    // Anchor the ghost near the fingertip instead of keeping the original
-                    // row's grab offset, which could place the icon far from the finger.
-                    dragGrab = Offset(chipGhostGrabPx, chipGhostGrabPx)
+                    // The floating copy now has the same dimensions as the source row.
+                    dragGrab = local
                     dragFinger = (chipBounds[key]?.topLeft ?: Offset.Zero) + local
                     retarget()
                 },
@@ -1478,12 +1474,17 @@ fun PreferencesPane(
         // The dragged chip/section's floating copy: a pane-root sibling so the scroll never clips it.
         val gx = (dragFinger.x - dragGrab.x - paneTopLeft.x).toInt()
         val gy = (dragFinger.y - dragGrab.y - paneTopLeft.y).toInt()
-        val ghostChip = dragItem?.let { (sec, idx) ->
-            editedLayout().sections.getOrNull(sec)?.entries?.getOrNull(idx)?.item
+        val ghostEntry = dragItem?.let { (sec, idx) ->
+            editedLayout().sections.getOrNull(sec)?.entries?.getOrNull(idx)
         }
         val ghostSecIdx = dragSection
-        if (ghostChip != null) {
-            Box(Modifier.offset { IntOffset(gx, gy) }) { ToolbarDragGhost(ghostChip) }
+        if (ghostEntry != null) {
+            val widthPx = dragItem?.let { chipBounds[it]?.width }
+            if (widthPx != null) {
+                Box(Modifier.offset { IntOffset(gx, gy) }) {
+                    ToolbarDragGhost(ghostEntry.item, ghostEntry.visible, widthPx)
+                }
+            }
         } else if (ghostSecIdx != null) {
             val sectionG = editedLayout().sections.getOrNull(ghostSecIdx)
             val widthG = sectionBounds[ghostSecIdx]?.width
