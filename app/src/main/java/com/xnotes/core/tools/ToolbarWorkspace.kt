@@ -30,6 +30,10 @@ data class ToolbarGeometry(
     val spacingDp: Int? = null,
     val elementSizeDp: Int? = null,
     val columns: Int = 1,
+    /** Null keeps legacy floating/primary behavior. Non-null requests a docked edge. */
+    val dockEdge: ToolbarDockEdge? = null,
+    val dockLane: Int = 0,
+    val dockAlignment: ToolbarDockAlignment = ToolbarDockAlignment.CENTER,
 ) {
     /** Clamp untrusted persisted dimensions before rendering; do not force an exact size on auto bars. */
     fun constrained(): ToolbarGeometry = copy(
@@ -41,6 +45,7 @@ data class ToolbarGeometry(
         spacingDp = spacingDp?.coerceIn(0, 32),
         elementSizeDp = elementSizeDp?.coerceIn(28, 72),
         columns = columns.coerceIn(1, 6),
+        dockLane = dockLane.coerceIn(0, ToolbarDockLayout.MAX_LANES - 1),
     )
 }
 

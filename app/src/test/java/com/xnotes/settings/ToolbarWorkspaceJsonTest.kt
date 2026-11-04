@@ -1,6 +1,8 @@
 package com.xnotes.settings
 
 import com.xnotes.core.tools.ToolbarAnchor
+import com.xnotes.core.tools.ToolbarDockAlignment
+import com.xnotes.core.tools.ToolbarDockEdge
 import com.xnotes.core.tools.ToolbarBar
 import com.xnotes.core.tools.ToolbarContext
 import com.xnotes.core.tools.ToolbarEntry
@@ -52,13 +54,16 @@ class ToolbarWorkspaceJsonTest {
             layout = compactLayout(ToolbarItem.COLORS, ToolbarItem.PEN).setEntrySize(0, 0, 57),
             geometry = ToolbarGeometry(
                 anchor = ToolbarAnchor.BOTTOM_RIGHT,
-                floating = true,
+                floating = false,
                 widthDp = 245,
                 heightDp = 100,
                 paddingDp = 7,
                 spacingDp = 5,
                 elementSizeDp = 48,
                 columns = 3,
+                dockEdge = ToolbarDockEdge.RIGHT,
+                dockLane = 2,
+                dockAlignment = ToolbarDockAlignment.END,
             ),
         )
         val profiles = legacy.copy(note = legacy.note.addBar(second), shared = true)
@@ -75,7 +80,7 @@ class ToolbarWorkspaceJsonTest {
             .setSectionLanes(0, 2).moveItem(0, 2, 0, 3, toLane = 1)
         val profiles = ToolbarWorkspaces.fromLegacy(group, ToolbarLayout.CANVAS_DEFAULT)
         val json = ToolbarWorkspaceJson.write(profiles)
-        assertEquals(4, json.getInt("version"))
+        assertEquals(5, json.getInt("version"))
         assertEquals(group, ToolbarWorkspaceJson.read(json)!!.note.bars.single().layout)
 
         // Legacy v1 section arrays have no section metadata.

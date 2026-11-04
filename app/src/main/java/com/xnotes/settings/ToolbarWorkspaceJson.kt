@@ -1,6 +1,8 @@
 package com.xnotes.settings
 
 import com.xnotes.core.tools.ToolbarAnchor
+import com.xnotes.core.tools.ToolbarDockAlignment
+import com.xnotes.core.tools.ToolbarDockEdge
 import com.xnotes.core.tools.ToolbarBar
 import com.xnotes.core.tools.ToolbarEntry
 import com.xnotes.core.tools.ToolbarGeometry
@@ -19,7 +21,7 @@ import org.json.JSONObject
  * correct for migrating a legacy single bar but wrong for a secondary/compact bar.
  */
 internal object ToolbarWorkspaceJson {
-    private const val VERSION = 4
+    private const val VERSION = 5
     private const val MAX_BARS = 32
     private const val MAX_SECTIONS = 32
     private const val MAX_ENTRIES = 128
@@ -67,7 +69,10 @@ internal object ToolbarWorkspaceJson {
         .put("floating", g.floating)
         .put("movable", g.movable)
         .put("columns", g.columns)
+        .put("dock_lane", g.dockLane)
+        .put("dock_alignment", g.dockAlignment.name)
         .apply {
+            g.dockEdge?.let { put("dock_edge", it.name) }
             g.widthDp?.let { put("width_dp", it) }
             g.heightDp?.let { put("height_dp", it) }
             g.paddingDp?.let { put("padding_dp", it) }
@@ -155,6 +160,10 @@ internal object ToolbarWorkspaceJson {
             spacingDp = raw.optInt("spacing_dp").takeIf { raw.has("spacing_dp") },
             elementSizeDp = raw.optInt("element_size_dp").takeIf { raw.has("element_size_dp") },
             columns = raw.optInt("columns", 1),
+            dockEdge = ToolbarDockEdge.entries.firstOrNull { it.name == raw.optString("dock_edge") },
+            dockLane = raw.optInt("dock_lane", 0),
+            dockAlignment = ToolbarDockAlignment.entries.firstOrNull { it.name == raw.optString("dock_alignment") }
+                ?: ToolbarDockAlignment.CENTER,
         ).constrained()
     }
 }
