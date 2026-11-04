@@ -393,3 +393,19 @@ quando sua sessão terminou.
 Consulte docs/toolbar-task-state.md para o próximo item e registre descobertas
 lá em cada rodada. Nunca declarar essas fases concluídas apenas porque uma
 versão debug instala no emulador.
+
+## 11. M5 — múltiplas barras por borda e distribuição automática (04/11/2026)
+
+- TOP, BOTTOM, LEFT e RIGHT possuem até três faixas internas (0..2), compartilhadas por todas as barras dessa borda.
+- Cada faixa pode ter várias barras, até atingir o comprimento realmente disponível. Elas nunca podem se sobrepor nem cruzar o espaço reservado às bordas adjacentes.
+- Posição longitudinal START, CENTER ou END; a ordem continua sendo a ordem das barras no workspace. Não existe encaixe livre no centro do canvas.
+- Encaixadas ocupam área real do documento. Primeiro reservar TOP e BOTTOM, depois calcular LEFT e RIGHT apenas entre as faixas superiores/inferiores; o oposto também limita a capacidade.
+- Flutuantes reutilizam o mesmo motor de distribuição por borda, mas ficam sobre o canvas com margem de segurança e não reduzem seu viewport.
+- Para ambas, a faixa escolhida é preferencial: se estiver cheia, tentar automaticamente outra faixa da mesma borda. Somente rejeitar quando as três não comportarem a barra.
+- Barras com comprimento automático podem ocupar o espaço total; use comprimento manual para compartilhar a faixa com outras barras.
+- A tela de configuração deve mostrar a faixa efetiva quando o encaixe automático mudar a posição solicitada.
+- O schema JSON v5 persiste dock_edge, dock_lane e dock_alignment. Valores ausentes continuam representando layouts legados.
+
+Implementação: ToolbarDockLayout.kt é o algoritmo puro de capacidade. ToolbarDockWorkspace.kt resolve as medidas e as barras encaixadas/flutuantes. ToolbarAround e WorkspaceFloatingBars renderizam o resultado; ToolbarWorkspacePreview deve usar os mesmos resolvedores.
+
+Verificações pendentes antes de concluir M5: inspeção no Redmi Pad 2 com caneta, alternância entre .xnote e .xcanvas, rotação, split view, comprimento dinâmico de cores, animação e prioridade quando a viewport diminui e três faixas já estão ocupadas. Não considerar só a build debug ou o emulador como QA final.

@@ -323,3 +323,13 @@ Camadas ficam fora desta branch.
 - Selecionar uma ferramenta na prévia abre a categoria Elementos e seus controles individuais.
 - `git diff --check` e `:app:testDebugUnitTest :app:assembleDebug --offline` passaram no CachyOS (`BUILD SUCCESSFUL`, 50 tarefas). QA físico no Redmi Pad 2 ainda pendente.
 - Próxima fase: faixas de encaixe por borda e ocupação sem colisões, com testes de capacidade e comparação preview/nota/canvas.
+
+## Checkpoint M5 — distribuição por bordas (04/11/2026)
+
+Implementado nesta branch: até três faixas por borda, encaixadas com reserva real de espaço e flutuantes sobre canvas; barras de uma mesma faixa respeitam comprimento, ordem e alinhamento; fallback automático para outra faixa da mesma borda quando a solicitada não comporta a barra. Preferências e preview reutilizam a mesma base de cálculo; JSON v5 migra layouts anteriores.
+
+A navegação Barras/Dimensões/Elementos/Cores foi movida para cima do preview (90b625e8). O Pen Group agora participa da animação de destaque circular da toolbar, sem fundo quadrado próprio.
+
+Validação local: testes JVM do resolvedor e do codec, assembleDebug, edição/configuração no emulador. Somente o emulador apareceu no ADB, não o Redmi Pad 2; teste manual no dispositivo real, escrita, canvas, split view e rotação continuam pendentes. Com viewport excepcionalmente pequena e faixas lotadas, uma barra pode ser rejeitada e não renderizada; definir UX de recuperação antes do DONE.
+
+Próxima ação: instalar build atualizada no tablet quando reconectar e percorrer cenários de capacidade/gestos; revisar medição intrínseca de grupos de tamanho variável e tornar rejeição explícita ao usuário se a viewport encolher.

@@ -60,6 +60,7 @@ import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.boundsInRoot
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.platform.LocalFocusManager
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.contentDescription
@@ -80,6 +81,8 @@ import com.xnotes.settings.ExplorerLayout
 import com.xnotes.core.tools.InkPalette
 import com.xnotes.core.tools.ToolbarAnchor
 import com.xnotes.core.tools.ToolbarBar
+import com.xnotes.core.tools.ToolbarDockAlignment
+import com.xnotes.core.tools.ToolbarDockEdge
 import com.xnotes.core.tools.ToolbarEntry
 import com.xnotes.core.tools.ToolbarGeometry
 import com.xnotes.core.tools.ToolbarItem
@@ -136,6 +139,7 @@ fun PreferencesPane(
 ) {
     val palette = LocalPalette.current
     val focusManager = LocalFocusManager.current
+    val screenConfiguration = LocalConfiguration.current
     var prefs by remember { mutableStateOf(editor.preferences) }
     fun update(p: Preferences) {
         prefs = p
@@ -154,6 +158,7 @@ fun PreferencesPane(
     val scrollState = rememberScrollState()
     val toolbarPropertiesScroll = rememberScrollState()
     var toolbarPropertyTab by remember { mutableStateOf(ToolbarPropertyTab.BARS) }
+    var dockError by remember { mutableStateOf<String?>(null) }
     var toolbarEditorOpen by remember { mutableStateOf(false) }
     LaunchedEffect(toolbarEditorOpen) { scrollState.scrollTo(0) }
     LaunchedEffect(toolbarPropertyTab) { toolbarPropertiesScroll.scrollTo(0) }
@@ -201,6 +206,30 @@ fun PreferencesPane(
         val profiles = editor.toolbarWorkspaces
         val changed = editedWorkspace().replaceBar(transform(selectedBar()))
         editor.applyToolbarWorkspaces(if (canvasTab) profiles.copy(canvas = changed) else profiles.copy(note = changed))
+    }
+    fun configureDock(next: ToolbarGeometry, nextLook: com.xnotes.settings.ToolbarLook = prefs.toolbarLook) {
+        val bar = selectedBar()
+        val candidate = editedWorkspace().replaceBar(bar.copy(geometry = next.constrained()))
+        val plan = toolbarDockPlan(
+            candidate.onlyItems(if (canvasTab) ToolbarLayout.CANVAS_ITEMS else ToolbarLayout.NOTE_ITEMS),
+            nextLook,
+            screenConfiguration.screenWidthDp.dp,
+            screenConfiguration.screenHeightDp.dp,
+        )
+        val floatingPlan = toolbarFloatingPlan(
+            candidate,
+            nextLook,
+            screenConfiguration.screenWidthDp.dp - plan.leftInset.dp - plan.rightInset.dp,
+            screenConfiguration.screenHeightDp.dp - plan.topInset.dp - plan.bottomInset.dp,
+            editor.toolbarColorCount,
+        )
+        if (plan.rejected.isNotEmpty() || floatingPlan.rejected.isNotEmpty()) {
+            dockError = "Sem espaço disponível. Reduza a barra, altere a borda ou escolha outra faixa."
+            return
+        }
+        dockError = null
+        updateSelectedBar { it.copy(geometry = next.constrained()) }
+        if (nextLook != prefs.toolbarLook) updateHome(prefs.copy(toolbarLook = nextLook))
     }
     fun retarget() {
         dropTarget = toolbarDropTarget(editedLayout(), dragFinger, chipBounds, laneBounds, sectionBounds)
@@ -728,7 +757,7 @@ fun PreferencesPane(
                     if (toolbarPropertyTab == ToolbarPropertyTab.DIMENSIONS) {
                         ToolbarGeometryControls(
                             geometry = currentBar.geometry,
-                            onChange = { next -> updateSelectedBar { it.copy(geometry = next.constrained()) } },
+                            onChange = { next -> configureDock(next) },
                         )
                     }
                     if (toolbarPropertyTab == ToolbarPropertyTab.ELEMENTS) {
@@ -766,10 +795,25 @@ fun PreferencesPane(
                     )
                     val profiles = editor.toolbarWorkspaces
                     val changed = old.addBar(bar)
-                    editor.applyToolbarWorkspaces(
-                        if (canvasTab) profiles.copy(canvas = changed) else profiles.copy(note = changed),
+                    val dockPlan = toolbarDockPlan(
+                        changed, prefs.toolbarLook,
+                        screenConfiguration.screenWidthDp.dp, screenConfiguration.screenHeightDp.dp,
                     )
-                    showBar(id)
+                    val floated = toolbarFloatingPlan(
+                        changed, prefs.toolbarLook,
+                        screenConfiguration.screenWidthDp.dp - dockPlan.leftInset.dp - dockPlan.rightInset.dp,
+                        screenConfiguration.screenHeightDp.dp - dockPlan.topInset.dp - dockPlan.bottomInset.dp,
+                        editor.toolbarColorCount,
+                    )
+                    if (id in floated.rejected) {
+                        dockError = "Limite de barras alcançado nas faixas atuais. Libere espaço antes de adicionar."
+                    } else {
+                        dockError = null
+                        editor.applyToolbarWorkspaces(
+                            if (canvasTab) profiles.copy(canvas = changed) else profiles.copy(note = changed),
+                        )
+                        showBar(id)
+                    }
                 }) { Text(stringResource(R.string.add) + " " + barLabel) }
                 TextButton(onClick = {
                     val old = editedWorkspace()
@@ -778,10 +822,25 @@ fun PreferencesPane(
                         .first { key -> old.bars.none { it.id == key } }
                     val changed = old.duplicateBar(bar.id, id, "$barLabel ${old.bars.size + 1}")
                     val profiles = editor.toolbarWorkspaces
-                    editor.applyToolbarWorkspaces(
-                        if (canvasTab) profiles.copy(canvas = changed) else profiles.copy(note = changed),
+                    val plan = toolbarDockPlan(
+                        changed, prefs.toolbarLook,
+                        screenConfiguration.screenWidthDp.dp, screenConfiguration.screenHeightDp.dp,
                     )
-                    showBar(id)
+                    val floated = toolbarFloatingPlan(
+                        changed, prefs.toolbarLook,
+                        screenConfiguration.screenWidthDp.dp - plan.leftInset.dp - plan.rightInset.dp,
+                        screenConfiguration.screenHeightDp.dp - plan.topInset.dp - plan.bottomInset.dp,
+                        editor.toolbarColorCount,
+                    )
+                    if (plan.rejected.isNotEmpty() || floated.rejected.isNotEmpty()) {
+                        dockError = "A cópia não cabe nas faixas disponíveis. Ajuste o tamanho ou a organização."
+                    } else {
+                        dockError = null
+                        editor.applyToolbarWorkspaces(
+                            if (canvasTab) profiles.copy(canvas = changed) else profiles.copy(note = changed),
+                        )
+                        showBar(id)
+                    }
                 }) { Text(stringResource(R.string.duplicate)) }
                 if (workspace.bars.size > 1 && currentBar.id != workspace.bars.first().id) {
                     TextButton(onClick = {
@@ -835,13 +894,50 @@ fun PreferencesPane(
                         }) { Text(stringResource(R.string.toolbar_move_down)) }
                     }
                 }
-                FieldLabel(stringResource(R.string.pref_toolbar_position))
-                ToolbarAnchorGrid(
-                    selected = currentBar.geometry.anchor,
-                    onSelect = { anchor ->
-                        updateSelectedBar { bar -> bar.copy(geometry = bar.geometry.copy(anchor = anchor)) }
-                    },
-                )
+                val secondaryDocked = currentBar.geometry.dockEdge != null && !currentBar.geometry.floating
+                FieldLabel("Posicionamento")
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Chip("Encaixada", secondaryDocked) {
+                        val geo = currentBar.geometry
+                        configureDock(geo.copy(
+                            floating = false,
+                            dockEdge = geo.dockEdge ?: ToolbarDockEdge.TOP,
+                            dockLane = if (geo.dockEdge == null) 1 else geo.dockLane,
+                            widthDp = geo.widthDp ?: 200,
+                            heightDp = geo.heightDp,
+                        ))
+                    }
+                    Chip("Flutuante", !secondaryDocked) {
+                        configureDock(currentBar.geometry.copy(floating = true, dockEdge = null))
+                    }
+                }
+                if (secondaryDocked) {
+                    FieldLabel("Borda")
+                    FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                        for ((edge, label) in listOf(
+                            ToolbarDockEdge.TOP to "Superior", ToolbarDockEdge.BOTTOM to "Inferior",
+                            ToolbarDockEdge.LEFT to "Esquerda", ToolbarDockEdge.RIGHT to "Direita",
+                        )) {
+                            Chip(label, currentBar.geometry.dockEdge == edge) {
+                                val geo = currentBar.geometry
+                                val vertical = edge == ToolbarDockEdge.LEFT || edge == ToolbarDockEdge.RIGHT
+                                configureDock(geo.copy(
+                                    dockEdge = edge,
+                                    widthDp = if (vertical && geo.widthDp == 200) null else geo.widthDp ?: if (vertical) null else 200,
+                                    heightDp = if (!vertical && geo.heightDp == 200) null else geo.heightDp ?: if (vertical) 200 else null,
+                                ))
+                            }
+                        }
+                    }
+                } else {
+                    FieldLabel(stringResource(R.string.pref_toolbar_position))
+                    ToolbarAnchorGrid(
+                        selected = currentBar.geometry.anchor,
+                        onSelect = { anchor ->
+                            updateSelectedBar { bar -> bar.copy(geometry = bar.geometry.copy(anchor = anchor)) }
+                        },
+                    )
+                }
                 FieldLabel(stringResource(R.string.pref_toolbar_size))
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     for ((scale, label) in listOf(
@@ -872,11 +968,10 @@ fun PreferencesPane(
                 }
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     Chip(stringResource(R.string.toolbar_docked), !floatingPrimary) {
-                        updateHome(prefs.copy(toolbarLook = look.copy(floating = false)))
-                        updateSelectedBar { bar -> bar.copy(geometry = bar.geometry.copy(floating = false, anchor = dockAnchor)) }
+                        configureDock(currentBar.geometry.copy(floating = false, anchor = dockAnchor), look.copy(floating = false))
                     }
                     Chip(stringResource(R.string.toolbar_floating), floatingPrimary) {
-                        updateSelectedBar { bar -> bar.copy(geometry = bar.geometry.copy(floating = true, anchor = if (bar.geometry.floating) bar.geometry.anchor else dockAnchor)) }
+                        configureDock(currentBar.geometry.copy(floating = true, anchor = if (currentBar.geometry.floating) currentBar.geometry.anchor else dockAnchor), look.copy(floating = true))
                     }
                 }
                 FieldLabel(stringResource(R.string.pref_toolbar_position))
@@ -892,9 +987,10 @@ fun PreferencesPane(
                                 ToolbarAnchor.CENTER_RIGHT -> ToolbarPosition.RIGHT
                                 else -> look.position
                             }
-                            updateHome(prefs.copy(toolbarLook = look.copy(floating = false, position = position)))
+                            configureDock(currentBar.geometry.copy(anchor = anchor, floating = false), look.copy(floating = false, position = position))
+                        } else {
+                            configureDock(currentBar.geometry.copy(anchor = anchor, floating = true))
                         }
-                        updateSelectedBar { bar -> bar.copy(geometry = bar.geometry.copy(anchor = anchor, floating = floatingPrimary)) }
                     },
                 )
                 FieldLabel(stringResource(R.string.pref_toolbar_size))
@@ -905,17 +1001,79 @@ fun PreferencesPane(
                         ToolbarSize.COMFORTABLE to R.string.toolbar_size_comfortable,
                     )) {
                         Chip(stringResource(label), look.size == size) {
-                            updateHome(prefs.copy(toolbarLook = look.copy(size = size)))
                             val scale = when (size) {
                                 ToolbarSize.COMPACT -> com.xnotes.core.tools.ToolbarScale.COMPACT
                                 ToolbarSize.REGULAR -> com.xnotes.core.tools.ToolbarScale.REGULAR
                                 ToolbarSize.COMFORTABLE -> com.xnotes.core.tools.ToolbarScale.COMFORTABLE
                             }
-                            updateSelectedBar { bar -> bar.copy(geometry = bar.geometry.copy(scale = scale)) }
+                            configureDock(currentBar.geometry.copy(scale = scale), look.copy(size = size))
                         }
                     }
                 }
             }
+            val isPrimaryDock = currentBar.id == workspace.bars.first().id &&
+                !currentBar.geometry.floating && !prefs.toolbarLook.floating
+            val isSecondaryDock = currentBar.id != workspace.bars.first().id &&
+                currentBar.geometry.dockEdge != null && !currentBar.geometry.floating
+            val floatingBar = !isPrimaryDock && !isSecondaryDock
+            FieldLabel(if (floatingBar) "Faixa flutuante preferida · máximo 3"
+                else "Faixa de encaixe · máximo 3 por borda")
+            Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                for (lane in 0..2) {
+                    Chip("Faixa ${lane + 1}", currentBar.geometry.dockLane == lane) {
+                        configureDock(currentBar.geometry.copy(dockLane = lane))
+                    }
+                }
+            }
+            FieldLabel("Alinhamento na faixa")
+            Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                for ((align, label) in listOf(
+                    ToolbarDockAlignment.START to "Início",
+                    ToolbarDockAlignment.CENTER to "Centro",
+                    ToolbarDockAlignment.END to "Fim",
+                )) {
+                    Chip(label, (if (floatingBar) toolbarFloatingAlignment(currentBar)
+                        else currentBar.geometry.dockAlignment) == align) {
+                        val anchor = if (floatingBar) when (currentBar.geometry.anchor.floatingEdge()) {
+                            ToolbarDockEdge.TOP -> when (align) {
+                                ToolbarDockAlignment.START -> ToolbarAnchor.TOP_LEFT
+                                ToolbarDockAlignment.CENTER -> ToolbarAnchor.TOP_CENTER
+                                ToolbarDockAlignment.END -> ToolbarAnchor.TOP_RIGHT
+                            }
+                            ToolbarDockEdge.BOTTOM -> when (align) {
+                                ToolbarDockAlignment.START -> ToolbarAnchor.BOTTOM_LEFT
+                                ToolbarDockAlignment.CENTER -> ToolbarAnchor.BOTTOM_CENTER
+                                ToolbarDockAlignment.END -> ToolbarAnchor.BOTTOM_RIGHT
+                            }
+                            ToolbarDockEdge.LEFT -> ToolbarAnchor.CENTER_LEFT
+                            ToolbarDockEdge.RIGHT -> ToolbarAnchor.CENTER_RIGHT
+                        } else currentBar.geometry.anchor
+                        configureDock(currentBar.geometry.copy(dockAlignment = align, anchor = anchor))
+                    }
+                }
+            }
+            Text(
+                if (floatingBar)
+                    "Organização automática: quando uma faixa lotar, as barras seguintes passam à próxima disponível sem sobreposição."
+                else
+                    "Na mesma faixa, a ordem segue a lista. A soma dos comprimentos e espaços deve caber na tela.",
+                style = MaterialTheme.typography.bodySmall,
+            )
+            val displayDockPlan = toolbarDockPlan(
+                workspace, prefs.toolbarLook,
+                screenConfiguration.screenWidthDp.dp, screenConfiguration.screenHeightDp.dp,
+            )
+            val displayedPlacement = if (floatingBar) toolbarFloatingPlan(
+                workspace, prefs.toolbarLook,
+                screenConfiguration.screenWidthDp.dp - displayDockPlan.leftInset.dp - displayDockPlan.rightInset.dp,
+                screenConfiguration.screenHeightDp.dp - displayDockPlan.topInset.dp - displayDockPlan.bottomInset.dp,
+                editor.toolbarColorCount,
+            ).placement(currentBar.id) else displayDockPlan.placement(currentBar.id)
+            if (displayedPlacement != null && displayedPlacement.lane != currentBar.geometry.dockLane) {
+                Text("Redistribuída automaticamente para a Faixa ${displayedPlacement.lane + 1}.",
+                    color = palette.accent.toComposeColor(), style = MaterialTheme.typography.bodySmall)
+            }
+            dockError?.let { Text(it, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall) }
                     }
                     if (toolbarPropertyTab == ToolbarPropertyTab.COLORS) {
             // The ink palette is global; its toolbar presentation is per selected bar.
