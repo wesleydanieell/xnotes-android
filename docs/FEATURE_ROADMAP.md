@@ -1,10 +1,28 @@
 # XNotes — roadmap de ferramentas, workspaces e camadas
 
-Atualizado: 03/11/2026. Branch de integração: `feat/customizable-toolbars`.
+Atualizado: 04/11/2026. Branch de integração: `feat/customizable-toolbars`.
 Este documento é o índice de produto; o detalhamento técnico das toolbars está em
 [toolbar-implementation-guide.md](toolbar-implementation-guide.md), as tarefas executáveis
 em [toolbar-task-state.md](toolbar-task-state.md) e os testes no
 [toolbar-adb-test-playbook.md](toolbar-adb-test-playbook.md).
+
+## Situação atual em 04/11/2026
+
+- **Implementado, mas sem QA físico completo:** barras múltiplas, REGIONS/CONTINUOUS,
+  sections e spacers, edição por arraste, dimensões individuais básicas, cópia
+  XNotes↔XCanvas com prévia e filtro, oito workspaces neutros, salvar/restaurar
+  ambos os perfis, importação/exportação JSON pelo seletor Android. Cores agora
+  ficam dentro de Elementos e Workspaces ao lado do seletor Main toolbar.
+- **Bloqueadores para considerar concluído:** testes reais com caneta e primeira
+  escrita no Redmi, alinhamento prévia/runtime, 4 docks, 9 posições, rotação,
+  split-view, barras numerosas, persistência e fluxo Android SAF ponta a ponta.
+- **Próxima engenharia:** edição transacional Aplicar/Cancelar + Desfazer/Refazer,
+  fallback recuperável quando o layout não cabe, refinamento de hitboxes e UX
+  de perfis compartilhados/independentes. Detalhes em `toolbar-task-state.md`.
+- **Decisão posterior à antiga P1:** grupos compactos genéricos/pastas foram
+  testados, rejeitados pelo usuário e revertidos. Não reintroduzir no escopo
+  vigente. Preservar Pen Group e sections existentes. Itens P1 de ToolGroup
+  abaixo são históricos, não o próximo trabalho aprovado.
 
 ## Decisão consolidada em 03/11/2026
 
@@ -59,7 +77,7 @@ caneta nunca inicia drag; não perder acesso às ferramentas ocultas.
 
 - [ ] Configurar barra principal e secundárias: criar, duplicar, remover, ocultar.
 - [ ] Layout horizontal/vertical, linhas/colunas, overflow, dimensões auto/manuais.
-- [ ] Aparência individual: padding, fundo, borda, raio, opacidade, blur com fallback.
+- [ ] Refinar padding, espaçamento, tamanho individual e hitboxes por elemento; fundo, borda, opacidade e blur independentes foram removidos do escopo.
 - [ ] Ancoragem 4 docks/9 posições flutuantes, pilhas e áreas seguras.
 - [ ] Slots/grades 2×2 e 3×2 com restrições de capacidade e hitbox.
 - [ ] Testar migração JSON com dados legados, inválidos e versões futuras.
@@ -71,7 +89,7 @@ reversível e desenho fluido.
 - [ ] Tela dedicada com nota ilustrativa não editável e preview real.
 - [ ] Drag-and-drop visual de barras, ferramentas e grupos com indicação de destino.
 - [ ] Perfis xnote/xcanvas compartilhados ou independentes sem sobrescrever o inativo.
-- [ ] Presets Escrita, Estudo/PDF e Desenho; import/export com schema validado.
+- [x] Modelos neutros de Escrita, Estudos/PDF e Desenho; import/export JSON com schema validado (implementação e testes JVM; QA Android SAF pendente).
 - [ ] Acessibilidade, teclado, área de toque e modo compacto.
 **Gate:** edição transacional, preview fiel, recuperação de configuração inviável.
 
