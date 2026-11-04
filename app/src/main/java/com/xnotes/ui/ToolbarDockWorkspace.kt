@@ -124,6 +124,8 @@ private fun estimatedFloatingLength(bar: ToolbarBar, index: Int, look: ToolbarLo
             section.entriesInLane(lane).sumOf { entry ->
                 val unit = entry.sizeDp?.toFloat() ?: m.button.value
                 when (entry.item) {
+                    com.xnotes.core.tools.ToolbarItem.SPACER ->
+                        entry.sizeDp?.toFloat() ?: com.xnotes.core.tools.ToolbarEntry.DEFAULT_SPACER_DP.toFloat()
                     com.xnotes.core.tools.ToolbarItem.COLORS ->
                         entry.colorIndices(colors).count().coerceAtLeast(1) * m.circle.value
                     com.xnotes.core.tools.ToolbarItem.PAGE_NAV,

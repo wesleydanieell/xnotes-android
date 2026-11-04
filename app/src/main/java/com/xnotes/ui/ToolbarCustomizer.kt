@@ -199,7 +199,7 @@ fun ToolbarCustomizerBody(
                             if (dragging && dropTarget == Triple(sec, lane, cells.lastOrNull()?.index?.plus(1) ?: section.entries.size)) InsertionCaret()
                             AddItemPicker(
                                 items = availableItems.filter { item ->
-                                    item == ToolbarItem.COLORS || layout.sections.none { sec ->
+                                    item == ToolbarItem.COLORS || item == ToolbarItem.SPACER || layout.sections.none { sec ->
                                         sec.entries.any { it.item == item && it.visible }
                                     }
                                 },
@@ -623,7 +623,7 @@ fun SectionCardGhost(section: ToolbarSection, widthPx: Float) {
     }
 }
 
-/** Add a missing tool (or another Colors block) directly to this section's chosen line. */
+/** Add a missing tool (or another Colors / Spacer block) directly to this section's chosen line. */
 @Composable
 private fun AddItemPicker(items: List<ToolbarItem>, onChoose: (ToolbarItem) -> Unit) {
     val palette = LocalPalette.current
@@ -753,6 +753,7 @@ internal fun itemIcon(item: ToolbarItem): ImageVector = when (item) {
     ToolbarItem.ZOOM_LOCK -> XnotesIcons.lock
     ToolbarItem.FULLSCREEN -> XnotesIcons.fullscreen
     ToolbarItem.COLORS -> XnotesIcons.more
+    ToolbarItem.SPACER -> XnotesIcons.grip
     ToolbarItem.WAYPOINTS -> XnotesIcons.bookmark
     ToolbarItem.MINIMAP -> XnotesIcons.map
 }

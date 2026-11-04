@@ -93,6 +93,7 @@ internal fun resolvedBarMetrics(size: ToolbarSize, geometry: ToolbarGeometry?): 
 }
 
 internal fun entryBarMetrics(base: BarMetrics, entry: ToolbarEntry): BarMetrics {
+    if (entry.item == com.xnotes.core.tools.ToolbarItem.SPACER) return base
     val size = entry.sizeDp?.dp ?: return base
     val factor = size.value / base.button.value
     return base.copy(
@@ -110,7 +111,10 @@ internal fun toolbarDepth(bar: BarMetrics, layout: ToolbarLayout?): Dp {
     val measured = layout?.visibleSections?.maxOfOrNull { section ->
         (0 until section.crossCells).fold(0.dp) { total, lane ->
             val laneButton = section.entriesInLane(lane)
-                .maxOfOrNull { entry -> entry.sizeDp?.dp ?: bar.button } ?: bar.button
+                .maxOfOrNull { entry ->
+                    if (entry.item == com.xnotes.core.tools.ToolbarItem.SPACER) bar.button
+                    else entry.sizeDp?.dp ?: bar.button
+                } ?: bar.button
             total + maxOf(bar.button, laneButton)
         } + bar.spacing * (section.crossCells - 1)
     } ?: bar.button

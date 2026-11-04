@@ -108,7 +108,7 @@ internal object ToolbarWorkspaceJson {
                 for (j in 0 until minOf(rawEntries.length(), MAX_ENTRIES)) {
                     val entry = rawEntries.optJSONObject(j) ?: continue
                     val item = ToolbarItem.fromId(entry.optString("id")) ?: continue
-                    if (item !in available || (item != ToolbarItem.COLORS && !seen.add(item))) continue
+                    if (item !in available || (item != ToolbarItem.COLORS && item != ToolbarItem.SPACER && !seen.add(item))) continue
                     val columns = (rawSection as? JSONObject)?.optInt("grid_columns", 0) ?: 0
                     val legacyLane = if (columns in 1..3 && j >= columns) 1 else 0
                     entries.add(ToolbarEntry(
@@ -117,7 +117,9 @@ internal object ToolbarWorkspaceJson {
                         lane = entry.optInt("lane", legacyLane).coerceIn(0, 2),
                         colorPart = entry.optInt("color_part", 0).coerceIn(0, 63),
                         colorParts = entry.optInt("color_parts", 1).coerceIn(1, 64),
-                        sizeDp = entry.optInt("size_dp").takeIf { entry.has("size_dp") }?.coerceIn(28, 72),
+                        sizeDp = entry.optInt("size_dp").takeIf { entry.has("size_dp") }?.let {
+                            if (item == ToolbarItem.SPACER) it.coerceIn(4, 320) else it.coerceIn(28, 72)
+                        },
                     ))
                 }
                 val sectionObject = rawSection as? JSONObject

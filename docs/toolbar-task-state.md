@@ -386,3 +386,11 @@ A tinta selecionada colore somente os acentos dentro dos pictogramas das canetas
 - A prévia e as barras customizadas flutuantes medem as regiões dentro do comprimento alocado; o preenchimento do conteúdo respeita a largura/altura disponível. O planejamento automático de barras flutuantes com REGIONS considera a maior ocupação entre Início e Fim dos dois lados do Centro, em vez de só somar tudo e acabar ocultando cores.
 - Reproduzido no emulador em nota real: antes, Sidebar aparecia no fim; depois, a medição do Centro foi `Rect(924..996)` em barra `Rect(540..1380)`, cujo centro físico é x=960 em ambos. Na build final, a barra flutuante estendeu-se e as cores voltaram a ficar visíveis em Start, Sidebar ao centro e Pen Group ao final.
 - Testes `:app:testDebugUnitTest :app:assembleDebug --offline`, `BUILD SUCCESSFUL`; APK instalado no `emulator-5554`. Removidas as mensagens temporárias de medição. Ainda é necessário QA físico no Redmi Pad 2 (laterais, xcanvas, gestos, rotação, split e diferentes tamanhos), sem push nesta etapa.
+
+## Espaçamento manual entre elementos (04/11/2026)
+
+- Incluído `ToolbarItem.SPACER`: elemento invisível e repetível, com tamanho principal independente de **4 a 320 dp** (24 dp por padrão); horizontal em barras superior/inferior e vertical nas laterais. Não deve aumentar a espessura da barra.
+- Adicionar via catálogo das sections, mover como uma camada comum, selecionar o espaço na prévia e modificar `Espaço entre elementos`. Suporte em barras de notas, canvas, prévia, medição de barras flutuantes e persistência JSON.
+- O modelo mantém `Spacer` opcional: barras antigas e o layout padrão da main toolbar não recebem nenhum espaço extra automaticamente. Ocorrências repetidas preservam ordem e medidas ao salvar/reabrir.
+- Distinção de UX: **REGIONS** mantém o Centro ancorado ao meio físico, criando espaços quando as regiões têm tamanhos desiguais; **CONTINUOUS + Spacer** permite especificar manualmente as distâncias desejadas. Não alterar a geometria automática de REGIONS ao inserir spacers.
+- `git diff --check`, `:app:testDebugUnitTest` (2445+ testes) e `:app:assembleDebug` passaram; APK instalado e inicializado em `emulator-5554`. Tablet real não conectado; QA manual dos espaçamentos pendente.

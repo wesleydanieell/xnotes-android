@@ -3,11 +3,26 @@ package com.xnotes.ui
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.width
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.unit.dp
 import com.xnotes.core.tools.ToolbarEntry
+import com.xnotes.core.tools.ToolbarItem
 import com.xnotes.core.tools.ToolbarLayout
 import com.xnotes.core.tools.ToolbarSection
+
+/** Empty, selectable layout item; for side toolbars it runs vertically. */
+@Composable
+internal fun ToolbarSpacer(entry: ToolbarEntry) {
+    val bar = LocalBar.current
+    val length = (entry.sizeDp ?: ToolbarEntry.DEFAULT_SPACER_DP).dp
+    if (bar.vertical) Spacer(Modifier.height(length).width(bar.button))
+    else Spacer(Modifier.width(length).height(bar.button))
+}
 
 /** Maximum thickness measured perpendicular to a bar. */
 internal fun toolbarCrossCells(layout: ToolbarLayout?): Int =
@@ -23,7 +38,8 @@ internal fun ToolbarSectionGrid(
 ) {
     val base = LocalBar.current
     val measuredCell: @Composable (ToolbarEntry) -> Unit = { entry ->
-        CompositionLocalProvider(LocalBar provides entryBarMetrics(base, entry)) {
+        CompositionLocalProvider(LocalBar provides if (entry.item == ToolbarItem.SPACER) base
+            else entryBarMetrics(base, entry)) {
             cell(entry)
         }
     }

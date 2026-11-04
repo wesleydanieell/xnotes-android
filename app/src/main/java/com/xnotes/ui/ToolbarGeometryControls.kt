@@ -107,12 +107,13 @@ internal fun ToolbarEntrySizeControls(
         stringResource(entry.item.labelRes),
         style = MaterialTheme.typography.titleSmall,
     )
+    val isSpacer = entry.item == com.xnotes.core.tools.ToolbarItem.SPACER
     ToolbarMeasure(
-        title = "Tamanho individual",
+        title = if (isSpacer) "Espaço entre elementos" else "Tamanho individual",
         value = entry.sizeDp,
-        defaultValue = defaultSizeDp.coerceIn(28, 72),
-        minimum = 28,
-        maximum = 72,
+        defaultValue = if (isSpacer) ToolbarEntry.DEFAULT_SPACER_DP else defaultSizeDp.coerceIn(28, 72),
+        minimum = if (isSpacer) 4 else 28,
+        maximum = if (isSpacer) 320 else 72,
         onChange = onChange,
     )
 }

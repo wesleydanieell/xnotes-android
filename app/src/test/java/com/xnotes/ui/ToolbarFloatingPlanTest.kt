@@ -82,6 +82,21 @@ class ToolbarFloatingPlanTest {
         }
     }
 
+    @Test fun floatingNaturalLengthIncludesSpacersOnBothAxes() {
+        val base = colors.addItem(0, 0, ToolbarItem.SPACER)
+        val expanded = base.setEntrySize(0, 1, 180)
+        for (anchor in listOf(ToolbarAnchor.TOP_CENTER, ToolbarAnchor.CENTER_LEFT)) {
+            fun length(layout: ToolbarLayout): Float {
+                val bar = ToolbarBar("spaced", "Spaced", layout,
+                    geometry = ToolbarGeometry(anchor = anchor, floating = true))
+                val placement = toolbarFloatingPlan(ToolbarWorkspace(listOf(bar)), ToolbarLook(),
+                    1000.dp, 1000.dp, 4).placement("spaced")!!
+                return if (anchor == ToolbarAnchor.CENTER_LEFT) placement.height else placement.width
+            }
+            assertTrue(length(expanded) >= length(base) + 150f)
+        }
+    }
+
     @Test fun naturalColourPaletteLengthAdaptsToSelectedCount() {
         val workspace = ToolbarWorkspace(listOf(floating("colors", width = null)))
         val short = toolbarFloatingPlan(workspace, ToolbarLook(), 500.dp, 400.dp, 1)

@@ -27,6 +27,19 @@ class ToolbarWorkspaceJsonTest {
     private fun compactLayout(vararg items: ToolbarItem): ToolbarLayout =
         ToolbarLayout(listOf(ToolbarSection(items.map { ToolbarEntry(it) })))
 
+    @Test fun spacersRoundTripAsIndependentOccurrencesWithSizes() {
+        val layout = compactLayout(ToolbarItem.PEN)
+            .addItem(0, 0, ToolbarItem.SPACER)
+            .addItem(0, 0, ToolbarItem.SPACER)
+            .setEntrySize(0, 1, 16)
+            .setEntrySize(0, 2, 240)
+        val workspaces = ToolbarWorkspaces.fromLegacy(layout, ToolbarLayout.CANVAS_DEFAULT)
+        val restored = ToolbarWorkspaceJson.read(ToolbarWorkspaceJson.write(workspaces))!!
+        assertEquals(layout, restored.note.bars.single().layout)
+        assertEquals(listOf(16, 240), restored.note.bars.single().layout.sections.single().entries
+            .filter { it.item == ToolbarItem.SPACER }.map { it.sizeDp })
+    }
+
     @Test fun oldSettingsMigrateWithoutChangingOriginalLayoutOrPlacement() {
         val legacy = Settings(
             toolbarLayout = ToolbarLayout.DEFAULT.moveSection(0, 2),

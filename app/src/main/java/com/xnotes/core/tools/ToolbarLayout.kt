@@ -47,6 +47,8 @@ enum class ToolbarItem(val id: String) {
     ZOOM_LOCK("zoom_lock"),
     FULLSCREEN("fullscreen"),
     COLORS("colors"),
+    /** An invisible, independently sized gap along the toolbar's main axis. */
+    SPACER("spacer"),
 
     /** Canvas only: saved views, which are what page numbers are on an unbounded surface. */
     WAYPOINTS("waypoints"),
@@ -76,6 +78,10 @@ data class ToolbarEntry(
         val part = colorPart.coerceIn(0, denominator - 1)
         fun boundary(position: Int) = (safeTotal * position + denominator - 1) / denominator
         return boundary(part) until boundary(part + 1)
+    }
+
+    companion object {
+        const val DEFAULT_SPACER_DP = 24
     }
 }
 
@@ -151,7 +157,7 @@ data class ToolbarLayout(
         val destination = sections.getOrNull(sectionIndex) ?: return this
         if (item == ToolbarItem.COLORS && colorBlockCount >= InkPalette.MAX_SWATCHES) return this
         val entries = sections.map { it.entries.toMutableList() }
-        if (item != ToolbarItem.COLORS) {
+        if (item != ToolbarItem.COLORS && item != ToolbarItem.SPACER) {
             val existing = sections.withIndex().firstNotNullOfOrNull { (si, section) ->
                 section.entries.indexOfFirst { it.item == item }.takeIf { it >= 0 }?.let { si to it }
             }
@@ -185,9 +191,10 @@ data class ToolbarLayout(
     }
 
     fun setEntrySize(sectionIndex: Int, entryIndex: Int, sizeDp: Int?): ToolbarLayout {
-        if (sizeDp != null && sizeDp !in 28..72) return this
         val section = sections.getOrNull(sectionIndex) ?: return this
         val entry = section.entries.getOrNull(entryIndex) ?: return this
+        val range = if (entry.item == ToolbarItem.SPACER) 4..320 else 28..72
+        if (sizeDp != null && sizeDp !in range) return this
         val entries = section.entries.toMutableList()
         entries[entryIndex] = entry.copy(sizeDp = sizeDp)
         val changed = sections.toMutableList()
@@ -367,7 +374,7 @@ data class ToolbarLayout(
     fun withMissingItemsAppended(among: Set<ToolbarItem> = NOTE_ITEMS): ToolbarLayout {
         var layout = this
         for (item in ToolbarItem.entries) {
-            if (item !in among) continue
+            if (item !in among || item == ToolbarItem.SPACER) continue
             if (layout.sections.any { s -> s.entries.any { it.item == item } }) continue
             layout = layout.insertMissing(item)
         }
@@ -417,6 +424,7 @@ data class ToolbarLayout(
             ToolbarItem.IMAGE, ToolbarItem.COLORS, ToolbarItem.UNDO, ToolbarItem.REDO,
             ToolbarItem.STYLES, ToolbarItem.WAYPOINTS, ToolbarItem.MINIMAP,
             ToolbarItem.ZOOM, ToolbarItem.FIT, ToolbarItem.ZOOM_LOCK,
+            ToolbarItem.SPACER,
         )
 
         /** Everything the paged bar can hold: the whole enum bar the two canvas-only additions. */
@@ -478,7 +486,7 @@ data class ToolbarLayout(
                     raw.mapNotNull { (id, visible) ->
                         val item = ToolbarItem.fromId(id) ?: return@mapNotNull null
                         if (item !in among) return@mapNotNull null
-                        if (!seen.add(item)) return@mapNotNull null
+                        if (item != ToolbarItem.SPACER && !seen.add(item)) return@mapNotNull null
                         ToolbarEntry(item, visible)
                     },
                 )
