@@ -12,6 +12,22 @@ class ToolbarLayoutTest {
         sections.map { s -> s.entries.map { it.item.id to it.visible } }
     private fun ToolbarLayout.items() = sections.flatMap { it.entries }.map { it.item }
 
+    @Test fun distributionIsOptInAndSectionsKeepTheirIndependentRows() {
+        val base = ToolbarLayout(listOf(sec(ToolbarItem.PEN), sec(ToolbarItem.COLORS)))
+        assertEquals(ToolbarDistribution.CONTINUOUS, base.distribution)
+        val regions = base.setSectionLanes(1, 2)
+            .setSectionRegion(1, ToolbarRegion.END)
+            .setDistribution(ToolbarDistribution.REGIONS)
+        assertEquals(2, regions.sections[1].lanes)
+        assertEquals(ToolbarRegion.END, regions.sections[1].region)
+        assertEquals(ToolbarRegion.START, regions.sections[0].region)
+        assertEquals(ToolbarDistribution.REGIONS, regions.distribution)
+        assertEquals(2, regions.addSection(3, ToolbarRegion.CENTER).sections[1].lanes)
+        assertEquals(ToolbarRegion.CENTER, regions.addSection(3, ToolbarRegion.CENTER).sections.last().region)
+        assertEquals(base, regions.setDistribution(ToolbarDistribution.CONTINUOUS)
+            .setSectionRegion(1, ToolbarRegion.START).setSectionLanes(1, 1))
+    }
+
     @Test fun defaultMirrorsToolbarGrouping() {
         val d = ToolbarLayout.DEFAULT
         assertEquals(11, d.sections.size)
@@ -281,6 +297,48 @@ class ToolbarLayoutTest {
         val r = l.moveSection(0, 2)
         assertEquals(listOf(ToolbarItem.HOME), r.sections.last().entries.map { it.item })
         assertEquals(listOf(ToolbarItem.SIDEBAR), r.sections[0].entries.map { it.item })
+    }
+
+    @Test fun sectionsMoveAcrossRegionsAsIntactBlocks() {
+        val l = ToolbarLayout(listOf(sec(ToolbarItem.HOME), sec(ToolbarItem.TITLE), sec(ToolbarItem.PEN)),
+            distribution = ToolbarDistribution.REGIONS)
+        val moved = l.moveSectionToRegion(0, ToolbarRegion.END)
+        assertEquals(listOf(ToolbarItem.TITLE, ToolbarItem.PEN, ToolbarItem.HOME),
+            moved.sections.flatMap { it.entries }.map { it.item })
+        assertEquals(ToolbarRegion.END, moved.sections.last().region)
+        assertEquals(moved, moved.moveSectionToRegion(2, ToolbarRegion.END, 2))
+        val centered = moved.moveSectionToRegion(1, ToolbarRegion.CENTER)
+        assertEquals(listOf(ToolbarRegion.START, ToolbarRegion.CENTER, ToolbarRegion.END),
+            centered.sections.map { it.region })
+    }
+
+    @Test fun sectionReorderingWithinOneRegionUsesTheOriginalAnchor() {
+        val l = ToolbarLayout(listOf(sec(ToolbarItem.HOME), sec(ToolbarItem.TITLE), sec(ToolbarItem.PEN)),
+            distribution = ToolbarDistribution.REGIONS)
+        val moved = l.moveSectionToRegion(2, ToolbarRegion.START, beforeSectionIndex = 0)
+        assertEquals(listOf(ToolbarItem.PEN, ToolbarItem.HOME, ToolbarItem.TITLE),
+            moved.sections.flatMap { it.entries }.map { it.item })
+    }
+
+    @Test fun colorsCanBeDuplicatedAndAreRepartitionedWhenRemoved() {
+        val l = ToolbarLayout(listOf(sec(ToolbarItem.COLORS)))
+        val doubled = l.addItem(0, 0, ToolbarItem.COLORS)
+        assertEquals(2, doubled.colorBlockCount)
+        assertEquals(listOf(0, 1), doubled.sections[0].entries.map { it.colorPart })
+        assertEquals(listOf(2, 2), doubled.sections[0].entries.map { it.colorParts })
+        val reduced = doubled.removeItem(0, 0)
+        assertEquals(1, reduced.colorBlockCount)
+        assertEquals(0, reduced.sections[0].entries.single().colorPart)
+        assertEquals(1, reduced.sections[0].entries.single().colorParts)
+    }
+
+    @Test fun ordinaryItemsAreUniqueButHiddenItemsCanBeRestoredIntoAnotherSection() {
+        val l = ToolbarLayout(listOf(sec(ToolbarItem.HOME), ToolbarSection(emptyList())))
+        assertEquals(l, l.addItem(1, 0, ToolbarItem.HOME))
+        val restored = l.toggleVisible(0, 0).addItem(1, 0, ToolbarItem.HOME)
+        assertTrue(restored.sections[0].entries.isEmpty())
+        assertEquals(ToolbarItem.HOME, restored.sections[1].entries.single().item)
+        assertTrue(restored.sections[1].entries.single().visible)
     }
 
     @Test fun moveItemWithinSectionClampsForwardTarget() {

@@ -364,6 +364,17 @@
     <string name="drop_here">drop here</string>
     <string name="delete_section">Delete section</string>
     <string name="add_section">Add section</string>
+    <string name="configure_toolbars">Configure toolbars</string>
+    <string name="toolbar_distribution">Element distribution</string>
+    <string name="toolbar_continuous">Continuous</string>
+    <string name="toolbar_regions">Start / Center / End</string>
+    <string name="toolbar_regions_help">Each section keeps its 1–3 lines together. Use the three-dot menu on a section to assign it to a region. If space is tight, the toolbar scrolls without overlapping tools.</string>
+    <string name="toolbar_region_start">Start</string>
+    <string name="toolbar_region_center">Center</string>
+    <string name="toolbar_region_end">End</string>
+    <string name="toolbar_add_element">Add element</string>
+    <string name="toolbar_search_elements">Search tools…</string>
+    <string name="toolbar_no_elements">No tools found</string>
 
     <!-- Preferences -->
     <string name="back_to_home">Back to home</string>

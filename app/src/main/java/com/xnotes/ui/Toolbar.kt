@@ -100,6 +100,7 @@ fun Toolbar(
     onInsertAudio: () -> Unit = {},
     onRecordAudio: () -> Unit = {},
     onTakePhoto: () -> Unit = {},
+    onConfigureToolbars: () -> Unit = {},
     layout: ToolbarLayout = editor.toolbarLayout,
     geometry: ToolbarGeometry? = null,
 ) {
@@ -130,8 +131,7 @@ fun Toolbar(
     ToolbarFrame(armed = editor.tool, layout = layout, geometry = geometry, trailing = onClosePane?.let { { ClosePaneButton(it) } }) {
         // The bar is driven by the user-customisable layout; separators sit between non-empty
         // sections, and each item dispatches to its renderer (see ToolbarItemView).
-        layout.visibleSections.forEachIndexed { si, section ->
-            if (si > 0) Separator()
+        ToolbarSections(layout) { _, section ->
             ToolbarSectionGrid(section) { entry ->
                 ToolbarItemView(
                     editor = editor,
@@ -143,6 +143,7 @@ fun Toolbar(
                     setSwitcherIndex = { switcherIndex = it },
                     onRename = { renaming = true },
                     onOpenBackstage = onOpenBackstage,
+                    onConfigureToolbars = onConfigureToolbars,
                     onInsertImage = onInsertImage,
                     onAddStickers = onAddStickers,
                     onToggleFullscreen = onToggleFullscreen,
@@ -180,6 +181,7 @@ private fun ToolbarItemView(
     setSwitcherIndex: (Int?) -> Unit,
     onRename: () -> Unit,
     onOpenBackstage: () -> Unit,
+    onConfigureToolbars: () -> Unit,
     onInsertImage: () -> Unit,
     onAddStickers: () -> Unit,
     onToggleFullscreen: () -> Unit,
@@ -255,7 +257,7 @@ private fun ToolbarItemView(
         }
         ToolbarItem.STYLES -> StylesButton(editor, onImportTemplate)
         ToolbarItem.MARGINS -> MarginsButton(editor)
-        ToolbarItem.VIEW -> ViewButton(editor)
+        ToolbarItem.VIEW -> ViewButton(editor, onConfigureToolbars)
 
         ToolbarItem.ZOOM -> {
             ToolbarIcon(XnotesIcons.zoomOut, stringResource(R.string.zoom_out), enabled = !editor.zoomLocked, shortcut = Keys.ZOOM_OUT) { editor.zoomOut() }
@@ -399,11 +401,11 @@ private fun MarginsButton(editor: Editor) {
 
 /** Opens the view menu (viewing mode, scroll direction, free movement, PDF filters, rotation, scrollbar). */
 @Composable
-private fun ViewButton(editor: Editor) {
+private fun ViewButton(editor: Editor, onConfigureToolbars: () -> Unit) {
     var open by remember { mutableStateOf(false) }
     Box {
         ToolbarIcon(XnotesIcons.view, stringResource(R.string.toolbar_view)) { open = true }
-        if (open) ViewMenuPopup(editor) { open = false }
+        if (open) ViewMenuPopup(editor, onConfigureToolbars) { open = false }
     }
 }
 

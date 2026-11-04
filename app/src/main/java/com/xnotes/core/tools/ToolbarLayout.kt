@@ -79,11 +79,16 @@ data class ToolbarEntry(
     }
 }
 
+enum class ToolbarDistribution { CONTINUOUS, REGIONS }
+
+enum class ToolbarRegion { START, CENTER, END }
+
 /** Each section contains one to three independently ordered lanes.
  * Horizontal bars render them as rows; vertical bars transpose them into columns. */
 data class ToolbarSection(
     val entries: List<ToolbarEntry>,
     val lanes: Int = 1,
+    val region: ToolbarRegion = ToolbarRegion.START,
 ) {
     val visibleEntries: List<ToolbarEntry> get() = entries.filter { it.visible }
     val hasVisible: Boolean get() = entries.any { it.visible }
@@ -96,15 +101,81 @@ data class ToolbarSection(
     )
 }
 
-data class ToolbarLayout(val sections: List<ToolbarSection>) {
+data class ToolbarLayout(
+    val sections: List<ToolbarSection>,
+    val distribution: ToolbarDistribution = ToolbarDistribution.CONTINUOUS,
+) {
 
     /** Sections that paint on the real bar; a separator goes between consecutive ones. */
     val visibleSections: List<ToolbarSection> get() = sections.filter { it.hasVisible }
 
-    fun addSection(lanes: Int = 1): ToolbarLayout =
-        if (lanes !in 1..3) this else copy(sections = sections + ToolbarSection(emptyList(), lanes))
+    fun addSection(lanes: Int = 1, region: ToolbarRegion = ToolbarRegion.START): ToolbarLayout =
+        if (lanes !in 1..3) this else copy(sections = sections + ToolbarSection(emptyList(), lanes, region))
+
+    fun setDistribution(mode: ToolbarDistribution): ToolbarLayout = copy(distribution = mode)
+
+    fun setSectionRegion(sectionIndex: Int, region: ToolbarRegion): ToolbarLayout =
+        if (distribution == ToolbarDistribution.REGIONS) moveSectionToRegion(sectionIndex, region)
+        else copy(sections = sections.mapIndexed { index, section ->
+            if (index == sectionIndex) section.copy(region = region) else section
+        })
+
+    /** Move a section as a single block, optionally before another section in the target column.
+     * A null anchor appends within that column; a newly populated column follows Start/Center/End. */
+    fun moveSectionToRegion(from: Int, region: ToolbarRegion, beforeSectionIndex: Int? = null): ToolbarLayout {
+        val original = sections.getOrNull(from) ?: return this
+        if (beforeSectionIndex == from && original.region == region) return this
+        if (beforeSectionIndex != null && sections.getOrNull(beforeSectionIndex)?.region != region) return this
+        val rebuilt = sections.toMutableList()
+        rebuilt.removeAt(from)
+        val anchor = beforeSectionIndex?.let { (if (it > from) it - 1 else it).coerceIn(0, rebuilt.size) }
+        val insertion = anchor ?: (rebuilt.indexOfLast { it.region == region }.takeIf { it >= 0 }?.plus(1)
+            ?: rebuilt.indexOfFirst { it.region.ordinal > region.ordinal }.takeIf { it >= 0 }
+            ?: rebuilt.size)
+        rebuilt.add(insertion, original.copy(region = region))
+        return copy(sections = rebuilt)
+    }
 
     /** Target an occurrence by position, not tool ID (Colors may occur several times). */
+    /** Add a tool to one section row. Colors can occur repeatedly; other tools are unique.
+     * Re-adding a hidden tool moves it to the chosen row and makes it visible. */
+    fun addItem(sectionIndex: Int, lane: Int, item: ToolbarItem): ToolbarLayout {
+        val destination = sections.getOrNull(sectionIndex) ?: return this
+        if (item == ToolbarItem.COLORS && colorBlockCount >= InkPalette.MAX_SWATCHES) return this
+        val entries = sections.map { it.entries.toMutableList() }
+        if (item != ToolbarItem.COLORS) {
+            val existing = sections.withIndex().firstNotNullOfOrNull { (si, section) ->
+                section.entries.indexOfFirst { it.item == item }.takeIf { it >= 0 }?.let { si to it }
+            }
+            if (existing != null) {
+                if (entries[existing.first][existing.second].visible) return this
+                entries[existing.first].removeAt(existing.second)
+            }
+        }
+        entries[sectionIndex].add(ToolbarEntry(item, lane = lane.coerceIn(0, destination.lanes - 1)))
+        return copy(sections = sections.mapIndexed { index, sec -> sec.copy(entries = entries[index]) })
+            .repartitionColors()
+    }
+
+    fun removeItem(sectionIndex: Int, entryIndex: Int): ToolbarLayout {
+        val section = sections.getOrNull(sectionIndex) ?: return this
+        if (entryIndex !in section.entries.indices) return this
+        val updated = section.entries.toMutableList().also { it.removeAt(entryIndex) }
+        return copy(sections = sections.toMutableList().also { it[sectionIndex] = section.copy(entries = updated) })
+            .repartitionColors()
+    }
+
+    private fun repartitionColors(): ToolbarLayout {
+        val count = colorBlockCount
+        var index = 0
+        return copy(sections = sections.map { sec ->
+            sec.copy(entries = sec.entries.map { entry ->
+                if (entry.item == ToolbarItem.COLORS) entry.copy(colorPart = index++, colorParts = count)
+                else entry
+            })
+        })
+    }
+
     fun setEntrySize(sectionIndex: Int, entryIndex: Int, sizeDp: Int?): ToolbarLayout {
         if (sizeDp != null && sizeDp !in 28..72) return this
         val section = sections.getOrNull(sectionIndex) ?: return this

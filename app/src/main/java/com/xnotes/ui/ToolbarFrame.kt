@@ -39,6 +39,7 @@ import androidx.compose.ui.unit.TextUnit
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.xnotes.core.tools.ToolbarBar
+import com.xnotes.core.tools.ToolbarDistribution
 import com.xnotes.core.tools.ToolbarEntry
 import com.xnotes.core.tools.ToolbarWorkspace
 import com.xnotes.core.tools.ToolbarGeometry
@@ -288,7 +289,8 @@ internal fun ToolbarFrame(
                 Column(
                     Modifier
                         .weight(1f, fill = !look.floating)
-                        .verticalScroll(rememberScrollState())
+                        .then(if (layout.distribution == ToolbarDistribution.CONTINUOUS)
+                            Modifier.verticalScroll(rememberScrollState()) else Modifier)
                         .padding(vertical = bar.padding)
                         .toolGlide(glide, armed),
                     horizontalAlignment = Alignment.CenterHorizontally,
@@ -303,7 +305,8 @@ internal fun ToolbarFrame(
                 Row(
                     Modifier
                         .weight(1f, fill = !look.floating)
-                        .horizontalScroll(rememberScrollState())
+                        .then(if (layout.distribution == ToolbarDistribution.CONTINUOUS)
+                            Modifier.horizontalScroll(rememberScrollState()) else Modifier)
                         .padding(horizontal = bar.padding)
                         .toolGlide(glide, armed),
                     verticalAlignment = Alignment.CenterVertically,

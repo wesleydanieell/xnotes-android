@@ -47,6 +47,7 @@ import com.xnotes.ui.icons.XnotesIcons
 import com.xnotes.core.model.Rgba
 import com.xnotes.core.tools.ToolbarAnchor
 import com.xnotes.core.tools.ToolbarBar
+import com.xnotes.core.tools.ToolbarDistribution
 import com.xnotes.core.tools.ToolbarItem
 import com.xnotes.core.tools.ToolbarLayout
 import com.xnotes.core.tools.ToolbarScale
@@ -241,7 +242,8 @@ private fun PreviewBar(
                 .then(if (bar.geometry.heightDp != null) Modifier.height(bar.geometry.heightDp.dp)
                     else if (floating) Modifier.heightIn(max = availableHeight) else Modifier.fillMaxHeight())
                 .width(toolbarWidth(metrics, bar.layout, bar.geometry))
-                .verticalScroll(rememberScrollState())
+                .then(if (bar.layout.distribution == ToolbarDistribution.CONTINUOUS)
+                    Modifier.verticalScroll(rememberScrollState()) else Modifier)
                 .padding(vertical = metrics.padding),
             horizontalAlignment = Alignment.CenterHorizontally,
         ) {
@@ -253,7 +255,8 @@ private fun PreviewBar(
                 .then(if (bar.geometry.widthDp != null) Modifier.width(bar.geometry.widthDp.dp)
                     else if (floating) Modifier.widthIn(max = availableWidth) else Modifier.fillMaxWidth())
                 .height(toolbarHeight(metrics, bar.layout, bar.geometry))
-                .horizontalScroll(rememberScrollState())
+                .then(if (bar.layout.distribution == ToolbarDistribution.CONTINUOUS)
+                    Modifier.horizontalScroll(rememberScrollState()) else Modifier)
                 .padding(horizontal = metrics.padding),
             verticalAlignment = Alignment.CenterVertically,
         ) {
@@ -280,25 +283,22 @@ private fun PreviewSections(
     // Use the same controls, swatches, labels and separators as a live toolbar.
     // Preview clicks select the edited bar; they never edit the open document.
     CompositionLocalProvider(LocalBar provides metrics) {
-        val visible = layout.sections.withIndex().filter { it.value.hasVisible }
-        visible.forEachIndexed { visualIndex, indexed ->
-            if (visualIndex > 0) Separator()
-            val section = indexed.value
+        ToolbarSections(layout) { sectionIndex, section ->
             ToolbarSectionGrid(section) { entry ->
                 // Reference identity distinguishes repeated Colors occurrences with equal values.
                 val entryIndex = section.entries.indexOfFirst { it === entry }
-                val selected = selectedEntry == (indexed.index to entryIndex)
+                val selected = selectedEntry == (sectionIndex to entryIndex)
                 Box(
                     Modifier
                         .then(if (selected) Modifier.border(
                             1.dp, palette.accent.toComposeColor(), RoundedCornerShape(5.dp),
                         ) else Modifier)
-                        .clickable { onSelectEntry(indexed.index, entryIndex) },
+                        .clickable { onSelectEntry(sectionIndex, entryIndex) },
                 ) {
                     PreviewTool(
                         entry, colors, activeColorIndex, pageNumber, pageCount,
                         zoomLabel, titleLabel,
-                        { onSelectEntry(indexed.index, entryIndex) }, vertical,
+                        { onSelectEntry(sectionIndex, entryIndex) }, vertical,
                     )
                 }
             }

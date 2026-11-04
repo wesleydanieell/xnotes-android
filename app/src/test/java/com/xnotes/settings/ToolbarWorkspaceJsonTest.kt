@@ -5,7 +5,9 @@ import com.xnotes.core.tools.ToolbarDockAlignment
 import com.xnotes.core.tools.ToolbarDockEdge
 import com.xnotes.core.tools.ToolbarBar
 import com.xnotes.core.tools.ToolbarContext
+import com.xnotes.core.tools.ToolbarDistribution
 import com.xnotes.core.tools.ToolbarEntry
+import com.xnotes.core.tools.ToolbarRegion
 import com.xnotes.core.tools.ToolbarGeometry
 import com.xnotes.core.tools.ToolbarItem
 import com.xnotes.core.tools.ToolbarLayout
@@ -80,7 +82,7 @@ class ToolbarWorkspaceJsonTest {
             .setSectionLanes(0, 2).moveItem(0, 2, 0, 3, toLane = 1)
         val profiles = ToolbarWorkspaces.fromLegacy(group, ToolbarLayout.CANVAS_DEFAULT)
         val json = ToolbarWorkspaceJson.write(profiles)
-        assertEquals(5, json.getInt("version"))
+        assertEquals(6, json.getInt("version"))
         assertEquals(group, ToolbarWorkspaceJson.read(json)!!.note.bars.single().layout)
 
         // Legacy v1 section arrays have no section metadata.
@@ -104,6 +106,24 @@ class ToolbarWorkspaceJsonTest {
         val migrated = ToolbarWorkspaceJson.read(oldGrid)!!.note.bars.single().layout.sections.single()
         assertEquals(2, migrated.lanes)
         assertEquals(listOf(0, 0, 1), migrated.entries.map { it.lane })
+    }
+
+    @Test fun regionDistributionRoundTripsWithSectionsAndOldSettingsStayContinuous() {
+        val layout = compactLayout(ToolbarItem.PEN, ToolbarItem.DASHED)
+            .setSectionLanes(0, 3)
+            .setSectionRegion(0, ToolbarRegion.END)
+            .setDistribution(ToolbarDistribution.REGIONS)
+        val json = ToolbarWorkspaceJson.write(ToolbarWorkspaces.fromLegacy(layout, ToolbarLayout.CANVAS_DEFAULT))
+        val restored = ToolbarWorkspaceJson.read(json)!!.note.bars.single().layout
+        assertEquals(layout, restored)
+        val legacy = JSONObject(json.toString()).put("version", 5)
+        val oldBar = legacy.getJSONObject("note").getJSONArray("bars").getJSONObject(0)
+        oldBar.remove("distribution")
+        oldBar.getJSONArray("sections").getJSONObject(0).remove("region")
+        val oldLayout = ToolbarWorkspaceJson.read(legacy)!!.note.bars.single().layout
+        assertEquals(ToolbarDistribution.CONTINUOUS, oldLayout.distribution)
+        assertEquals(ToolbarRegion.START, oldLayout.sections.single().region)
+        assertEquals(3, oldLayout.sections.single().lanes)
     }
 
     @Test fun colorBlocksPersistAndV3AbsoluteRangesMigrateToDynamic() {

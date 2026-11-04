@@ -55,6 +55,7 @@ fun InfiniteToolbar(
     onInsertAudio: () -> Unit = {},
     onRecordAudio: () -> Unit = {},
     onTakePhoto: () -> Unit = {},
+    onConfigureToolbars: () -> Unit = {},
     layout: ToolbarLayout = editor.toolbarLayout,
     geometry: ToolbarGeometry? = null,
 ) {
@@ -87,9 +88,7 @@ fun InfiniteToolbar(
 
     // Pinned outside the scrolling strip so closing a split pane is always one tap away.
     ToolbarFrame(armed = editor.tool, layout = layout, geometry = geometry, trailing = onClosePane?.let { { ClosePaneButton(it) } }) {
-        val sections = layout.visibleSections
-        sections.forEachIndexed { index, section ->
-            if (index > 0) Separator()
+        ToolbarSections(layout) { _, section ->
             ToolbarSectionGrid(section) { entry ->
                 when (val item = entry.item) {
                     ToolbarItem.HOME -> ToolbarIcon(XnotesIcons.prev, stringResource(R.string.toolbar_home)) { onOpenBackstage() }
@@ -175,7 +174,7 @@ fun InfiniteToolbar(
                     // number was.
                     ToolbarItem.STYLES -> Box {
                         ToolbarIcon(XnotesIcons.sliders, stringResource(R.string.toolbar_styles), active = stylesOpen) { stylesOpen = true }
-                        if (stylesOpen) CanvasStylesPopup(editor) { stylesOpen = false }
+                        if (stylesOpen) CanvasStylesPopup(editor, onConfigureToolbars) { stylesOpen = false }
                     }
                     ToolbarItem.WAYPOINTS -> Box {
                         ToolbarIcon(XnotesIcons.bookmark, stringResource(R.string.toolbar_waypoints), active = waypointsOpen) { waypointsOpen = true }

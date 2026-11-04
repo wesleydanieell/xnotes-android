@@ -1012,6 +1012,12 @@ private fun EditorScreen(
                     backstageView = com.xnotes.ui.BackstageView.HOME
                     guardedAll { editor.goHomeAll() }
                 },
+                onConfigureToolbars = {
+                    guardedAll {
+                        backstageView = com.xnotes.ui.BackstageView.TOOLBARS
+                        editor.goHomeAll()
+                    }
+                },
                 onClosePane = { pane -> guarded(pane) { pane.goHome() } },
                 onInsertImage = { pane, at ->
                     pendingInsert = PendingInsert(pane, at)
@@ -1269,6 +1275,7 @@ private class PaneActions(
     val onToggleFullscreen: () -> Unit,
     /** Leave for the backstage, closing every open pane. */
     val onOpenBackstage: () -> Unit,
+    val onConfigureToolbars: () -> Unit,
     /** Close just this pane, leaving the other one to fill the window. */
     val onClosePane: (Editor) -> Unit,
     val onInsertImage: (Editor, com.xnotes.core.geometry.Pt?) -> Unit,
@@ -1474,6 +1481,7 @@ private fun EditorPane(
                     com.xnotes.ui.InfiniteToolbar(
                         canvas,
                         onOpenBackstage = actions.onOpenBackstage,
+                        onConfigureToolbars = actions.onConfigureToolbars,
                         onInsertImage = { actions.onInsertCanvasImage(editor, null) },
                         onClosePane = onClose,
                         onInsertAudio = { actions.onInsertAudio(editor) },
@@ -1495,6 +1503,7 @@ private fun EditorPane(
                     com.xnotes.ui.InfiniteToolbar(
                         canvas,
                         onOpenBackstage = actions.onOpenBackstage,
+                        onConfigureToolbars = actions.onConfigureToolbars,
                         onInsertImage = { actions.onInsertCanvasImage(editor, null) },
                         onInsertAudio = { actions.onInsertAudio(editor) },
                         onRecordAudio = { actions.onRecordAudio(editor) },
@@ -1540,6 +1549,7 @@ private fun EditorPane(
                         editor,
                         onToggleFullscreen = actions.onToggleFullscreen,
                         onOpenBackstage = actions.onOpenBackstage,
+                        onConfigureToolbars = actions.onConfigureToolbars,
                         onInsertImage = { actions.onInsertImage(editor, null) },
                         onAddStickers = actions.onAddStickers,
                         onClosePane = onClose,
@@ -1563,6 +1573,7 @@ private fun EditorPane(
                         editor,
                         onToggleFullscreen = actions.onToggleFullscreen,
                         onOpenBackstage = actions.onOpenBackstage,
+                        onConfigureToolbars = actions.onConfigureToolbars,
                         onInsertImage = { actions.onInsertImage(editor, null) },
                         onAddStickers = actions.onAddStickers,
                         onImportTemplate = actions.onImportTemplate,

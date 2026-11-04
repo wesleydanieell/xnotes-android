@@ -4,11 +4,13 @@ import com.xnotes.core.tools.ToolbarAnchor
 import com.xnotes.core.tools.ToolbarDockAlignment
 import com.xnotes.core.tools.ToolbarDockEdge
 import com.xnotes.core.tools.ToolbarBar
+import com.xnotes.core.tools.ToolbarDistribution
 import com.xnotes.core.tools.ToolbarEntry
 import com.xnotes.core.tools.ToolbarGeometry
 import com.xnotes.core.tools.ToolbarItem
 import com.xnotes.core.tools.ToolbarLayout
 import com.xnotes.core.tools.ToolbarScale
+import com.xnotes.core.tools.ToolbarRegion
 import com.xnotes.core.tools.ToolbarSection
 import com.xnotes.core.tools.ToolbarWorkspace
 import com.xnotes.core.tools.ToolbarWorkspaces
@@ -21,7 +23,7 @@ import org.json.JSONObject
  * correct for migrating a legacy single bar but wrong for a secondary/compact bar.
  */
 internal object ToolbarWorkspaceJson {
-    private const val VERSION = 5
+    private const val VERSION = 6
     private const val MAX_BARS = 32
     private const val MAX_SECTIONS = 32
     private const val MAX_ENTRIES = 128
@@ -48,9 +50,11 @@ internal object ToolbarWorkspaceJson {
                 .put("name", bar.name)
                 .put("visible", bar.visible)
                 .put("geometry", writeGeometry(bar.geometry))
+                .put("distribution", bar.layout.distribution.name)
                 .put("sections", JSONArray().apply {
                     for (section in bar.layout.sections) put(JSONObject()
                         .put("lanes", section.lanes)
+                        .put("region", section.region.name)
                         .put("entries", JSONArray().apply {
                             for (entry in section.entries) put(JSONObject()
                                 .put("id", entry.item.id)
@@ -119,7 +123,9 @@ internal object ToolbarWorkspaceJson {
                 val sectionObject = rawSection as? JSONObject
                 val columns = sectionObject?.optInt("grid_columns", 0) ?: 0
                 val lanes = sectionObject?.optInt("lanes", if (columns in 1..3) 2 else 1) ?: 1
-                sections.add(ToolbarSection(entries, lanes).normalized())
+                val region = ToolbarRegion.entries.firstOrNull { it.name == sectionObject?.optString("region") }
+                    ?: ToolbarRegion.START
+                sections.add(ToolbarSection(entries, lanes, region).normalized())
             }
             // The transient v3 preview stored absolute colour intervals. Convert its copies
             // into dynamic fractions so changing the global swatch count never leaves stale rows.
@@ -135,7 +141,11 @@ internal object ToolbarWorkspaceJson {
             bars.add(ToolbarBar(
                 id = id,
                 name = raw.optString("name", "Toolbar").take(64),
-                layout = ToolbarLayout(migratedSections.ifEmpty { listOf(ToolbarSection(emptyList())) }),
+                layout = ToolbarLayout(
+                    migratedSections.ifEmpty { listOf(ToolbarSection(emptyList())) },
+                    ToolbarDistribution.entries.firstOrNull { it.name == raw.optString("distribution") }
+                        ?: ToolbarDistribution.CONTINUOUS,
+                ),
                 visible = raw.optBoolean("visible", true),
                 geometry = readGeometry(raw.optJSONObject("geometry")),
             ))

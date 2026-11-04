@@ -31,7 +31,7 @@ Camadas são um projeto futuro separado: docs/layers-roadmap.md.
 | M5 Elementos/cores | PARCIAL | Cores globais divididas dinamicamente em N blocos por barra, controle na tela dedicada; ainda faltam tamanho/spacing por elemento e QA |
 | M6 Sections em faixas | PARCIAL | Sections de 1–3 linhas independentes (colunas em barras laterais), sem limite por linha; codec v4 migra v1/v2/v3; renderer/preview comuns, arraste por linha; QA físico pendente |
 | M7 Caneta unificada | PARCIAL | Lançador opcional, leque radial com animação e painel único de configurações por tipo; QA de stylus e migração/schema avançado pendentes |
-| M8 Atalho in-note | PENDENTE | A pedido do usuário, NÃO implementar edição/resize dentro da nota; apenas entrada rápida para configuração dedicada |
+| M8 Atalho in-note | PARCIAL | Atalho adicionado aos menus de nota e canvas, abrindo o editor dedicado; QA com caneta no Redmi pendente |
 | M9 Perfis/QA/performance | PARCIAL | Dados note/canvas separados; UI de shared não terminada |
 | M10 PRs upstream | PENDENTE | Só branch de integração no fork; nenhum PR desta feature aberto |
 
@@ -110,7 +110,7 @@ não substitui o Git como fonte de verdade.
       não reintroduzir presets fixos 2×2/3×2.
 - [ ] [M7] Caneta unificada usando tipos existentes.
 - [ ] [M8] Menu de contexto em longpress sem deslocamento.
-- [ ] [M8] Atalho in-note para abrir a configuração dedicada, sem resize in-note (decisão do usuário).
+- [x] [M8] Atalho nos menus de nota/canvas para abrir a configuração dedicada, sem resize in-note (04/11). QA físico pendente.
 - [ ] [M9] UI de compartilhamento/independência xnote/xcanvas.
 
 ### P3 — Lançamento e PRs
@@ -339,3 +339,19 @@ Próxima ação: instalar build atualizada no tablet quando reconectar e percorr
 O destaque deslizando agora recebe a posição e o raio reais de cada elemento, incluindo sizeDp individual, e anima alterações de diâmetro e deslocamento transversal entre sections. O Pen Group usa esse mesmo sistema; não mantém fundo quadrado independente.
 
 A tinta selecionada colore somente os acentos dentro dos pictogramas das canetas e as amostras reais da paleta. Bordas de seleção do radial e do painel usam a cor de destaque do tema; a linha do controle de espessura é neutra. Teste JVM incluído para as dimensões proporcionais de destaque; build debug e testes verdes. QA manual de transição entre elementos de 28dp/70dp no Redmi Pad 2 pendente.
+
+## Checkpoint — distribuição e editor de camadas (04/11/2026)
+
+- `ToolbarLayout.distribution` agora alterna entre **CONTINUOUS** (uma lista de sections) e **REGIONS** (Start/Center/End); cada section tem região própria e conserva suas 1–3 linhas. Persistência JSON v6 lê layouts anteriores como CONTINUOUS/START.
+- Editor Elementos em tela dedicada: controles acima, preview centralizado imediatamente antes das colunas. Cada seção tem alça de arraste, menu de 1/2/3 linhas e remoção; ferramentas aparecem como linhas/camadas com visibilidade, remoção, alça e botão de adicionar. Colunas vazias oferecem `Add section` e sections têm catálogo com busca (`id` e nomes, inclusive Colors/Colours).
+- Sections inteiras podem ser arrastadas entre colunas ou reordenadas, incluindo coluna vazia. Itens podem ser movidos entre sections e linhas. Ferramentas comuns não são duplicadas; Colors permite múltiplas ocorrências com recalculo proporcional dos blocos.
+- A distribuição é reutilizada pelo renderer das notas, canvas e preview. Quando a largura/altura é pequena, o conteúdo rola sem sobrepor as regiões; cálculo de posições testado em JVM.
+- Menus existentes de notas e canvas receberam atalho **Configure toolbars**, que abre o editor dedicado (sem edição in-note).
+- `git diff --check` + `:app:testDebugUnitTest :app:assembleDebug --offline` concluíram com BUILD SUCCESSFUL. APK `com.xnotes.toolbarsdebug` instalado em `emulator-5554` com Success. QA visual da tela de colunas e preview executado no Small_Tablet: criar uma section de duas linhas no Center, arrastar uma section Start→Center e mover Undo entre sections funcionaram.
+- **Pendente**: Redmi Pad 2 ausente do ADB; validar com Xiaomi Smart Pen, gestos nas laterais, xcanvas real, rotação, persistência após reiniciar, overflow em largura reduzida e retorno do atalho in-note. Sem PR ou push nesta sessão até aqui.
+
+### Próxima ação
+
+1. Conectar Redmi Pad 2 via ADB e instalar apenas `com.xnotes.toolbarsdebug`.
+2. Validar os arrastes de ferramenta/section e alinhamentos Start/Center/End na barra real (topo, base e laterais), depois em xcanvas.
+3. Testar persistência/recuperação de barras e sections após reiniciar, além de janelas pequenas/split; registrar divergências entre preview e runtime.
