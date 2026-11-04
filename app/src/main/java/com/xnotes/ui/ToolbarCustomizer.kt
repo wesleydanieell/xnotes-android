@@ -73,7 +73,6 @@ fun ToolbarCustomizerBody(
     dragItem: Pair<Int, Int>?,
     dropTarget: Triple<Int, Int, Int>?,
     dragRegionTarget: ToolbarRegion?,
-    groupDropTarget: Pair<Int, Int>?,
     dragSection: Int?,
     sectionDropTarget: ToolbarSectionTarget?,
     chipBounds: MutableMap<Pair<Int, Int>, Rect>,
@@ -82,7 +81,6 @@ fun ToolbarCustomizerBody(
     sectionGrabBounds: MutableMap<Int, Rect>,
     regionBounds: MutableMap<ToolbarRegion, Rect>,
     onToggle: (Int, Int) -> Unit,
-    onSelectItem: (Int, Int) -> Unit,
     onRemoveItem: (Int, Int) -> Unit,
     onAddItem: (Int, Int, ToolbarItem) -> Unit,
     onLanesChange: (Int, Int) -> Unit,
@@ -186,13 +184,10 @@ fun ToolbarCustomizerBody(
                                 if (dragging && dropTarget == Triple(sec, lane, idx)) InsertionCaret()
                                 ChipCell(
                                     item = entry.item,
-                                    group = entry.group,
                                     visible = entry.visible,
                                     layerStyle = true,
                                     dragging = dragItem == (sec to idx),
-                                    groupHighlighted = groupDropTarget == (sec to idx),
                                     onTap = { onToggle(sec, idx) },
-                                    onEdit = { onSelectItem(sec, idx) },
                                     onRemove = { onRemoveItem(sec, idx) },
                                     onDragStart = { local -> onDragStart(sec, idx, local) },
                                     onDrag = onDrag,
@@ -204,7 +199,7 @@ fun ToolbarCustomizerBody(
                             if (dragging && dropTarget == Triple(sec, lane, cells.lastOrNull()?.index?.plus(1) ?: section.entries.size)) InsertionCaret()
                             AddItemPicker(
                                 items = availableItems.filter { item ->
-                                    item == ToolbarItem.COLORS || item == ToolbarItem.SPACER || item == ToolbarItem.TOOL_GROUP || layout.sections.none { sec ->
+                                    item == ToolbarItem.COLORS || item == ToolbarItem.SPACER || layout.sections.none { sec ->
                                         sec.entries.any { it.item == item && it.visible }
                                     }
                                 },
@@ -480,13 +475,10 @@ private fun SectionDragStrip(
 @Composable
 private fun ChipCell(
     item: ToolbarItem,
-    group: com.xnotes.core.tools.ToolbarGroupConfig?,
     visible: Boolean,
     dragging: Boolean,
-    groupHighlighted: Boolean = false,
     layerStyle: Boolean = false,
     onTap: () -> Unit,
-    onEdit: () -> Unit,
     onRemove: () -> Unit,
     onDragStart: (Offset) -> Unit,
     onDrag: (Offset) -> Unit,
@@ -514,18 +506,8 @@ private fun ChipCell(
                 )
             }
     if (layerStyle) {
-        Row(
-            Modifier.fillMaxWidth().then(if (groupHighlighted)
-                Modifier.border(2.dp, LocalPalette.current.accent.toComposeColor(), RoundedCornerShape(6.dp))
-            else Modifier),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            LayerFace(item, visible, faceModifier.weight(1f), group)
-            if (item == ToolbarItem.TOOL_GROUP) {
-                IconButton(onClick = onEdit, modifier = Modifier.size(30.dp)) {
-                    Icon(XnotesIcons.sliders, "Editar grupo", modifier = Modifier.size(15.dp))
-                }
-            }
+        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+            LayerFace(item, visible, faceModifier.weight(1f))
             IconButton(onClick = onRemove, modifier = Modifier.size(30.dp)) {
                 Icon(XnotesIcons.close, stringResource(R.string.remove), modifier = Modifier.size(14.dp))
             }
@@ -555,7 +537,7 @@ private fun ChipFace(item: ToolbarItem, visible: Boolean, modifier: Modifier = M
 
 /** Compact layer row. Tap toggles visibility; hold the grip/row to reorder. */
 @Composable
-private fun LayerFace(item: ToolbarItem, visible: Boolean, modifier: Modifier, group: com.xnotes.core.tools.ToolbarGroupConfig? = null) {
+private fun LayerFace(item: ToolbarItem, visible: Boolean, modifier: Modifier) {
     val palette = LocalPalette.current
     Row(
         modifier
@@ -569,18 +551,13 @@ private fun LayerFace(item: ToolbarItem, visible: Boolean, modifier: Modifier, g
     ) {
         Icon(XnotesIcons.menu, null, tint = palette.textDim.toComposeColor(), modifier = Modifier.size(14.dp))
         Icon(itemIcon(item), null, tint = (if (visible) palette.text else palette.textDim).toComposeColor(), modifier = Modifier.size(16.dp))
-        Column(Modifier.weight(1f)) {
-            Text(
-                group?.name ?: stringResource(item.labelRes),
-                color = (if (visible) palette.text else palette.textDim).toComposeColor(),
-                fontSize = 12.sp,
-                maxLines = 1,
-            )
-            if (group != null) Text(
-                "${group.tools.size} · ${if (group.display == com.xnotes.core.tools.ToolbarGroupDisplay.COMPACT) "Compacto" else "Expandido"}",
-                color = palette.textDim.toComposeColor(), fontSize = 10.sp,
-            )
-        }
+        Text(
+            stringResource(item.labelRes),
+            color = (if (visible) palette.text else palette.textDim).toComposeColor(),
+            fontSize = 12.sp,
+            maxLines = 1,
+            modifier = Modifier.weight(1f),
+        )
         Icon(XnotesIcons.view, null, tint = (if (visible) palette.accent else palette.textDim).toComposeColor(), modifier = Modifier.size(14.dp))
     }
 }
@@ -752,7 +729,6 @@ internal fun itemIcon(item: ToolbarItem): ImageVector = when (item) {
     ToolbarItem.TAPER -> ImageVector.vectorResource(R.drawable.ic_stroke_taper)
     ToolbarItem.HIGHLIGHTER -> ImageVector.vectorResource(R.drawable.ic_stroke_highlighter)
     ToolbarItem.UNIFIED_PEN -> ImageVector.vectorResource(R.drawable.ic_stroke_regular)
-    ToolbarItem.TOOL_GROUP -> XnotesIcons.menu
     ToolbarItem.ERASER -> XnotesIcons.eraser
     ToolbarItem.PAN -> XnotesIcons.pan
     ToolbarItem.SELECT -> XnotesIcons.select

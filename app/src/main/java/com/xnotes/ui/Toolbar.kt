@@ -209,17 +209,6 @@ private fun ToolbarItemView(
         ToolbarItem.SIDEBAR ->
             ToolbarIcon(XnotesIcons.sidebar, stringResource(R.string.side_panel), active = editor.sidebarVisible, shortcut = Keys.SIDEBAR) { editor.toggleSidebar() }
 
-        ToolbarItem.TOOL_GROUP -> CustomToolGroup(
-            config = entry.group,
-            armedTool = editor.tool,
-            onChooseTool = { tool ->
-                val configurable = tool.isStroke || tool == Tool.SHAPE || tool == Tool.ERASER ||
-                    tool == Tool.SELECT || tool == Tool.TEXT || tool == Tool.TAPE
-                if (editor.tool == tool && configurable) setConfigForTool(tool)
-                else { editor.selectTool(tool); setConfigForTool(null) }
-            },
-        )
-
         ToolbarItem.UNIFIED_PEN -> UnifiedPenLauncher(
             host = editor,
             armedTool = editor.tool,

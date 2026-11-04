@@ -128,9 +128,6 @@ private fun estimatedFloatingLength(bar: ToolbarBar, index: Int, look: ToolbarLo
                         entry.colorIndices(colors).count().coerceAtLeast(1) * m.circle.value
                     com.xnotes.core.tools.ToolbarItem.PAGE_NAV,
                     com.xnotes.core.tools.ToolbarItem.ZOOM -> 3f * unit
-                    com.xnotes.core.tools.ToolbarItem.TOOL_GROUP ->
-                        if (entry.group?.display == com.xnotes.core.tools.ToolbarGroupDisplay.EXPANDED)
-                            unit * (entry.group.tools.size.coerceAtLeast(1)) else unit
                     com.xnotes.core.tools.ToolbarItem.TITLE -> if (vertical) 0f else 120f
                     else -> unit
                 }.toDouble()

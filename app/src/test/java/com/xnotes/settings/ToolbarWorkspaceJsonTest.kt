@@ -24,23 +24,6 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class ToolbarWorkspaceJsonTest {
-    @Test fun customGroupsPersistModesAndMembersWithoutAlteringLegacyBars() {
-        val layout = ToolbarLayout(listOf(ToolbarSection(emptyList())))
-            .addItem(0, 0, ToolbarItem.TOOL_GROUP)
-            .addItem(0, 0, ToolbarItem.TOOL_GROUP)
-            .updateGroup(0, 0) { it.copy(
-                tools = listOf(ToolbarItem.ERASER, ToolbarItem.SHAPE, ToolbarItem.PEN),
-                name = "Ferramentas favoritas",
-                display = com.xnotes.core.tools.ToolbarGroupDisplay.EXPANDED,
-            ) }
-        val profiles = ToolbarWorkspaces.fromLegacy(layout, ToolbarLayout.CANVAS_DEFAULT)
-        val json = ToolbarWorkspaceJson.write(profiles)
-        assertEquals(layout, ToolbarWorkspaceJson.read(json)!!.note.bars.single().layout)
-        assertEquals(2, json.getJSONObject("note").getJSONArray("bars").getJSONObject(0)
-            .getJSONArray("sections").getJSONObject(0).getJSONArray("entries").length())
-        assertEquals(ToolbarLayout.CANVAS_DEFAULT, ToolbarWorkspaceJson.read(json)!!.canvas.bars.single().layout)
-    }
-
     private fun compactLayout(vararg items: ToolbarItem): ToolbarLayout =
         ToolbarLayout(listOf(ToolbarSection(items.map { ToolbarEntry(it) })))
 
@@ -112,7 +95,7 @@ class ToolbarWorkspaceJsonTest {
             .setSectionLanes(0, 2).moveItem(0, 2, 0, 3, toLane = 1)
         val profiles = ToolbarWorkspaces.fromLegacy(group, ToolbarLayout.CANVAS_DEFAULT)
         val json = ToolbarWorkspaceJson.write(profiles)
-        assertEquals(7, json.getInt("version"))
+        assertEquals(6, json.getInt("version"))
         assertEquals(group, ToolbarWorkspaceJson.read(json)!!.note.bars.single().layout)
 
         // Legacy v1 section arrays have no section metadata.
