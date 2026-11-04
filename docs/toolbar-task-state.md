@@ -353,9 +353,16 @@ A tinta selecionada colore somente os acentos dentro dos pictogramas das canetas
 ## Correções — regiões e hierarquia do editor (04/11/2026)
 
 - Corrigida a faixa de regiões no renderer compartilhado: Start, Center e End têm visores próprios, alinhados fisicamente nas quatro orientações. Overflow de uma região rola localmente, sem deslocar as outras. O cálculo legado de largura expandida foi removido.
-- Ao converter uma barra contínua antiga, ainda totalmente marcada Start, para três regiões, sections são distribuídas em grupos contíguos com carga de ferramentas visíveis equilibrada. Sections não são quebradas, e as regiões atribuídas depois persistem nas trocas de modo. Testes JVM adicionados para agrupamento e round-trip.
+- **Comportamento revogado no ajuste posterior abaixo:** a conversão automática dividia as sections de barras antigas em três regiões e alterava o layout padrão, motivo da regressão relatada pelo usuário.
 - As abas `Barras / Dimensões / Elementos / Cores` **continuam acima do preview**, conforme correção do usuário. No editor de elementos, controles de tamanho, modo de distribuição e Pen Group ficam abaixo da prévia, junto das colunas de sections; textos redundantes foram removidos.
 - `git diff --check`, `:app:testDebugUnitTest :app:assembleDebug --offline` passaram (`BUILD SUCCESSFUL`); debug instalado em `emulator-5554`. QA funcional completo das faixas na barra real, retrato/paisagem e Redmi Pad 2 continua pendente.
+
+## Correção de regressão — alternância de distribuição (04/11/2026)
+
+- Revisão do usuário identificou que a distribuição automática anterior alterava a main toolbar. **Ela foi removida**: `setDistribution` agora troca somente o modo, sem ordenar, mover ou alterar sections/itens/linhas/tamanhos. Início/Centro/Fim só mudam ao arrastar uma section explicitamente.
+- O layout padrão de `ToolbarLayout.DEFAULT` se mantém idêntico ao alternar Contínuo → Regiões → Contínuo. Testes adicionados para preservação da ordem mesmo com regiões intercaladas.
+- Para configurações **já salvas** pela versão problemática, a tela Elementos mostra a ação contextual `Reunir sections no início` quando há itens em Centro/Fim. Ela reagrupa as sections sem apagar ferramentas, tamanho individual ou linhas; só deve ser usada se o usuário desejar limpar os alinhamentos anteriores.
+- `git diff --check` + `:app:testDebugUnitTest :app:assembleDebug --offline` passaram, `BUILD SUCCESSFUL`; APK reinstalado no `emulator-5554` com `Success`. Falta QA manual no tablet, incluindo barras vertical e principal com regiões definidas pelo usuário.
 
 ### Próxima ação
 

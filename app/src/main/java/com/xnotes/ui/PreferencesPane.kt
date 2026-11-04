@@ -1132,6 +1132,13 @@ fun PreferencesPane(
                     applyEdited(editedLayout().setDistribution(ToolbarDistribution.REGIONS))
                 }
             }
+            if (layout.distribution == ToolbarDistribution.REGIONS &&
+                layout.sections.any { it.region != ToolbarRegion.START }) {
+                TextButton(onClick = {
+                    selectedEntry = null
+                    applyEdited(editedLayout().gatherSectionsAtStart())
+                }) { Text("Reunir sections no início", fontSize = 12.sp) }
+            }
             val unifiedPenEnabled = layout.sections.any { section ->
                 section.entries.any { entry -> entry.item == ToolbarItem.UNIFIED_PEN && entry.visible }
             }

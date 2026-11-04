@@ -112,49 +112,15 @@ data class ToolbarLayout(
     fun addSection(lanes: Int = 1, region: ToolbarRegion = ToolbarRegion.START): ToolbarLayout =
         if (lanes !in 1..3) this else copy(sections = sections + ToolbarSection(emptyList(), lanes, region))
 
-    /** Keep user-defined regions when toggling modes. On the very first switch to Regions,
-     * legacy/continuous layouts have every section tagged START; split them into three
-     * balanced, contiguous groups so the main bar doesn't collapse into Start alone. */
-    fun setDistribution(mode: ToolbarDistribution): ToolbarLayout {
-        if (mode == distribution) return this
-        val ordered = sections.sortedBy { it.region.ordinal }
-        val next = if (mode == ToolbarDistribution.REGIONS && ordered.size >= 3 &&
-            ordered.all { it.region == ToolbarRegion.START }) initialRegions(ordered) else ordered
-        return copy(distribution = mode, sections = next)
-    }
+    /** Switching the display mode must never silently move, split or reorder sections.
+     * Start/Center/End placement is edited explicitly by moving a section in the editor. */
+    fun setDistribution(mode: ToolbarDistribution): ToolbarLayout =
+        if (mode == distribution) this else copy(distribution = mode)
 
-    private fun initialRegions(ordered: List<ToolbarSection>): List<ToolbarSection> {
-        // A section cannot be split. Balance by visible element count, not raw section count;
-        // a section of eight pen variants takes much more bar space than a single button.
-        val weights = ordered.map { it.visibleEntries.size.coerceAtLeast(1) }
-        val total = weights.sum()
-        var bestStartEnd = 1
-        var bestCenterEnd = 2
-        var bestCost = Long.MAX_VALUE
-        for (startEnd in 1 until ordered.lastIndex) {
-            for (centerEnd in startEnd + 1..ordered.lastIndex) {
-                val first = weights.take(startEnd).sum()
-                val middle = weights.subList(startEnd, centerEnd).sum()
-                val last = total - first - middle
-                val cost = listOf(first, middle, last).sumOf { value ->
-                    val deviation = 3L * value - total
-                    deviation * deviation
-                }
-                if (cost < bestCost) {
-                    bestCost = cost
-                    bestStartEnd = startEnd
-                    bestCenterEnd = centerEnd
-                }
-            }
-        }
-        return ordered.mapIndexed { index, section ->
-            section.copy(region = when {
-                index < bestStartEnd -> ToolbarRegion.START
-                index < bestCenterEnd -> ToolbarRegion.CENTER
-                else -> ToolbarRegion.END
-            })
-        }
-    }
+    /** Repair a previously auto-distributed layout without discarding tool settings or lanes. */
+    fun gatherSectionsAtStart(): ToolbarLayout =
+        if (sections.all { it.region == ToolbarRegion.START }) this
+        else copy(sections = sections.map { it.copy(region = ToolbarRegion.START) })
 
     fun setSectionRegion(sectionIndex: Int, region: ToolbarRegion): ToolbarLayout =
         if (distribution == ToolbarDistribution.REGIONS) moveSectionToRegion(sectionIndex, region)
