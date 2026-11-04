@@ -789,6 +789,34 @@ fun PreferencesPane(
                                     applyEdited(editedLayout().setEntrySize(entryPosition.first, entryPosition.second, size))
                                 },
                             )
+                            if (activeEntry.item == ToolbarItem.TOOL_GROUP && activeEntry.group != null) {
+                                val groupIndex = entryPosition.first to entryPosition.second
+                                val others = layout.sections.flatMapIndexed { section, sec ->
+                                    sec.entries.mapIndexedNotNull { index, entry ->
+                                        val group = entry.group ?: return@mapIndexedNotNull null
+                                        if (section to index == groupIndex) null else GroupTarget(section, index, group.id, group.name)
+                                    }
+                                }
+                                ToolbarGroupEditor(
+                                    config = activeEntry.group,
+                                    allowed = if (canvasTab) ToolbarLayout.CANVAS_ITEMS else ToolbarLayout.NOTE_ITEMS,
+                                    otherGroups = others,
+                                    onUpdate = { next ->
+                                        applyEdited(editedLayout().updateGroup(groupIndex.first, groupIndex.second) { next })
+                                    },
+                                    onReorder = { from, to ->
+                                        applyEdited(editedLayout().moveGroupTool(groupIndex.first, groupIndex.second, from, to))
+                                    },
+                                    onExtract = { index ->
+                                        applyEdited(editedLayout().extractGroupTool(groupIndex.first, groupIndex.second, index))
+                                    },
+                                    onTransfer = { index, target ->
+                                        applyEdited(editedLayout().transferGroupTool(
+                                            groupIndex.first, groupIndex.second, index, target.section, target.entry,
+                                        ))
+                                    },
+                                )
+                            }
                         }
                     } else {
                         Text("Propriedades · ${currentBar.name}", style = MaterialTheme.typography.titleSmall)
@@ -1160,10 +1188,14 @@ fun PreferencesPane(
             }
             ToolbarCustomizerBody(
                 layout = layout,
-                availableItems = if (canvasTab) ToolbarLayout.CANVAS_ITEMS else ToolbarLayout.NOTE_ITEMS,
+                availableItems = (if (canvasTab) ToolbarLayout.CANVAS_ITEMS else ToolbarLayout.NOTE_ITEMS) + ToolbarItem.TOOL_GROUP,
                 dragItem = dragItem,
                 dropTarget = dropTarget,
                 dragRegionTarget = dragRegionTarget,
+                groupDropTarget = if (dragItem != null) chipBounds.entries.firstOrNull { (position, bounds) ->
+                    bounds.contains(dragFinger) &&
+                        layout.sections.getOrNull(position.first)?.entries?.getOrNull(position.second)?.item == ToolbarItem.TOOL_GROUP
+                }?.key else null,
                 dragSection = dragSection,
                 sectionDropTarget = sectionDropTarget,
                 chipBounds = chipBounds,
@@ -1172,11 +1204,19 @@ fun PreferencesPane(
                 sectionGrabBounds = sectionGrabBounds,
                 regionBounds = regionBounds,
                 onToggle = { s, i -> applyEdited(editedLayout().toggleVisible(s, i)) },
+                onSelectItem = { s, i -> selectedEntry = s to i; toolbarPropertyTab = ToolbarPropertyTab.ELEMENTS },
                 onRemoveItem = { s, i ->
                     applyEdited(editedLayout().removeItem(s, i))
                     selectedEntry = null
                 },
-                onAddItem = { s, lane, item -> applyEdited(editedLayout().addItem(s, lane, item)) },
+                onAddItem = { s, lane, item ->
+                    val updated = editedLayout().addItem(s, lane, item)
+                    applyEdited(updated)
+                    if (item == ToolbarItem.TOOL_GROUP) {
+                        selectedEntry = s to updated.sections[s].entries.lastIndex
+                        toolbarPropertyTab = ToolbarPropertyTab.ELEMENTS
+                    }
+                },
                 onLanesChange = { s, lanes -> applyEdited(editedLayout().setSectionLanes(s, lanes)) },
                 onRegionChange = { s, region -> applyEdited(editedLayout().setSectionRegion(s, region)) },
                 onDelete = { s -> applyEdited(editedLayout().removeSection(s)) },
@@ -1195,7 +1235,14 @@ fun PreferencesPane(
                     val moving = dragItem
                     if (moving != null) {
                         val current = editedLayout()
+                        val hoveredGroup = chipBounds.entries.firstOrNull { (position, bounds) ->
+                            bounds.contains(dragFinger) &&
+                                current.sections.getOrNull(position.first)?.entries?.getOrNull(position.second)?.item == ToolbarItem.TOOL_GROUP
+                        }?.key
                         val next = when {
+                            hoveredGroup != null -> current.moveItemIntoGroup(
+                                moving.first, moving.second, hoveredGroup.first, hoveredGroup.second,
+                            )
                             target != null -> current.moveItem(moving.first, moving.second,
                                 target.first, target.third, target.second)
                             region != null -> current.moveItemToNewRegionSection(moving.first, moving.second, region)

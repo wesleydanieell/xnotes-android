@@ -45,6 +45,7 @@
     <string name="toolbar_colours">Colours</string>
     <string name="toolbar_spacer">Spacer</string>
     <string name="toolbar_unified_pen">Pen group</string>
+    <string name="toolbar_tool_group">Tool group</string>
     <string name="toolbar_pen_advanced_settings">Advanced pen settings</string>
     <string name="toolbar_waypoints">Waypoints</string>
     <string name="toolbar_minimap">Minimap</string>

@@ -21,6 +21,8 @@ enum class ToolbarItem(val id: String) {
     HIGHLIGHTER("highlighter"),
     /** Optional group launcher. It is hidden by default so individual pens remain available. */
     UNIFIED_PEN("unified_pen"),
+    /** Custom shortcut group; the concrete tools live on its ToolbarEntry. */
+    TOOL_GROUP("tool_group"),
     ERASER("eraser"),
     PAN("pan"),
     SELECT("select"),
@@ -61,6 +63,35 @@ enum class ToolbarItem(val id: String) {
     }
 }
 
+enum class ToolbarGroupDisplay { COMPACT, EXPANDED }
+
+/** A group is a single movable layout node, even in expanded presentation. */
+data class ToolbarGroupConfig(
+    val id: String,
+    val tools: List<ToolbarItem>,
+    val display: ToolbarGroupDisplay = ToolbarGroupDisplay.COMPACT,
+    val name: String = "Grupo de ferramentas",
+) {
+    fun valid(allowed: Set<ToolbarItem> = GROUPABLE_TOOLS): ToolbarGroupConfig? {
+        if (id.isBlank() || id.length > 64) return null
+        val safe = tools.distinct().filter { it in allowed }.take(16)
+        return takeIf { safe.isNotEmpty() }?.copy(
+            tools = safe,
+            name = name.take(40).ifBlank { "Grupo de ferramentas" },
+        )
+    }
+
+    companion object {
+        val GROUPABLE_TOOLS: Set<ToolbarItem> = setOf(
+            ToolbarItem.PEN, ToolbarItem.DASHED, ToolbarItem.CALLIGRAPHY,
+            ToolbarItem.SPEED, ToolbarItem.TAPER, ToolbarItem.HIGHLIGHTER,
+            ToolbarItem.ERASER, ToolbarItem.PAN, ToolbarItem.SELECT, ToolbarItem.LASSO,
+            ToolbarItem.SHAPE, ToolbarItem.TAPE, ToolbarItem.TEXT, ToolbarItem.TEXT_BOX,
+            ToolbarItem.SCREENSHOT,
+        )
+    }
+}
+
 /** A movable occurrence. Each Colors block owns a fraction of the CURRENT enabled palette.
  * Fractions survive changes to the number of swatches without leaving gaps or stale indices. */
 data class ToolbarEntry(
@@ -71,6 +102,7 @@ data class ToolbarEntry(
     val colorParts: Int = 1,
     /** Optional visual size for this occurrence; null inherits the toolbar's preset. */
     val sizeDp: Int? = null,
+    val group: ToolbarGroupConfig? = null,
 ) {
     fun colorIndices(total: Int): IntRange {
         val safeTotal = total.coerceAtLeast(0)
@@ -157,7 +189,7 @@ data class ToolbarLayout(
         val destination = sections.getOrNull(sectionIndex) ?: return this
         if (item == ToolbarItem.COLORS && colorBlockCount >= InkPalette.MAX_SWATCHES) return this
         val entries = sections.map { it.entries.toMutableList() }
-        if (item != ToolbarItem.COLORS && item != ToolbarItem.SPACER) {
+        if (item != ToolbarItem.COLORS && item != ToolbarItem.SPACER && item != ToolbarItem.TOOL_GROUP) {
             val existing = sections.withIndex().firstNotNullOfOrNull { (si, section) ->
                 section.entries.indexOfFirst { it.item == item }.takeIf { it >= 0 }?.let { si to it }
             }
@@ -166,9 +198,62 @@ data class ToolbarLayout(
                 entries[existing.first].removeAt(existing.second)
             }
         }
-        entries[sectionIndex].add(ToolbarEntry(item, lane = lane.coerceIn(0, destination.lanes - 1)))
+        val nextGroup = if (item == ToolbarItem.TOOL_GROUP) {
+            val existing = sections.flatMap { it.entries }.mapNotNull { it.group?.id }.toSet()
+            val id = generateSequence(1) { it + 1 }.map { "group-$it" }.first { it !in existing }
+            ToolbarGroupConfig(id, listOf(ToolbarItem.PEN, ToolbarItem.ERASER))
+        } else null
+        entries[sectionIndex].add(ToolbarEntry(item, lane = lane.coerceIn(0, destination.lanes - 1), group = nextGroup))
         return copy(sections = sections.mapIndexed { index, sec -> sec.copy(entries = entries[index]) })
             .repartitionColors()
+    }
+
+    /** Update an individual group without changing its section or the surrounding layers. */
+    fun updateGroup(sectionIndex: Int, entryIndex: Int, change: (ToolbarGroupConfig) -> ToolbarGroupConfig): ToolbarLayout {
+        val section = sections.getOrNull(sectionIndex) ?: return this
+        val entry = section.entries.getOrNull(entryIndex) ?: return this
+        if (entry.item != ToolbarItem.TOOL_GROUP) return this
+        val next = entry.group?.let(change)?.valid() ?: return this
+        val updated = section.entries.toMutableList()
+        updated[entryIndex] = entry.copy(group = next)
+        return copy(sections = sections.toMutableList().also { it[sectionIndex] = section.copy(entries = updated) })
+    }
+
+    /** A normal tool can be absorbed into a group; it is removed from its old layer. */
+    fun moveItemIntoGroup(fromSection: Int, fromEntry: Int, groupSection: Int, groupEntry: Int): ToolbarLayout {
+        val item = sections.getOrNull(fromSection)?.entries?.getOrNull(fromEntry) ?: return this
+        if (item.item !in ToolbarGroupConfig.GROUPABLE_TOOLS) return this
+        val group = sections.getOrNull(groupSection)?.entries?.getOrNull(groupEntry)?.group ?: return this
+        if (item.item in group.tools || group.tools.size >= 16) return this
+        val without = removeItem(fromSection, fromEntry)
+        val adjusted = if (fromSection == groupSection && fromEntry < groupEntry) groupEntry - 1 else groupEntry
+        return without.updateGroup(groupSection, adjusted) { it.copy(tools = it.tools + item.item) }
+    }
+
+    fun moveGroupTool(sectionIndex: Int, entryIndex: Int, from: Int, to: Int): ToolbarLayout =
+        updateGroup(sectionIndex, entryIndex) { group ->
+            if (from !in group.tools.indices || to !in group.tools.indices) group
+            else group.copy(tools = group.tools.toMutableList().also { it.add(to, it.removeAt(from)) })
+        }
+
+    /** Dragging one member between groups never leaves an unusable empty launcher. */
+    fun transferGroupTool(fromSection: Int, fromEntry: Int, toolIndex: Int, toSection: Int, toEntry: Int): ToolbarLayout {
+        if (fromSection == toSection && fromEntry == toEntry) return this
+        val source = sections.getOrNull(fromSection)?.entries?.getOrNull(fromEntry)?.group ?: return this
+        val tool = source.tools.getOrNull(toolIndex) ?: return this
+        val destination = sections.getOrNull(toSection)?.entries?.getOrNull(toEntry)?.group ?: return this
+        if (source.tools.size <= 1 || tool in destination.tools || destination.tools.size >= 16) return this
+        return updateGroup(fromSection, fromEntry) { it.copy(tools = it.tools - tool) }
+            .updateGroup(toSection, toEntry) { it.copy(tools = it.tools + tool) }
+    }
+
+    fun extractGroupTool(sectionIndex: Int, entryIndex: Int, toolIndex: Int): ToolbarLayout {
+        val section = sections.getOrNull(sectionIndex) ?: return this
+        val group = section.entries.getOrNull(entryIndex)?.group ?: return this
+        val tool = group.tools.getOrNull(toolIndex) ?: return this
+        if (group.tools.size <= 1) return this
+        val updated = updateGroup(sectionIndex, entryIndex) { it.copy(tools = it.tools - tool) }
+        return updated.addItem(sectionIndex, section.entries[entryIndex].lane, tool)
     }
 
     fun removeItem(sectionIndex: Int, entryIndex: Int): ToolbarLayout {
@@ -374,7 +459,7 @@ data class ToolbarLayout(
     fun withMissingItemsAppended(among: Set<ToolbarItem> = NOTE_ITEMS): ToolbarLayout {
         var layout = this
         for (item in ToolbarItem.entries) {
-            if (item !in among || item == ToolbarItem.SPACER) continue
+            if (item !in among || item == ToolbarItem.SPACER || item == ToolbarItem.TOOL_GROUP) continue
             if (layout.sections.any { s -> s.entries.any { it.item == item } }) continue
             layout = layout.insertMissing(item)
         }
@@ -429,7 +514,7 @@ data class ToolbarLayout(
 
         /** Everything the paged bar can hold: the whole enum bar the two canvas-only additions. */
         val NOTE_ITEMS: Set<ToolbarItem> =
-            ToolbarItem.entries.toSet() - setOf(ToolbarItem.WAYPOINTS, ToolbarItem.MINIMAP)
+            ToolbarItem.entries.toSet() - setOf(ToolbarItem.WAYPOINTS, ToolbarItem.MINIMAP, ToolbarItem.TOOL_GROUP)
 
         /** Mirrors the hardcoded bar exactly (see Toolbar.kt) so existing users see no change. */
         val DEFAULT: ToolbarLayout = of(
@@ -486,7 +571,7 @@ data class ToolbarLayout(
                     raw.mapNotNull { (id, visible) ->
                         val item = ToolbarItem.fromId(id) ?: return@mapNotNull null
                         if (item !in among) return@mapNotNull null
-                        if (item != ToolbarItem.SPACER && !seen.add(item)) return@mapNotNull null
+                        if (item != ToolbarItem.SPACER && item != ToolbarItem.TOOL_GROUP && !seen.add(item)) return@mapNotNull null
                         ToolbarEntry(item, visible)
                     },
                 )

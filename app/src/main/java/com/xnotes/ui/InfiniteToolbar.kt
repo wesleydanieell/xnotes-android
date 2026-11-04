@@ -93,6 +93,20 @@ fun InfiniteToolbar(
                 when (val item = entry.item) {
                     ToolbarItem.SPACER -> ToolbarSpacer(entry)
                     ToolbarItem.HOME -> ToolbarIcon(XnotesIcons.prev, stringResource(R.string.toolbar_home)) { onOpenBackstage() }
+                    ToolbarItem.TOOL_GROUP -> CustomToolGroup(
+                        config = entry.group,
+                        armedTool = editor.tool,
+                        onChooseTool = { tool ->
+                            when {
+                                tool == Tool.ERASER && editor.tool == tool -> eraserOpen = true
+                                tool == Tool.SHAPE && editor.tool == tool -> shapeOpen = true
+                                tool == Tool.SELECT && editor.tool == tool -> selectOpen = true
+                                tool == Tool.TAPE && editor.tool == tool -> tapeOpen = true
+                                tool.isStroke && editor.tool == tool -> penOpen = tool
+                                else -> editor.armTool(tool)
+                            }
+                        },
+                    )
                     ToolbarItem.UNIFIED_PEN -> UnifiedPenLauncher(
                         host = editor,
                         armedTool = editor.tool,

@@ -342,6 +342,21 @@ private fun PreviewTool(
             ToolbarItem.COLORS -> entry.colorIndices(colors.size).forEach { index ->
                 Swatch(colors[index].toComposeColor(), active = index == activeColorIndex, onClick = onSelect)
             }
+            ToolbarItem.TOOL_GROUP -> {
+                val members = entry.group?.tools.orEmpty()
+                val expanded = entry.group?.display == com.xnotes.core.tools.ToolbarGroupDisplay.EXPANDED
+                if (expanded) {
+                    val buttons: @Composable () -> Unit = {
+                        members.forEach { member ->
+                            ToolbarIcon(itemIcon(member), stringResource(member.labelRes), onClick = onSelect)
+                        }
+                    }
+                    if (vertical) Column { buttons() } else Row { buttons() }
+                } else {
+                    val member = members.firstOrNull() ?: ToolbarItem.PEN
+                    ToolbarIcon(itemIcon(member), entry.group?.name ?: "Grupo de ferramentas", onClick = onSelect)
+                }
+            }
             ToolbarItem.UNIFIED_PEN -> UnifiedPenPreview(
                 ink = colors.getOrNull(activeColorIndex)?.toComposeColor() ?: Color.Black,
                 onSelect = onSelect,

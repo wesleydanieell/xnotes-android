@@ -7,6 +7,8 @@ import com.xnotes.core.tools.ToolbarBar
 import com.xnotes.core.tools.ToolbarDistribution
 import com.xnotes.core.tools.ToolbarEntry
 import com.xnotes.core.tools.ToolbarGeometry
+import com.xnotes.core.tools.ToolbarGroupConfig
+import com.xnotes.core.tools.ToolbarGroupDisplay
 import com.xnotes.core.tools.ToolbarItem
 import com.xnotes.core.tools.ToolbarLayout
 import com.xnotes.core.tools.ToolbarScale
@@ -23,7 +25,7 @@ import org.json.JSONObject
  * correct for migrating a legacy single bar but wrong for a secondary/compact bar.
  */
 internal object ToolbarWorkspaceJson {
-    private const val VERSION = 6
+    private const val VERSION = 7
     private const val MAX_BARS = 32
     private const val MAX_SECTIONS = 32
     private const val MAX_ENTRIES = 128
@@ -62,7 +64,16 @@ internal object ToolbarWorkspaceJson {
                                 .put("lane", entry.lane)
                                 .put("color_part", entry.colorPart)
                                 .put("color_parts", entry.colorParts)
-                                .apply { entry.sizeDp?.let { put("size_dp", it) } })
+                                .apply {
+                                    entry.sizeDp?.let { put("size_dp", it) }
+                                    entry.group?.let { group ->
+                                        put("group", JSONObject()
+                                            .put("id", group.id)
+                                            .put("name", group.name)
+                                            .put("display", group.display.name)
+                                            .put("tools", JSONArray(group.tools.map { it.id })))
+                                    }
+                                })
                         }))
                 }))
         })
@@ -108,7 +119,21 @@ internal object ToolbarWorkspaceJson {
                 for (j in 0 until minOf(rawEntries.length(), MAX_ENTRIES)) {
                     val entry = rawEntries.optJSONObject(j) ?: continue
                     val item = ToolbarItem.fromId(entry.optString("id")) ?: continue
-                    if (item !in available || (item != ToolbarItem.COLORS && item != ToolbarItem.SPACER && !seen.add(item))) continue
+                    if ((item !in available && item != ToolbarItem.TOOL_GROUP) || (item != ToolbarItem.COLORS && item != ToolbarItem.SPACER && item != ToolbarItem.TOOL_GROUP && !seen.add(item))) continue
+                    val group = if (item == ToolbarItem.TOOL_GROUP) {
+                        val json = entry.optJSONObject("group") ?: continue
+                        val rawTools = json.optJSONArray("tools") ?: continue
+                        val tools = (0 until minOf(rawTools.length(), 16)).mapNotNull { index ->
+                            ToolbarItem.fromId(rawTools.optString(index))
+                        }
+                        ToolbarGroupConfig(
+                            id = json.optString("id"),
+                            name = json.optString("name", "Grupo de ferramentas"),
+                            tools = tools,
+                            display = ToolbarGroupDisplay.entries.firstOrNull { it.name == json.optString("display") }
+                                ?: ToolbarGroupDisplay.COMPACT,
+                        ).valid(available) ?: continue
+                    } else null
                     val columns = (rawSection as? JSONObject)?.optInt("grid_columns", 0) ?: 0
                     val legacyLane = if (columns in 1..3 && j >= columns) 1 else 0
                     entries.add(ToolbarEntry(
@@ -117,6 +142,7 @@ internal object ToolbarWorkspaceJson {
                         lane = entry.optInt("lane", legacyLane).coerceIn(0, 2),
                         colorPart = entry.optInt("color_part", 0).coerceIn(0, 63),
                         colorParts = entry.optInt("color_parts", 1).coerceIn(1, 64),
+                        group = group,
                         sizeDp = entry.optInt("size_dp").takeIf { entry.has("size_dp") }?.let {
                             if (item == ToolbarItem.SPACER) it.coerceIn(4, 320) else it.coerceIn(28, 72)
                         },
