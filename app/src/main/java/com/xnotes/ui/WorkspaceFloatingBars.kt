@@ -7,6 +7,8 @@ import androidx.compose.foundation.layout.BoxScope
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.runtime.Composable
@@ -96,49 +98,41 @@ fun ToolbarDragSurface(
     }
 }
 
-/** Secondary bars plus a relocated primary share exactly the same gesture and anchors. */
+/** Floating bars auto-pack along screen edges and overflow to free lanes, never covering each other. */
 @Composable
 fun BoxScope.WorkspaceFloatingBars(
     workspace: ToolbarWorkspace,
     onMoveBar: (id: String, anchor: ToolbarAnchor) -> Unit,
     primaryContent: @Composable () -> Unit,
     content: @Composable (ToolbarBar) -> Unit,
+    colorCount: Int = 5,
 ) {
     var paneBounds by remember { mutableStateOf(Rect.Zero) }
-    // This is a sibling of the Android drawing surface and its other overlays. Keep toolbars
-    // above the canvas even when their anchored containers overlap during a move.
+    val baseLook = LocalToolbarLook.current
+    val showPrimary = workspace.hasMultiDock(baseLook)
     BoxWithConstraints(Modifier.fillMaxSize().zIndex(10f).onGloballyPositioned { paneBounds = it.boundsInRoot() }) {
-        for (anchor in ToolbarAnchor.entries) {
-            val bars = workspace.bars.withIndex().filter { (index, bar) ->
-                bar.visible && bar.geometry.anchor == anchor && (index > 0 || bar.geometry.floating)
-            }
-            if (bars.isEmpty()) continue
-            Column(
-                modifier = Modifier.align(anchor.alignment()).padding(8.dp),
-                verticalArrangement = Arrangement.spacedBy(8.dp),
-                horizontalAlignment = Alignment.CenterHorizontally,
-            ) {
-                for ((index, bar) in bars) {
-                    key(bar.id) {
-                        val look = ToolbarLook(
-                            position = anchor.toolbarPosition(),
-                            size = when (bar.geometry.scale) {
-                                ToolbarScale.COMPACT -> ToolbarSize.COMPACT
-                                ToolbarScale.REGULAR -> ToolbarSize.REGULAR
-                                ToolbarScale.COMFORTABLE -> ToolbarSize.COMFORTABLE
-                            },
-                            floating = true,
-                        )
-                        ToolbarDragSurface(
-                            id = bar.id,
-                            anchor = anchor,
-                            movable = bar.geometry.movable,
-                            paneBounds = paneBounds,
-                            onMoveBar = onMoveBar,
-                        ) {
-                            CompositionLocalProvider(LocalToolbarLook provides look) {
-                                if (index == 0) primaryContent() else content(bar)
-                            }
+        val plan = toolbarFloatingPlan(workspace, baseLook, maxWidth, maxHeight, colorCount)
+        for ((index, bar) in workspace.bars.withIndex()) {
+            val placement = plan.placement(bar.id) ?: continue
+            // Legacy floating primary is already rendered by ToolbarAround.
+            if (index == 0 && !bar.geometry.floating && !showPrimary) continue
+            key(bar.id) {
+                val look = ToolbarLook(
+                    position = placement.edge.toolbarPosition(),
+                    size = toolbarBarSize(bar, index, baseLook),
+                    floating = true,
+                )
+                Box(Modifier.offset(x = placement.x.dp, y = placement.y.dp)
+                    .width(placement.width.dp).height(placement.height.dp)) {
+                    ToolbarDragSurface(
+                        id = bar.id,
+                        anchor = bar.geometry.anchor,
+                        movable = bar.geometry.movable,
+                        paneBounds = paneBounds,
+                        onMoveBar = onMoveBar,
+                    ) {
+                        CompositionLocalProvider(LocalToolbarLook provides look) {
+                            if (index == 0) primaryContent() else content(bar)
                         }
                     }
                 }

@@ -17,6 +17,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
@@ -101,14 +102,14 @@ internal fun ToolbarWorkspacePreview(
     val screenHeight = configuration.screenHeightDp.dp
     val screenDensity = LocalDensity.current
     var stageBounds by remember { mutableStateOf(Rect.Zero) }
-    val primary = workspace.bars.firstOrNull()?.takeIf { it.visible }
-    val docked = primary != null && !primary.geometry.floating && !look.floating
-    val dockSize = look.size
-    val dockMetrics = resolvedBarMetrics(dockSize, primary?.geometry)
-    val dockDepth = if (docked) {
-        if (look.position.vertical) toolbarWidth(dockMetrics, primary?.layout, primary?.geometry)
-        else toolbarHeight(dockMetrics, primary?.layout, primary?.geometry)
-    } else 0.dp
+    // Exactly the same screen-space dock plan as the real note and canvas.
+    val dockPlan = toolbarDockPlan(workspace, look, screenWidth, screenHeight)
+    val floatingPlan = toolbarFloatingPlan(
+        workspace, look,
+        screenWidth - dockPlan.leftInset.dp - dockPlan.rightInset.dp,
+        screenHeight - dockPlan.topInset.dp - dockPlan.bottomInset.dp,
+        colors.size,
+    )
     BoxWithConstraints(
         Modifier
             .fillMaxWidth()
@@ -127,11 +128,11 @@ internal fun ToolbarWorkspacePreview(
             LocalDensity provides Density(screenDensity.density * scale, screenDensity.fontScale),
         ) {
             Canvas(Modifier.fillMaxSize()) {
-                val depth = dockDepth.toPx()
-                val left = if (docked && look.position == ToolbarPosition.LEFT) depth else 0f
-                val top = if (docked && look.position == ToolbarPosition.TOP) depth else 0f
-                val right = if (docked && look.position == ToolbarPosition.RIGHT) depth else 0f
-                val bottom = if (docked && look.position == ToolbarPosition.BOTTOM) depth else 0f
+                drawRect(palette.panel.toComposeColor())
+                val left = dockPlan.leftInset.dp.toPx()
+                val top = dockPlan.topInset.dp.toPx()
+                val right = dockPlan.rightInset.dp.toPx()
+                val bottom = dockPlan.bottomInset.dp.toPx()
                 val paperWidth = (size.width - left - right).coerceAtLeast(0f)
                 val paperHeight = (size.height - top - bottom).coerceAtLeast(0f)
                 drawRect(
@@ -154,25 +155,17 @@ internal fun ToolbarWorkspacePreview(
             }
             workspace.bars.forEachIndexed { index, bar ->
                 if (!bar.visible) return@forEachIndexed
-                val floating = index != 0 || bar.geometry.floating || look.floating
-                val anchor = if (index == 0 && !bar.geometry.floating) when (look.position) {
-                    ToolbarPosition.TOP -> ToolbarAnchor.TOP_CENTER
-                    ToolbarPosition.BOTTOM -> ToolbarAnchor.BOTTOM_CENTER
-                    ToolbarPosition.LEFT -> ToolbarAnchor.CENTER_LEFT
-                    ToolbarPosition.RIGHT -> ToolbarAnchor.CENTER_RIGHT
-                } else bar.geometry.anchor
-                val vertical = anchor == ToolbarAnchor.CENTER_LEFT || anchor == ToolbarAnchor.CENTER_RIGHT
-                Box(
-                    Modifier
-                        .align(anchor.alignment())
-                        .padding(if (floating) 8.dp else 0.dp)
-                        .then(
-                            if (!floating && vertical) Modifier.fillMaxHeight()
-                            else if (!floating) Modifier.fillMaxWidth()
-                            else Modifier,
-                        ),
-                    contentAlignment = Alignment.Center,
-                ) {
+                val dockPlacement = dockPlan.placement(bar.id)
+                val floating = dockPlacement == null
+                val placement = dockPlacement ?: floatingPlan.placement(bar.id) ?: return@forEachIndexed
+                val anchor = bar.geometry.anchor
+                val vertical = placement.edge == com.xnotes.core.tools.ToolbarDockEdge.LEFT ||
+                    placement.edge == com.xnotes.core.tools.ToolbarDockEdge.RIGHT
+                val x = placement.x + if (floating) dockPlan.leftInset else 0f
+                val y = placement.y + if (floating) dockPlan.topInset else 0f
+                val positionModifier = Modifier.offset(x = x.dp, y = y.dp)
+                    .width(placement.width.dp).height(placement.height.dp)
+                Box(positionModifier, contentAlignment = Alignment.Center) {
                     ToolbarDragSurface(
                         id = bar.id,
                         anchor = anchor,
@@ -183,15 +176,15 @@ internal fun ToolbarWorkspacePreview(
                         PreviewBar(
                             bar = bar,
                             selected = bar.id == selectedId,
-                            effectiveSize = if (index == 0 && !bar.geometry.floating) look.size else when (bar.geometry.scale) {
+                            effectiveSize = if (index == 0) look.size else when (bar.geometry.scale) {
                                 ToolbarScale.COMPACT -> ToolbarSize.COMPACT
                                 ToolbarScale.REGULAR -> ToolbarSize.REGULAR
                                 ToolbarScale.COMFORTABLE -> ToolbarSize.COMFORTABLE
                             },
                             vertical = vertical,
                             floating = floating,
-                            availableWidth = stageWidth - 20.dp,
-                            availableHeight = stageHeight - 20.dp,
+                            availableWidth = placement?.width?.dp ?: (stageWidth - 20.dp),
+                            availableHeight = placement?.height?.dp ?: (stageHeight - 20.dp),
                             colors = colors,
                             activeColorIndex = activeColorIndex,
                             pageNumber = pageNumber,

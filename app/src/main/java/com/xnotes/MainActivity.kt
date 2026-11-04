@@ -1490,7 +1490,20 @@ private fun EditorPane(
                         ) { bareBar() }
                     } else bareBar()
                 }
-                ToolbarAround(bar, onCover = canvas::setToolbarCover, suppressBar = primary?.geometry?.floating == true, barLayout = primary?.layout, barGeometry = primary?.geometry) { floatingBar ->
+                val activeWorkspace = app.toolbarWorkspaces.forContext(ToolbarContext.CANVAS)
+                val secondaryBar: @Composable (com.xnotes.core.tools.ToolbarBar) -> Unit = { extraBar ->
+                    com.xnotes.ui.InfiniteToolbar(
+                        canvas,
+                        onOpenBackstage = actions.onOpenBackstage,
+                        onInsertImage = { actions.onInsertCanvasImage(editor, null) },
+                        onInsertAudio = { actions.onInsertAudio(editor) },
+                        onRecordAudio = { actions.onRecordAudio(editor) },
+                        onTakePhoto = { actions.onTakePhoto(editor) },
+                        layout = extraBar.layout,
+                        geometry = extraBar.geometry,
+                    )
+                }
+                ToolbarAround(bar, onCover = canvas::setToolbarCover, suppressBar = primary?.geometry?.floating == true, barLayout = primary?.layout, barGeometry = primary?.geometry, workspace = activeWorkspace, dockedContent = secondaryBar) { floatingBar ->
                     Box(modifier = Modifier.fillMaxSize().clipToBounds()) {
                         AndroidView(
                             factory = { detached(canvas.surfaces) },
@@ -1502,21 +1515,12 @@ private fun EditorPane(
                         }
                         floatingBar()
                         WorkspaceFloatingBars(
-                            workspace = app.toolbarWorkspaces.forContext(ToolbarContext.CANVAS),
+                            workspace = activeWorkspace,
                             onMoveBar = { id, anchor -> app.moveToolbarBar(ToolbarContext.CANVAS, id, anchor) },
                             primaryContent = { bar() },
-                        ) { extraBar ->
-                            com.xnotes.ui.InfiniteToolbar(
-                                canvas,
-                                onOpenBackstage = actions.onOpenBackstage,
-                                onInsertImage = { actions.onInsertCanvasImage(editor, null) },
-                                onInsertAudio = { actions.onInsertAudio(editor) },
-                                onRecordAudio = { actions.onRecordAudio(editor) },
-                                onTakePhoto = { actions.onTakePhoto(editor) },
-                                layout = extraBar.layout,
-                                geometry = extraBar.geometry,
-                            )
-                        }
+                            content = secondaryBar,
+                            colorCount = editor.toolbarColorCount,
+                        )
                         com.xnotes.ui.SelectionMenu(
                             canvas,
                             onSaveAudio = { actions.onSaveAudio(editor, it) },
@@ -1553,7 +1557,23 @@ private fun EditorPane(
                         ) { bareBar() }
                     } else bareBar()
                 }
-                ToolbarAround(bar, onCover = editor::setToolbarCover, suppressBar = primary?.geometry?.floating == true, barLayout = primary?.layout, barGeometry = primary?.geometry) { floatingBar ->
+                val activeWorkspace = app.toolbarWorkspaces.forContext(ToolbarContext.NOTE)
+                val secondaryBar: @Composable (com.xnotes.core.tools.ToolbarBar) -> Unit = { extraBar ->
+                    Toolbar(
+                        editor,
+                        onToggleFullscreen = actions.onToggleFullscreen,
+                        onOpenBackstage = actions.onOpenBackstage,
+                        onInsertImage = { actions.onInsertImage(editor, null) },
+                        onAddStickers = actions.onAddStickers,
+                        onImportTemplate = actions.onImportTemplate,
+                        onInsertAudio = { actions.onInsertAudio(editor) },
+                        onRecordAudio = { actions.onRecordAudio(editor) },
+                        onTakePhoto = { actions.onTakePhoto(editor) },
+                        layout = extraBar.layout,
+                        geometry = extraBar.geometry,
+                    )
+                }
+                ToolbarAround(bar, onCover = editor::setToolbarCover, suppressBar = primary?.geometry?.floating == true, barLayout = primary?.layout, barGeometry = primary?.geometry, workspace = activeWorkspace, dockedContent = secondaryBar) { floatingBar ->
                     Row(modifier = Modifier.fillMaxSize()) {
                         if (editor.sidebarVisible) {
                             com.xnotes.ui.SidePanel(
@@ -1577,24 +1597,12 @@ private fun EditorPane(
                             }
                             floatingBar()
                             WorkspaceFloatingBars(
-                            workspace = app.toolbarWorkspaces.forContext(ToolbarContext.NOTE),
-                            onMoveBar = { id, anchor -> app.moveToolbarBar(ToolbarContext.NOTE, id, anchor) },
-                            primaryContent = { bar() },
-                        ) { extraBar ->
-                                Toolbar(
-                                    editor,
-                                    onToggleFullscreen = actions.onToggleFullscreen,
-                                    onOpenBackstage = actions.onOpenBackstage,
-                                    onInsertImage = { actions.onInsertImage(editor, null) },
-                                    onAddStickers = actions.onAddStickers,
-                                    onImportTemplate = actions.onImportTemplate,
-                                    onInsertAudio = { actions.onInsertAudio(editor) },
-                                    onRecordAudio = { actions.onRecordAudio(editor) },
-                                    onTakePhoto = { actions.onTakePhoto(editor) },
-                                    layout = extraBar.layout,
-                                    geometry = extraBar.geometry,
-                                )
-                            }
+                                workspace = activeWorkspace,
+                                onMoveBar = { id, anchor -> app.moveToolbarBar(ToolbarContext.NOTE, id, anchor) },
+                                primaryContent = { bar() },
+                                content = secondaryBar,
+                            colorCount = editor.toolbarColorCount,
+                            )
                             com.xnotes.ui.SelectionMenu(
                                 editor,
                                 onSaveAudio = { actions.onSaveAudio(editor, it) },

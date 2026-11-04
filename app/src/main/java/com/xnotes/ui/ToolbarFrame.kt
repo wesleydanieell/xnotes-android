@@ -5,14 +5,17 @@ import androidx.compose.foundation.border
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.BoxScope
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxHeight
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
@@ -35,7 +38,9 @@ import androidx.compose.ui.unit.DpOffset
 import androidx.compose.ui.unit.TextUnit
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.xnotes.core.tools.ToolbarBar
 import com.xnotes.core.tools.ToolbarEntry
+import com.xnotes.core.tools.ToolbarWorkspace
 import com.xnotes.core.tools.ToolbarGeometry
 import com.xnotes.core.tools.ToolbarLayout
 import com.xnotes.settings.ToolbarLook
@@ -140,10 +145,39 @@ internal fun ColumnScope.ToolbarAround(
     suppressBar: Boolean = false,
     barLayout: ToolbarLayout? = null,
     barGeometry: ToolbarGeometry? = null,
+    workspace: ToolbarWorkspace? = null,
+    dockedContent: (@Composable (ToolbarBar) -> Unit)? = null,
     content: @Composable (floatingBar: @Composable BoxScope.() -> Unit) -> Unit,
 ) {
     val look = LocalToolbarLook.current
     val rest = Modifier.weight(1f).fillMaxWidth()
+    // Multi-dock occupies genuine document space on all four edges. The same plan drives
+    // the miniature preview; floating bars remain in the content's overlay layer.
+    if (workspace != null && dockedContent != null && workspace.hasMultiDock(look)) {
+        SideEffect { onCover(0.0, 0.0, 0.0, 0.0) }
+        BoxWithConstraints(rest) {
+            val plan = toolbarDockPlan(workspace, look, maxWidth, maxHeight)
+            Box(Modifier.fillMaxSize().padding(
+                start = plan.leftInset.dp, top = plan.topInset.dp,
+                end = plan.rightInset.dp, bottom = plan.bottomInset.dp,
+            )) { content({}) }
+            for ((index, dockBar) in workspace.bars.withIndex()) {
+                val placement = plan.placement(dockBar.id) ?: continue
+                val barLook = look.copy(
+                    position = placement.edge.toolbarPosition(),
+                    size = toolbarBarSize(dockBar, index, look),
+                    floating = false,
+                )
+                Box(Modifier.offset(x = placement.x.dp, y = placement.y.dp)
+                    .width(placement.width.dp).height(placement.height.dp)) {
+                    CompositionLocalProvider(LocalToolbarLook provides barLook) {
+                        if (index == 0) bar() else dockedContent(dockBar)
+                    }
+                }
+            }
+        }
+        return
+    }
     // A moved primary is rendered in the shared floating workspace, not twice here.
     if (suppressBar) {
         SideEffect { onCover(0.0, 0.0, 0.0, 0.0) }
