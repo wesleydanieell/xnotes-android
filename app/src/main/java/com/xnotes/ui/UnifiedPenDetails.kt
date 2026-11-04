@@ -11,7 +11,6 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
@@ -19,9 +18,12 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Slider
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -34,16 +36,13 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import com.xnotes.R
 import com.xnotes.core.tools.Tool
 import com.xnotes.core.tools.ToolConversions
@@ -103,68 +102,72 @@ internal fun UnifiedPenDetails(
     DropdownMenu(expanded = true, onDismissRequest = onDismiss) {
         Column(
             Modifier
-                .width(330.dp)
-                .heightIn(max = 405.dp)
+                .width(360.dp)
+                .heightIn(max = 510.dp)
                 .verticalScroll(rememberScrollState())
                 .background(surface)
-                .padding(horizontal = 12.dp, vertical = 8.dp),
-            verticalArrangement = Arrangement.spacedBy(4.dp),
+                .padding(horizontal = 16.dp, vertical = 12.dp),
+            verticalArrangement = Arrangement.spacedBy(10.dp),
         ) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text(
                     stringResource(R.string.toolbar_unified_pen),
                     color = foreground,
-                    fontWeight = FontWeight.SemiBold,
-                    fontSize = 14.sp,
+                    style = MaterialTheme.typography.titleMedium,
                     modifier = Modifier.weight(1f),
                 )
-                TextButton(onClick = onDismiss) { Text("×", fontSize = 18.sp, color = foreground) }
+                IconButton(onClick = onDismiss) {
+                    Icon(com.xnotes.ui.icons.XnotesIcons.close, contentDescription = stringResource(R.string.cancel))
+                }
             }
+            HorizontalDivider(color = border)
+            Text("Canetas", color = palette.textDim.toComposeColor(),
+                style = MaterialTheme.typography.labelMedium)
             Row(
                 Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
-                horizontalArrangement = Arrangement.spacedBy(4.dp),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
             ) {
                 items.forEach { item ->
                     val active = item == current
                     Column(
                         Modifier
-                            .width(47.dp)
-                            .clip(RoundedCornerShape(12.dp))
-                            .background(if (active) palette.selectionBackground.toComposeColor() else Color.Transparent)
+                            .width(64.dp)
+                            .clip(MaterialTheme.shapes.medium)
+                            .background(if (active) palette.selectionBackground.toComposeColor() else palette.surface.toComposeColor())
                             .border(
                                 if (active) 1.5.dp else 1.dp,
                                 if (active) palette.accent.toComposeColor() else border,
-                                RoundedCornerShape(12.dp),
+                                MaterialTheme.shapes.medium,
                             )
                             .clickable { onChoose(item) }
-                            .padding(vertical = 5.dp),
+                            .padding(horizontal = 4.dp, vertical = 9.dp),
                         horizontalAlignment = Alignment.CenterHorizontally,
+                        verticalArrangement = Arrangement.spacedBy(5.dp),
                     ) {
-                        PenSilhouette(item, ink, Modifier.size(width = 19.dp, height = 29.dp))
+                        PenSilhouette(item, ink, Modifier.size(width = 22.dp, height = 31.dp))
                         Text(
                             stringResource(item.labelRes),
-                            fontSize = 9.sp,
-                            lineHeight = 10.sp,
+                            style = MaterialTheme.typography.labelSmall,
                             maxLines = 2,
                             textAlign = TextAlign.Center,
                             overflow = TextOverflow.Ellipsis,
                             color = foreground,
-                            modifier = Modifier.width(47.dp),
                         )
                     }
                 }
             }
-            Text(stringResource(current.labelRes), color = palette.textDim.toComposeColor(), fontSize = 11.sp)
-            Text(
-                stringResource(R.string.caption_width) + "  " + width.roundToInt(),
-                color = foreground,
-                fontSize = 12.sp,
-            )
+            HorizontalDivider(color = border)
+            Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                Text(stringResource(R.string.caption_width), color = foreground,
+                    style = MaterialTheme.typography.titleSmall, modifier = Modifier.weight(1f))
+                Text(width.roundToInt().toString(), color = palette.textDim.toComposeColor(),
+                    style = MaterialTheme.typography.labelLarge)
+            }
             Row(verticalAlignment = Alignment.CenterVertically) {
                 TextButton(onClick = {
                     width = (width - 1f).coerceAtLeast(widthRange.start.toFloat())
                     host.updateToolConfig(tool, host.toolConfig(tool).copy(baseWidth = width.toDouble()))
-                }) { Text("−", color = foreground, fontSize = 22.sp) }
+                }) { Text("−", style = MaterialTheme.typography.titleLarge) }
                 Slider(
                     value = width.coerceIn(widthRange.start.toFloat(), widthRange.endInclusive.toFloat()),
                     onValueChange = {
@@ -172,20 +175,20 @@ internal fun UnifiedPenDetails(
                         host.updateToolConfig(tool, host.toolConfig(tool).copy(baseWidth = it.toDouble()))
                     },
                     valueRange = widthRange.start.toFloat()..widthRange.endInclusive.toFloat(),
-                    modifier = Modifier.weight(1f).height(40.dp).graphicsLayer(scaleY = .70f),
+                    modifier = Modifier.weight(1f),
                 )
                 TextButton(onClick = {
                     width = (width + 1f).coerceAtMost(widthRange.endInclusive.toFloat())
                     host.updateToolConfig(tool, host.toolConfig(tool).copy(baseWidth = width.toDouble()))
-                }) { Text("+", color = foreground, fontSize = 22.sp) }
+                }) { Text("+", style = MaterialTheme.typography.titleLarge) }
             }
             Box(
-                Modifier.fillMaxWidth().height(30.dp)
-                    .clip(RoundedCornerShape(12.dp))
+                Modifier.fillMaxWidth().height(44.dp)
+                    .clip(MaterialTheme.shapes.medium)
                     .background(palette.selectionBackground.toComposeColor()),
                 contentAlignment = Alignment.Center,
             ) {
-                Canvas(Modifier.fillMaxWidth().height(28.dp).padding(horizontal = 30.dp)) {
+                Canvas(Modifier.fillMaxWidth().height(40.dp).padding(horizontal = 24.dp)) {
                     drawLine(
                         color = foreground,
                         start = Offset(0f, size.height / 2),
@@ -195,16 +198,18 @@ internal fun UnifiedPenDetails(
                     )
                 }
             }
-            Text(stringResource(R.string.caption_colour), color = foreground, fontSize = 12.sp)
-            Row(horizontalArrangement = Arrangement.spacedBy(7.dp)) {
+            Text(stringResource(R.string.caption_colour), color = foreground,
+                style = MaterialTheme.typography.titleSmall)
+            Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
+                horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 host.hostToolbarColors.take(host.hostToolbarColorCount).forEachIndexed { index, rgba ->
                     // A small swatch sits inside a larger touch target for finger and stylus.
                     Box(
-                        Modifier.size(30.dp).clickable { onSelectColor(index) },
+                        Modifier.size(42.dp).clip(CircleShape).clickable { onSelectColor(index) },
                         contentAlignment = Alignment.Center,
                     ) {
                         Box(
-                            Modifier.size(22.dp).clip(CircleShape).background(rgba.toComposeColor())
+                            Modifier.size(28.dp).clip(CircleShape).background(rgba.toComposeColor())
                                 .border(
                                     if (index == host.hostActiveColorIndex) 2.dp else 1.dp,
                                     if (index == host.hostActiveColorIndex) foreground else border,
@@ -214,11 +219,12 @@ internal fun UnifiedPenDetails(
                     }
                 }
             }
+            HorizontalDivider(color = border)
             TextButton(onClick = { advanced = !advanced }) {
                 Text(
                     stringResource(R.string.toolbar_pen_advanced_settings) + if (advanced) "  ▴" else "  ▾",
                     color = palette.accent.toComposeColor(),
-                    fontSize = 13.sp,
+                    style = MaterialTheme.typography.labelLarge,
                 )
             }
             if (advanced) {
@@ -312,25 +318,23 @@ internal fun UnifiedPenDetails(
 
 @Composable
 private fun PenDetailToggle(label: String, checked: Boolean, onChange: (Boolean) -> Unit) {
-    Row(verticalAlignment = Alignment.CenterVertically) {
-        Checkbox(
-            checked = checked,
-            onCheckedChange = onChange,
-            modifier = Modifier.size(36.dp).graphicsLayer(scaleX = .80f, scaleY = .80f),
-        )
-        Text(label, color = LocalPalette.current.text.toComposeColor(), fontSize = 11.sp)
+    Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+        Checkbox(checked = checked, onCheckedChange = onChange)
+        Text(label, color = LocalPalette.current.text.toComposeColor(),
+            style = MaterialTheme.typography.bodyMedium)
     }
 }
 
 @Composable
 private fun PenDetailSlider(label: String, value: Float, range: ClosedFloatingPointRange<Float>, onChange: (Float) -> Unit) {
     Column {
-        Text(label + "  " + value.roundToInt(), color = LocalPalette.current.text.toComposeColor(), fontSize = 11.sp)
-        Slider(
-            value = value.coerceIn(range.start, range.endInclusive),
-            onValueChange = onChange,
-            valueRange = range,
-            modifier = Modifier.fillMaxWidth().height(40.dp).graphicsLayer(scaleY = .70f),
-        )
+        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+            Text(label, color = LocalPalette.current.text.toComposeColor(),
+                style = MaterialTheme.typography.bodyMedium, modifier = Modifier.weight(1f))
+            Text(value.roundToInt().toString(), color = LocalPalette.current.textDim.toComposeColor(),
+                style = MaterialTheme.typography.labelMedium)
+        }
+        Slider(value = value.coerceIn(range.start, range.endInclusive),
+            onValueChange = onChange, valueRange = range, modifier = Modifier.fillMaxWidth())
     }
 }

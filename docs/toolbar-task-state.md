@@ -436,3 +436,10 @@ A tinta selecionada colore somente os acentos dentro dos pictogramas das canetas
 - Testes JVM adicionados para impedir que restaurar um preset de nota altere canvas, inclusive se o perfil era compartilhado, e para aplicar no canvas um preset compartilhado filtrando ferramentas exclusivas de notas.
 - `git diff --check`, `:app:testDebugUnitTest :app:assembleDebug --offline` e `:app:assembleRelease -PtoolbarIsolatedRelease=true --offline` passaram (`BUILD SUCCESSFUL`). Release `com.xnotes.toolbarsrelease` atualizada no Redmi Pad 2 serial `pfcmu4dutsylceus` com `adb install -r` → `Success`; iniciada e com PID ativo. Nenhuma mudança de dados ou pacote do XNotes normal.
 - **QA visual do alinhamento vertical com configurações reais do usuário ainda depende de confirmação no tablet**, em barras de uma/três faixas, regiões e lateral. Validar também reabertura do app com perfis independentes e opção de aplicação dupla.
+
+## Refinamento visual — primeira etapa (04/11/2026)
+
+- Pen Group: painel reorganizado em seleção, traço, cores e controles avançados; tipografia do `MaterialTheme`, cores semânticas de `LocalPalette`, botões de caneta e amostras maiores, controles de toque com dimensões regulares, divisores e espaçamentos consistentes com XNotes.
+- Editor de sections e elementos: cabeçalhos, chips e linhas usam a tipografia do app e áreas de toque mais confortáveis, sem alterar a semântica de arrastar, categorias ou alinhamentos.
+- Mantidos os gestos e o seletor radial já existentes; nenhuma tentativa de reintroduzir grupos genéricos.
+- Verificação inicial: `git diff --check`, testes JVM e montagem debug passaram. Interface de nota aberta e inspecionada em `emulator-5554`; comportamento com caneta real e inspeção do popup em todas as densidades ainda requerem QA.

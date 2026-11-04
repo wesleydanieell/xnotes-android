@@ -122,7 +122,7 @@ fun ToolbarCustomizerBody(
                         ToolbarRegion.CENTER -> R.string.toolbar_region_center
                         ToolbarRegion.END -> R.string.toolbar_region_end
                     }),
-                    color = palette.textDim.toComposeColor(), fontSize = 12.sp,
+                    color = palette.text.toComposeColor(), style = MaterialTheme.typography.titleSmall,
                 )
             }
             Column(
@@ -352,7 +352,7 @@ private fun SectionCard(
                     label = label,
                     // Explicit height: the card is measured with an unbounded max height, so
                     // fillMaxHeight would collapse the grab strip to 0px and nothing could be pressed.
-                    modifier = Modifier.weight(1f).height(34.dp),
+                    modifier = Modifier.weight(1f).height(40.dp),
                     onBounds = onGrabBounds,
                     onDragStart = onGrabDragStart,
                     onDrag = onGrabDrag,
@@ -467,8 +467,8 @@ private fun SectionDragStrip(
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(6.dp),
     ) {
-        Icon(XnotesIcons.menu, null, tint = palette.textDim.toComposeColor(), modifier = Modifier.size(16.dp))
-        Text(label, color = palette.textDim.toComposeColor(), fontSize = 12.sp, maxLines = 1)
+        Icon(XnotesIcons.menu, null, tint = palette.textDim.toComposeColor(), modifier = Modifier.size(18.dp))
+        Text(label, color = palette.text.toComposeColor(), style = MaterialTheme.typography.labelMedium, maxLines = 1)
     }
 }
 
@@ -526,12 +526,12 @@ private fun ChipFace(item: ToolbarItem, visible: Boolean, modifier: Modifier = M
             .clip(MaterialTheme.shapes.small)
             .background(palette.surface.toComposeColor())
             .border(1.dp, palette.border.toComposeColor(), MaterialTheme.shapes.small)
-            .padding(horizontal = 8.dp, vertical = 6.dp),
+            .padding(horizontal = 10.dp, vertical = 8.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        Icon(itemIcon(item), null, tint = palette.textDim.toComposeColor(), modifier = Modifier.size(14.dp))
-        Spacer(Modifier.width(4.dp))
-        Text(stringResource(item.labelRes), color = palette.text.toComposeColor(), fontSize = 12.sp)
+        Icon(itemIcon(item), null, tint = palette.textDim.toComposeColor(), modifier = Modifier.size(16.dp))
+        Spacer(Modifier.width(6.dp))
+        Text(stringResource(item.labelRes), color = palette.text.toComposeColor(), style = MaterialTheme.typography.labelMedium)
     }
 }
 
@@ -545,16 +545,16 @@ private fun LayerFace(item: ToolbarItem, visible: Boolean, modifier: Modifier) {
             .clip(MaterialTheme.shapes.small)
             .background(palette.surface.toComposeColor())
             .border(1.dp, palette.border.toComposeColor(), MaterialTheme.shapes.small)
-            .padding(horizontal = 8.dp, vertical = 8.dp),
+            .padding(horizontal = 10.dp, vertical = 10.dp),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(7.dp),
     ) {
-        Icon(XnotesIcons.menu, null, tint = palette.textDim.toComposeColor(), modifier = Modifier.size(14.dp))
-        Icon(itemIcon(item), null, tint = (if (visible) palette.text else palette.textDim).toComposeColor(), modifier = Modifier.size(16.dp))
+        Icon(XnotesIcons.menu, null, tint = palette.textDim.toComposeColor(), modifier = Modifier.size(16.dp))
+        Icon(itemIcon(item), null, tint = (if (visible) palette.text else palette.textDim).toComposeColor(), modifier = Modifier.size(18.dp))
         Text(
             stringResource(item.labelRes),
             color = (if (visible) palette.text else palette.textDim).toComposeColor(),
-            fontSize = 12.sp,
+            style = MaterialTheme.typography.bodyMedium,
             maxLines = 1,
             modifier = Modifier.weight(1f),
         )
