@@ -568,8 +568,7 @@ private fun LayerFace(item: ToolbarItem, visible: Boolean, modifier: Modifier, g
         horizontalArrangement = Arrangement.spacedBy(7.dp),
     ) {
         Icon(XnotesIcons.menu, null, tint = palette.textDim.toComposeColor(), modifier = Modifier.size(14.dp))
-        Icon(if (group != null) toolbarGroupCoverIcon(group.icon, group.tools.first()) else itemIcon(item),
-            null, tint = (if (visible) palette.text else palette.textDim).toComposeColor(), modifier = Modifier.size(16.dp))
+        Icon(itemIcon(item), null, tint = (if (visible) palette.text else palette.textDim).toComposeColor(), modifier = Modifier.size(16.dp))
         Column(Modifier.weight(1f)) {
             Text(
                 group?.name ?: stringResource(item.labelRes),
@@ -578,7 +577,7 @@ private fun LayerFace(item: ToolbarItem, visible: Boolean, modifier: Modifier, g
                 maxLines = 1,
             )
             if (group != null) Text(
-                "${group.tools.size} · ${if (group.display == com.xnotes.core.tools.ToolbarGroupDisplay.COMPACT) "Pasta" else "Na barra"}",
+                "${group.tools.size} · ${if (group.display == com.xnotes.core.tools.ToolbarGroupDisplay.COMPACT) "Compacto" else "Expandido"}",
                 color = palette.textDim.toComposeColor(), fontSize = 10.sp,
             )
         }
@@ -753,7 +752,7 @@ internal fun itemIcon(item: ToolbarItem): ImageVector = when (item) {
     ToolbarItem.TAPER -> ImageVector.vectorResource(R.drawable.ic_stroke_taper)
     ToolbarItem.HIGHLIGHTER -> ImageVector.vectorResource(R.drawable.ic_stroke_highlighter)
     ToolbarItem.UNIFIED_PEN -> ImageVector.vectorResource(R.drawable.ic_stroke_regular)
-    ToolbarItem.TOOL_GROUP -> XnotesIcons.folder
+    ToolbarItem.TOOL_GROUP -> XnotesIcons.menu
     ToolbarItem.ERASER -> XnotesIcons.eraser
     ToolbarItem.PAN -> XnotesIcons.pan
     ToolbarItem.SELECT -> XnotesIcons.select

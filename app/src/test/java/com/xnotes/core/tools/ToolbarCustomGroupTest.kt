@@ -14,7 +14,6 @@ class ToolbarCustomGroupTest {
         val group = layout.sections[0].entries.last().group
         assertNotNull(group)
         assertEquals(listOf(ToolbarItem.PEN, ToolbarItem.ERASER), group!!.tools)
-        assertEquals(ToolbarGroupIcon.FOLDER, group.icon)
         assertEquals(ToolbarLayout.DEFAULT, layout.removeItem(0, layout.sections[0].entries.lastIndex))
     }
 

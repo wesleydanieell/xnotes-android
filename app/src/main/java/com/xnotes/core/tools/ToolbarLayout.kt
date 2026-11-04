@@ -65,16 +65,12 @@ enum class ToolbarItem(val id: String) {
 
 enum class ToolbarGroupDisplay { COMPACT, EXPANDED }
 
-/** Folder cover icon; the tools inside remain independent of their launcher art. */
-enum class ToolbarGroupIcon { FOLDER, LAYERS, PEN, SHAPE, BOOKMARK, LAST_USED }
-
 /** A group is a single movable layout node, even in expanded presentation. */
 data class ToolbarGroupConfig(
     val id: String,
     val tools: List<ToolbarItem>,
     val display: ToolbarGroupDisplay = ToolbarGroupDisplay.COMPACT,
     val name: String = "Grupo de ferramentas",
-    val icon: ToolbarGroupIcon = ToolbarGroupIcon.FOLDER,
 ) {
     fun valid(allowed: Set<ToolbarItem> = GROUPABLE_TOOLS): ToolbarGroupConfig? {
         if (id.isBlank() || id.length > 64) return null
