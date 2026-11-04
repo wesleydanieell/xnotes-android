@@ -333,3 +333,9 @@ A navegação Barras/Dimensões/Elementos/Cores foi movida para cima do preview 
 Validação local: testes JVM do resolvedor e do codec, assembleDebug, edição/configuração no emulador. Somente o emulador apareceu no ADB, não o Redmi Pad 2; teste manual no dispositivo real, escrita, canvas, split view e rotação continuam pendentes. Com viewport excepcionalmente pequena e faixas lotadas, uma barra pode ser rejeitada e não renderizada; definir UX de recuperação antes do DONE.
 
 Próxima ação: instalar build atualizada no tablet quando reconectar e percorrer cenários de capacidade/gestos; revisar medição intrínseca de grupos de tamanho variável e tornar rejeição explícita ao usuário se a viewport encolher.
+
+## Ajuste visual do Pen Group e seleção proporcional (04/11/2026)
+
+O destaque deslizando agora recebe a posição e o raio reais de cada elemento, incluindo sizeDp individual, e anima alterações de diâmetro e deslocamento transversal entre sections. O Pen Group usa esse mesmo sistema; não mantém fundo quadrado independente.
+
+A tinta selecionada colore somente os acentos dentro dos pictogramas das canetas e as amostras reais da paleta. Bordas de seleção do radial e do painel usam a cor de destaque do tema; a linha do controle de espessura é neutra. Teste JVM incluído para as dimensões proporcionais de destaque; build debug e testes verdes. QA manual de transição entre elementos de 28dp/70dp no Redmi Pad 2 pendente.

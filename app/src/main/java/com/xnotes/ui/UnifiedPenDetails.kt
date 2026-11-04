@@ -133,7 +133,7 @@ internal fun UnifiedPenDetails(
                             .background(if (active) palette.selectionBackground.toComposeColor() else Color.Transparent)
                             .border(
                                 if (active) 1.5.dp else 1.dp,
-                                if (active) ink else border,
+                                if (active) palette.accent.toComposeColor() else border,
                                 RoundedCornerShape(12.dp),
                             )
                             .clickable { onChoose(item) }
@@ -187,7 +187,7 @@ internal fun UnifiedPenDetails(
             ) {
                 Canvas(Modifier.fillMaxWidth().height(28.dp).padding(horizontal = 30.dp)) {
                     drawLine(
-                        color = ink,
+                        color = foreground,
                         start = Offset(0f, size.height / 2),
                         end = Offset(size.width, size.height / 2),
                         strokeWidth = (width / widthRange.endInclusive.toFloat()).coerceAtLeast(.08f) * 10.dp.toPx(),

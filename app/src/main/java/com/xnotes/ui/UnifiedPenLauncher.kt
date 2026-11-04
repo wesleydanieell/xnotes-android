@@ -237,9 +237,12 @@ internal fun UnifiedPenLauncher(
                     .onGloballyPositioned { coordinates ->
                         if (glideKey != null) {
                             glide?.row?.let { row ->
-                                glide.centers[glideKey] = row.localPositionOf(
-                                    coordinates,
-                                    Offset(coordinates.size.width / 2f, coordinates.size.height / 2f),
+                                glide.centers[glideKey] = ToolGlideTarget(
+                                    center = row.localPositionOf(
+                                        coordinates,
+                                        Offset(coordinates.size.width / 2f, coordinates.size.height / 2f),
+                                    ),
+                                    radiusPx = coordinates.size.width / 2f,
                                 )
                             }
                         }
@@ -339,7 +342,7 @@ private fun PenFanPalette(
                     .background(if (hovered) palette.selectionBackground.toComposeColor() else surface)
                     .border(
                         if (hovered) 2.5.dp else 1.2.dp,
-                        if (hovered || item == active) ink else stroke,
+                        if (hovered || item == active) palette.accent.toComposeColor() else stroke,
                         CircleShape,
                     ),
                 contentAlignment = Alignment.Center,
