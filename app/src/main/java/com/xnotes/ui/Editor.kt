@@ -2923,7 +2923,16 @@ class Editor(context: Context, val pane: Pane = Pane.PRIMARY) : ToolPopupHost, S
         return true
     }
 
-    fun applyToolbarWorkspacePreset(preset: com.xnotes.settings.ToolbarWorkspacePreset) {
+    /** Applying to one editor changes only that editor's bars. The palette and general
+     * look remain global preferences; restore them only when explicitly applying both. */
+    fun applyToolbarWorkspacePreset(
+        preset: com.xnotes.settings.ToolbarWorkspacePreset,
+        targetContext: ToolbarContext? = null,
+    ) {
+        if (targetContext != null) {
+            applyToolbarWorkspaces(toolbarWorkspaces.replaceContextFrom(preset.workspaces, targetContext))
+            return
+        }
         toolbarColors = (preset.colors + InkPalette.presets.drop(preset.colors.size)).take(InkPalette.MAX_SWATCHES)
         toolbarColorCount = preset.colorCount.coerceIn(1, InkPalette.MAX_SWATCHES)
         infiniteOrNull?.toolbarColors = toolbarColors

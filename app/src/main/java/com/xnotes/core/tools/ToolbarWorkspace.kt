@@ -128,6 +128,13 @@ data class ToolbarWorkspaces(
             (if (shared) note else canvas).onlyItems(ToolbarLayout.CANVAS_ITEMS)
     }
 
+    /** Import one preset profile without replacing the other. Unshare first so the
+     * canvas does not keep rendering the note profile after restoring either side. */
+    fun replaceContextFrom(preset: ToolbarWorkspaces, target: ToolbarContext): ToolbarWorkspaces = when (target) {
+        ToolbarContext.NOTE -> copy(note = preset.forContext(ToolbarContext.NOTE), shared = false)
+        ToolbarContext.CANVAS -> copy(canvas = preset.forContext(ToolbarContext.CANVAS), shared = false)
+    }
+
     companion object {
         fun fromLegacy(
             noteLayout: ToolbarLayout,

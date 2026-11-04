@@ -96,4 +96,34 @@ class ToolbarWorkspacePresetsTest {
         assertEquals(1, ToolbarWorkspacePresetsJson.read(json).size)
         assertFalse(ToolbarWorkspacePresetsJson.read(json).isEmpty())
     }
+
+    @Test fun applyingPresetToNoteDoesNotReplaceCanvasEvenWhenPreviouslyShared() {
+        val current = ToolbarWorkspaces.fromLegacy(ToolbarLayout.DEFAULT, ToolbarLayout.CANVAS_DEFAULT)
+            .copy(shared = true)
+        val preset = ToolbarWorkspaces(
+            note = ToolbarWorkspace.fromLegacy("study-note", "Estudo", ToolbarLayout.DEFAULT),
+            canvas = ToolbarWorkspace.fromLegacy("drawing-canvas", "Desenho", ToolbarLayout.CANVAS_DEFAULT),
+        )
+        val applied = current.replaceContextFrom(preset, ToolbarContext.NOTE)
+        assertEquals("study-note", applied.note.bars.first().id)
+        assertEquals(current.canvas, applied.canvas)
+        assertFalse(applied.shared)
+        assertTrue(current.shared)
+    }
+
+    @Test fun applyingPresetToCanvasUsesItsVisibleProfileAndPreservesNote() {
+        val current = ToolbarWorkspaces.fromLegacy(ToolbarLayout.DEFAULT, ToolbarLayout.CANVAS_DEFAULT)
+        val preset = ToolbarWorkspaces(
+            note = ToolbarWorkspace.fromLegacy("shared-note", "Escrita", ToolbarLayout(listOf(
+                ToolbarSection(listOf(ToolbarEntry(ToolbarItem.PEN), ToolbarEntry(ToolbarItem.TEXT_BOX))),
+            ))),
+            canvas = ToolbarWorkspace.fromLegacy("ignored-canvas", "Separado", ToolbarLayout.CANVAS_DEFAULT),
+            shared = true,
+        )
+        val applied = current.replaceContextFrom(preset, ToolbarContext.CANVAS)
+        assertEquals(current.note, applied.note)
+        assertFalse(applied.shared)
+        assertEquals("shared-note", applied.canvas.bars.first().id)
+        assertEquals(listOf(ToolbarItem.PEN), applied.canvas.bars.first().layout.sections.first().entries.map { it.item })
+    }
 }

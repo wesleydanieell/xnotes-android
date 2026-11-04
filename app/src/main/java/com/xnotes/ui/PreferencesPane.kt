@@ -443,8 +443,8 @@ fun PreferencesPane(
         ToolbarPresetPreviewDialog(
             preset = preset,
             canvasInitially = canvasTab,
-            onApply = {
-                editor.applyToolbarWorkspacePreset(preset)
+            onApply = { targetContext ->
+                editor.applyToolbarWorkspacePreset(preset, targetContext)
                 prefs = editor.preferences
                 selectedBarId = null
                 selectedEntry = null

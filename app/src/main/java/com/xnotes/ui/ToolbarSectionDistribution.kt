@@ -59,14 +59,20 @@ internal fun ToolbarSections(
         androidx.compose.runtime.key(region) {
             val group = groups.getValue(region)
             if (vertical) {
-                Column(Modifier.verticalScroll(rememberScrollState())) {
+                Column(
+                    Modifier.verticalScroll(rememberScrollState()),
+                    horizontalAlignment = androidx.compose.ui.Alignment.CenterHorizontally,
+                ) {
                     group.forEachIndexed { index, indexed ->
                         if (index > 0) Separator()
                         sectionContent(indexed.index, indexed.value)
                     }
                 }
             } else {
-                Row(Modifier.horizontalScroll(rememberScrollState())) {
+                Row(
+                    Modifier.horizontalScroll(rememberScrollState()),
+                    verticalAlignment = androidx.compose.ui.Alignment.CenterVertically,
+                ) {
                     group.forEachIndexed { index, indexed ->
                         if (index > 0) Separator()
                         sectionContent(indexed.index, indexed.value)

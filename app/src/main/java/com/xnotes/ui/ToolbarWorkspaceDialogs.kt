@@ -206,10 +206,11 @@ private fun workspaceTemplateDescription(id: String): String = when (id) {
 internal fun ToolbarPresetPreviewDialog(
     preset: ToolbarWorkspacePreset,
     canvasInitially: Boolean,
-    onApply: () -> Unit,
+    onApply: (ToolbarContext?) -> Unit,
     onDismiss: () -> Unit,
 ) {
     var canvasPreview by remember(preset.id) { mutableStateOf(canvasInitially) }
+    var applyBoth by remember(preset.id) { mutableStateOf(false) }
     val context = if (canvasPreview) ToolbarContext.CANVAS else ToolbarContext.NOTE
     val workspace = preset.workspaces.forContext(context)
     AlertDialog(
@@ -239,10 +240,21 @@ internal fun ToolbarPresetPreviewDialog(
                     onSelectEntry = { _, _, _ -> },
                     onMoveBar = { _, _ -> },
                 )
-                Text("Aplicar substituirá as barras nos dois editores. Salve o workspace atual antes se quiser mantê-lo.")
+                FilterChip(
+                    selected = applyBoth,
+                    onClick = { applyBoth = !applyBoth },
+                    label = { Text("Aplicar também ao outro editor") },
+                )
+                Text(if (applyBoth)
+                    "Substitui as barras de XNotes e XCanvas, além da aparência e paleta globais."
+                    else "Substitui somente as barras de ${if (canvasPreview) "XCanvas" else "XNotes"}. O outro editor, as cores e a aparência globais serão preservados.")
             }
         },
-        confirmButton = { TextButton(onClick = onApply) { Text("Aplicar") } },
+        confirmButton = {
+            TextButton(onClick = { onApply(if (applyBoth) null else context) }) {
+                Text(if (applyBoth) "Aplicar nos dois" else "Aplicar em ${if (canvasPreview) "XCanvas" else "XNotes"}")
+            }
+        },
         dismissButton = { TextButton(onClick = onDismiss) { Text("Cancelar") } },
     )
 }
