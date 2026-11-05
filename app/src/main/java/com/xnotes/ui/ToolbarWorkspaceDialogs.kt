@@ -89,6 +89,8 @@ internal fun ToolbarPresetsDialog(
     presets: List<ToolbarWorkspacePreset>,
     templates: List<ToolbarWorkspacePreset>,
     statusMessage: String?,
+    selectedTab: Int,
+    onSelectTab: (Int) -> Unit,
     onUseTemplate: (ToolbarWorkspacePreset) -> Unit,
     onSave: (String) -> Boolean,
     onRestore: (ToolbarWorkspacePreset) -> Unit,
@@ -99,7 +101,6 @@ internal fun ToolbarPresetsDialog(
     onImport: () -> Unit,
     onDismiss: () -> Unit,
 ) {
-    var tab by remember { mutableStateOf(0) }
     var saving by remember { mutableStateOf(false) }
     var name by remember { mutableStateOf("") }
     var error by remember { mutableStateOf<String?>(null) }
@@ -111,11 +112,11 @@ internal fun ToolbarPresetsDialog(
             Column(Modifier.heightIn(max = 460.dp).verticalScroll(rememberScrollState()),
                 verticalArrangement = Arrangement.spacedBy(10.dp)) {
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    FilterChip(selected = tab == 0, onClick = { tab = 0 }, label = { Text("Meus salvos") })
-                    FilterChip(selected = tab == 1, onClick = { tab = 1 }, label = { Text("Modelos") })
+                    FilterChip(selected = selectedTab == 0, onClick = { onSelectTab(0) }, label = { Text("Meus salvos") })
+                    FilterChip(selected = selectedTab == 1, onClick = { onSelectTab(1) }, label = { Text("Modelos") })
                 }
                 statusMessage?.let { Text(it, style = MaterialTheme.typography.bodySmall) }
-                if (tab == 0) {
+                if (selectedTab == 0) {
                     Text("Conjuntos de barras dos dois editores, com aparência e cores.",
                         style = MaterialTheme.typography.bodySmall)
                     Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
@@ -255,6 +256,6 @@ internal fun ToolbarPresetPreviewDialog(
                 Text(if (applyBoth) "Aplicar nos dois" else "Aplicar em ${if (canvasPreview) "XCanvas" else "XNotes"}")
             }
         },
-        dismissButton = { TextButton(onClick = onDismiss) { Text("Cancelar") } },
+        dismissButton = { TextButton(onClick = onDismiss) { Text("Voltar à lista") } },
     )
 }

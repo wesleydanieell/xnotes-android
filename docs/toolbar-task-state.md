@@ -457,3 +457,10 @@ A tinta selecionada colore somente os acentos dentro dos pictogramas das canetas
 - A cópia mantém apenas o destaque visual da seleção; remoção e alteração de visibilidade continuam disponíveis exclusivamente no editor normal.
 - A lógica de destino e de sections não foi alterada; o renderer compartilhado reduz a manutenção quando surgirem novos elementos ou novos controles de linha.
 - `:app:testDebugUnitTest :app:assembleDebug --offline` e `git diff --check` passaram; QA físico do gesto com Smart Pen ainda pendente.
+
+## Navegação de prévia de workspace (05/11/2026)
+
+- Fechar/cancelar a prévia de um workspace agora retorna à biblioteca, sem fechar o painel de workspaces. O botão foi renomeado para `Voltar à lista`.
+- A aba da biblioteca (`Meus salvos` ou `Modelos`) é estado do configurador, preservada durante a transição lista → prévia → lista. O botão Voltar do Android usa o mesmo callback.
+- `Aplicar` ainda confirma a substituição e fecha o fluxo. `Fechar` na própria biblioteca continua fechando o painel.
+- Testes JVM e compilação debug passaram (`:app:testDebugUnitTest :app:assembleDebug --offline`).

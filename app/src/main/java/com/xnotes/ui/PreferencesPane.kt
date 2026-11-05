@@ -180,6 +180,7 @@ fun PreferencesPane(
     var barMenuExpanded by remember { mutableStateOf(false) }
     var transferDraft by remember { mutableStateOf<com.xnotes.core.tools.ToolbarTransferDraft?>(null) }
     var workspacesDialogOpen by remember { mutableStateOf(false) }
+    var workspaceLibraryTab by remember { mutableStateOf(0) }
     var savedWorkspaces by remember { mutableStateOf(editor.toolbarWorkspacePresets) }
     var restorePending by remember { mutableStateOf<com.xnotes.settings.ToolbarWorkspacePreset?>(null) }
     var workspaceFileContent by remember { mutableStateOf("") }
@@ -412,6 +413,8 @@ fun PreferencesPane(
             presets = savedWorkspaces,
             templates = com.xnotes.settings.ToolbarWorkspaceTemplates.presets,
             statusMessage = workspaceFileMessage,
+            selectedTab = workspaceLibraryTab,
+            onSelectTab = { workspaceLibraryTab = it },
             onExportOne = { preset ->
                 val basename = preset.name.replace(Regex("[^a-zA-Z0-9_-]"), "_").take(40)
                 exportWorkspaceFile(listOf(preset), "$basename.xworkspaces.json")
@@ -450,7 +453,10 @@ fun PreferencesPane(
                 selectedEntry = null
                 restorePending = null
             },
-            onDismiss = { restorePending = null },
+            onDismiss = {
+                restorePending = null
+                workspacesDialogOpen = true
+            },
         )
     }
 
