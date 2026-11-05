@@ -20,6 +20,7 @@ import com.xnotes.core.model.Rgba
 import com.xnotes.core.model.Routing
 import com.xnotes.core.model.ShapeItem
 import com.xnotes.core.pal.FontFace
+import com.xnotes.core.model.TextItem
 import com.xnotes.core.model.TextStyle
 import com.xnotes.core.model.ShapeLabel
 import com.xnotes.core.model.Stroke
@@ -208,6 +209,21 @@ class CanvasCodecTest {
         assertTrue(!back[1].locked)
         assertTrue(back[2].locked)
         assertTrue(back[3].locked)
+    }
+
+    @Test fun nativeTextItemRoundTripsOnTheCanvas() {
+        val doc = InfiniteDocument()
+        doc.add(TextItem(Pt(21.0, 42.0), 240.0, 70.0, "A long editable paragraph",
+            Rgba(10, 20, 30, 255), 18.0, FontFace.SANS, FakeTextMeasurer()))
+        val manifest = manifestText(doc)
+        assertTrue(manifest.contains("\"kind\":\"text\""))
+        val back = roundTrip(doc).items.single() as TextItem
+        assertEquals("A long editable paragraph", back.text)
+        assertEquals(Pt(21.0, 42.0), back.pos)
+        assertEquals(240.0, back.width, 1e-9)
+        assertEquals(70.0, back.height, 1e-9)
+        assertEquals(18.0, back.pointSize, 1e-9)
+        assertEquals(FontFace.SANS, back.face)
     }
 
     @Test fun aShapesLabelRoundTripsOnTheCanvas() {
