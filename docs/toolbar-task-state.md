@@ -464,3 +464,10 @@ A tinta selecionada colore somente os acentos dentro dos pictogramas das canetas
 - A aba da biblioteca (`Meus salvos` ou `Modelos`) é estado do configurador, preservada durante a transição lista → prévia → lista. O botão Voltar do Android usa o mesmo callback.
 - `Aplicar` ainda confirma a substituição e fecha o fluxo. `Fechar` na própria biblioteca continua fechando o painel.
 - Testes JVM e compilação debug passaram (`:app:testDebugUnitTest :app:assembleDebug --offline`).
+
+## Simplificação da biblioteca de workspaces (05/11/2026)
+
+- Biblioteca em duas abas preservadas: `Meus salvos` e `Modelos`. Cartões agora abrem diretamente a prévia ao toque, dispensando botões repetidos de visualizar.
+- `Salvar atual` permanece visível. Importar, exportar atual e exportar todos ficam no menu superior de opções; exportar ou excluir um preset salvo ficam no menu de opções do cartão. Exclusão exige confirmação.
+- Modelos ficam em cartões compactos com nome e breve descrição. Usa `MaterialTheme.shapes.medium`, tipografia e componentes Material já empregados no app.
+- Funcionalidades de salvamento, arquivos e aplicação foram mantidas; alterou-se apenas sua apresentação. `:app:testDebugUnitTest :app:assembleDebug --offline` e `git diff --check` passaram.

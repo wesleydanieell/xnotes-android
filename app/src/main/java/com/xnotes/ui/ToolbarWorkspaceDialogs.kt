@@ -1,18 +1,23 @@
 package com.xnotes.ui
 
 import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.FilterChip
-import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
@@ -23,6 +28,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.unit.dp
 import com.xnotes.core.model.Rgba
 import com.xnotes.core.tools.ToolbarContext
@@ -30,6 +36,7 @@ import com.xnotes.core.tools.ToolbarTransferDraft
 import com.xnotes.core.tools.ToolbarWorkspace
 import com.xnotes.settings.ToolbarLook
 import com.xnotes.settings.ToolbarWorkspacePreset
+import com.xnotes.ui.icons.XnotesIcons
 
 /** Review the destination as it will look, including existing bars and omitted tools. */
 @Composable
@@ -105,6 +112,8 @@ internal fun ToolbarPresetsDialog(
     var name by remember { mutableStateOf("") }
     var error by remember { mutableStateOf<String?>(null) }
     var pendingDelete by remember { mutableStateOf<String?>(null) }
+    var libraryMenuOpen by remember { mutableStateOf(false) }
+    var presetMenuOpen by remember { mutableStateOf<String?>(null) }
     AlertDialog(
         onDismissRequest = onDismiss,
         title = { Text("Workspaces") },
@@ -117,12 +126,33 @@ internal fun ToolbarPresetsDialog(
                 }
                 statusMessage?.let { Text(it, style = MaterialTheme.typography.bodySmall) }
                 if (selectedTab == 0) {
-                    Text("Conjuntos de barras dos dois editores, com aparência e cores.",
-                        style = MaterialTheme.typography.bodySmall)
-                    Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-                        TextButton(onClick = { saving = !saving }) { Text("Salvar atual") }
-                        TextButton(onClick = onImport) { Text("Importar") }
-                        TextButton(onClick = onExportCurrent) { Text("Exportar atual") }
+                    Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                        TextButton(onClick = { saving = !saving; error = null }) { Text("Salvar atual") }
+                        Spacer(Modifier.weight(1f))
+                        Box {
+                            IconButton(onClick = { libraryMenuOpen = true }) {
+                                Icon(XnotesIcons.more, contentDescription = "Importar e exportar workspaces")
+                            }
+                            DropdownMenu(
+                                expanded = libraryMenuOpen,
+                                onDismissRequest = { libraryMenuOpen = false },
+                            ) {
+                                DropdownMenuItem(text = { Text("Importar") }, onClick = {
+                                    libraryMenuOpen = false
+                                    onImport()
+                                })
+                                DropdownMenuItem(text = { Text("Exportar workspace atual") }, onClick = {
+                                    libraryMenuOpen = false
+                                    onExportCurrent()
+                                })
+                                if (presets.isNotEmpty()) {
+                                    DropdownMenuItem(text = { Text("Exportar todos os salvos") }, onClick = {
+                                        libraryMenuOpen = false
+                                        onExportAll()
+                                    })
+                                }
+                            }
+                        }
                     }
                     if (saving) {
                         OutlinedTextField(
@@ -146,41 +176,61 @@ internal fun ToolbarPresetsDialog(
                     }
                     if (presets.isEmpty()) Text("Nenhum workspace salvo ainda.")
                     presets.forEach { preset ->
-                        Column(Modifier.fillMaxWidth()
-                            .border(1.dp, MaterialTheme.colorScheme.outlineVariant, RoundedCornerShape(12.dp))
-                            .padding(10.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                            Text(preset.name, style = MaterialTheme.typography.titleSmall)
-                            Text("${preset.workspaces.note.bars.size} barras XNotes · ${preset.workspaces.canvas.bars.size} XCanvas",
-                                style = MaterialTheme.typography.bodySmall)
+                        Column(
+                            Modifier.fillMaxWidth()
+                                .border(1.dp, MaterialTheme.colorScheme.outlineVariant, MaterialTheme.shapes.medium)
+                                .padding(4.dp),
+                        ) {
+                            Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                                Column(
+                                    Modifier.weight(1f)
+                                        .clickable { onRestore(preset) }
+                                        .padding(horizontal = 10.dp, vertical = 12.dp),
+                                    verticalArrangement = Arrangement.spacedBy(3.dp),
+                                ) {
+                                    Text(preset.name, style = MaterialTheme.typography.titleSmall)
+                                    Text("${preset.workspaces.note.bars.size} barras XNotes · ${preset.workspaces.canvas.bars.size} XCanvas",
+                                        style = MaterialTheme.typography.bodySmall)
+                                }
+                                Box {
+                                    IconButton(onClick = { presetMenuOpen = preset.id }) {
+                                        Icon(XnotesIcons.more, contentDescription = "Opções de ${preset.name}")
+                                    }
+                                    DropdownMenu(
+                                        expanded = presetMenuOpen == preset.id,
+                                        onDismissRequest = { presetMenuOpen = null },
+                                    ) {
+                                        DropdownMenuItem(text = { Text("Exportar") }, onClick = {
+                                            presetMenuOpen = null
+                                            onExportOne(preset)
+                                        })
+                                        DropdownMenuItem(text = { Text("Excluir") }, onClick = {
+                                            presetMenuOpen = null
+                                            pendingDelete = preset.id
+                                        })
+                                    }
+                                }
+                            }
                             if (pendingDelete == preset.id) {
                                 Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                                    TextButton(onClick = { onDelete(preset.id); pendingDelete = null }) { Text("Excluir mesmo") }
+                                    TextButton(onClick = { onDelete(preset.id); pendingDelete = null }) { Text("Confirmar exclusão") }
                                     TextButton(onClick = { pendingDelete = null }) { Text("Cancelar") }
-                                }
-                            } else {
-                                Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                                    TextButton(onClick = { onRestore(preset) }) { Text("Prévia") }
-                                    TextButton(onClick = { onExportOne(preset) }) { Text("Exportar") }
-                                    TextButton(onClick = { pendingDelete = preset.id }) { Text("Excluir") }
                                 }
                             }
                         }
                     }
-                    if (presets.isNotEmpty()) {
-                        HorizontalDivider()
-                        TextButton(onClick = onExportAll) { Text("Exportar todos os salvos") }
-                    }
                 } else {
-                    Text("Layouts inspirados em interfaces de escrita. Escolha um para ver o resultado antes de aplicar.",
-                        style = MaterialTheme.typography.bodySmall)
                     templates.forEach { template ->
-                        Column(Modifier.fillMaxWidth()
-                            .border(1.dp, MaterialTheme.colorScheme.outlineVariant, RoundedCornerShape(12.dp))
-                            .padding(10.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                        Column(
+                            Modifier.fillMaxWidth()
+                                .border(1.dp, MaterialTheme.colorScheme.outlineVariant, MaterialTheme.shapes.medium)
+                                .clickable { onUseTemplate(template) }
+                                .padding(horizontal = 14.dp, vertical = 12.dp),
+                            verticalArrangement = Arrangement.spacedBy(4.dp),
+                        ) {
                             Text(template.name, style = MaterialTheme.typography.titleSmall)
                             Text(workspaceTemplateDescription(template.id),
                                 style = MaterialTheme.typography.bodySmall)
-                            TextButton(onClick = { onUseTemplate(template) }) { Text("Visualizar e aplicar") }
                         }
                     }
                 }
