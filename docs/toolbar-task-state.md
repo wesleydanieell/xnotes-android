@@ -486,3 +486,10 @@ A tinta selecionada colore somente os acentos dentro dos pictogramas das canetas
 - `Elementos` possui um viewport de até `380dp`, com scroll próprio, independente do scroll de configurações; a auto-rolagem do drag próximo das bordas atua nesse viewport e mantém os destinos de inserção e regiões alcançáveis sem perder o preview.
 - Ações de criar/duplicar/remover/copiar toolbar saíram do conteúdo da aba `Barras` e migraram para menu de opções próximo ao seletor da toolbar, disponível em qualquer aba; lógica original de validação de encaixe foi preservada.
 - `Barras` concentra as propriedades de posicionamento e visibilidade; seleção por container e indicação de itens ocultos permanecem em `Elementos`; `Aparência` contém as medidas/escala. Conferir com Xiaomi Smart Pen a sensação de rolagem aninhada, arraste entre regiões e expansão do preview.
+
+## Densidade visual dos elementos (05/11/2026)
+
+- Containers de elementos mais compactos: padding vertical 10→4dp, padding horizontal 10→8dp, ícones 16/18→14/16dp, espaçamento horizontal 7→6dp, controles laterais de olho/remover em caixas de 30dp sem mínimo implícito de IconButton.
+- Header de section 40→34dp, espaço entre sections 8→6dp e entre linhas/elementos 5/4→3dp. Preservados títulos, contorno da seleção, indicação `Oculto` e gesto de arrastar container inteiro.
+- O ghost reutiliza `LayerFace` e herda automaticamente a mesma densidade; hitboxes das sections e elementos continuam medidas em tempo real.
+- Testes JVM e build debug passaram (`:app:testDebugUnitTest :app:assembleDebug --offline`). QA com Smart Pen ainda necessário para validar conforto dos controles compactos.

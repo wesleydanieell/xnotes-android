@@ -129,7 +129,7 @@ fun ToolbarCustomizerBody(
             }
             Column(
                 Modifier.fillMaxWidth(),
-                verticalArrangement = Arrangement.spacedBy(8.dp),
+                verticalArrangement = Arrangement.spacedBy(6.dp),
             ) {
         layout.sections.forEachIndexed { sec, section ->
             if (region != null && section.region != region) return@forEachIndexed
@@ -154,7 +154,7 @@ fun ToolbarCustomizerBody(
             ) {
                 Column(
                     modifier = Modifier.fillMaxWidth(),
-                    verticalArrangement = Arrangement.spacedBy(5.dp),
+                    verticalArrangement = Arrangement.spacedBy(3.dp),
                 ) {
                     repeat(section.lanes) { lane ->
                         val cells = section.entries.withIndex().filter { it.value.lane == lane }
@@ -168,8 +168,8 @@ fun ToolbarCustomizerBody(
                                         palette.accent else palette.border).toComposeColor(),
                                     RoundedCornerShape(6.dp),
                                 )
-                                .padding(4.dp),
-                            verticalArrangement = Arrangement.spacedBy(4.dp),
+                                .padding(3.dp),
+                            verticalArrangement = Arrangement.spacedBy(3.dp),
                         ) {
                             if (section.lanes > 1) {
                                 Text("Linha ${lane + 1}", color = palette.textDim.toComposeColor(), fontSize = 11.sp)
@@ -356,7 +356,7 @@ private fun SectionCard(
                     label = label,
                     // Explicit height: the card is measured with an unbounded max height, so
                     // fillMaxHeight would collapse the grab strip to 0px and nothing could be pressed.
-                    modifier = Modifier.weight(1f).height(40.dp),
+                    modifier = Modifier.weight(1f).height(34.dp),
                     onBounds = onGrabBounds,
                     onDragStart = onGrabDragStart,
                     onDrag = onGrabDrag,
@@ -514,7 +514,8 @@ private fun ChipCell(
     if (layerStyle) {
         Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
             LayerFace(item, visible, faceModifier.weight(1f), selected = selected, onToggle = onToggle)
-            IconButton(onClick = onRemove, modifier = Modifier.size(30.dp)) {
+            Box(Modifier.size(30.dp).clip(MaterialTheme.shapes.small).clickable(onClick = onRemove),
+                contentAlignment = Alignment.Center) {
                 Icon(XnotesIcons.close, stringResource(R.string.remove), modifier = Modifier.size(14.dp))
             }
         }
@@ -552,12 +553,12 @@ private fun LayerFace(item: ToolbarItem, visible: Boolean, modifier: Modifier, s
             .background(palette.surface.toComposeColor())
             .border(if (selected) 2.dp else 1.dp,
                 (if (selected) palette.accent else palette.border).toComposeColor(), MaterialTheme.shapes.small)
-            .padding(horizontal = 10.dp, vertical = 10.dp),
+            .padding(horizontal = 8.dp, vertical = 4.dp),
         verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(7.dp),
+        horizontalArrangement = Arrangement.spacedBy(6.dp),
     ) {
-        Icon(XnotesIcons.menu, null, tint = palette.textDim.toComposeColor(), modifier = Modifier.size(16.dp))
-        Icon(itemIcon(item), null, tint = (if (visible) palette.text else palette.textDim).toComposeColor(), modifier = Modifier.size(18.dp))
+        Icon(XnotesIcons.menu, null, tint = palette.textDim.toComposeColor(), modifier = Modifier.size(14.dp))
+        Icon(itemIcon(item), null, tint = (if (visible) palette.text else palette.textDim).toComposeColor(), modifier = Modifier.size(16.dp))
         Text(
             stringResource(item.labelRes),
             color = (if (visible) palette.text else palette.textDim).toComposeColor(),
@@ -570,13 +571,14 @@ private fun LayerFace(item: ToolbarItem, visible: Boolean, modifier: Modifier, s
                 style = MaterialTheme.typography.labelSmall)
         }
         if (onToggle != null) {
-            IconButton(onClick = onToggle, modifier = Modifier.size(32.dp)) {
+            Box(Modifier.size(30.dp).clip(MaterialTheme.shapes.small).clickable(onClick = onToggle),
+                contentAlignment = Alignment.Center) {
                 Icon(XnotesIcons.view, if (visible) "Ocultar elemento" else "Mostrar elemento",
                     tint = (if (visible) palette.accent else palette.textDim).toComposeColor(),
-                    modifier = Modifier.size(18.dp))
+                    modifier = Modifier.size(16.dp))
             }
         } else {
-            Icon(XnotesIcons.view, null, tint = (if (visible) palette.accent else palette.textDim).toComposeColor(), modifier = Modifier.size(18.dp))
+            Icon(XnotesIcons.view, null, tint = (if (visible) palette.accent else palette.textDim).toComposeColor(), modifier = Modifier.size(16.dp))
         }
     }
 }
