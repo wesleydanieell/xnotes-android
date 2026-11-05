@@ -889,6 +889,8 @@ class InfiniteEditor(context: Context) : ToolPopupHost, SelectionMenuHost, LongP
         commitText()
         interaction.clearSelection()
         editingTextItem = item
+        item.canvasEditingHidden = true
+        document.itemChanged(item)
         textItemBefore = item.text
         textStyleBefore = TextStyle.of(item)
         textFace = item.face
@@ -966,6 +968,7 @@ class InfiniteEditor(context: Context) : ToolPopupHost, SelectionMenuHost, LongP
             val commands = mutableListOf<Command>()
             if (beforeText != item.text) commands.add(EditText(item, beforeText, item.text))
             if (beforeStyle != TextStyle.of(item)) commands.add(RestyleText(item, beforeStyle, TextStyle.of(item)))
+            item.canvasEditingHidden = false
             editingTextItem = null
             textItemBefore = null
             textStyleBefore = null

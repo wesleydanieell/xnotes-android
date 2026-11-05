@@ -278,6 +278,7 @@ object ItemMesher {
     }
 
     private fun meshText(item: TextItem): MeshedItem? {
+        if (item.canvasEditingHidden) return null
         val part = ShapeTessellator.textPart(item.glyphContours(), item.rgba) { it + item.pos }
             ?: return null
         return MeshedItem(listOf(part), item.bounds(), 0.0)

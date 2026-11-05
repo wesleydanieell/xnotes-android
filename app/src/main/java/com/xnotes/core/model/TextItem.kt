@@ -30,6 +30,8 @@ class TextItem(
     override val kind = KIND
     override val mirrorable = false
     override val resizable = true
+    /** The canvas uses an Android text overlay while this item is being edited. Never persisted. */
+    var canvasEditingHidden = false
     override var locked = false
     override var group: Int? = null
     override var sync: SyncMark? = null
