@@ -479,3 +479,10 @@ A tinta selecionada colore somente os acentos dentro dos pictogramas das canetas
 - Visibilidade foi separada em um botão de olho na linha. Itens ocultos continuam na lista, com estilo atenuado e rótulo `Oculto`. A remoção continua em ação separada e o arraste completo permanece.
 - O estado é transitório no editor e os ajustes de aparência/elementos continuam persistidos pelo modelo existente. `:app:testDebugUnitTest :app:assembleDebug --offline` e `git diff --check` passaram.
 - Pendências de UX de uma próxima etapa: inspeção física de seleção vs arraste/caneta, redução de texto explicativo redundante, seções avançadas recolhíveis e eventual preview fixo durante rolagem longa.
+
+## Ajustes de usabilidade — preview e organização (05/11/2026)
+
+- Preview do editor agora tem largura compacta por padrão (`390dp`) e botão `Ampliar/Reduzir` para inspeção eventual (`680dp`). Assim seu tamanho não é definido pela largura toda das preferências.
+- `Elementos` possui um viewport de até `380dp`, com scroll próprio, independente do scroll de configurações; a auto-rolagem do drag próximo das bordas atua nesse viewport e mantém os destinos de inserção e regiões alcançáveis sem perder o preview.
+- Ações de criar/duplicar/remover/copiar toolbar saíram do conteúdo da aba `Barras` e migraram para menu de opções próximo ao seletor da toolbar, disponível em qualquer aba; lógica original de validação de encaixe foi preservada.
+- `Barras` concentra as propriedades de posicionamento e visibilidade; seleção por container e indicação de itens ocultos permanecem em `Elementos`; `Aparência` contém as medidas/escala. Conferir com Xiaomi Smart Pen a sensação de rolagem aninhada, arraste entre regiões e expansão do preview.
