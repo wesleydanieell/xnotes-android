@@ -29,6 +29,7 @@ import com.xnotes.core.model.ImageItem
 import com.xnotes.core.model.Labelled
 import com.xnotes.core.model.Rgba
 import com.xnotes.core.model.ShapeItem
+import com.xnotes.core.model.TextItem
 import com.xnotes.core.model.Stroke
 import com.xnotes.core.model.TapeItem
 import com.xnotes.core.model.TapeMode
@@ -1197,7 +1198,7 @@ class InfiniteInteraction(
      */
     private fun beginLiftedTransform(sel: CanvasSelection, at: Pt, resize: Boolean) {
         transformPointer = at
-        liftedTransform = sel.items.all { it is Stroke || it is ShapeItem || isVectorImage(it) }
+        liftedTransform = sel.items.all { it is Stroke || it is ShapeItem || it is TextItem || isVectorImage(it) }
         if (!liftedTransform) return
         bakedInLift = if (resize) sel.items.filterTo(HashSet()) { it is ShapeItem } else emptySet()
         liftItems = if (bakedInLift.isEmpty()) sel.items else sel.items.filter { it !in bakedInLift }
