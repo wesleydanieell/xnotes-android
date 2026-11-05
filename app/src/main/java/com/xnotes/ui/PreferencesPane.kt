@@ -939,7 +939,7 @@ fun PreferencesPane(
                         selectedEntry = null
                         toolbarPropertyTab = ToolbarPropertyTab.BARS
                     }
-                    Chip("Dimensões", toolbarPropertyTab == ToolbarPropertyTab.DIMENSIONS) {
+                    Chip("Aparência", toolbarPropertyTab == ToolbarPropertyTab.DIMENSIONS) {
                         selectedEntry = null
                         toolbarPropertyTab = ToolbarPropertyTab.DIMENSIONS
                     }
@@ -959,7 +959,6 @@ fun PreferencesPane(
                     verticalArrangement = Arrangement.spacedBy(12.dp),
                 ) {
                     if (toolbarPropertyTab == ToolbarPropertyTab.ELEMENTS) {
-                        Box(Modifier.widthIn(max = 480.dp).align(Alignment.CenterHorizontally)) { preview() }
                         if (activeEntry != null) {
                             Row(verticalAlignment = Alignment.CenterVertically) {
                                 Text("Tamanho do elemento", style = MaterialTheme.typography.titleSmall)
@@ -979,10 +978,30 @@ fun PreferencesPane(
                         HorizontalDivider(color = palette.border.toComposeColor())
                     }
                     if (toolbarPropertyTab == ToolbarPropertyTab.DIMENSIONS) {
+                        Text("Tamanho e espaçamento", style = MaterialTheme.typography.titleSmall)
                         ToolbarGeometryControls(
                             geometry = currentBar.geometry,
                             onChange = { next -> configureDock(next) },
                         )
+                        FieldLabel(stringResource(R.string.pref_toolbar_size))
+                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            for ((scale, label) in listOf(
+                                com.xnotes.core.tools.ToolbarScale.COMPACT to R.string.toolbar_size_compact,
+                                com.xnotes.core.tools.ToolbarScale.REGULAR to R.string.toolbar_size_regular,
+                                com.xnotes.core.tools.ToolbarScale.COMFORTABLE to R.string.toolbar_size_comfortable,
+                            )) {
+                                Chip(stringResource(label), currentBar.geometry.scale == scale) {
+                                    val primary = currentBar.id == workspace.bars.first().id
+                                    val size = when (scale) {
+                                        com.xnotes.core.tools.ToolbarScale.COMPACT -> ToolbarSize.COMPACT
+                                        com.xnotes.core.tools.ToolbarScale.REGULAR -> ToolbarSize.REGULAR
+                                        com.xnotes.core.tools.ToolbarScale.COMFORTABLE -> ToolbarSize.COMFORTABLE
+                                    }
+                                    configureDock(currentBar.geometry.copy(scale = scale),
+                                        if (primary) prefs.toolbarLook.copy(size = size) else prefs.toolbarLook)
+                                }
+                            }
+                        }
                     }
                     if (toolbarPropertyTab == ToolbarPropertyTab.BARS) {
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -1150,24 +1169,6 @@ fun PreferencesPane(
                         },
                     )
                 }
-                FieldLabel(stringResource(R.string.pref_toolbar_size))
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    for ((scale, label) in listOf(
-                        com.xnotes.core.tools.ToolbarScale.COMPACT to R.string.toolbar_size_compact,
-                        com.xnotes.core.tools.ToolbarScale.REGULAR to R.string.toolbar_size_regular,
-                        com.xnotes.core.tools.ToolbarScale.COMFORTABLE to R.string.toolbar_size_comfortable,
-                    )) {
-                        Chip(stringResource(label), currentBar.geometry.scale == scale) {
-                            val profiles = editor.toolbarWorkspaces
-                            val updated = editedWorkspace().replaceBar(
-                                selectedBar().copy(geometry = selectedBar().geometry.copy(scale = scale)),
-                            )
-                            editor.applyToolbarWorkspaces(
-                                if (canvasTab) profiles.copy(canvas = updated) else profiles.copy(note = updated),
-                            )
-                        }
-                    }
-                }
             } else {
                 FieldLabel(stringResource(R.string.toolbar_primary_appearance))
                 val look = prefs.toolbarLook
@@ -1205,23 +1206,6 @@ fun PreferencesPane(
                         }
                     },
                 )
-                FieldLabel(stringResource(R.string.pref_toolbar_size))
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    for ((size, label) in listOf(
-                        ToolbarSize.COMPACT to R.string.toolbar_size_compact,
-                        ToolbarSize.REGULAR to R.string.toolbar_size_regular,
-                        ToolbarSize.COMFORTABLE to R.string.toolbar_size_comfortable,
-                    )) {
-                        Chip(stringResource(label), look.size == size) {
-                            val scale = when (size) {
-                                ToolbarSize.COMPACT -> com.xnotes.core.tools.ToolbarScale.COMPACT
-                                ToolbarSize.REGULAR -> com.xnotes.core.tools.ToolbarScale.REGULAR
-                                ToolbarSize.COMFORTABLE -> com.xnotes.core.tools.ToolbarScale.COMFORTABLE
-                            }
-                            configureDock(currentBar.geometry.copy(scale = scale), look.copy(size = size))
-                        }
-                    }
-                }
             }
             val isPrimaryDock = currentBar.id == workspace.bars.first().id &&
                 !currentBar.geometry.floating && !prefs.toolbarLook.floating
@@ -1358,6 +1342,7 @@ fun PreferencesPane(
                 layout = layout,
                 availableItems = if (canvasTab) ToolbarLayout.CANVAS_ITEMS else ToolbarLayout.NOTE_ITEMS,
                 dragItem = dragItem,
+                selectedEntry = selectedEntry,
                 dropTarget = dropTarget,
                 dragRegionTarget = dragRegionTarget,
                 dragSection = dragSection,
@@ -1368,6 +1353,7 @@ fun PreferencesPane(
                 sectionGrabBounds = sectionGrabBounds,
                 regionBounds = regionBounds,
                 onToggle = { s, i -> applyEdited(editedLayout().toggleVisible(s, i)) },
+                onSelect = { s, i -> selectedEntry = s to i },
                 onRemoveItem = { s, i ->
                     applyEdited(editedLayout().removeItem(s, i))
                     selectedEntry = null
@@ -1445,24 +1431,10 @@ fun PreferencesPane(
                     }
                 }
             }
-            propertyTabs()
             FieldLabel(stringResource(R.string.toolbar_preview))
-            BoxWithConstraints(Modifier.fillMaxWidth()) {
-                if (toolbarPropertyTab == ToolbarPropertyTab.ELEMENTS) {
-                    inspector()
-                } else if (maxWidth >= 760.dp) {
-                    val sideWidth = if (toolbarPropertyTab == ToolbarPropertyTab.ELEMENTS) 390.dp else 330.dp
-                    Row(horizontalArrangement = Arrangement.spacedBy(12.dp), verticalAlignment = Alignment.Top) {
-                        Box(Modifier.weight(1f)) { preview() }
-                        Box(Modifier.width(sideWidth)) { inspector() }
-                    }
-                } else {
-                    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                        preview()
-                        inspector()
-                    }
-                }
-            }
+            Box(Modifier.fillMaxWidth()) { preview() }
+            propertyTabs()
+            inspector()
             }
 
             if (!toolbarEditorOpen) {

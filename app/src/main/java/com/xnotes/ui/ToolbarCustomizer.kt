@@ -71,6 +71,7 @@ fun ToolbarCustomizerBody(
     layout: ToolbarLayout,
     availableItems: Set<ToolbarItem>,
     dragItem: Pair<Int, Int>?,
+    selectedEntry: Pair<Int, Int>?,
     dropTarget: Triple<Int, Int, Int>?,
     dragRegionTarget: ToolbarRegion?,
     dragSection: Int?,
@@ -81,6 +82,7 @@ fun ToolbarCustomizerBody(
     sectionGrabBounds: MutableMap<Int, Rect>,
     regionBounds: MutableMap<ToolbarRegion, Rect>,
     onToggle: (Int, Int) -> Unit,
+    onSelect: (Int, Int) -> Unit,
     onRemoveItem: (Int, Int) -> Unit,
     onAddItem: (Int, Int, ToolbarItem) -> Unit,
     onLanesChange: (Int, Int) -> Unit,
@@ -187,7 +189,9 @@ fun ToolbarCustomizerBody(
                                     visible = entry.visible,
                                     layerStyle = true,
                                     dragging = dragItem == (sec to idx),
-                                    onTap = { onToggle(sec, idx) },
+                                    selected = selectedEntry == (sec to idx),
+                                    onTap = { onSelect(sec, idx) },
+                                    onToggle = { onToggle(sec, idx) },
                                     onRemove = { onRemoveItem(sec, idx) },
                                     onDragStart = { local -> onDragStart(sec, idx, local) },
                                     onDrag = onDrag,
@@ -477,8 +481,10 @@ private fun ChipCell(
     item: ToolbarItem,
     visible: Boolean,
     dragging: Boolean,
+    selected: Boolean,
     layerStyle: Boolean = false,
     onTap: () -> Unit,
+    onToggle: () -> Unit,
     onRemove: () -> Unit,
     onDragStart: (Offset) -> Unit,
     onDrag: (Offset) -> Unit,
@@ -507,7 +513,7 @@ private fun ChipCell(
             }
     if (layerStyle) {
         Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-            LayerFace(item, visible, faceModifier.weight(1f))
+            LayerFace(item, visible, faceModifier.weight(1f), selected = selected, onToggle = onToggle)
             IconButton(onClick = onRemove, modifier = Modifier.size(30.dp)) {
                 Icon(XnotesIcons.close, stringResource(R.string.remove), modifier = Modifier.size(14.dp))
             }
@@ -537,14 +543,15 @@ private fun ChipFace(item: ToolbarItem, visible: Boolean, modifier: Modifier = M
 
 /** Compact layer row. Tap toggles visibility; hold the grip/row to reorder. */
 @Composable
-private fun LayerFace(item: ToolbarItem, visible: Boolean, modifier: Modifier) {
+private fun LayerFace(item: ToolbarItem, visible: Boolean, modifier: Modifier, selected: Boolean = false, onToggle: (() -> Unit)? = null) {
     val palette = LocalPalette.current
     Row(
         modifier
             .fillMaxWidth()
             .clip(MaterialTheme.shapes.small)
             .background(palette.surface.toComposeColor())
-            .border(1.dp, palette.border.toComposeColor(), MaterialTheme.shapes.small)
+            .border(if (selected) 2.dp else 1.dp,
+                (if (selected) palette.accent else palette.border).toComposeColor(), MaterialTheme.shapes.small)
             .padding(horizontal = 10.dp, vertical = 10.dp),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(7.dp),
@@ -558,7 +565,19 @@ private fun LayerFace(item: ToolbarItem, visible: Boolean, modifier: Modifier) {
             maxLines = 1,
             modifier = Modifier.weight(1f),
         )
-        Icon(XnotesIcons.view, null, tint = (if (visible) palette.accent else palette.textDim).toComposeColor(), modifier = Modifier.size(14.dp))
+        if (!visible) {
+            Text("Oculto", color = palette.textDim.toComposeColor(),
+                style = MaterialTheme.typography.labelSmall)
+        }
+        if (onToggle != null) {
+            IconButton(onClick = onToggle, modifier = Modifier.size(32.dp)) {
+                Icon(XnotesIcons.view, if (visible) "Ocultar elemento" else "Mostrar elemento",
+                    tint = (if (visible) palette.accent else palette.textDim).toComposeColor(),
+                    modifier = Modifier.size(18.dp))
+            }
+        } else {
+            Icon(XnotesIcons.view, null, tint = (if (visible) palette.accent else palette.textDim).toComposeColor(), modifier = Modifier.size(18.dp))
+        }
     }
 }
 

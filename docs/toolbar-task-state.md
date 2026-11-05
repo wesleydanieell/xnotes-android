@@ -471,3 +471,11 @@ A tinta selecionada colore somente os acentos dentro dos pictogramas das canetas
 - `Salvar atual` permanece visível. Importar, exportar atual e exportar todos ficam no menu superior de opções; exportar ou excluir um preset salvo ficam no menu de opções do cartão. Exclusão exige confirmação.
 - Modelos ficam em cartões compactos com nome e breve descrição. Usa `MaterialTheme.shapes.medium`, tipografia e componentes Material já empregados no app.
 - Funcionalidades de salvamento, arquivos e aplicação foram mantidas; alterou-se apenas sua apresentação. `:app:testDebugUnitTest :app:assembleDebug --offline` e `git diff --check` passaram.
+
+## Editor visual contextual — primeira implementação (05/11/2026)
+
+- Preview fica acima das abas de propriedades, com posição única ao alternar Barras/Aparência/Elementos. `Dimensões` passou a `Aparência`; escala da barra foi movida de `Barras` para `Aparência`, junto dos ajustes de geometria.
+- Tocar no container de elemento seleciona o item no inspetor, sem alternar visibilidade. O contorno de destaque indica a seleção; tamanho individual continua contextual no inspetor.
+- Visibilidade foi separada em um botão de olho na linha. Itens ocultos continuam na lista, com estilo atenuado e rótulo `Oculto`. A remoção continua em ação separada e o arraste completo permanece.
+- O estado é transitório no editor e os ajustes de aparência/elementos continuam persistidos pelo modelo existente. `:app:testDebugUnitTest :app:assembleDebug --offline` e `git diff --check` passaram.
+- Pendências de UX de uma próxima etapa: inspeção física de seleção vs arraste/caneta, redução de texto explicativo redundante, seções avançadas recolhíveis e eventual preview fixo durante rolagem longa.
