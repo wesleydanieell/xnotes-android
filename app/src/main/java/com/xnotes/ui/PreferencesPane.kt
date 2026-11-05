@@ -1057,7 +1057,7 @@ fun PreferencesPane(
                         .onGloballyPositioned { viewport = it.boundsInRoot() }
                         .verticalScroll(if (toolbarPropertyTab == ToolbarPropertyTab.ELEMENTS)
                             toolbarElementsScroll else toolbarPropertiesScroll),
-                    verticalArrangement = Arrangement.spacedBy(12.dp),
+                    verticalArrangement = Arrangement.spacedBy(8.dp),
                 ) {
                     if (toolbarPropertyTab == ToolbarPropertyTab.ELEMENTS) {
                         if (activeEntry != null) {
@@ -1074,9 +1074,6 @@ fun PreferencesPane(
                                 },
                             )
                         }
-                    } else {
-                        Text("Propriedades · ${currentBar.name}", style = MaterialTheme.typography.titleSmall)
-                        HorizontalDivider(color = palette.border.toComposeColor())
                     }
                     if (toolbarPropertyTab == ToolbarPropertyTab.DIMENSIONS) {
                         Text("Tamanho e espaçamento", style = MaterialTheme.typography.titleSmall)
@@ -1105,17 +1102,20 @@ fun PreferencesPane(
                         }
                     }
                     if (toolbarPropertyTab == ToolbarPropertyTab.BARS) {
-            HorizontalDivider(color = palette.border.toComposeColor())
-            FieldLabel(stringResource(R.string.toolbar_selected))
+            FlowRow(
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                verticalArrangement = Arrangement.spacedBy(4.dp),
+            ) {
             OutlinedTextField(
                 value = currentBar.name,
                 onValueChange = { name -> updateSelectedBar { it.copy(name = name.take(48)) } },
                 label = { Text(stringResource(R.string.toolbar_name)) },
                 singleLine = true,
-                modifier = Modifier.width(320.dp),
+                modifier = Modifier.widthIn(max = 280.dp),
             )
             Chip(stringResource(R.string.toolbar_movable), currentBar.geometry.movable) {
                 updateSelectedBar { bar -> bar.copy(geometry = bar.geometry.copy(movable = !bar.geometry.movable)) }
+            }
             }
             if (currentBar.id != workspace.bars.first().id) {
                 val barIndex = workspace.bars.indexOfFirst { it.id == currentBar.id }
@@ -1232,8 +1232,10 @@ fun PreferencesPane(
             val isSecondaryDock = currentBar.id != workspace.bars.first().id &&
                 currentBar.geometry.dockEdge != null && !currentBar.geometry.floating
             val floatingBar = !isPrimaryDock && !isSecondaryDock
-            FieldLabel(if (floatingBar) "Faixa flutuante preferida · máximo 3"
-                else "Faixa de encaixe · máximo 3 por borda")
+            FlowRow(horizontalArrangement = Arrangement.spacedBy(18.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                    FieldLabel(if (floatingBar) "Faixa flutuante preferida · máximo 3"
+                        else "Faixa de encaixe · máximo 3 por borda")
             Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                 for (lane in 0..2) {
                     Chip("Faixa ${lane + 1}", currentBar.geometry.dockLane == lane) {
@@ -1241,7 +1243,9 @@ fun PreferencesPane(
                     }
                 }
             }
-            FieldLabel("Alinhamento na faixa")
+                }
+                Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                    FieldLabel("Alinhamento na faixa")
             Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                 for ((align, label) in listOf(
                     ToolbarDockAlignment.START to "Início",
@@ -1268,13 +1272,8 @@ fun PreferencesPane(
                     }
                 }
             }
-            Text(
-                if (floatingBar)
-                    "Organização automática: quando uma faixa lotar, as barras seguintes passam à próxima disponível sem sobreposição."
-                else
-                    "Na mesma faixa, a ordem segue a lista. A soma dos comprimentos e espaços deve caber na tela.",
-                style = MaterialTheme.typography.bodySmall,
-            )
+                }
+            }
             val displayDockPlan = toolbarDockPlan(
                 workspace, prefs.toolbarLook,
                 screenConfiguration.screenWidthDp.dp, screenConfiguration.screenHeightDp.dp,

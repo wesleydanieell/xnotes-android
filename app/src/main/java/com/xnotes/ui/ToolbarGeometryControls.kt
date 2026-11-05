@@ -5,6 +5,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.width
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Slider
@@ -31,14 +32,9 @@ internal fun ToolbarGeometryControls(
     onChange: (ToolbarGeometry) -> Unit,
 ) {
     val screen = LocalConfiguration.current
-    Text("Dimensões e espaçamento", style = MaterialTheme.typography.titleSmall)
-    Text(
-        "Valores em dp. Automático mantém o tamanho padrão da barra; as mudanças também aparecem no preview.",
-        style = MaterialTheme.typography.bodySmall,
-    )
     FlowRow(
-        horizontalArrangement = Arrangement.spacedBy(16.dp),
-        verticalArrangement = Arrangement.spacedBy(4.dp),
+        horizontalArrangement = Arrangement.spacedBy(10.dp),
+        verticalArrangement = Arrangement.spacedBy(8.dp),
     ) {
         ToolbarMeasure("Largura", geometry.widthDp, screen.screenWidthDp.coerceIn(48, 1200), 48, 1200) {
             onChange(geometry.copy(widthDp = it))
@@ -52,7 +48,7 @@ internal fun ToolbarGeometryControls(
         ToolbarMeasure("Espaçamento", geometry.spacingDp, 2, 0, 32) {
             onChange(geometry.copy(spacingDp = it))
         }
-        ToolbarMeasure("Elementos", geometry.elementSizeDp, 42, 28, 72) {
+        ToolbarMeasure("Botões", geometry.elementSizeDp, 42, 28, 72) {
             onChange(geometry.copy(elementSizeDp = it))
         }
     }
@@ -67,7 +63,7 @@ private fun ToolbarMeasure(
     maximum: Int,
     onChange: (Int?) -> Unit,
 ) {
-    Column(Modifier.width(240.dp)) {
+    Column(Modifier.width(196.dp)) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Text(
                 "$title: ${value?.let { "$it dp" } ?: "automático"}",
@@ -77,14 +73,14 @@ private fun ToolbarMeasure(
             // Keep the button's space even in auto mode; otherwise the row shifts
             // when the first slider touch creates an override.
             TextButton(enabled = value != null, onClick = { onChange(null) }) {
-                Text("Auto")
+                Text("Auto", style = MaterialTheme.typography.labelSmall)
             }
         }
         Slider(
             value = (value ?: defaultValue).coerceIn(minimum, maximum).toFloat(),
             onValueChange = { onChange(it.roundToInt()) },
             valueRange = minimum.toFloat()..maximum.toFloat(),
-            modifier = Modifier.width(230.dp),
+            modifier = Modifier.fillMaxWidth(),
         )
     }
 }

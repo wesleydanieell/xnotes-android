@@ -493,3 +493,10 @@ A tinta selecionada colore somente os acentos dentro dos pictogramas das canetas
 - Header de section 40→34dp, espaço entre sections 8→6dp e entre linhas/elementos 5/4→3dp. Preservados títulos, contorno da seleção, indicação `Oculto` e gesto de arrastar container inteiro.
 - O ghost reutiliza `LayerFace` e herda automaticamente a mesma densidade; hitboxes das sections e elementos continuam medidas em tempo real.
 - Testes JVM e build debug passaram (`:app:testDebugUnitTest :app:assembleDebug --offline`). QA com Smart Pen ainda necessário para validar conforto dos controles compactos.
+
+## Compactação das propriedades de barra (05/11/2026)
+
+- `Barras`: nome e opção `Movível` compartilham a linha quando houver largura; faixa de encaixe e alinhamento passam a formar dois blocos lado a lado, ajustando-se automaticamente em telas estreitas.
+- `Aparência`: controles de medidas em cartões de largura reduzida, com menor distância vertical/horizontal; removidos título e descrição duplicados.
+- Redução do espaçamento do inspetor e dos textos explicativos que não acrescentavam uma ação; sem alterar a lógica de encaixe, seleção ou persistência.
+- Direção de UX inspirada na densidade e no acesso contextual de editores de notas como Samsung Notes e Notein, preservando componentes do XNotes.
