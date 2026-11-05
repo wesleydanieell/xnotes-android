@@ -500,3 +500,11 @@ A tinta selecionada colore somente os acentos dentro dos pictogramas das canetas
 - `Aparência`: controles de medidas em cartões de largura reduzida, com menor distância vertical/horizontal; removidos título e descrição duplicados.
 - Redução do espaçamento do inspetor e dos textos explicativos que não acrescentavam uma ação; sem alterar a lógica de encaixe, seleção ou persistência.
 - Direção de UX inspirada na densidade e no acesso contextual de editores de notas como Samsung Notes e Notein, preservando componentes do XNotes.
+
+## Auditoria inicial de preparação para PR upstream (05/11/2026)
+
+- Diff da branch de integração contra `upstream/master`: 58 arquivos e aproximadamente 8,3 mil linhas adicionadas, incluindo documentação e testes. **Não enviar a branch inteira como PR único.** Extrair modelo/codec, render/layout, UX/gestos e workspaces em etapas verificáveis sobre branches novas baseadas em `upstream/master`.
+- Primeira redundância removida em `ToolbarSectionDistribution`: a construção de children/Separator repetia-se nos caminhos horizontal e vertical. Os dois agora compartilham uma lambda composable; scroll e alinhamento permanecem independentes. `git diff --check`, `:app:testDebugUnitTest :app:assembleDebug --offline` passaram.
+- `ToolbarToolGroup` **não é código órfão**: `UnifiedPenLauncher` utiliza a lista de canetas e seu modelo; não apagar sem migrar o Pen Group. O código da tentativa de grupos genéricos foi revertido anteriormente; revalidar referências antes de remover quaisquer APIs.
+- Dívida prioritária identificada: `PreferencesPane.kt` concentra editor, seleção, operações de workspace/toolbar, desenho das opções e estado; separar por responsabilidades após testes de regressão. Harmonizar medição e estimativas em `ToolbarDockWorkspace` com a geometria compartilhada. Verificar migração v1–v6, limites/capacidade e gestos com Smart Pen antes de PR.
+- A auditoria está **parcial**: ainda não houve prova de ausência de todos os símbolos não usados nem QA físico completo. Próxima ação: levantamento de dependências reais entre arquivos e preparação de branches pequenas de PR, sem reescrever o histórico publicado.
