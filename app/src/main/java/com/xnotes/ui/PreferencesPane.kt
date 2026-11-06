@@ -85,6 +85,7 @@ import com.xnotes.core.model.Rgba
 import com.xnotes.settings.ExplorerLayout
 import com.xnotes.core.tools.InkPalette
 import com.xnotes.core.tools.ToolbarAnchor
+import com.xnotes.core.tools.ToolbarContext
 import com.xnotes.core.tools.ToolbarBar
 import com.xnotes.core.tools.ToolbarDockAlignment
 import com.xnotes.core.tools.ToolbarDockEdge
@@ -261,15 +262,19 @@ fun PreferencesPane(
         if (bar.id == workspace.bars.first().id) {
             if (canvasTab) editor.applyCanvasToolbarLayout(next) else editor.applyToolbarLayout(next)
         } else {
-            val profiles = editor.toolbarWorkspaces
-            val changed = workspace.replaceBar(bar.copy(layout = next))
-            editor.applyToolbarWorkspaces(if (canvasTab) profiles.copy(canvas = changed) else profiles.copy(note = changed))
+            editor.applyToolbarWorkspaces(
+                editor.toolbarWorkspaces.updateBar(
+                    if (canvasTab) ToolbarContext.CANVAS else ToolbarContext.NOTE, bar.id,
+                ) { it.copy(layout = next) },
+            )
         }
     }
     fun updateSelectedBar(transform: (ToolbarBar) -> ToolbarBar) {
-        val profiles = editor.toolbarWorkspaces
-        val changed = editedWorkspace().replaceBar(transform(selectedBar()))
-        editor.applyToolbarWorkspaces(if (canvasTab) profiles.copy(canvas = changed) else profiles.copy(note = changed))
+        editor.applyToolbarWorkspaces(
+            editor.toolbarWorkspaces.updateBar(
+                if (canvasTab) ToolbarContext.CANVAS else ToolbarContext.NOTE, selectedBar().id, transform,
+            ),
+        )
     }
     fun configureDock(next: ToolbarGeometry, nextLook: com.xnotes.settings.ToolbarLook = prefs.toolbarLook) {
         val bar = selectedBar()
@@ -352,13 +357,8 @@ fun PreferencesPane(
     fun retargetSection() {
         sectionDropTarget = toolbarSectionDropTarget(editedLayout(), dragFinger, sectionBounds, regionBounds)
     }
-    fun showTab(canvas: Boolean) {
-        if (canvasTab == canvas) return
-        canvasTab = canvas
-        selectedBarId = null
-        selectedEntry = null
-        // The bounds maps are keyed by item and the two bars share most items, so stale entries
-        // from the other tab would aim a drop at a chip that is no longer there.
+    // Bounds describe the visible editor; they must never survive a profile/bar switch.
+    fun resetDragSession() {
         chipBounds.clear()
         laneBounds.clear()
         sectionBounds.clear()
@@ -370,20 +370,18 @@ fun PreferencesPane(
         dragRegionTarget = null
         sectionDropTarget = null
     }
+    fun showTab(canvas: Boolean) {
+        if (canvasTab == canvas) return
+        canvasTab = canvas
+        selectedBarId = null
+        selectedEntry = null
+        resetDragSession()
+    }
     fun showBar(id: String) {
         if (selectedBarId == id) return
         selectedBarId = id
         selectedEntry = null
-        chipBounds.clear()
-        laneBounds.clear()
-        sectionBounds.clear()
-        sectionGrabBounds.clear()
-        regionBounds.clear()
-        dragItem = null
-        dragSection = null
-        dropTarget = null
-        dragRegionTarget = null
-        sectionDropTarget = null
+        resetDragSession()
     }
 
     transferDraft?.let { draft ->

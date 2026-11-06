@@ -508,3 +508,10 @@ A tinta selecionada colore somente os acentos dentro dos pictogramas das canetas
 - `ToolbarToolGroup` **não é código órfão**: `UnifiedPenLauncher` utiliza a lista de canetas e seu modelo; não apagar sem migrar o Pen Group. O código da tentativa de grupos genéricos foi revertido anteriormente; revalidar referências antes de remover quaisquer APIs.
 - Dívida prioritária identificada: `PreferencesPane.kt` concentra editor, seleção, operações de workspace/toolbar, desenho das opções e estado; separar por responsabilidades após testes de regressão. Harmonizar medição e estimativas em `ToolbarDockWorkspace` com a geometria compartilhada. Verificar migração v1–v6, limites/capacidade e gestos com Smart Pen antes de PR.
 - A auditoria está **parcial**: ainda não houve prova de ausência de todos os símbolos não usados nem QA físico completo. Próxima ação: levantamento de dependências reais entre arquivos e preparação de branches pequenas de PR, sem reescrever o histórico publicado.
+
+## Refatoração incremental — operações de editor (06/11/2026)
+
+- Extraída a operação imutável `ToolbarWorkspaces.updateBar(context, id, transform)` para o modelo: editar barra secundária não precisa mais reconstruir perfis manualmente na tela; o perfil inativo e campos de layout não filtrados são preservados.
+- `PreferencesPane` reutiliza a operação em edições de layout secundário e de propriedades de barra. A edição da barra principal mantém o caminho especializado antigo do Editor para sincronizar preferências legadas.
+- Removida duplicação do reset de limites de arraste e seleção de destino ao alternar perfil/barra; ambos chamam `resetDragSession()`.
+- Teste JVM de isolamento dos perfis note/canvas, preservação do flag shared, imutabilidade e ID inexistente. Validar também no Redmi Pad 2 antes de chamar a arquitetura de concluída. Próximo passo: extrair o estado transitório de arraste e as seções de configurações em componentes pequenos.

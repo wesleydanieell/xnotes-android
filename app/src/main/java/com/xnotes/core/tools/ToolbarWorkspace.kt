@@ -128,6 +128,18 @@ data class ToolbarWorkspaces(
             (if (shared) note else canvas).onlyItems(ToolbarLayout.CANVAS_ITEMS)
     }
 
+    /**
+     * Edit an existing bar in one saved profile without mutating the other.
+     * Unlike [forContext], this operates on the unfiltered source, preserving
+     * hidden/context-specific tools and the independent canvas profile.
+     */
+    fun updateBar(context: ToolbarContext, id: String, transform: (ToolbarBar) -> ToolbarBar): ToolbarWorkspaces {
+        val source = if (context == ToolbarContext.CANVAS) canvas else note
+        val bar = source.bars.firstOrNull { it.id == id } ?: return this
+        val updated = source.replaceBar(transform(bar))
+        return if (context == ToolbarContext.CANVAS) copy(canvas = updated) else copy(note = updated)
+    }
+
     /** Import one preset profile without replacing the other. Unshare first so the
      * canvas does not keep rendering the note profile after restoring either side. */
     fun replaceContextFrom(preset: ToolbarWorkspaces, target: ToolbarContext): ToolbarWorkspaces = when (target) {
