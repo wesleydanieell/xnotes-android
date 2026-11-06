@@ -83,16 +83,11 @@ import com.xnotes.core.model.Orientation
 import com.xnotes.core.model.PageSize
 import com.xnotes.core.model.Rgba
 import com.xnotes.settings.ExplorerLayout
-import com.xnotes.core.tools.InkPalette
 import com.xnotes.core.tools.ToolbarAnchor
 import com.xnotes.core.tools.ToolbarBar
-import com.xnotes.core.tools.ToolbarDistribution
-import com.xnotes.core.tools.ToolbarEntry
-import com.xnotes.core.tools.ToolbarRegion
 import com.xnotes.core.tools.ToolbarGeometry
 import com.xnotes.core.tools.ToolbarItem
 import com.xnotes.core.tools.ToolbarLayout
-import com.xnotes.core.tools.ToolbarSection
 import com.xnotes.core.tools.ToolbarWorkspace
 import com.xnotes.core.util.NameTemplate
 import com.xnotes.settings.Preferences
@@ -236,20 +231,14 @@ fun PreferencesPane(
     // Toolbar drag state, hoisted here so the floating "ghost" chip can be drawn at the pane
     // root (above and outside the scroll, so it is never clipped). Bounds are plain maps read
     // only at drag time; observable state is just the dragged item, finger, and drop slot.
-    var dragItem by toolbarInteraction.dragItem
-    var dragFinger by toolbarInteraction.dragFinger
-    var dragGrab by toolbarInteraction.dragGrab
-    var dropTarget by toolbarInteraction.dropTarget
-    var dragRegionTarget by toolbarInteraction.dragRegionTarget
+    val dragItem by toolbarInteraction.dragItem
+    val dragFinger by toolbarInteraction.dragFinger
+    val dragGrab by toolbarInteraction.dragGrab
     val chipBounds = toolbarInteraction.chipBounds
-    val laneBounds = toolbarInteraction.laneBounds
     val sectionBounds = toolbarInteraction.sectionBounds
-    val sectionGrabBounds = toolbarInteraction.sectionGrabBounds
-    val regionBounds = toolbarInteraction.regionBounds
     // Section-drag state (the whole card, by its grip handle); shares the finger/grab with the
     // chip drag since only one gesture runs at a time. The drop slot is an insertion index.
-    var dragSection by toolbarInteraction.dragSection
-    var sectionDropTarget by toolbarInteraction.sectionDropTarget
+    val dragSection by toolbarInteraction.dragSection
     var paneTopLeft by remember { mutableStateOf(Offset.Zero) }
     var viewport by remember { mutableStateOf(Rect.Zero) }
     fun editedLayout(): ToolbarLayout = selectedBar().layout
@@ -342,13 +331,10 @@ fun PreferencesPane(
     }
 
     fun retarget() {
-        val target = toolbarItemDropTarget(editedLayout(), dragFinger, chipBounds, laneBounds,
-            sectionBounds, regionBounds)
-        dropTarget = target?.slot
-        dragRegionTarget = target?.region
+        toolbarInteraction.retargetItem(editedLayout())
     }
     fun retargetSection() {
-        sectionDropTarget = toolbarSectionDropTarget(editedLayout(), dragFinger, sectionBounds, regionBounds)
+        toolbarInteraction.retargetSection(editedLayout())
     }
     fun showTab(canvas: Boolean) {
         if (canvasTab == canvas) return
@@ -967,10 +953,6 @@ fun PreferencesPane(
                     }
                 }
             }
-            val entryPosition = selectedEntry
-            val activeEntry = entryPosition?.let { (section, index) ->
-                currentBar.layout.sections.getOrNull(section)?.entries?.getOrNull(index)
-            }
             val barSize = if (currentBar.id == workspace.bars.first().id) prefs.toolbarLook.size
                 else when (currentBar.geometry.scale) {
                     com.xnotes.core.tools.ToolbarScale.COMPACT -> ToolbarSize.COMPACT
@@ -1036,20 +1018,18 @@ fun PreferencesPane(
                     verticalArrangement = Arrangement.spacedBy(8.dp),
                 ) {
                     if (toolbarPropertyTab == ToolbarPropertyTab.ELEMENTS) {
-                        if (activeEntry != null) {
-                            Row(verticalAlignment = Alignment.CenterVertically) {
-                                Text("Tamanho do elemento", style = MaterialTheme.typography.titleSmall)
-                                Spacer(Modifier.weight(1f))
-                                TextButton(onClick = { selectedEntry = null }) { Text("Fechar") }
-                            }
-                            ToolbarEntrySizeControls(
-                                entry = activeEntry,
-                                defaultSizeDp = defaultEntrySize,
-                                onChange = { size ->
-                                    applyEdited(editedLayout().setEntrySize(entryPosition.first, entryPosition.second, size))
-                                },
-                            )
-                        }
+                        ToolbarElementsEditor(
+                            layout = layout,
+                            currentLayout = { editedLayout() },
+                            availableItems = if (canvasTab) ToolbarLayout.CANVAS_ITEMS else ToolbarLayout.NOTE_ITEMS,
+                            interaction = toolbarInteraction,
+                            defaultEntrySize = defaultEntrySize,
+                            colorCount = editor.toolbarColorCount,
+                            colorControlsExpanded = colorControlsExpanded,
+                            onToggleColorControls = { colorControlsExpanded = !colorControlsExpanded },
+                            onColorCountChange = { editor.applyToolbarColorCount(it) },
+                            onApplyLayout = { applyEdited(it) },
+                        )
                     }
                     if (toolbarPropertyTab == ToolbarPropertyTab.DIMENSIONS) {
                         ToolbarAppearanceSettings(
@@ -1103,164 +1083,6 @@ fun PreferencesPane(
                     color = palette.accent.toComposeColor(), style = MaterialTheme.typography.bodySmall)
             }
             dockError?.let { Text(it, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall) }
-                    }
-                    if (toolbarPropertyTab == ToolbarPropertyTab.ELEMENTS) {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Text("Paleta de cores", style = MaterialTheme.typography.titleSmall)
-                            Spacer(Modifier.weight(1f))
-                            TextButton(onClick = { colorControlsExpanded = !colorControlsExpanded }) {
-                                Text(if (colorControlsExpanded) "Recolher" else "Configurar")
-                            }
-                        }
-                        if (colorControlsExpanded) {
-                            // Palette is shared; only the number of blocks belongs to this bar.
-                            FieldLabel(stringResource(R.string.pref_toolbar_colours_n, editor.toolbarColorCount))
-                            Slider(
-                                value = editor.toolbarColorCount.toFloat(),
-                                onValueChange = {
-                                    val total = Math.round(it)
-                                    editor.applyToolbarColorCount(total)
-                                    if (editedLayout().colorBlockCount > total)
-                                        applyEdited(editedLayout().setColorBlocks(total))
-                                },
-                                valueRange = 1f..InkPalette.MAX_SWATCHES.toFloat(),
-                                steps = InkPalette.MAX_SWATCHES - 2,
-                                modifier = Modifier.width(280.dp),
-                            )
-                            FieldLabel("Distribuir cores em ${layout.colorBlockCount} blocos")
-                            if (editor.toolbarColorCount > 1 && layout.colorBlockCount > 0) {
-                                Slider(
-                                    value = layout.colorBlockCount.coerceIn(1, editor.toolbarColorCount).toFloat(),
-                                    onValueChange = { applyEdited(editedLayout().setColorBlocks(Math.round(it))) },
-                                    valueRange = 1f..editor.toolbarColorCount.toFloat(),
-                                    steps = (editor.toolbarColorCount - 2).coerceAtLeast(0),
-                                    modifier = Modifier.width(280.dp),
-                                )
-                            }
-                        }
-                    }
-                    if (toolbarPropertyTab == ToolbarPropertyTab.ELEMENTS) {
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
-                Text(stringResource(R.string.toolbar_distribution), color = palette.textDim.toComposeColor(), fontSize = 12.sp)
-                Chip(stringResource(R.string.toolbar_continuous), layout.distribution == ToolbarDistribution.CONTINUOUS) {
-                    selectedEntry = null
-                    applyEdited(editedLayout().setDistribution(ToolbarDistribution.CONTINUOUS))
-                }
-                Chip(stringResource(R.string.toolbar_regions), layout.distribution == ToolbarDistribution.REGIONS) {
-                    selectedEntry = null
-                    applyEdited(editedLayout().setDistribution(ToolbarDistribution.REGIONS))
-                }
-            }
-            if (layout.distribution == ToolbarDistribution.REGIONS &&
-                layout.sections.any { it.region != ToolbarRegion.START }) {
-                TextButton(onClick = {
-                    selectedEntry = null
-                    applyEdited(editedLayout().gatherSectionsAtStart())
-                }) { Text("Reunir sections no início", fontSize = 12.sp) }
-            }
-            val unifiedPenEnabled = layout.sections.any { section ->
-                section.entries.any { entry -> entry.item == ToolbarItem.UNIFIED_PEN && entry.visible }
-            }
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Checkbox(
-                    checked = unifiedPenEnabled,
-                    onCheckedChange = { enabled ->
-                        val current = editedLayout()
-                        applyEdited(if (enabled) current.withUnifiedPenVisible() else current.withUnifiedPenHidden())
-                    },
-                )
-                Text(stringResource(R.string.toolbar_unified_pen), color = palette.text.toComposeColor(), fontSize = 13.sp)
-            }
-            ToolbarCustomizerBody(
-                layout = layout,
-                availableItems = if (canvasTab) ToolbarLayout.CANVAS_ITEMS else ToolbarLayout.NOTE_ITEMS,
-                dragItem = dragItem,
-                selectedEntry = selectedEntry,
-                dropTarget = dropTarget,
-                dragRegionTarget = dragRegionTarget,
-                dragSection = dragSection,
-                sectionDropTarget = sectionDropTarget,
-                chipBounds = chipBounds,
-                laneBounds = laneBounds,
-                sectionBounds = sectionBounds,
-                sectionGrabBounds = sectionGrabBounds,
-                regionBounds = regionBounds,
-                onToggle = { s, i -> applyEdited(editedLayout().toggleVisible(s, i)) },
-                onSelect = { s, i -> selectedEntry = s to i },
-                onRemoveItem = { s, i ->
-                    applyEdited(editedLayout().removeItem(s, i))
-                    selectedEntry = null
-                },
-                onAddItem = { s, lane, item -> applyEdited(editedLayout().addItem(s, lane, item)) },
-                onLanesChange = { s, lanes -> applyEdited(editedLayout().setSectionLanes(s, lanes)) },
-                onRegionChange = { s, region -> applyEdited(editedLayout().setSectionRegion(s, region)) },
-                onDelete = { s -> applyEdited(editedLayout().removeSection(s)) },
-                onAdd = { lanes, region -> applyEdited(editedLayout().addSection(lanes, region)) },
-                onDragStart = { section, index, local ->
-                    val key = section to index
-                    dragItem = key
-                    // The floating copy now has the same dimensions as the source row.
-                    dragGrab = local
-                    dragFinger = (chipBounds[key]?.topLeft ?: Offset.Zero) + local
-                    retarget()
-                },
-                onDrag = { delta -> dragFinger += delta; retarget() },
-                onDrop = {
-                    val target = dropTarget
-                    val region = dragRegionTarget
-                    val moving = dragItem
-                    if (moving != null) {
-                        val current = editedLayout()
-                        val next = when {
-                            target != null -> current.moveItem(moving.first, moving.second,
-                                target.first, target.third, target.second)
-                            region != null -> current.moveItemToNewRegionSection(moving.first, moving.second, region)
-                            else -> current
-                        }
-                        if (next != current) {
-                            applyEdited(next)
-                            selectedEntry = null
-                        }
-                    }
-                    dragItem = null
-                    dropTarget = null
-                    dragRegionTarget = null
-                },
-                onCancel = {
-                    dragItem = null
-                    dropTarget = null
-                    dragRegionTarget = null
-                },
-                onSectionDragStart = { sec, local ->
-                    dragSection = sec
-                    val grab = sectionGrabBounds[sec]?.topLeft ?: sectionBounds[sec]?.topLeft ?: Offset.Zero
-                    val card = sectionBounds[sec]?.topLeft ?: Offset.Zero
-                    dragFinger = grab + local
-                    dragGrab = dragFinger - card
-                    retargetSection()
-                },
-                onSectionDrag = { delta -> dragFinger += delta; retargetSection() },
-                onSectionDrop = {
-                    val from = dragSection
-                    val target = sectionDropTarget
-                    if (from != null && target != null) {
-                        val cur = editedLayout()
-                        if (cur.distribution == ToolbarDistribution.REGIONS) {
-                            applyEdited(cur.moveSectionToRegion(from, target.region, target.beforeSection))
-                        } else {
-                            val insertAt = target.beforeSection ?: cur.sections.size
-                            val to = (if (insertAt > from) insertAt - 1 else insertAt).coerceIn(0, cur.sections.lastIndex)
-                            if (to != from) applyEdited(cur.moveSection(from, to))
-                        }
-                    }
-                    dragSection = null
-                    sectionDropTarget = null
-                },
-                onSectionCancel = {
-                    dragSection = null
-                    sectionDropTarget = null
-                },
-            )
                     }
                 }
             }

@@ -70,4 +70,23 @@ class ToolbarEditorInteractionStateTest {
         assertEquals(1 to 2, second.dragItem.value)
         assertTrue(second.sectionBounds.containsKey(1))
     }
+
+    @Test fun retargetUsesLatestMeasurementsAndClearsAnUnavailableDestination() {
+        val state = ToolbarEditorInteractionState()
+        state.dragFinger.value = Offset(40f, 40f)
+        state.sectionBounds[0] = Rect(0f, 0f, 100f, 100f)
+        state.chipBounds[0 to 0] = Rect(0f, 0f, 100f, 100f)
+        state.retargetItem(layout)
+        assertEquals(Triple(0, 0, 0), state.dropTarget.value)
+
+        // Scrolling moves the measured chip above the finger, changing the insertion slot.
+        state.chipBounds[0 to 0] = Rect(0f, 0f, 100f, 20f)
+        state.retargetItem(layout)
+        assertEquals(Triple(0, 0, 1), state.dropTarget.value)
+
+        state.resetForSelectionChange()
+        state.retargetItem(layout)
+        assertNull(state.dropTarget.value)
+        assertNull(state.dragRegionTarget.value)
+    }
 }

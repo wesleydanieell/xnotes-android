@@ -3,6 +3,7 @@ package com.xnotes.ui
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Rect
+import com.xnotes.core.tools.ToolbarLayout
 import com.xnotes.core.tools.ToolbarRegion
 
 /** Transient selection and drag data for one configuration screen; never persisted with a note. */
@@ -22,6 +23,17 @@ internal class ToolbarEditorInteractionState {
     val sectionBounds = mutableMapOf<Int, Rect>()
     val sectionGrabBounds = mutableMapOf<Int, Rect>()
     val regionBounds = mutableMapOf<ToolbarRegion, Rect>()
+
+    fun retargetItem(layout: ToolbarLayout) {
+        val target = toolbarItemDropTarget(layout, dragFinger.value, chipBounds, laneBounds,
+            sectionBounds, regionBounds)
+        dropTarget.value = target?.slot
+        dragRegionTarget.value = target?.region
+    }
+
+    fun retargetSection(layout: ToolbarLayout) {
+        sectionDropTarget.value = toolbarSectionDropTarget(layout, dragFinger.value, sectionBounds, regionBounds)
+    }
 
     /** Old profile/bar measurements must never become drop targets in the newly selected layout. */
     fun resetForSelectionChange() {

@@ -1,5 +1,18 @@
 # Estado executável — XNotes Toolbars
 
+## Extração de Elementos — 06/11/2026
+
+- `ToolbarElementsEditor` concentra tamanho individual, paleta/blocos, distribuição,
+  Pen Group e a ligação com o editor de sections. Recebe o layout, um acesso ao
+  layout atual, estado transitório e callbacks; não acessa `Editor` nem settings.
+- Ghost e auto-rolagem continuam no painel externo. Ambos e os gestos usam os
+  mesmos métodos de retarget em `ToolbarEditorInteractionState`.
+- Regressão adicional verifica o destino antes/depois da atualização dos bounds
+  por scroll e a remoção do destaque quando o layout fica sem medições válidas.
+- `testDebugUnitTest assembleDebug --offline` passou. Esta rodada conserva a
+  mesma ordem de controles e persistência imediata; smoke visual será registrado
+  junto da extração da biblioteca.
+
 ## Refatoração incremental para revisão upstream — 06/11/2026
 
 - Após `d52d4fc9`, o usuário confirmou que a principal do XCanvas move melhor e
