@@ -2833,7 +2833,7 @@ class Editor(context: Context, val pane: Pane = Pane.PRIMARY) : ToolPopupHost, S
         settings = settings.copy(
             toolbarLayout = layout,
             toolbarWorkspaces = settings.toolbarWorkspaces?.let {
-                it.copy(note = it.note.replacePrimaryLayout(layout))
+                it.updateWorkspace(ToolbarContext.NOTE) { workspace -> workspace.replacePrimaryLayout(layout) }
             },
         )
         toolbarWorkspaces = settings.effectiveToolbarWorkspaces()
@@ -2847,7 +2847,7 @@ class Editor(context: Context, val pane: Pane = Pane.PRIMARY) : ToolPopupHost, S
         settings = settings.copy(
             canvasToolbarLayout = layout,
             toolbarWorkspaces = settings.toolbarWorkspaces?.let {
-                it.copy(canvas = it.canvas.replacePrimaryLayout(layout))
+                it.updateWorkspace(ToolbarContext.CANVAS) { workspace -> workspace.replacePrimaryLayout(layout) }
             },
         )
         toolbarWorkspaces = settings.effectiveToolbarWorkspaces()
@@ -2965,7 +2965,7 @@ class Editor(context: Context, val pane: Pane = Pane.PRIMARY) : ToolPopupHost, S
             applyHomePreferences(settings.prefs.copy(toolbarLook = toolbarLook.copy(floating = false, position = dockPosition)))
         }
         applyToolbarWorkspaces(
-            if (context == ToolbarContext.NOTE || profiles.shared) profiles.copy(note = changed) else profiles.copy(canvas = changed),
+            profiles.updateWorkspace(if (profiles.shared) ToolbarContext.NOTE else context) { changed },
         )
     }
 

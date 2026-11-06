@@ -121,4 +121,51 @@ class ToolbarWorkspaceTest {
         assertEquals(ToolbarAnchor.TOP_CENTER,
             ToolbarGeometry(anchor = ToolbarAnchor.CENTER).constrained().anchor)
     }
+
+    @Test fun editingEitherStoredProfilePreservesTheOtherAndSharingChoice() {
+        for (shared in listOf(false, true)) {
+            for (context in ToolbarContext.entries) {
+                val note = ToolbarWorkspace(listOf(shortBar("note", ToolbarItem.PAGE_NAV)))
+                val canvas = ToolbarWorkspace(listOf(shortBar("canvas", ToolbarItem.MINIMAP)))
+                val original = ToolbarWorkspaces(note, canvas, shared)
+                val changed = original.updateWorkspace(context) { workspace ->
+                    workspace.addBar(shortBar("palette", ToolbarItem.COLORS))
+                        .moveBar("palette", 0)
+                }
+                assertEquals(shared, changed.shared)
+                if (context == ToolbarContext.NOTE) {
+                    assertSame(canvas, changed.canvas)
+                    assertEquals(listOf("palette", "note"), changed.note.bars.map { it.id })
+                    assertEquals(ToolbarItem.PAGE_NAV, changed.note.bars.last().layout
+                        .sections.single().entries.single().item)
+                } else {
+                    assertSame(note, changed.note)
+                    assertEquals(listOf("palette", "canvas"), changed.canvas.bars.map { it.id })
+                    assertEquals(ToolbarItem.MINIMAP, changed.canvas.bars.last().layout
+                        .sections.single().entries.single().item)
+                }
+                assertEquals(listOf("note"), original.note.bars.map { it.id })
+                assertEquals(listOf("canvas"), original.canvas.bars.map { it.id })
+            }
+        }
+    }
+
+    @Test fun editingSharedSourcePreservesNoteOnlyToolsAndIndependentCanvas() {
+        val note = ToolbarWorkspace(listOf(shortBar("note", ToolbarItem.PAGE_NAV)))
+        val canvas = ToolbarWorkspace(listOf(shortBar("canvas", ToolbarItem.MINIMAP)))
+        val original = ToolbarWorkspaces(note, canvas, shared = true)
+        val changed = original.updateWorkspace(ToolbarContext.NOTE) { workspace ->
+            val bar = workspace.bars.single()
+            workspace.replaceBar(bar.copy(geometry = bar.geometry.movedTo(
+                ToolbarAnchor.BOTTOM_RIGHT, floating = true)))
+        }
+        assertEquals(ToolbarAnchor.BOTTOM_RIGHT, changed.forContext(ToolbarContext.CANVAS)
+            .bars.single().geometry.anchor)
+        assertEquals(ToolbarItem.PAGE_NAV, changed.note.bars.single().layout
+            .sections.single().entries.single().item)
+        assertTrue(changed.forContext(ToolbarContext.CANVAS).bars.single().layout
+            .sections.single().entries.isEmpty())
+        assertSame(canvas, changed.copy(shared = false).canvas)
+        assertEquals(ToolbarAnchor.TOP_CENTER, original.note.bars.single().geometry.anchor)
+    }
 }

@@ -134,6 +134,18 @@ data class ToolbarWorkspaces(
     val canvas: ToolbarWorkspace,
     val shared: Boolean = false,
 ) {
+    /**
+     * Edit a stored profile without filtering tools or resolving shared rendering.
+     * Callers editing the displayed shared canvas must explicitly target NOTE.
+     */
+    fun updateWorkspace(
+        context: ToolbarContext,
+        transform: (ToolbarWorkspace) -> ToolbarWorkspace,
+    ): ToolbarWorkspaces = when (context) {
+        ToolbarContext.NOTE -> copy(note = transform(note))
+        ToolbarContext.CANVAS -> copy(canvas = transform(canvas))
+    }
+
     fun forContext(context: ToolbarContext): ToolbarWorkspace = when (context) {
         ToolbarContext.NOTE ->
             note.onlyItems(ToolbarLayout.NOTE_ITEMS)

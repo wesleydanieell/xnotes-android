@@ -1,5 +1,27 @@
 # Estado executável — XNotes Toolbars
 
+## Atualização imutável dos perfis — 06/11/2026
+
+- `ToolbarWorkspaces.updateWorkspace(context, transform)` centraliza a edição de
+  um perfil salvo, preservando o outro perfil e a opção `shared`. Não filtra
+  ferramentas nem escolhe implicitamente o perfil de renderização.
+- Configurador usa o contexto da aba em edição. O movimento em runtime continua
+  direcionado a NOTE quando compartilhado; persistência e sincronização dos
+  layouts primários legados permanecem em `Editor`. Copiar para XCanvas mantém
+  sua transição explícita para `shared = false`.
+- Duas regressões cobrem os dois contextos com compartilhamento ligado/desligado,
+  preservação de ferramentas específicas, imutabilidade da origem e edição da
+  fonte compartilhada sem sobrescrever o canvas independente.
+- Gate offline: 2.468 testes sem falhas/erros/skips; assembleDebug passou e APK
+  instalado no `emulator-5554` com Success. `git diff --check` passou.
+- UIAutomator alterou Movable em xnote e xcanvas, verificou no JSON que apenas
+  o perfil selecionado mudou e que `shared` foi preservado; restaurou a opção em
+  cada contexto e comparou os workspaces completos com o estado inicial. Passou.
+- Este smoke não percorre docks/âncoras nem mede escrita com stylus. Não houve
+  alteração no desenho ou no reconhecimento do gesto de arraste.
+- Próximo corte: auditar persistência e sincronização dos campos legados para
+  preparar a separação das branches de Modelo/Persistência.
+
 ## Planejamento de cópia e capacidade — 06/11/2026
 
 - Extraído `ToolbarCopyPlanner`: preserva o encaixe herdado da principal quando

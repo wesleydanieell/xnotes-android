@@ -33,10 +33,16 @@ A extração de estado mantém os mapas de bounds não observáveis. Atualizaç�
 medição não devem disparar recomposição; apenas seleção, ponteiro e destinos
 visuais precisam ser observados. Dois configuradores não compartilham esse estado.
 
+`ToolbarWorkspaces.updateWorkspace` altera um perfil salvo sem aplicar o filtro
+de renderização nem redirecionar implicitamente o contexto compartilhado. O
+configurador escolhe o perfil da aba; o movimento em runtime escolhe NOTE quando
+o canvas exibe o perfil compartilhado. O JSON e a sincronização dos campos
+legados continuam nos pontos de persistência existentes em `Editor`.
+
 ## Próximas revisões
 
-1. Revisar operações imutáveis de atualização dos perfis e integrações repetidas
-   no configurador, preservando o perfil inativo e o modo compartilhado.
+1. Auditar os pontos de persistência e sincronização com os campos legados antes
+   de extrair as branches de Modelo/Persistência para revisão independente.
 2. Conferir funções sem referências e imports redundantes nos arquivos alterados.
    Entradas de JSON e migração não podem ser removidas só por não terem chamadas diretas.
 3. Medir recomposições e tempo de frame durante arraste antes de introduzir caches.

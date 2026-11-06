@@ -81,6 +81,7 @@ import com.xnotes.core.model.PageSize
 import com.xnotes.core.model.Rgba
 import com.xnotes.settings.ExplorerLayout
 import com.xnotes.core.tools.ToolbarAnchor
+import com.xnotes.core.tools.ToolbarContext
 import com.xnotes.core.tools.ToolbarBar
 import com.xnotes.core.tools.ToolbarGeometry
 import com.xnotes.core.tools.ToolbarItem
@@ -181,6 +182,7 @@ fun PreferencesPane(
     )
     val toolbarInteraction = remember { ToolbarEditorInteractionState() }
     var selectedEntry by toolbarInteraction.selectedEntry
+    fun editedContext(): ToolbarContext = if (canvasTab) ToolbarContext.CANVAS else ToolbarContext.NOTE
     fun editedWorkspace(): ToolbarWorkspace =
         if (canvasTab) editor.toolbarWorkspaces.canvas else editor.toolbarWorkspaces.note
     fun selectedBar(): ToolbarBar = editedWorkspace().bars.firstOrNull { it.id == selectedBarId }
@@ -208,13 +210,13 @@ fun PreferencesPane(
         } else {
             val profiles = editor.toolbarWorkspaces
             val changed = workspace.replaceBar(bar.copy(layout = next))
-            editor.applyToolbarWorkspaces(if (canvasTab) profiles.copy(canvas = changed) else profiles.copy(note = changed))
+            editor.applyToolbarWorkspaces(profiles.updateWorkspace(editedContext()) { changed })
         }
     }
     fun updateSelectedBar(transform: (ToolbarBar) -> ToolbarBar) {
         val profiles = editor.toolbarWorkspaces
         val changed = editedWorkspace().replaceBar(transform(selectedBar()))
-        editor.applyToolbarWorkspaces(if (canvasTab) profiles.copy(canvas = changed) else profiles.copy(note = changed))
+        editor.applyToolbarWorkspaces(profiles.updateWorkspace(editedContext()) { changed })
     }
     fun configureDock(next: ToolbarGeometry, nextLook: com.xnotes.settings.ToolbarLook = prefs.toolbarLook) {
         val bar = selectedBar()
@@ -743,7 +745,7 @@ fun PreferencesPane(
                     } else {
                         dockError = null
                         editor.applyToolbarWorkspaces(
-                            if (canvasTab) profiles.copy(canvas = changed) else profiles.copy(note = changed),
+                            profiles.updateWorkspace(editedContext()) { changed },
                         )
                         showBar(id)
                     }
@@ -763,7 +765,7 @@ fun PreferencesPane(
                     } else {
                         dockError = null
                         editor.applyToolbarWorkspaces(
-                            if (canvasTab) profiles.copy(canvas = changed) else profiles.copy(note = changed),
+                            profiles.updateWorkspace(editedContext()) { changed },
                         )
                         showBar(id)
                     }
@@ -775,7 +777,7 @@ fun PreferencesPane(
                         val changed = old.removeBar(selectedBar().id)
                         val profiles = editor.toolbarWorkspaces
                         editor.applyToolbarWorkspaces(
-                            if (canvasTab) profiles.copy(canvas = changed) else profiles.copy(note = changed),
+                            profiles.updateWorkspace(editedContext()) { changed },
                         )
                         showBar(changed.bars.first().id)
                     }) { Text(stringResource(R.string.remove)) }
@@ -943,7 +945,7 @@ fun PreferencesPane(
                                 val profiles = editor.toolbarWorkspaces
                                 val updated = editedWorkspace().moveBar(currentBar.id, index)
                                 editor.applyToolbarWorkspaces(
-                                    if (canvasTab) profiles.copy(canvas = updated) else profiles.copy(note = updated),
+                                    profiles.updateWorkspace(editedContext()) { updated },
                                 )
                             },
                         )
