@@ -1,5 +1,30 @@
 # Estado executável — XNotes Toolbars
 
+## Refatoração incremental para revisão upstream — 06/11/2026
+
+- Após `d52d4fc9`, o usuário confirmou que a principal do XCanvas move melhor e
+  aceitou o espaço temporário deixado na origem durante o arraste, que some ao
+  posicionar. Esse efeito não é bloqueador informado pelo usuário.
+- Extraídos os controles de barra (`ToolbarBarSettings`), incluindo o seletor
+  de âncoras, sem referência a `Editor`. Validação de encaixe, perfis e gravação
+  continuam no chamador; o layout e os callbacks anteriores foram preservados.
+- Extraído `ToolbarEditorInteractionState`: seleção e estados de arraste ficam
+  em um objeto por configurador; as cinco tabelas de bounds continuam mapas comuns.
+  Trocar barra ou perfil usa a mesma rotina de cancelamento/limpeza.
+- Duas regressões verificam que medições do layout anterior não resolvem um drop
+  após a troca e que limpar um configurador não altera o arraste de outro.
+- Verificação: `testDebugUnitTest assembleDebug --offline` passou; 2.462 testes,
+  sem falhas, erros ou skips. APK debug instalado com Success no `emulator-5554`.
+  Smoke por UIAutomator confirmou abertura de Aparência, alternância xcanvas/xnote
+  e acesso aos inspetores Elementos/Barras. Não é teste de stylus nem da matriz
+  completa de gestos. Primeira tentativa de navegação parou por seletor fora da
+  área visível; a repetição rolou até o controle e passou.
+- `PreferencesPane.kt`: 1.817 → 1.578 linhas nesta rodada. O corte visual é
+  registrado no commit `8d653861`; o estado transitório possui commit próprio.
+- Guia de preparação/candidatos a PR em `docs/toolbar-pr-preparation.md`.
+  Próximo corte: apresentação de Elementos e integração da biblioteca. Nenhuma
+  alegação de ganho de FPS; performance ainda requer medição.
+
 ## Retomada de revisão e refatoração — 06/11/2026
 
 - Base confirmada: `932756cc` restaura exatamente a árvore de `0e667a1d`. Worktree
