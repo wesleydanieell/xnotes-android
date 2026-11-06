@@ -252,6 +252,13 @@ class InfiniteEditor(context: Context) : ToolPopupHost, SelectionMenuHost, LongP
         }
     }
 
+    /** Text outlines and triangulation can be expensive; never run them on the pen-input thread. */
+    private val textMeshExecutor = java.util.concurrent.Executors.newSingleThreadExecutor { r ->
+        Thread(r, "xnotes-canvas-text-mesh").apply { isDaemon = true; priority = Thread.MIN_PRIORITY }
+    }
+    private val textMeshGen = java.util.concurrent.ConcurrentHashMap<TextItem, Long>()
+    private val textMeshSeq = java.util.concurrent.atomic.AtomicLong()
+
     /** Where inserted images are written; supplied by the host so both editors share one dir. */
     var imageDir: java.io.File? = null
 
@@ -270,6 +277,7 @@ class InfiniteEditor(context: Context) : ToolPopupHost, SelectionMenuHost, LongP
             itemsRevision++
             // Drop any mesh job still running for it, so its result cannot file the record again.
             if (item is ImageItem) vectorMeshGen.remove(item)
+            if (item is TextItem) textMeshGen.remove(item)
             scene.remove(item)
             if (item === AudioPlayback.session?.item) AudioPlayback.closeIfGone(this@InfiniteEditor)
         }
@@ -329,6 +337,10 @@ class InfiniteEditor(context: Context) : ToolPopupHost, SelectionMenuHost, LongP
             if (!pushVectorImage(item)) scene.upsertImage(item, item.paintBounds())
             return
         }
+        if (item is TextItem) {
+            pushTextItem(item)
+            return
+        }
         val started = System.nanoTime()
         val meshed = ItemMesher.mesh(item)
         scene.lastTessellateMs = (System.nanoTime() - started) / 1_000_000.0
@@ -351,6 +363,31 @@ class InfiniteEditor(context: Context) : ToolPopupHost, SelectionMenuHost, LongP
      *
      * Returns false for a raster image, which takes the texture path as before.
      */
+    /** Mesh native text on a worker; stale widths may finish but never overwrite newer ones. */
+    private fun pushTextItem(item: TextItem) {
+        val token = textMeshSeq.incrementAndGet()
+        textMeshGen[item] = token
+        if (item.canvasEditingHidden || item.text.isEmpty()) {
+            scene.remove(item)
+            return
+        }
+        val snapshot = TextItem(item.pos, item.width, item.height, item.text, item.rgba,
+            item.pointSize, item.face, com.xnotes.platform.AndroidTextMeasurer())
+        textMeshExecutor.execute {
+            if (textMeshGen[item] != token) return@execute
+            val started = System.nanoTime()
+            val meshed = runCatching { ItemMesher.mesh(snapshot) }.getOrNull()
+            val ms = (System.nanoTime() - started) / 1_000_000.0
+            view.post {
+                if (!textMeshGen.remove(item, token) || !document.holds(item)) return@post
+                scene.lastTessellateMs = ms
+                if (meshed == null || meshed.isEmpty) scene.remove(item)
+                else scene.upsert(item, meshed.parts, meshed.bounds)
+                view.publish()
+            }
+        }
+    }
+
     private fun pushVectorImage(item: ImageItem): Boolean {
         if (!com.xnotes.platform.ImageDecoder.isVector(item.image.file.path)) return false
         val bounds = item.paintBounds()
@@ -405,6 +442,7 @@ class InfiniteEditor(context: Context) : ToolPopupHost, SelectionMenuHost, LongP
     private fun rebuildScene() {
         scene.reset()
         vectorMeshGen.clear()
+        textMeshGen.clear()
         scene.batch { for (item in document.items) pushItem(item) }
         scene.setOrder(document.items)
     }
