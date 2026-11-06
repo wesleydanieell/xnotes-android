@@ -1,5 +1,27 @@
 # Estado executável — XNotes Toolbars
 
+## Planejamento de cópia e capacidade — 06/11/2026
+
+- Extraído `ToolbarCopyPlanner`: preserva o encaixe herdado da principal quando
+  vira secundária e tenta as mesmas âncoras flutuantes, na ordem anterior, se
+  a posição original não couber. Não grava configurações nem acessa `Editor`.
+- `toolbarPlacementFits` compartilha a validação usada pela edição de geometria,
+  cópia entre contextos e duplicação. Primeiro reserva docks, depois valida as
+  flutuantes na área restante. A projeção de ferramentas usada apenas pelos
+  docks na edição continua explícita no chamador; comportamento anterior mantido.
+- A criação de barra conserva sua validação específica do ID recém-criado;
+  não foi convertida em rejeição de todo o workspace durante esta refatoração.
+- Três regressões cobrem dock herdado, fallback para flutuante sem perder
+  dimensões e capacidade flutuante após reservar espaço do documento.
+- Gate offline passou: 2.466 testes, sem falhas/erros/skips; assembleDebug e
+  diff-check passaram. APK debug instalado no emulador com Success.
+- Smoke abriu a prévia de cópia para XCanvas, exibiu compatíveis/omitidos e
+  cancelou sem aplicar. Não valida a matriz completa de posições nem stylus.
+  A navegação inicial precisou ajustar o script de scroll/seletor; não foi
+  identificada falha do aplicativo nesses passos.
+- Próximo corte: operações imutáveis e integração de atualização de perfis,
+  com regressões de preservação do contexto inativo e compartilhamento.
+
 ## Extração da biblioteca e validação — 06/11/2026
 
 - `ToolbarWorkspaceLibrary` concentra lista, prévia, estado transitório e launchers

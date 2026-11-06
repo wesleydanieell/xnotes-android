@@ -25,6 +25,7 @@ medição; redução de acoplamento e tamanho de arquivo não prova ganho de FPS
 | `ToolbarEditorInteractionState` | Seleção, arraste e medições transitórias; limpeza na troca de barra/perfil |
 | `ToolbarElementsEditor` | Inspetor de elementos, paleta, distribuição e callbacks de reorganização |
 | `ToolbarWorkspaceLibrary` | Estado da biblioteca, navegação de prévia e seletores Android de arquivos |
+| `ToolbarCopyPlanner` | Posição da cópia e validação compartilhada de capacidade dock/flutuante |
 | `PreferencesPane` | Integração com Editor, seleção de perfil, validação de espaço e aplicação |
 | `ToolbarWorkspaceDialogs` | Biblioteca, cópia e prévias de workspaces |
 
@@ -34,8 +35,8 @@ visuais precisam ser observados. Dois configuradores não compartilham esse esta
 
 ## Próximas revisões
 
-1. Revisar os planejadores de cópia/posicionamento para extrair duplicação
-   comprovada, com regressões de geometria e preservação dos perfis.
+1. Revisar operações imutáveis de atualização dos perfis e integrações repetidas
+   no configurador, preservando o perfil inativo e o modo compartilhado.
 2. Conferir funções sem referências e imports redundantes nos arquivos alterados.
    Entradas de JSON e migração não podem ser removidas só por não terem chamadas diretas.
 3. Medir recomposições e tempo de frame durante arraste antes de introduzir caches.
