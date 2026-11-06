@@ -1493,9 +1493,8 @@ private fun EditorPane(
                 val bar: @Composable () -> Unit = {
                     if (primary != null && !primary.geometry.floating) {
                         ToolbarDragSurface(
-                            primary.id, primary.geometry.anchor, primary.geometry.movable, false,
-                            paneBounds, app.toolbarWorkspaces.forContext(ToolbarContext.CANVAS),
-                            { id, anchor -> app.moveToolbarBar(ToolbarContext.CANVAS, id, anchor) },
+                            primary.id, primary.geometry.anchor, primary.geometry.movable,
+                            paneBounds, { id, anchor -> app.moveToolbarBar(ToolbarContext.CANVAS, id, anchor) },
                         ) { bareBar() }
                     } else bareBar()
                 }
@@ -1563,9 +1562,8 @@ private fun EditorPane(
                 val bar: @Composable () -> Unit = {
                     if (primary != null && !primary.geometry.floating) {
                         ToolbarDragSurface(
-                            primary.id, primary.geometry.anchor, primary.geometry.movable, false,
-                            paneBounds, app.toolbarWorkspaces.forContext(ToolbarContext.NOTE),
-                            { id, anchor -> app.moveToolbarBar(ToolbarContext.NOTE, id, anchor) },
+                            primary.id, primary.geometry.anchor, primary.geometry.movable,
+                            paneBounds, { id, anchor -> app.moveToolbarBar(ToolbarContext.NOTE, id, anchor) },
                         ) { bareBar() }
                     } else bareBar()
                 }

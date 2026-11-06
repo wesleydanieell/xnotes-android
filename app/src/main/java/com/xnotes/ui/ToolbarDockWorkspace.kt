@@ -1,7 +1,6 @@
 package com.xnotes.ui
 
 import androidx.compose.ui.unit.Dp
-import androidx.compose.ui.unit.dp
 import com.xnotes.core.tools.ToolbarAnchor
 import com.xnotes.core.tools.ToolbarBar
 import com.xnotes.core.tools.ToolbarDockAlignment
@@ -9,7 +8,6 @@ import com.xnotes.core.tools.ToolbarDockEdge
 import com.xnotes.core.tools.ToolbarDockLayout
 import com.xnotes.core.tools.ToolbarDockPlan
 import com.xnotes.core.tools.ToolbarDockRequest
-import com.xnotes.core.tools.ToolbarItem
 import com.xnotes.core.tools.ToolbarScale
 import com.xnotes.core.tools.ToolbarWorkspace
 import com.xnotes.settings.ToolbarLook
@@ -192,73 +190,4 @@ internal fun toolbarFloatingPlan(
         placements = packed.placements.map { it.copy(x = it.x + 8f, y = it.y + 8f) },
         rejected = packed.rejected + unplaced,
     )
-}
-
-/**
- * Resolve the exact destination rectangle of a dragged bar against all other bars.
- * Returns null for a rejected placement, matching the live workspace layout rules.
- */
-internal fun toolbarDragDestination(
-    workspace: ToolbarWorkspace,
-    look: ToolbarLook,
-    id: String,
-    target: ToolbarAnchor,
-    width: Dp,
-    height: Dp,
-    colorCount: Int,
-): com.xnotes.core.tools.ToolbarDockPlacement? {
-    val index = workspace.bars.indexOfFirst { it.id == id }
-    if (index < 0) return null
-    val bar = workspace.bars[index]
-    val edge = if (bar.geometry.floating) null else when (target) {
-        ToolbarAnchor.TOP_CENTER -> ToolbarDockEdge.TOP
-        ToolbarAnchor.BOTTOM_CENTER -> ToolbarDockEdge.BOTTOM
-        ToolbarAnchor.CENTER_LEFT -> ToolbarDockEdge.LEFT
-        ToolbarAnchor.CENTER_RIGHT -> ToolbarDockEdge.RIGHT
-        else -> return null
-    }
-    val moved = bar.copy(geometry = bar.geometry.copy(
-        anchor = target,
-        dockEdge = if (edge != null) edge else bar.geometry.dockEdge,
-    ))
-    val proposed = workspace.replaceBar(moved)
-    val proposedLook = if (index == 0 && edge != null) look.copy(position = edge.toolbarPosition()) else look
-    val docked = toolbarDockPlan(proposed, proposedLook, width, height)
-    if (id in docked.rejected) return null
-    docked.placement(id)?.let { return it }
-    val floating = toolbarFloatingPlan(
-        proposed, proposedLook,
-        width - docked.leftInset.dp - docked.rightInset.dp,
-        height - docked.topInset.dp - docked.bottomInset.dp,
-        colorCount,
-    )
-    if (id in floating.rejected) return null
-    return floating.placement(id)?.let {
-        it.copy(x = it.x + docked.leftInset, y = it.y + docked.topInset)
-    }
-}
-
-/**
- * Shared placement validation for toolbar editing and cross-editor copying.
- * The optional allowedItems projection mirrors only the dock measurement:
- * floating bars still use their saved (unfiltered) layout, as before.
- */
-internal fun toolbarPlacementFits(
-    workspace: ToolbarWorkspace,
-    look: ToolbarLook,
-    stageWidth: Dp,
-    stageHeight: Dp,
-    colorCount: Int,
-    allowedItems: Set<ToolbarItem>? = null,
-): Boolean {
-    val dockWorkspace = if (allowedItems == null) workspace else workspace.onlyItems(allowedItems)
-    val docked = toolbarDockPlan(dockWorkspace, look, stageWidth, stageHeight)
-    if (docked.rejected.isNotEmpty()) return false
-    val floating = toolbarFloatingPlan(
-        workspace, look,
-        stageWidth - docked.leftInset.dp - docked.rightInset.dp,
-        stageHeight - docked.topInset.dp - docked.bottomInset.dp,
-        colorCount,
-    )
-    return floating.rejected.isEmpty()
 }

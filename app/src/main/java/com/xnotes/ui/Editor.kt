@@ -2944,30 +2944,24 @@ class Editor(context: Context, val pane: Pane = Pane.PRIMARY) : ToolPopupHost, S
         settingsRepo.save(settings)
     }
 
-    /** Move a toolbar to a persisted anchor without changing its docking mode. */
+    /** Hold-drag any toolbar, including the docked primary, to a persisted floating anchor. */
     fun moveToolbarBar(context: ToolbarContext, id: String, anchor: ToolbarAnchor) {
         val profiles = toolbarWorkspaces
         val workspace = if (context == ToolbarContext.NOTE || profiles.shared) profiles.note else profiles.canvas
         val bar = workspace.bars.firstOrNull { it.id == id && it.geometry.movable } ?: return
         val isPrimary = workspace.bars.firstOrNull()?.id == id
-        // Dragging never changes docked/floating mode. Only an explicit setting may do so.
-        // A docked bar can move to a different edge when dropped on its edge target;
-        // center/corner targets are ignored instead of silently undocking it.
-        val dockPosition = if (!bar.geometry.floating) when (anchor) {
+        // An edge drop keeps a docked primary docked. Center/corner drops float it.
+        val dockPosition = if (isPrimary && !bar.geometry.floating) when (anchor) {
             ToolbarAnchor.TOP_CENTER -> com.xnotes.settings.ToolbarPosition.TOP
             ToolbarAnchor.BOTTOM_CENTER -> com.xnotes.settings.ToolbarPosition.BOTTOM
             ToolbarAnchor.CENTER_LEFT -> com.xnotes.settings.ToolbarPosition.LEFT
             ToolbarAnchor.CENTER_RIGHT -> com.xnotes.settings.ToolbarPosition.RIGHT
             else -> null
         } else null
-        if (!bar.geometry.floating && dockPosition == null) return
-        if (bar.geometry.anchor == anchor && (bar.geometry.floating || isPrimary && toolbarLook.position == dockPosition)) return
-        val moved = bar.copy(geometry = bar.geometry.copy(
-            anchor = anchor,
-            dockEdge = dockPosition?.dockEdge() ?: bar.geometry.dockEdge,
-        ))
+        if (bar.geometry.anchor == anchor && (bar.geometry.floating || dockPosition != null && toolbarLook.position == dockPosition)) return
+        val moved = bar.copy(geometry = bar.geometry.copy(anchor = anchor, floating = dockPosition == null))
         val changed = workspace.replaceBar(moved)
-        if (isPrimary && dockPosition != null) {
+        if (dockPosition != null) {
             applyHomePreferences(settings.prefs.copy(toolbarLook = toolbarLook.copy(floating = false, position = dockPosition)))
         }
         applyToolbarWorkspaces(

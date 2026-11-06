@@ -1,8 +1,5 @@
 package com.xnotes.ui
 
-import androidx.compose.foundation.background
-import androidx.compose.foundation.border
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.gestures.detectDragGesturesAfterLongPress
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -29,7 +26,6 @@ import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.boundsInRoot
 import androidx.compose.ui.layout.onGloballyPositioned
-import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.zIndex
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
@@ -41,8 +37,6 @@ import com.xnotes.core.tools.ToolbarWorkspace
 import com.xnotes.settings.ToolbarLook
 import com.xnotes.settings.ToolbarPosition
 import com.xnotes.settings.ToolbarSize
-import com.xnotes.ui.theme.LocalPalette
-import com.xnotes.ui.theme.toComposeColor
 import kotlin.math.roundToInt
 
 /**
@@ -55,12 +49,8 @@ fun ToolbarDragSurface(
     id: String,
     anchor: ToolbarAnchor,
     movable: Boolean,
-    floating: Boolean,
     paneBounds: Rect,
-    workspace: ToolbarWorkspace,
     onMoveBar: (String, ToolbarAnchor) -> Unit,
-    previewLook: ToolbarLook? = null,
-    colorCount: Int = 5,
     content: @Composable () -> Unit,
 ) {
     var drag by remember(id) { mutableStateOf(Offset.Zero) }
@@ -95,56 +85,16 @@ fun ToolbarDragSurface(
             },
         )
     }
-    val palette = LocalPalette.current
-    val dropTarget = if (dragging && drag.getDistance() >= 12f &&
-        barBounds != Rect.Zero && paneBounds != Rect.Zero) {
-        val center = barBounds.center + drag - paneBounds.topLeft
-        ToolbarAnchorResolver.nearest(center.x, center.y, paneBounds.width, paneBounds.height)
-            ?.takeIf { floating || it == ToolbarAnchor.TOP_CENTER || it == ToolbarAnchor.BOTTOM_CENTER ||
-                it == ToolbarAnchor.CENTER_LEFT || it == ToolbarAnchor.CENTER_RIGHT }
-    } else null
-    // Preview the *actual* packed destination: orientation, automatic dimensions,
-    // lanes and other bars all come from the same planners as the runtime layout.
-    val density = LocalDensity.current.density
-    val placement = dropTarget?.let { target ->
-        toolbarDragDestination(
-            workspace, previewLook ?: LocalToolbarLook.current, id, target,
-            (paneBounds.width / density).dp, (paneBounds.height / density).dp, colorCount,
-        )
-    }
-    val destinationOffset = placement?.let {
-        Offset(
-            paneBounds.left + it.x * density - barBounds.left,
-            paneBounds.top + it.y * density - barBounds.top,
-        )
-    }
     Box(
         Modifier
-            // Keep the origin slot fixed while the actual bar follows the pointer.
-            // A themed placeholder masks the vacated dock area in both notes and previews.
+            .offset { IntOffset(drag.x.roundToInt(), drag.y.roundToInt()) }
+            // A docked bar is an earlier sibling of the canvas. Lift it while moving so the
+            // canvas (and adjacent split panes) cannot paint over the dragged toolbar.
             .zIndex(if (dragging) 10f else 0f)
-            .onGloballyPositioned { barBounds = it.boundsInRoot() }
+            .onGloballyPositioned { if (drag == Offset.Zero) barBounds = it.boundsInRoot() }
             .then(gesture),
     ) {
-        if (destinationOffset != null) {
-            Box(
-                Modifier.offset {
-                    IntOffset(destinationOffset.x.roundToInt(), destinationOffset.y.roundToInt())
-                }.width(placement.width.dp).height(placement.height.dp)
-                    .background(palette.accent.toComposeColor().copy(alpha = 0.18f), RoundedCornerShape(12.dp))
-                    .border(2.dp, palette.accent.toComposeColor(), RoundedCornerShape(12.dp)),
-            )
-        }
-        if (dragging) {
-            Box(
-                Modifier.matchParentSize()
-                    .background(palette.panel.toComposeColor(), RoundedCornerShape(12.dp))
-                    .border(1.dp, palette.accent.toComposeColor().copy(alpha = 0.45f), RoundedCornerShape(12.dp)),
-            )
-        }
-        Box(Modifier.offset { IntOffset(drag.x.roundToInt(), drag.y.roundToInt()) }) {
-            content()
-        }
+        content()
     }
 }
 
@@ -178,11 +128,8 @@ fun BoxScope.WorkspaceFloatingBars(
                         id = bar.id,
                         anchor = bar.geometry.anchor,
                         movable = bar.geometry.movable,
-                        floating = true,
                         paneBounds = paneBounds,
-                        workspace = workspace,
                         onMoveBar = onMoveBar,
-                        colorCount = colorCount,
                     ) {
                         CompositionLocalProvider(LocalToolbarLook provides look) {
                             if (index == 0) primaryContent() else content(bar)

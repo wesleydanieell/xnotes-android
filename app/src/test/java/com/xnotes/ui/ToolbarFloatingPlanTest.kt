@@ -103,28 +103,4 @@ class ToolbarFloatingPlanTest {
         val long = toolbarFloatingPlan(workspace, ToolbarLook(), 500.dp, 400.dp, 8)
         assertTrue(long.placement("colors")!!.width > short.placement("colors")!!.width)
     }
-
-    @Test fun dragDestinationRotatesDockedBarUsingRealDepth() {
-        val workspace = ToolbarWorkspace(listOf(ToolbarBar("main", "Main", colors)))
-        val top = toolbarDragDestination(workspace, ToolbarLook(), "main",
-            ToolbarAnchor.TOP_CENTER, 800.dp, 500.dp, 5)!!
-        val right = toolbarDragDestination(workspace, ToolbarLook(), "main",
-            ToolbarAnchor.CENTER_RIGHT, 800.dp, 500.dp, 5)!!
-        assertTrue(top.width > top.height)
-        assertTrue(right.height > right.width)
-        assertEquals(ToolbarDockEdge.RIGHT, right.edge)
-    }
-
-    @Test fun dragDestinationAccountsForOccupiedDockLanes() {
-        val primary = ToolbarBar("main", "Main", colors)
-        val other = ToolbarBar("other", "Other", colors, geometry = ToolbarGeometry(
-            floating = false, dockEdge = ToolbarDockEdge.TOP, heightDp = 120,
-        ))
-        val destination = toolbarDragDestination(
-            ToolbarWorkspace(listOf(primary, other)),
-            ToolbarLook(position = com.xnotes.settings.ToolbarPosition.RIGHT), "other",
-            ToolbarAnchor.CENTER_RIGHT, 800.dp, 500.dp, 5,
-        )!!
-        assertEquals(1, destination.lane)
-    }
 }

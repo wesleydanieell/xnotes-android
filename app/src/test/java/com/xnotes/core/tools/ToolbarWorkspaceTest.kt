@@ -104,29 +104,6 @@ class ToolbarWorkspaceTest {
         assertSame(changed, changed.setEntrySize(0, 1, 200))
     }
 
-    @Test fun editorUpdatesOnlyTheSelectedSavedProfile() {
-        val note = ToolbarWorkspace(listOf(shortBar("note-primary"), shortBar("note-second")))
-        val canvas = ToolbarWorkspace(listOf(shortBar("canvas-primary"), shortBar("canvas-second")))
-        val original = ToolbarWorkspaces(note, canvas, shared = true)
-        val updatedNote = original.updateBar(ToolbarContext.NOTE, "note-second") {
-            it.copy(name = "Renamed", visible = false)
-        }
-        assertEquals("Renamed", updatedNote.note.bars[1].name)
-        assertFalse(updatedNote.note.bars[1].visible)
-        assertEquals(canvas, updatedNote.canvas)
-        assertTrue(updatedNote.shared)
-        assertEquals(note, original.note)
-
-        val updatedCanvas = updatedNote.updateBar(ToolbarContext.CANVAS, "canvas-second") {
-            it.copy(geometry = it.geometry.copy(widthDp = 240))
-        }
-        assertEquals(240, updatedCanvas.canvas.bars[1].geometry.widthDp)
-        assertEquals(updatedNote.note, updatedCanvas.note)
-        assertSame(updatedCanvas, updatedCanvas.updateBar(ToolbarContext.CANVAS, "unknown") {
-            it.copy(name = "Should not be added")
-        })
-    }
-
     @Test fun dimensionsAreClampedAndAutoSizeRemainsAuto() {
         assertEquals(ToolbarGeometry(), ToolbarGeometry().constrained())
         val limited = ToolbarGeometry(

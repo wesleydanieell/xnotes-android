@@ -58,22 +58,26 @@ internal fun ToolbarSections(
     val regionContent: @Composable (ToolbarRegion) -> Unit = { region ->
         androidx.compose.runtime.key(region) {
             val group = groups.getValue(region)
-            val content: @Composable () -> Unit = {
-                group.forEachIndexed { index, indexed ->
-                    if (index > 0) Separator()
-                    sectionContent(indexed.index, indexed.value)
-                }
-            }
             if (vertical) {
                 Column(
                     Modifier.verticalScroll(rememberScrollState()),
                     horizontalAlignment = androidx.compose.ui.Alignment.CenterHorizontally,
-                ) { content() }
+                ) {
+                    group.forEachIndexed { index, indexed ->
+                        if (index > 0) Separator()
+                        sectionContent(indexed.index, indexed.value)
+                    }
+                }
             } else {
                 Row(
                     Modifier.horizontalScroll(rememberScrollState()),
                     verticalAlignment = androidx.compose.ui.Alignment.CenterVertically,
-                ) { content() }
+                ) {
+                    group.forEachIndexed { index, indexed ->
+                        if (index > 0) Separator()
+                        sectionContent(indexed.index, indexed.value)
+                    }
+                }
             }
         }
     }

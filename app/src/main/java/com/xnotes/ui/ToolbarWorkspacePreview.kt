@@ -171,12 +171,8 @@ internal fun ToolbarWorkspacePreview(
                         id = bar.id,
                         anchor = anchor,
                         movable = bar.geometry.movable,
-                        floating = floating,
                         paneBounds = stageBounds,
-                        workspace = workspace,
                         onMoveBar = onMoveBar,
-                        previewLook = look,
-                        colorCount = colors.size,
                     ) {
                         PreviewBar(
                             bar = bar,

@@ -85,7 +85,6 @@ import com.xnotes.core.model.Rgba
 import com.xnotes.settings.ExplorerLayout
 import com.xnotes.core.tools.InkPalette
 import com.xnotes.core.tools.ToolbarAnchor
-import com.xnotes.core.tools.ToolbarContext
 import com.xnotes.core.tools.ToolbarBar
 import com.xnotes.core.tools.ToolbarDockAlignment
 import com.xnotes.core.tools.ToolbarDockEdge
@@ -262,30 +261,33 @@ fun PreferencesPane(
         if (bar.id == workspace.bars.first().id) {
             if (canvasTab) editor.applyCanvasToolbarLayout(next) else editor.applyToolbarLayout(next)
         } else {
-            editor.applyToolbarWorkspaces(
-                editor.toolbarWorkspaces.updateBar(
-                    if (canvasTab) ToolbarContext.CANVAS else ToolbarContext.NOTE, bar.id,
-                ) { it.copy(layout = next) },
-            )
+            val profiles = editor.toolbarWorkspaces
+            val changed = workspace.replaceBar(bar.copy(layout = next))
+            editor.applyToolbarWorkspaces(if (canvasTab) profiles.copy(canvas = changed) else profiles.copy(note = changed))
         }
     }
     fun updateSelectedBar(transform: (ToolbarBar) -> ToolbarBar) {
-        editor.applyToolbarWorkspaces(
-            editor.toolbarWorkspaces.updateBar(
-                if (canvasTab) ToolbarContext.CANVAS else ToolbarContext.NOTE, selectedBar().id, transform,
-            ),
-        )
+        val profiles = editor.toolbarWorkspaces
+        val changed = editedWorkspace().replaceBar(transform(selectedBar()))
+        editor.applyToolbarWorkspaces(if (canvasTab) profiles.copy(canvas = changed) else profiles.copy(note = changed))
     }
     fun configureDock(next: ToolbarGeometry, nextLook: com.xnotes.settings.ToolbarLook = prefs.toolbarLook) {
         val bar = selectedBar()
         val candidate = editedWorkspace().replaceBar(bar.copy(geometry = next.constrained()))
-        if (!toolbarPlacementFits(
-            candidate, nextLook,
+        val plan = toolbarDockPlan(
+            candidate.onlyItems(if (canvasTab) ToolbarLayout.CANVAS_ITEMS else ToolbarLayout.NOTE_ITEMS),
+            nextLook,
             screenConfiguration.screenWidthDp.dp,
             screenConfiguration.screenHeightDp.dp,
+        )
+        val floatingPlan = toolbarFloatingPlan(
+            candidate,
+            nextLook,
+            screenConfiguration.screenWidthDp.dp - plan.leftInset.dp - plan.rightInset.dp,
+            screenConfiguration.screenHeightDp.dp - plan.topInset.dp - plan.bottomInset.dp,
             editor.toolbarColorCount,
-            if (canvasTab) ToolbarLayout.CANVAS_ITEMS else ToolbarLayout.NOTE_ITEMS,
-        )) {
+        )
+        if (plan.rejected.isNotEmpty() || floatingPlan.rejected.isNotEmpty()) {
             dockError = "Sem espaço disponível. Reduza a barra, altere a borda ou escolha outra faixa."
             return
         }
@@ -310,22 +312,35 @@ fun PreferencesPane(
             dockError = "Esta barra não possui elementos compatíveis com o editor de destino."
             return
         }
-        val planned = planCopiedToolbar(
-            source = source,
-            sourceIsPrimary = editedWorkspace().bars.first().id == source.id,
-            destination = destination,
-            draft = initial,
-            look = prefs.toolbarLook,
-            stageWidth = screenConfiguration.screenWidthDp.dp,
-            stageHeight = screenConfiguration.screenHeightDp.dp,
-            colorCount = editor.toolbarColorCount,
-        )
-        if (planned == null) {
+        // A primary toolbar inherits its docking from the global look. Make that placement
+        // explicit when the copy becomes a secondary toolbar in the other context.
+        val isPrimary = editedWorkspace().bars.first().id == source.id
+        val geometry = if (isPrimary) {
+            if (source.geometry.floating || prefs.toolbarLook.floating)
+                source.geometry.copy(floating = true, dockEdge = null)
+            else source.geometry.copy(
+                dockEdge = source.geometry.dockEdge ?: prefs.toolbarLook.position.dockEdge(),
+                floating = false,
+            )
+        } else source.geometry
+        val candidates = listOf(geometry) + ToolbarAnchor.entries.filter { it != ToolbarAnchor.CENTER }
+            .map { geometry.copy(floating = true, dockEdge = null, anchor = it, dockLane = 0) }
+        val placed = candidates.firstOrNull { position ->
+            val candidate = destination.addBar(initial.bar.copy(geometry = position))
+            val docked = toolbarDockPlan(candidate, prefs.toolbarLook,
+                screenConfiguration.screenWidthDp.dp, screenConfiguration.screenHeightDp.dp)
+            val floated = toolbarFloatingPlan(candidate, prefs.toolbarLook,
+                screenConfiguration.screenWidthDp.dp - docked.leftInset.dp - docked.rightInset.dp,
+                screenConfiguration.screenHeightDp.dp - docked.topInset.dp - docked.bottomInset.dp,
+                editor.toolbarColorCount)
+            docked.rejected.isEmpty() && floated.rejected.isEmpty()
+        }
+        if (placed == null) {
             dockError = "Não há espaço para esta barra no destino. Reduza suas dimensões antes de copiar."
             return
         }
         dockError = null
-        transferDraft = planned
+        transferDraft = initial.copy(bar = initial.bar.copy(geometry = placed))
     }
 
     fun retarget() {
@@ -337,8 +352,13 @@ fun PreferencesPane(
     fun retargetSection() {
         sectionDropTarget = toolbarSectionDropTarget(editedLayout(), dragFinger, sectionBounds, regionBounds)
     }
-    // Bounds describe the visible editor; they must never survive a profile/bar switch.
-    fun resetDragSession() {
+    fun showTab(canvas: Boolean) {
+        if (canvasTab == canvas) return
+        canvasTab = canvas
+        selectedBarId = null
+        selectedEntry = null
+        // The bounds maps are keyed by item and the two bars share most items, so stale entries
+        // from the other tab would aim a drop at a chip that is no longer there.
         chipBounds.clear()
         laneBounds.clear()
         sectionBounds.clear()
@@ -350,18 +370,20 @@ fun PreferencesPane(
         dragRegionTarget = null
         sectionDropTarget = null
     }
-    fun showTab(canvas: Boolean) {
-        if (canvasTab == canvas) return
-        canvasTab = canvas
-        selectedBarId = null
-        selectedEntry = null
-        resetDragSession()
-    }
     fun showBar(id: String) {
         if (selectedBarId == id) return
         selectedBarId = id
         selectedEntry = null
-        resetDragSession()
+        chipBounds.clear()
+        laneBounds.clear()
+        sectionBounds.clear()
+        sectionGrabBounds.clear()
+        regionBounds.clear()
+        dragItem = null
+        dragSection = null
+        dropTarget = null
+        dragRegionTarget = null
+        sectionDropTarget = null
     }
 
     transferDraft?.let { draft ->
