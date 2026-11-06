@@ -105,6 +105,22 @@ data class Settings(
 
     fun swatchesFor(role: SwatchRole): List<Rgba> = swatches[role] ?: role.defaults
 
+    /** Keep legacy primary fields synchronized without materializing legacy-only profiles. */
+    fun withToolbarLayout(context: com.xnotes.core.tools.ToolbarContext, layout: ToolbarLayout): Settings {
+        val updated = toolbarWorkspaces?.updateWorkspace(context) { it.replacePrimaryLayout(layout) }
+        return when (context) {
+            com.xnotes.core.tools.ToolbarContext.NOTE -> copy(toolbarLayout = layout, toolbarWorkspaces = updated)
+            com.xnotes.core.tools.ToolbarContext.CANVAS -> copy(canvasToolbarLayout = layout, toolbarWorkspaces = updated)
+        }
+    }
+
+    /** Full workspace edits also update the legacy layouts used by older readers. */
+    fun withToolbarWorkspaces(workspaces: ToolbarWorkspaces): Settings = copy(
+        toolbarWorkspaces = workspaces,
+        toolbarLayout = workspaces.note.bars.first().layout,
+        canvasToolbarLayout = workspaces.canvas.bars.first().layout,
+    )
+
     /** Read old settings without rewriting or discarding a user's custom toolbar placement. */
     fun effectiveToolbarWorkspaces(): ToolbarWorkspaces = toolbarWorkspaces
         ?: ToolbarWorkspaces.fromLegacy(toolbarLayout, canvasToolbarLayout).let { legacy ->

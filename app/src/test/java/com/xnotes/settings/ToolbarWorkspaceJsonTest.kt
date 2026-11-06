@@ -24,6 +24,55 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class ToolbarWorkspaceJsonTest {
+    @Test fun primaryLayoutEditsKeepLegacySettingsLegacyOnly() {
+        val initial = Settings()
+        val note = ToolbarLayout.DEFAULT.moveSection(0, 2)
+        val canvas = ToolbarLayout.CANVAS_DEFAULT.moveSection(0, 2)
+        val updated = initial.withToolbarLayout(ToolbarContext.NOTE, note)
+            .withToolbarLayout(ToolbarContext.CANVAS, canvas)
+        val restored = Settings.fromJson(updated.toJson())
+        assertNull(updated.toolbarWorkspaces)
+        assertNull(restored.toolbarWorkspaces)
+        assertEquals(note, restored.toolbarLayout)
+        assertEquals(canvas, restored.canvasToolbarLayout)
+        assertEquals(ToolbarLayout.DEFAULT, initial.toolbarLayout)
+    }
+
+    @Test fun primaryEditsRoundTripWithoutChangingSecondaryOrInactiveProfile() {
+        val base = ToolbarWorkspaces.fromLegacy(ToolbarLayout.DEFAULT, ToolbarLayout.CANVAS_DEFAULT)
+        val secondary = ToolbarBar("colors", "Colors", compactLayout(ToolbarItem.COLORS),
+            geometry = ToolbarGeometry(floating = true, anchor = ToolbarAnchor.BOTTOM_RIGHT))
+        val profiles = base.copy(note = base.note.addBar(secondary), shared = true)
+        val initial = Settings().withToolbarWorkspaces(profiles)
+        val layout = ToolbarLayout.DEFAULT.moveSection(0, 2)
+        val updated = initial.withToolbarLayout(ToolbarContext.NOTE, layout)
+        val restored = Settings.fromJson(updated.toJson())
+        assertEquals(layout, restored.toolbarLayout)
+        assertEquals(layout, restored.toolbarWorkspaces!!.note.bars.first().layout)
+        assertEquals(secondary, restored.toolbarWorkspaces!!.note.bars.last())
+        assertEquals(profiles.canvas, restored.toolbarWorkspaces!!.canvas)
+        assertTrue(restored.toolbarWorkspaces!!.shared)
+        assertEquals(profiles, initial.toolbarWorkspaces)
+    }
+
+    @Test fun fullWorkspaceSaveSynchronizesBothLegacyPrimariesAfterReordering() {
+        val base = ToolbarWorkspaces.fromLegacy(ToolbarLayout.DEFAULT, ToolbarLayout.CANVAS_DEFAULT)
+        val note = ToolbarLayout.DEFAULT.moveSection(0, 2)
+        val canvas = ToolbarLayout.CANVAS_DEFAULT.moveSection(0, 2)
+        val profiles = base.copy(
+            note = base.note.addBar(ToolbarBar("note-new", "Note", note)).moveBar("note-new", 0),
+            canvas = base.canvas.addBar(ToolbarBar("canvas-new", "Canvas", canvas)).moveBar("canvas-new", 0))
+        val updated = Settings().withToolbarWorkspaces(profiles)
+        val restored = Settings.fromJson(updated.toJson())
+        assertEquals(profiles, restored.toolbarWorkspaces)
+        assertEquals(note, restored.toolbarLayout)
+        assertEquals(canvas, restored.canvasToolbarLayout)
+        val legacyOnly = restored.toJson().apply { remove("toolbar_workspaces") }
+        val oldReader = Settings.fromJson(legacyOnly).effectiveToolbarWorkspaces()
+        assertEquals(note, oldReader.note.bars.single().layout)
+        assertEquals(canvas, oldReader.canvas.bars.single().layout)
+    }
+
     @Test fun experimentalGroupSettingsRollbackKeepsExistingBarsAndElements() {
         val layout = ToolbarLayout(listOf(ToolbarSection(listOf(
             ToolbarEntry(ToolbarItem.PEN), ToolbarEntry(ToolbarItem.ERASER),

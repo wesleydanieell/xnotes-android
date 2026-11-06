@@ -1,5 +1,27 @@
 # Estado executável — XNotes Toolbars
 
+## Sincronização da persistência legada — 06/11/2026
+
+- Extraídas operações puras `Settings.withToolbarLayout` e
+  `Settings.withToolbarWorkspaces`. Centralizam a sincronização entre layouts
+  primários legados e perfis completos; `Editor` conserva atualização do runtime
+  e gravação. Edição de layout em settings antigos mantém `toolbarWorkspaces`
+  nulo, sem materialização antecipada da migração.
+- Auditoria dos pontos de atribuição confirmou que salvar/aplicar presets passa
+  pelos mesmos métodos de `Editor`; o leitor JSON continua responsável por
+  carregar/migrar. Schema e codec não foram alterados.
+- Três regressões de round-trip verificam settings legados, preservação de
+  secundárias/perfil inativo e sincronização das duas principais após reordenação.
+  O fallback sem `toolbar_workspaces` recupera os layouts primários legados.
+- Gate offline passou: 2.471 testes, sem falhas/erros/skips; assembleDebug e
+  `git diff --check` passaram. APK instalado no `emulator-5554` com Success.
+- UIAutomator alterou e restaurou Movable nos dois perfis; após cada gravação,
+  conferiu IDs/visibilidade/ordem de ambos os campos legados contra as principais,
+  preservação do perfil inativo e restauração dos layouts/workspaces originais.
+  Passou. Não cobre stylus nem a matriz completa de encaixes/rotação.
+- Próximo passo: mapear dependências concretas entre modelo, migrações e medidas
+  para a primeira branch de revisão extraída do upstream, sem abrir PR automático.
+
 ## Atualização imutável dos perfis — 06/11/2026
 
 - `ToolbarWorkspaces.updateWorkspace(context, transform)` centraliza a edição de

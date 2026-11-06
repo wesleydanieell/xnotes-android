@@ -36,13 +36,15 @@ visuais precisam ser observados. Dois configuradores não compartilham esse esta
 `ToolbarWorkspaces.updateWorkspace` altera um perfil salvo sem aplicar o filtro
 de renderização nem redirecionar implicitamente o contexto compartilhado. O
 configurador escolhe o perfil da aba; o movimento em runtime escolhe NOTE quando
-o canvas exibe o perfil compartilhado. O JSON e a sincronização dos campos
-legados continuam nos pontos de persistência existentes em `Editor`.
+o canvas exibe o perfil compartilhado. `Settings.withToolbarLayout` e
+`Settings.withToolbarWorkspaces` sincronizam os campos legados; os efeitos de
+runtime e a gravação continuam em `Editor`. O codec JSON permanece independente
+dessas operações, sem nova versão de schema.
 
 ## Próximas revisões
 
-1. Auditar os pontos de persistência e sincronização com os campos legados antes
-   de extrair as branches de Modelo/Persistência para revisão independente.
+1. Mapear as dependências concretas entre modelo, migrações e medidas para
+   extrair uma primeira branch de revisão que compile a partir do upstream.
 2. Conferir funções sem referências e imports redundantes nos arquivos alterados.
    Entradas de JSON e migração não podem ser removidas só por não terem chamadas diretas.
 3. Medir recomposições e tempo de frame durante arraste antes de introduzir caches.

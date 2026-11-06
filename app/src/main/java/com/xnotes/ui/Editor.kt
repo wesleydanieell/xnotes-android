@@ -2830,12 +2830,7 @@ class Editor(context: Context, val pane: Pane = Pane.PRIMARY) : ToolPopupHost, S
     /** Apply an edited toolbar layout live and persist (used by the toolbar customiser). */
     fun applyToolbarLayout(layout: ToolbarLayout) {
         toolbarLayout = layout
-        settings = settings.copy(
-            toolbarLayout = layout,
-            toolbarWorkspaces = settings.toolbarWorkspaces?.let {
-                it.updateWorkspace(ToolbarContext.NOTE) { workspace -> workspace.replacePrimaryLayout(layout) }
-            },
-        )
+        settings = settings.withToolbarLayout(ToolbarContext.NOTE, layout)
         toolbarWorkspaces = settings.effectiveToolbarWorkspaces()
         settingsRepo.save(settings)
     }
@@ -2844,12 +2839,7 @@ class Editor(context: Context, val pane: Pane = Pane.PRIMARY) : ToolPopupHost, S
     fun applyCanvasToolbarLayout(layout: ToolbarLayout) {
         canvasToolbarLayout = layout
         infiniteOrNull?.toolbarLayout = layout
-        settings = settings.copy(
-            canvasToolbarLayout = layout,
-            toolbarWorkspaces = settings.toolbarWorkspaces?.let {
-                it.updateWorkspace(ToolbarContext.CANVAS) { workspace -> workspace.replacePrimaryLayout(layout) }
-            },
-        )
+        settings = settings.withToolbarLayout(ToolbarContext.CANVAS, layout)
         toolbarWorkspaces = settings.effectiveToolbarWorkspaces()
         settingsRepo.save(settings)
     }
@@ -2860,11 +2850,7 @@ class Editor(context: Context, val pane: Pane = Pane.PRIMARY) : ToolPopupHost, S
         toolbarLayout = workspaces.note.bars.first().layout
         canvasToolbarLayout = workspaces.canvas.bars.first().layout
         infiniteOrNull?.toolbarLayout = canvasToolbarLayout
-        settings = settings.copy(
-            toolbarWorkspaces = workspaces,
-            toolbarLayout = toolbarLayout,
-            canvasToolbarLayout = canvasToolbarLayout,
-        )
+        settings = settings.withToolbarWorkspaces(workspaces)
         settingsRepo.save(settings)
     }
 
