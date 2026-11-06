@@ -44,7 +44,7 @@ internal fun planToolbarCopy(
     if (initial.retainedCount == 0) return null
     // A copied primary becomes secondary and can no longer inherit the global look.
     val geometry = if (sourceIsPrimary) {
-        if (source.geometry.floating || look.floating)
+        if (toolbarDockEdge(source, 0, look) == null)
             source.geometry.copy(floating = true, dockEdge = null)
         else source.geometry.copy(
             dockEdge = source.geometry.dockEdge ?: look.position.dockEdge(), floating = false)

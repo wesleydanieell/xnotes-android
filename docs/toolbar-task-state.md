@@ -1,5 +1,27 @@
 # Estado executável — XNotes Toolbars
 
+## Presets aplicam também o modo da principal — 06/11/2026
+
+- Relato: aplicar workspace mudava elementos, mas podia manter o modo docked/
+  floating anterior. Aplicação a um só contexto preserva a aparência global;
+  por isso a Main importada ainda herdava floating/posição do estado atual.
+- `applyToolbarPresetToContext` resolve a posição herdada usando a aparência do
+  preset e grava a geometria explícita na Main importada. Perfil inativo, cores
+  e aparência global são preservados; compartilhamento é desligado como antes.
+- `toolbarDockEdge` passa a priorizar dock explícito sobre aparência global
+  floating. Inspetores e cópia usam a mesma regra, alinhando modos exibidos e
+  resolvedores. `geometry.floating = true` continua prevalecendo sobre dock salvo.
+- Três regressões cobrem aplicação aos dois contextos em modos conflitantes,
+  preset compartilhado/legado, round-trip JSON e cópia da Main já importada.
+- Gate offline: 2.479 testes sem falhas/erros/skips; assembleDebug e diff-check
+  passaram. APK debug instalado no emulador isolado.
+- Smoke UI passou: com aparência global floating, aplicar Original só ao XNotes
+  gravou Main docked TOP; aplicar Escrita sem distrações em seguida gravou Main
+  floating BOTTOM_CENTER. Em ambos, canvas inativo e aparência global ficaram
+  iguais. Settings originais do emulador restaurados e comparados ao backup.
+- Não é QA completo de stylus/rotação. A aplicação aos dois perfis continua
+  restaurando a aparência/paleta global como antes; o ajuste é no destino único.
+
 ## Conversão de modo preservando a borda — 06/11/2026
 
 - Relatos: barra docked não virava floating; floating na direita voltava ao topo

@@ -37,7 +37,9 @@ internal fun toolbarBarSize(bar: ToolbarBar, index: Int, look: ToolbarLook): Too
     }
 
 internal fun toolbarDockEdge(bar: ToolbarBar, index: Int, look: ToolbarLook): ToolbarDockEdge? =
-    if (bar.geometry.floating || (index == 0 && look.floating)) null
+    if (bar.geometry.floating) null
+    else if (bar.geometry.dockEdge != null) bar.geometry.dockEdge
+    else if (index == 0 && look.floating) null
     else bar.geometry.dockEdge ?: if (index == 0) look.position.dockEdge() else null
 
 /** Floating orientation must follow the current dock, not an older saved floating anchor. */

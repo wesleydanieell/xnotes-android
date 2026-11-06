@@ -961,7 +961,7 @@ fun PreferencesPane(
                             },
                         )
                         val isPrimaryDock = currentBar.id == workspace.bars.first().id &&
-                            !currentBar.geometry.floating && !prefs.toolbarLook.floating
+                            toolbarDockEdge(currentBar, 0, prefs.toolbarLook) != null
                         val isSecondaryDock = currentBar.id != workspace.bars.first().id &&
                             currentBar.geometry.dockEdge != null && !currentBar.geometry.floating
                         val floatingBar = !isPrimaryDock && !isSecondaryDock

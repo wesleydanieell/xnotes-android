@@ -126,7 +126,7 @@ internal fun ToolbarBarSettings(
         }
     } else {
         ToolbarSettingsLabel(stringResource(R.string.toolbar_primary_appearance))
-        val floatingPrimary = currentBar.geometry.floating || look.floating
+        val floatingPrimary = toolbarDockEdge(currentBar, barIndex, look) == null
         val dockAnchor = when (currentBar.geometry.dockEdge?.toolbarPosition() ?: look.position) {
             ToolbarPosition.TOP -> ToolbarAnchor.TOP_CENTER
             ToolbarPosition.BOTTOM -> ToolbarAnchor.BOTTOM_CENTER
@@ -162,8 +162,7 @@ internal fun ToolbarBarSettings(
             },
         )
     }
-    val isPrimaryDock = isPrimary &&
-        !currentBar.geometry.floating && !look.floating
+    val isPrimaryDock = isPrimary && toolbarDockEdge(currentBar, barIndex, look) != null
     val isSecondaryDock = !isPrimary &&
         currentBar.geometry.dockEdge != null && !currentBar.geometry.floating
     val floatingBar = !isPrimaryDock && !isSecondaryDock

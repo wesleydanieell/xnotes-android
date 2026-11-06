@@ -2916,7 +2916,7 @@ class Editor(context: Context, val pane: Pane = Pane.PRIMARY) : ToolPopupHost, S
         targetContext: ToolbarContext? = null,
     ) {
         if (targetContext != null) {
-            applyToolbarWorkspaces(toolbarWorkspaces.replaceContextFrom(preset.workspaces, targetContext))
+            applyToolbarWorkspaces(applyToolbarPresetToContext(toolbarWorkspaces, preset, targetContext))
             return
         }
         toolbarColors = (preset.colors + InkPalette.presets.drop(preset.colors.size)).take(InkPalette.MAX_SWATCHES)
