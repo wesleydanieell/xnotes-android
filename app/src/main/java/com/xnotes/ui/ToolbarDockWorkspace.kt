@@ -1,6 +1,7 @@
 package com.xnotes.ui
 
 import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.unit.dp
 import com.xnotes.core.tools.ToolbarAnchor
 import com.xnotes.core.tools.ToolbarBar
 import com.xnotes.core.tools.ToolbarDockAlignment
@@ -8,6 +9,7 @@ import com.xnotes.core.tools.ToolbarDockEdge
 import com.xnotes.core.tools.ToolbarDockLayout
 import com.xnotes.core.tools.ToolbarDockPlan
 import com.xnotes.core.tools.ToolbarDockRequest
+import com.xnotes.core.tools.ToolbarItem
 import com.xnotes.core.tools.ToolbarScale
 import com.xnotes.core.tools.ToolbarWorkspace
 import com.xnotes.settings.ToolbarLook
@@ -190,4 +192,29 @@ internal fun toolbarFloatingPlan(
         placements = packed.placements.map { it.copy(x = it.x + 8f, y = it.y + 8f) },
         rejected = packed.rejected + unplaced,
     )
+}
+
+/**
+ * Shared placement validation for toolbar editing and cross-editor copying.
+ * The optional allowedItems projection mirrors only the dock measurement:
+ * floating bars still use their saved (unfiltered) layout, as before.
+ */
+internal fun toolbarPlacementFits(
+    workspace: ToolbarWorkspace,
+    look: ToolbarLook,
+    stageWidth: Dp,
+    stageHeight: Dp,
+    colorCount: Int,
+    allowedItems: Set<ToolbarItem>? = null,
+): Boolean {
+    val dockWorkspace = if (allowedItems == null) workspace else workspace.onlyItems(allowedItems)
+    val docked = toolbarDockPlan(dockWorkspace, look, stageWidth, stageHeight)
+    if (docked.rejected.isNotEmpty()) return false
+    val floating = toolbarFloatingPlan(
+        workspace, look,
+        stageWidth - docked.leftInset.dp - docked.rightInset.dp,
+        stageHeight - docked.topInset.dp - docked.bottomInset.dp,
+        colorCount,
+    )
+    return floating.rejected.isEmpty()
 }

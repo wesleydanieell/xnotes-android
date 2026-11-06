@@ -515,3 +515,11 @@ A tinta selecionada colore somente os acentos dentro dos pictogramas das canetas
 - `PreferencesPane` reutiliza a operação em edições de layout secundário e de propriedades de barra. A edição da barra principal mantém o caminho especializado antigo do Editor para sincronizar preferências legadas.
 - Removida duplicação do reset de limites de arraste e seleção de destino ao alternar perfil/barra; ambos chamam `resetDragSession()`.
 - Teste JVM de isolamento dos perfis note/canvas, preservação do flag shared, imutabilidade e ID inexistente. Validar também no Redmi Pad 2 antes de chamar a arquitetura de concluída. Próximo passo: extrair o estado transitório de arraste e as seções de configurações em componentes pequenos.
+
+## Refatoração — planejador de cópia e capacidade compartilhada (06/11/2026)
+
+- `PreferencesPane` deixa de calcular alternativas de âncora e encaixe da toolbar transferida. `ToolbarCopyPlanner` encapsula conversão de dock da barra principal para secundária, tentativa da geometria original, fallback para oito âncoras flutuantes e retorno do draft para prévia.
+- `toolbarPlacementFits` centraliza a validação do plano fixo e flutuante usada por `configureDock` e `ToolbarCopyPlanner`; o filtro de ferramentas de contexto é aplicado somente à medição docked, como antes. Não altera configuração do perfil de origem.
+- Testes JVM adicionados para dock da principal, preservação da posição flutuante secundária e recusa de transferência vazia. `git diff --check`, `:app:testDebugUnitTest :app:assembleDebug --offline` passaram. QA manual pendente para cenário de viewport lotada e alternância real XNotes/XCanvas.
+- Próximo passo: extração controlada das propriedades visuais e do estado transitório do configurador; manter edições de uma barra sincronizadas com o perfil correto.
+- Build release isolada com minificação: `:app:assembleRelease -PtoolbarIsolatedRelease=true --offline` passou; Redmi Pad 2 (`pfcmu4dutsylceus`) recebeu `com.xnotes.toolbarsrelease` via `adb install -r` (`Success`) e a Activity iniciou com processo ativo. QA tátil de transferência entre contextos segue pendente.

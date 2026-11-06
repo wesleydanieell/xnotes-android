@@ -279,20 +279,13 @@ fun PreferencesPane(
     fun configureDock(next: ToolbarGeometry, nextLook: com.xnotes.settings.ToolbarLook = prefs.toolbarLook) {
         val bar = selectedBar()
         val candidate = editedWorkspace().replaceBar(bar.copy(geometry = next.constrained()))
-        val plan = toolbarDockPlan(
-            candidate.onlyItems(if (canvasTab) ToolbarLayout.CANVAS_ITEMS else ToolbarLayout.NOTE_ITEMS),
-            nextLook,
+        if (!toolbarPlacementFits(
+            candidate, nextLook,
             screenConfiguration.screenWidthDp.dp,
             screenConfiguration.screenHeightDp.dp,
-        )
-        val floatingPlan = toolbarFloatingPlan(
-            candidate,
-            nextLook,
-            screenConfiguration.screenWidthDp.dp - plan.leftInset.dp - plan.rightInset.dp,
-            screenConfiguration.screenHeightDp.dp - plan.topInset.dp - plan.bottomInset.dp,
             editor.toolbarColorCount,
-        )
-        if (plan.rejected.isNotEmpty() || floatingPlan.rejected.isNotEmpty()) {
+            if (canvasTab) ToolbarLayout.CANVAS_ITEMS else ToolbarLayout.NOTE_ITEMS,
+        )) {
             dockError = "Sem espaço disponível. Reduza a barra, altere a borda ou escolha outra faixa."
             return
         }
@@ -317,35 +310,22 @@ fun PreferencesPane(
             dockError = "Esta barra não possui elementos compatíveis com o editor de destino."
             return
         }
-        // A primary toolbar inherits its docking from the global look. Make that placement
-        // explicit when the copy becomes a secondary toolbar in the other context.
-        val isPrimary = editedWorkspace().bars.first().id == source.id
-        val geometry = if (isPrimary) {
-            if (source.geometry.floating || prefs.toolbarLook.floating)
-                source.geometry.copy(floating = true, dockEdge = null)
-            else source.geometry.copy(
-                dockEdge = source.geometry.dockEdge ?: prefs.toolbarLook.position.dockEdge(),
-                floating = false,
-            )
-        } else source.geometry
-        val candidates = listOf(geometry) + ToolbarAnchor.entries.filter { it != ToolbarAnchor.CENTER }
-            .map { geometry.copy(floating = true, dockEdge = null, anchor = it, dockLane = 0) }
-        val placed = candidates.firstOrNull { position ->
-            val candidate = destination.addBar(initial.bar.copy(geometry = position))
-            val docked = toolbarDockPlan(candidate, prefs.toolbarLook,
-                screenConfiguration.screenWidthDp.dp, screenConfiguration.screenHeightDp.dp)
-            val floated = toolbarFloatingPlan(candidate, prefs.toolbarLook,
-                screenConfiguration.screenWidthDp.dp - docked.leftInset.dp - docked.rightInset.dp,
-                screenConfiguration.screenHeightDp.dp - docked.topInset.dp - docked.bottomInset.dp,
-                editor.toolbarColorCount)
-            docked.rejected.isEmpty() && floated.rejected.isEmpty()
-        }
-        if (placed == null) {
+        val planned = planCopiedToolbar(
+            source = source,
+            sourceIsPrimary = editedWorkspace().bars.first().id == source.id,
+            destination = destination,
+            draft = initial,
+            look = prefs.toolbarLook,
+            stageWidth = screenConfiguration.screenWidthDp.dp,
+            stageHeight = screenConfiguration.screenHeightDp.dp,
+            colorCount = editor.toolbarColorCount,
+        )
+        if (planned == null) {
             dockError = "Não há espaço para esta barra no destino. Reduza suas dimensões antes de copiar."
             return
         }
         dockError = null
-        transferDraft = initial.copy(bar = initial.bar.copy(geometry = placed))
+        transferDraft = planned
     }
 
     fun retarget() {
