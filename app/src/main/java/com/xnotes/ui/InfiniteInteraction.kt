@@ -229,6 +229,9 @@ class InfiniteInteraction(
     // A photo or a text box is rebuilt by the model rather than mapped, so a selection holding one is
     // transformed the slow way and stays honest.
     private var transformPointer = Pt.ZERO
+    /** Edge handles reflow native text rather than stretching its glyph mesh. */
+    private var liveTextReflow = false
+    private var lastTextReflowNanos = 0L
     private var liftedTransform = false
 
     // A lifted resize leaves shapes out and bakes them every frame: they keep their outline width
@@ -1198,6 +1201,13 @@ class InfiniteInteraction(
      */
     private fun beginLiftedTransform(sel: CanvasSelection, at: Pt, resize: Boolean) {
         transformPointer = at
+        liveTextReflow = resize && sel.items.singleOrNull() is TextItem &&
+            grabHandle in setOf(HandleId.L, HandleId.R, HandleId.T, HandleId.B)
+        lastTextReflowNanos = 0L
+        if (liveTextReflow) {
+            liftedTransform = false
+            return
+        }
         liftedTransform = sel.items.all { it is Stroke || it is ShapeItem || it is TextItem || isVectorImage(it) }
         if (!liftedTransform) return
         bakedInLift = if (resize) sel.items.filterTo(HashSet()) { it is ShapeItem } else emptySet()
@@ -1228,6 +1238,13 @@ class InfiniteInteraction(
             if (bakedInLift.isNotEmpty()) sel.applyLiveTo(bakedInLift, map)
             onLiftSelection(liftItems, LiftTransform.of(map, sel.transformPivot ?: Pt.ZERO))
         } else {
+            if (liveTextReflow) {
+                // Avoid rebuilding long text meshes on every pointer sample. Each accepted
+                // update uses native line breaking, so letters are never stretched sideways.
+                val now = System.nanoTime()
+                if (now - lastTextReflowNanos < 40_000_000L) return
+                lastTextReflowNanos = now
+            }
             sel.resizeLive(handle, at, transformMargin)
         }
         onSelectionChanged()
@@ -1258,6 +1275,11 @@ class InfiniteInteraction(
         grabHandle = null
         // Finger up on a lifted drag: apply the whole thing to the model once, then hand the drawing
         // back to it.
+        if (liveTextReflow && handle != null) {
+            // Apply the last pointer position even if the throttled preview skipped it.
+            sel.resizeLive(handle, transformPointer, transformMargin)
+        }
+        liveTextReflow = false
         if (liftedTransform) {
             if (handle != null) sel.resizeLive(handle, transformPointer, transformMargin)
             else sel.rotateLive(transformPointer)
