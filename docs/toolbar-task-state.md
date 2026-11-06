@@ -1,5 +1,27 @@
 # Estado executável — XNotes Toolbars
 
+## Reset sem ocultar outras barras na prévia — 06/11/2026
+
+- Relato: outra barra desaparecia da prévia ao resetar Main nas configurações.
+  Reproduzido no resolvedor: Main flutuante compacta e oito secundárias cabem;
+  resetar a principal aumenta seu comprimento natural e rejeita uma secundária.
+  A barra permanece salva, mas a prévia não renderiza barras sem placement.
+- `planToolbarReset` prepara somente o layout padrão da barra selecionada e
+  valida o conjunto completo com os mesmos filtros e medidas da prévia antes
+  de aplicar. Se não couber, mantém a configuração anterior e informa como
+  liberar espaço. Não move/oculta outras barras nem altera dimensões salvas.
+- Erros de capacidade agora aparecem perto dos controles superiores, em vez
+  de ficarem no fim do inspetor. Reset aceito limpa seleção/medições de arraste.
+- Duas regressões, cobrindo XNotes/XCanvas: rejeição do reset que expulsaria
+  secundárias e reset com espaço preservando secundárias/geometria/origem.
+- Gate offline: 2.473 testes sem falhas/erros/skips; assembleDebug e diff-check
+  passaram. Build instalado no emulador isolado.
+- Smoke com fixture temporária de nove barras confirmou aviso visível, nove
+  barras no seletor e workspace salvo intacto após a recusa. Settings originais
+  do emulador restaurados e comparados ao backup ao final. Não toca nas notas.
+- Não é QA completo de stylus/rotação; reset sem espaço agora exige liberar
+  espaço antes de aplicar, sem reposicionamento automático das demais barras.
+
 ## Sincronização da persistência legada — 06/11/2026
 
 - Extraídas operações puras `Settings.withToolbarLayout` e

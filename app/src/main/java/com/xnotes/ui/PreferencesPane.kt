@@ -816,7 +816,17 @@ fun PreferencesPane(
                         DropdownMenuItem(
                             text = { Text(stringResource(R.string.reset)) },
                             onClick = {
-                                applyEdited(if (canvasTab) ToolbarLayout.CANVAS_DEFAULT else ToolbarLayout.DEFAULT)
+                                val candidate = planToolbarReset(editedWorkspace(), selectedBar().id,
+                                    editedContext(), prefs.toolbarLook,
+                                    screenConfiguration.screenWidthDp.dp, screenConfiguration.screenHeightDp.dp,
+                                    editor.toolbarColorCount)
+                                if (candidate == null) {
+                                    dockError = "O padrão não cabe junto das outras barras. Reduza ou mova as barras antes de restaurar."
+                                } else {
+                                    dockError = null
+                                    applyEdited(candidate.bars.first { it.id == selectedBar().id }.layout)
+                                    toolbarInteraction.resetForSelectionChange()
+                                }
                                 barMenuExpanded = false
                             },
                         )
@@ -839,6 +849,7 @@ fun PreferencesPane(
                     }
                 }
             }
+            dockError?.let { Text(it, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall) }
             val barSize = if (currentBar.id == workspace.bars.first().id) prefs.toolbarLook.size
                 else when (currentBar.geometry.scale) {
                     com.xnotes.core.tools.ToolbarScale.COMPACT -> ToolbarSize.COMPACT
@@ -968,7 +979,6 @@ fun PreferencesPane(
                 Text("Redistribuída automaticamente para a Faixa ${displayedPlacement.lane + 1}.",
                     color = palette.accent.toComposeColor(), style = MaterialTheme.typography.bodySmall)
             }
-            dockError?.let { Text(it, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall) }
                     }
                 }
             }
