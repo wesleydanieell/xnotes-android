@@ -1494,7 +1494,8 @@ private fun EditorPane(
                     if (primary != null && !primary.geometry.floating) {
                         ToolbarDragSurface(
                             primary.id, primary.geometry.anchor, primary.geometry.movable, false,
-                            paneBounds, { id, anchor -> app.moveToolbarBar(ToolbarContext.CANVAS, id, anchor) },
+                            paneBounds, app.toolbarWorkspaces.forContext(ToolbarContext.CANVAS),
+                            { id, anchor -> app.moveToolbarBar(ToolbarContext.CANVAS, id, anchor) },
                         ) { bareBar() }
                     } else bareBar()
                 }
@@ -1563,7 +1564,8 @@ private fun EditorPane(
                     if (primary != null && !primary.geometry.floating) {
                         ToolbarDragSurface(
                             primary.id, primary.geometry.anchor, primary.geometry.movable, false,
-                            paneBounds, { id, anchor -> app.moveToolbarBar(ToolbarContext.NOTE, id, anchor) },
+                            paneBounds, app.toolbarWorkspaces.forContext(ToolbarContext.NOTE),
+                            { id, anchor -> app.moveToolbarBar(ToolbarContext.NOTE, id, anchor) },
                         ) { bareBar() }
                     } else bareBar()
                 }

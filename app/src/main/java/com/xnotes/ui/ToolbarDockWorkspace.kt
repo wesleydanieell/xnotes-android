@@ -195,6 +195,50 @@ internal fun toolbarFloatingPlan(
 }
 
 /**
+ * Resolve the exact destination rectangle of a dragged bar against all other bars.
+ * Returns null for a rejected placement, matching the live workspace layout rules.
+ */
+internal fun toolbarDragDestination(
+    workspace: ToolbarWorkspace,
+    look: ToolbarLook,
+    id: String,
+    target: ToolbarAnchor,
+    width: Dp,
+    height: Dp,
+    colorCount: Int,
+): com.xnotes.core.tools.ToolbarDockPlacement? {
+    val index = workspace.bars.indexOfFirst { it.id == id }
+    if (index < 0) return null
+    val bar = workspace.bars[index]
+    val edge = if (bar.geometry.floating) null else when (target) {
+        ToolbarAnchor.TOP_CENTER -> ToolbarDockEdge.TOP
+        ToolbarAnchor.BOTTOM_CENTER -> ToolbarDockEdge.BOTTOM
+        ToolbarAnchor.CENTER_LEFT -> ToolbarDockEdge.LEFT
+        ToolbarAnchor.CENTER_RIGHT -> ToolbarDockEdge.RIGHT
+        else -> return null
+    }
+    val moved = bar.copy(geometry = bar.geometry.copy(
+        anchor = target,
+        dockEdge = if (edge != null) edge else bar.geometry.dockEdge,
+    ))
+    val proposed = workspace.replaceBar(moved)
+    val proposedLook = if (index == 0 && edge != null) look.copy(position = edge.toolbarPosition()) else look
+    val docked = toolbarDockPlan(proposed, proposedLook, width, height)
+    if (id in docked.rejected) return null
+    docked.placement(id)?.let { return it }
+    val floating = toolbarFloatingPlan(
+        proposed, proposedLook,
+        width - docked.leftInset.dp - docked.rightInset.dp,
+        height - docked.topInset.dp - docked.bottomInset.dp,
+        colorCount,
+    )
+    if (id in floating.rejected) return null
+    return floating.placement(id)?.let {
+        it.copy(x = it.x + docked.leftInset, y = it.y + docked.topInset)
+    }
+}
+
+/**
  * Shared placement validation for toolbar editing and cross-editor copying.
  * The optional allowedItems projection mirrors only the dock measurement:
  * floating bars still use their saved (unfiltered) layout, as before.

@@ -2964,7 +2964,7 @@ class Editor(context: Context, val pane: Pane = Pane.PRIMARY) : ToolPopupHost, S
         if (bar.geometry.anchor == anchor && (bar.geometry.floating || isPrimary && toolbarLook.position == dockPosition)) return
         val moved = bar.copy(geometry = bar.geometry.copy(
             anchor = anchor,
-            dockEdge = if (!isPrimary && dockPosition != null) dockPosition.dockEdge() else bar.geometry.dockEdge,
+            dockEdge = dockPosition?.dockEdge() ?: bar.geometry.dockEdge,
         ))
         val changed = workspace.replaceBar(moved)
         if (isPrimary && dockPosition != null) {

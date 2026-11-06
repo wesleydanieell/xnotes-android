@@ -29,6 +29,7 @@ import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.boundsInRoot
 import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.zIndex
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
@@ -56,7 +57,10 @@ fun ToolbarDragSurface(
     movable: Boolean,
     floating: Boolean,
     paneBounds: Rect,
+    workspace: ToolbarWorkspace,
     onMoveBar: (String, ToolbarAnchor) -> Unit,
+    previewLook: ToolbarLook? = null,
+    colorCount: Int = 5,
     content: @Composable () -> Unit,
 ) {
     var drag by remember(id) { mutableStateOf(Offset.Zero) }
@@ -99,21 +103,20 @@ fun ToolbarDragSurface(
             ?.takeIf { floating || it == ToolbarAnchor.TOP_CENTER || it == ToolbarAnchor.BOTTOM_CENTER ||
                 it == ToolbarAnchor.CENTER_LEFT || it == ToolbarAnchor.CENTER_RIGHT }
     } else null
-    // Show a landing silhouette at the snapped position, without committing the move.
-    val destinationOffset = dropTarget?.let { target ->
-        val column = target.ordinal % 3
-        val row = target.ordinal / 3
-        val x = when (column) {
-            0 -> paneBounds.left + barBounds.width / 2f
-            2 -> paneBounds.right - barBounds.width / 2f
-            else -> paneBounds.center.x
-        }
-        val y = when (row) {
-            0 -> paneBounds.top + barBounds.height / 2f
-            2 -> paneBounds.bottom - barBounds.height / 2f
-            else -> paneBounds.center.y
-        }
-        Offset(x, y) - barBounds.center
+    // Preview the *actual* packed destination: orientation, automatic dimensions,
+    // lanes and other bars all come from the same planners as the runtime layout.
+    val density = LocalDensity.current.density
+    val placement = dropTarget?.let { target ->
+        toolbarDragDestination(
+            workspace, previewLook ?: LocalToolbarLook.current, id, target,
+            (paneBounds.width / density).dp, (paneBounds.height / density).dp, colorCount,
+        )
+    }
+    val destinationOffset = placement?.let {
+        Offset(
+            paneBounds.left + it.x * density - barBounds.left,
+            paneBounds.top + it.y * density - barBounds.top,
+        )
     }
     Box(
         Modifier
@@ -127,7 +130,7 @@ fun ToolbarDragSurface(
             Box(
                 Modifier.offset {
                     IntOffset(destinationOffset.x.roundToInt(), destinationOffset.y.roundToInt())
-                }.matchParentSize()
+                }.width(placement.width.dp).height(placement.height.dp)
                     .background(palette.accent.toComposeColor().copy(alpha = 0.18f), RoundedCornerShape(12.dp))
                     .border(2.dp, palette.accent.toComposeColor(), RoundedCornerShape(12.dp)),
             )
@@ -177,7 +180,9 @@ fun BoxScope.WorkspaceFloatingBars(
                         movable = bar.geometry.movable,
                         floating = true,
                         paneBounds = paneBounds,
+                        workspace = workspace,
                         onMoveBar = onMoveBar,
+                        colorCount = colorCount,
                     ) {
                         CompositionLocalProvider(LocalToolbarLook provides look) {
                             if (index == 0) primaryContent() else content(bar)
