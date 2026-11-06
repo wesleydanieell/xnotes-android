@@ -171,6 +171,7 @@ internal fun ToolbarWorkspacePreview(
                         id = bar.id,
                         anchor = anchor,
                         movable = bar.geometry.movable,
+                        floating = floating,
                         paneBounds = stageBounds,
                         onMoveBar = onMoveBar,
                     ) {

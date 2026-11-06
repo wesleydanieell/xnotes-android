@@ -54,6 +54,7 @@ fun ToolbarDragSurface(
     id: String,
     anchor: ToolbarAnchor,
     movable: Boolean,
+    floating: Boolean,
     paneBounds: Rect,
     onMoveBar: (String, ToolbarAnchor) -> Unit,
     content: @Composable () -> Unit,
@@ -91,6 +92,29 @@ fun ToolbarDragSurface(
         )
     }
     val palette = LocalPalette.current
+    val dropTarget = if (dragging && drag.getDistance() >= 12f &&
+        barBounds != Rect.Zero && paneBounds != Rect.Zero) {
+        val center = barBounds.center + drag - paneBounds.topLeft
+        ToolbarAnchorResolver.nearest(center.x, center.y, paneBounds.width, paneBounds.height)
+            ?.takeIf { floating || it == ToolbarAnchor.TOP_CENTER || it == ToolbarAnchor.BOTTOM_CENTER ||
+                it == ToolbarAnchor.CENTER_LEFT || it == ToolbarAnchor.CENTER_RIGHT }
+    } else null
+    // Show a landing silhouette at the snapped position, without committing the move.
+    val destinationOffset = dropTarget?.let { target ->
+        val column = target.ordinal % 3
+        val row = target.ordinal / 3
+        val x = when (column) {
+            0 -> paneBounds.left + barBounds.width / 2f
+            2 -> paneBounds.right - barBounds.width / 2f
+            else -> paneBounds.center.x
+        }
+        val y = when (row) {
+            0 -> paneBounds.top + barBounds.height / 2f
+            2 -> paneBounds.bottom - barBounds.height / 2f
+            else -> paneBounds.center.y
+        }
+        Offset(x, y) - barBounds.center
+    }
     Box(
         Modifier
             // Keep the origin slot fixed while the actual bar follows the pointer.
@@ -99,6 +123,15 @@ fun ToolbarDragSurface(
             .onGloballyPositioned { barBounds = it.boundsInRoot() }
             .then(gesture),
     ) {
+        if (destinationOffset != null) {
+            Box(
+                Modifier.offset {
+                    IntOffset(destinationOffset.x.roundToInt(), destinationOffset.y.roundToInt())
+                }.matchParentSize()
+                    .background(palette.accent.toComposeColor().copy(alpha = 0.18f), RoundedCornerShape(12.dp))
+                    .border(2.dp, palette.accent.toComposeColor(), RoundedCornerShape(12.dp)),
+            )
+        }
         if (dragging) {
             Box(
                 Modifier.matchParentSize()
@@ -142,6 +175,7 @@ fun BoxScope.WorkspaceFloatingBars(
                         id = bar.id,
                         anchor = bar.geometry.anchor,
                         movable = bar.geometry.movable,
+                        floating = true,
                         paneBounds = paneBounds,
                         onMoveBar = onMoveBar,
                     ) {
