@@ -1,8 +1,6 @@
 package com.xnotes.ui
 
 import android.os.Build
-import androidx.activity.compose.rememberLauncherForActivityResult
-import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -63,7 +61,6 @@ import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.boundsInRoot
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.platform.LocalFocusManager
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
@@ -139,7 +136,6 @@ fun PreferencesPane(
 ) {
     val palette = LocalPalette.current
     val focusManager = LocalFocusManager.current
-    val context = LocalContext.current
     val screenConfiguration = LocalConfiguration.current
     var prefs by remember { mutableStateOf(editor.preferences) }
     fun update(p: Preferences) {
@@ -174,45 +170,7 @@ fun PreferencesPane(
     var barMenuExpanded by remember { mutableStateOf(false) }
     var toolbarActionsExpanded by remember { mutableStateOf(false) }
     var transferDraft by remember { mutableStateOf<com.xnotes.core.tools.ToolbarTransferDraft?>(null) }
-    var workspacesDialogOpen by remember { mutableStateOf(false) }
-    var workspaceLibraryTab by remember { mutableStateOf(0) }
-    var savedWorkspaces by remember { mutableStateOf(editor.toolbarWorkspacePresets) }
-    var restorePending by remember { mutableStateOf<com.xnotes.settings.ToolbarWorkspacePreset?>(null) }
-    var workspaceFileContent by remember { mutableStateOf("") }
-    var workspaceFileMessage by remember { mutableStateOf<String?>(null) }
-    val exportWorkspaceLauncher = rememberLauncherForActivityResult(
-        ActivityResultContracts.CreateDocument("application/json"),
-    ) { uri ->
-        if (uri != null) {
-            runCatching {
-                context.contentResolver.openOutputStream(uri)?.use { out ->
-                    out.write(workspaceFileContent.toByteArray(Charsets.UTF_8))
-                } ?: error("Não foi possível abrir o arquivo.")
-            }.onSuccess { workspaceFileMessage = "Workspace exportado com sucesso." }
-                .onFailure { workspaceFileMessage = "Falha ao exportar: ${it.message}" }
-        }
-    }
-    val importWorkspaceLauncher = rememberLauncherForActivityResult(
-        ActivityResultContracts.OpenDocument(),
-    ) { uri ->
-        if (uri != null) {
-            runCatching {
-                val raw = context.contentResolver.openInputStream(uri)?.bufferedReader()?.use { it.readText() }
-                    ?: error("Não foi possível ler o arquivo.")
-                require(raw.length <= 1_000_000) { "Arquivo muito grande." }
-                val imported = com.xnotes.settings.ToolbarWorkspaceExchangeJson.import(raw)
-                editor.importToolbarWorkspacePresets(imported)
-            }.onSuccess { count ->
-                savedWorkspaces = editor.toolbarWorkspacePresets
-                workspaceFileMessage = if (count > 0) "$count workspace(s) importado(s)."
-                    else "Limite de 20 workspaces salvos atingido."
-            }.onFailure { workspaceFileMessage = "Falha ao importar: ${it.message}" }
-        }
-    }
-    fun exportWorkspaceFile(presets: List<com.xnotes.settings.ToolbarWorkspacePreset>, filename: String) {
-        workspaceFileContent = com.xnotes.settings.ToolbarWorkspaceExchangeJson.export(presets)
-        exportWorkspaceLauncher.launch(filename)
-    }
+    val workspaceLibrary = remember { ToolbarWorkspaceLibraryState(editor.toolbarWorkspacePresets) }
     fun activeWorkspacePreset() = com.xnotes.settings.ToolbarWorkspacePreset(
         id = "current-export",
         name = "Workspace atual",
@@ -373,57 +331,21 @@ fun PreferencesPane(
             onDismiss = { transferDraft = null },
         )
     }
-    if (workspacesDialogOpen) {
-        ToolbarPresetsDialog(
-            presets = savedWorkspaces,
-            templates = com.xnotes.settings.ToolbarWorkspaceTemplates.presets,
-            statusMessage = workspaceFileMessage,
-            selectedTab = workspaceLibraryTab,
-            onSelectTab = { workspaceLibraryTab = it },
-            onExportOne = { preset ->
-                val basename = preset.name.replace(Regex("[^a-zA-Z0-9_-]"), "_").take(40)
-                exportWorkspaceFile(listOf(preset), "$basename.xworkspaces.json")
-            },
-            onExportCurrent = { exportWorkspaceFile(listOf(activeWorkspacePreset()), "toolbar-atual.xworkspaces.json") },
-            onExportAll = { exportWorkspaceFile(savedWorkspaces, "toolbars-salvas.xworkspaces.json") },
-            onImport = { importWorkspaceLauncher.launch(arrayOf("application/json", "application/octet-stream")) },
-            onUseTemplate = { template ->
-                workspacesDialogOpen = false
-                restorePending = template
-            },
-            onSave = { name ->
-                editor.saveToolbarWorkspacePreset(name).also { saved ->
-                    if (saved) savedWorkspaces = editor.toolbarWorkspacePresets
-                }
-            },
-            onRestore = { preset ->
-                workspacesDialogOpen = false
-                restorePending = preset
-            },
-            onDelete = { id ->
-                editor.deleteToolbarWorkspacePreset(id)
-                savedWorkspaces = editor.toolbarWorkspacePresets
-            },
-            onDismiss = { workspacesDialogOpen = false },
-        )
-    }
-    restorePending?.let { preset ->
-        ToolbarPresetPreviewDialog(
-            preset = preset,
-            canvasInitially = canvasTab,
-            onApply = { targetContext ->
-                editor.applyToolbarWorkspacePreset(preset, targetContext)
-                prefs = editor.preferences
-                selectedBarId = null
-                selectedEntry = null
-                restorePending = null
-            },
-            onDismiss = {
-                restorePending = null
-                workspacesDialogOpen = true
-            },
-        )
-    }
+    ToolbarWorkspaceLibrary(
+        state = workspaceLibrary,
+        canvasInitially = canvasTab,
+        currentPreset = { activeWorkspacePreset() },
+        getPresets = { editor.toolbarWorkspacePresets },
+        onSave = { editor.saveToolbarWorkspacePreset(it) },
+        onDelete = { editor.deleteToolbarWorkspacePreset(it) },
+        onImport = { editor.importToolbarWorkspacePresets(it) },
+        onApply = { preset, targetContext ->
+            editor.applyToolbarWorkspacePreset(preset, targetContext)
+            prefs = editor.preferences
+            selectedBarId = null
+            selectedEntry = null
+        },
+    )
 
     // A tap on empty space dismisses the template field's focus; children consume their own taps.
     Box(
@@ -935,9 +857,7 @@ fun PreferencesPane(
                     }
                 }
                 TextButton(onClick = {
-                    savedWorkspaces = editor.toolbarWorkspacePresets
-                    workspaceFileMessage = null
-                    workspacesDialogOpen = true
+                    workspaceLibrary.show(editor.toolbarWorkspacePresets)
                 }) { Text("Workspaces ▾", maxLines = 1) }
                 Box {
                     IconButton(onClick = { toolbarActionsExpanded = true }) {

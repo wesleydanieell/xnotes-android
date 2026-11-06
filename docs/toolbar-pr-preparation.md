@@ -23,6 +23,8 @@ medição; redução de acoplamento e tamanho de arquivo não prova ganho de FPS
 | `ToolbarAppearanceSettings` | Controles de dimensões e presets de tamanho |
 | `ToolbarBarSettings` | Nome, visibilidade, ordem, movimento, encaixe, faixas e alinhamento |
 | `ToolbarEditorInteractionState` | Seleção, arraste e medições transitórias; limpeza na troca de barra/perfil |
+| `ToolbarElementsEditor` | Inspetor de elementos, paleta, distribuição e callbacks de reorganização |
+| `ToolbarWorkspaceLibrary` | Estado da biblioteca, navegação de prévia e seletores Android de arquivos |
 | `PreferencesPane` | Integração com Editor, seleção de perfil, validação de espaço e aplicação |
 | `ToolbarWorkspaceDialogs` | Biblioteca, cópia e prévias de workspaces |
 
@@ -32,13 +34,11 @@ visuais precisam ser observados. Dois configuradores não compartilham esse esta
 
 ## Próximas revisões
 
-1. Isolar a apresentação de Elementos e os fluxos da biblioteca, mantendo os
-   callbacks de validação/persistência no chamador durante a extração.
-2. Revisar os planejadores de cópia/posicionamento para extrair duplicação
+1. Revisar os planejadores de cópia/posicionamento para extrair duplicação
    comprovada, com regressões de geometria e preservação dos perfis.
-3. Conferir funções sem referências e imports redundantes nos arquivos alterados.
+2. Conferir funções sem referências e imports redundantes nos arquivos alterados.
    Entradas de JSON e migração não podem ser removidas só por não terem chamadas diretas.
-4. Medir recomposições e tempo de frame durante arraste antes de introduzir caches.
+3. Medir recomposições e tempo de frame durante arraste antes de introduzir caches.
 
 ## Candidatos a PR e dependências
 

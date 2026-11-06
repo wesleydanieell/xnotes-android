@@ -1,5 +1,23 @@
 # Estado executável — XNotes Toolbars
 
+## Extração da biblioteca e validação — 06/11/2026
+
+- `ToolbarWorkspaceLibrary` concentra lista, prévia, estado transitório e launchers
+  de importação/exportação. Persistência e aplicação continuam em callbacks do
+  chamador; codecs, mensagens e formato JSON foram preservados.
+- A biblioteca permanece composta com o configurador, preservando o ciclo de
+  vida dos launchers. A aba selecionada persiste ao voltar da prévia.
+- `testDebugUnitTest assembleDebug --offline` passou: 2.463 testes, sem falhas,
+  erros ou skips. APK debug instalado no `emulator-5554` com Success.
+- UIAutomator confirmou o inspetor de Elementos e o percurso Modelos → Original
+  → prévia → voltar à mesma aba → fechar. O hash dos layouts/workspaces salvos
+  permaneceu igual. Importação/exportação completa via seletor Android e stylus
+  não foram exercitados nesta rodada.
+- `PreferencesPane.kt`: 1.578 → 1.320 linhas nas duas extrações desta rodada.
+  Nenhuma alteração no desenho das barras em runtime ou alegação de ganho de FPS.
+- Próxima revisão: duplicações comprovadas nos planejadores de posicionamento e
+  cópia, mantendo compatibilidade e regressões de geometria.
+
 ## Extração de Elementos — 06/11/2026
 
 - `ToolbarElementsEditor` concentra tamanho individual, paleta/blocos, distribuição,
