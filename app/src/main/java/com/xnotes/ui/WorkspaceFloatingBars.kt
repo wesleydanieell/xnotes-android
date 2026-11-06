@@ -75,7 +75,9 @@ fun ToolbarDragSurface(
                     ToolbarAnchorResolver.nearest(
                         center.x, center.y, paneBounds.width, paneBounds.height,
                     )?.let { target ->
-                        if (target != anchor) onMoveBar(id, target)
+                        // The saved anchor can differ from a primary bar's effective dock edge.
+                        // The caller owns the no-op check against the full placement state.
+                        onMoveBar(id, target)
                     }
                 }
             },

@@ -1,5 +1,42 @@
 # Estado executável — XNotes Toolbars
 
+## Retomada de revisão e refatoração — 06/11/2026
+
+- Base confirmada: `932756cc` restaura exatamente a árvore de `0e667a1d`. Worktree
+  inicialmente limpa em `feat/customizable-toolbars`, sincronizada com origin.
+- Diff local contra `upstream/master`: 58 arquivos, 8.306 inserções e 282 remoções.
+  O baseline `testDebugUnitTest assembleDebug --offline` passou; a primeira execução
+  reutilizou o resultado dos testes. Após alterações, a suíte foi executada novamente.
+- Prioridades de revisão: separar UI do estado/persistência em `PreferencesPane.kt`,
+  auditar geometria compartilhada e depois remover redundâncias comprovadas. Não há
+  medição de cobertura percentual nem evidência nova de ganho de desempenho.
+- Cobertura existente: domínio de layouts/workspaces, codecs/migração, troca de
+  perfis/presets, capacidade de docks, medidas e distribuição de sections. Lacunas
+  permanecem nos gestos reais, SAF, transações e QA com stylus; ver fila acima.
+- Primeira extração: `ToolbarAppearanceSettings` recebe geometria e callbacks;
+  preserva as validações e a atualização do tamanho global apenas na principal.
+  `PreferenceChoiceChip` compartilha o desenho/semântica do chip existente.
+  Não foram alterados renderer, sombras, persistência ou geometria nesta extração.
+- Emulador Small_Tablet aberto com janela visível; debug `com.xnotes.toolbarsdebug`
+  instalado e iniciado. A comparação visual controlada antes/depois ainda não foi
+  concluída. Não considerar a antiga mancha preta resolvida.
+
+### Correção intercalada — arraste da principal do XCanvas
+
+- Configuração observada no emulador: `canvas-primary` com `movable=true` e
+  `dock_edge=TOP` explícito. O movimento alterava âncora/preferência global, mas
+  preservava a borda explícita anterior, priorizada por `toolbarDockPlan`.
+- `ToolbarGeometry.movedTo` sincroniza a borda explícita nos destinos encaixados,
+  preservando as dimensões e o comportamento legado sem borda explícita.
+- O gesto delega a detecção de operação sem mudança ao controlador, pois a âncora
+  salva pode divergir do encaixe efetivo da barra principal.
+- Três regressões cobrem posição efetiva nas quatro bordas, drop flutuante e
+  compatibilidade legada. Suíte completa: 2.460 testes, zero falhas/erros/skips;
+  `assembleDebug` e `git diff --check` passaram. APK reinstalado com Success.
+- Validação visual do arraste e da mancha no dispositivo continua pendente.
+  Próxima ação: reproduzir o gesto no XCanvas e confirmar a borda efetiva antes
+  de extrair o estado transitório do configurador.
+
 Atualizado em 03/11/2026. Este arquivo é o checkpoint obrigatório para qualquer sessão Codex.
 Índice e prioridades atuais: docs/FEATURE_ROADMAP.md. Guia técnico:
 docs/toolbar-implementation-guide.md. Roteiro ADB: docs/toolbar-adb-test-playbook.md.

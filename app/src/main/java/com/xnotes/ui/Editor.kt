@@ -2958,8 +2958,8 @@ class Editor(context: Context, val pane: Pane = Pane.PRIMARY) : ToolPopupHost, S
             ToolbarAnchor.CENTER_RIGHT -> com.xnotes.settings.ToolbarPosition.RIGHT
             else -> null
         } else null
-        if (bar.geometry.anchor == anchor && (bar.geometry.floating || dockPosition != null && toolbarLook.position == dockPosition)) return
-        val moved = bar.copy(geometry = bar.geometry.copy(anchor = anchor, floating = dockPosition == null))
+        val moved = bar.copy(geometry = bar.geometry.movedTo(anchor, floating = dockPosition == null))
+        if (moved == bar && (bar.geometry.floating || dockPosition != null && toolbarLook.position == dockPosition)) return
         val changed = workspace.replaceBar(moved)
         if (dockPosition != null) {
             applyHomePreferences(settings.prefs.copy(toolbarLook = toolbarLook.copy(floating = false, position = dockPosition)))

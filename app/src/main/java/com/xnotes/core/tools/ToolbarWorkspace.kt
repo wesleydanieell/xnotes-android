@@ -35,6 +35,19 @@ data class ToolbarGeometry(
     val dockLane: Int = 0,
     val dockAlignment: ToolbarDockAlignment = ToolbarDockAlignment.CENTER,
 ) {
+    /** Keep explicit dock placement in sync with the anchor selected by a drag. */
+    fun movedTo(anchor: ToolbarAnchor, floating: Boolean): ToolbarGeometry = copy(
+        anchor = anchor,
+        floating = floating,
+        dockEdge = if (!floating && dockEdge != null) when (anchor) {
+            ToolbarAnchor.TOP_CENTER -> ToolbarDockEdge.TOP
+            ToolbarAnchor.BOTTOM_CENTER -> ToolbarDockEdge.BOTTOM
+            ToolbarAnchor.CENTER_LEFT -> ToolbarDockEdge.LEFT
+            ToolbarAnchor.CENTER_RIGHT -> ToolbarDockEdge.RIGHT
+            else -> dockEdge
+        } else dockEdge,
+    )
+
     /** Clamp untrusted persisted dimensions before rendering; do not force an exact size on auto bars. */
     fun constrained(): ToolbarGeometry = copy(
         // CENTER is kept in the enum only to read older saved layouts safely.
