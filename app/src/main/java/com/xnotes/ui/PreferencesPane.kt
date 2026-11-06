@@ -1076,30 +1076,20 @@ fun PreferencesPane(
                         }
                     }
                     if (toolbarPropertyTab == ToolbarPropertyTab.DIMENSIONS) {
-                        Text("Tamanho e espaçamento", style = MaterialTheme.typography.titleSmall)
-                        ToolbarGeometryControls(
+                        ToolbarAppearanceSettings(
                             geometry = currentBar.geometry,
-                            onChange = { next -> configureDock(next) },
-                        )
-                        FieldLabel(stringResource(R.string.pref_toolbar_size))
-                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                            for ((scale, label) in listOf(
-                                com.xnotes.core.tools.ToolbarScale.COMPACT to R.string.toolbar_size_compact,
-                                com.xnotes.core.tools.ToolbarScale.REGULAR to R.string.toolbar_size_regular,
-                                com.xnotes.core.tools.ToolbarScale.COMFORTABLE to R.string.toolbar_size_comfortable,
-                            )) {
-                                Chip(stringResource(label), currentBar.geometry.scale == scale) {
-                                    val primary = currentBar.id == workspace.bars.first().id
-                                    val size = when (scale) {
-                                        com.xnotes.core.tools.ToolbarScale.COMPACT -> ToolbarSize.COMPACT
-                                        com.xnotes.core.tools.ToolbarScale.REGULAR -> ToolbarSize.REGULAR
-                                        com.xnotes.core.tools.ToolbarScale.COMFORTABLE -> ToolbarSize.COMFORTABLE
-                                    }
-                                    configureDock(currentBar.geometry.copy(scale = scale),
-                                        if (primary) prefs.toolbarLook.copy(size = size) else prefs.toolbarLook)
+                            onGeometryChange = { next -> configureDock(next) },
+                            onScaleChange = { scale ->
+                                val primary = currentBar.id == workspace.bars.first().id
+                                val size = when (scale) {
+                                    com.xnotes.core.tools.ToolbarScale.COMPACT -> ToolbarSize.COMPACT
+                                    com.xnotes.core.tools.ToolbarScale.REGULAR -> ToolbarSize.REGULAR
+                                    com.xnotes.core.tools.ToolbarScale.COMFORTABLE -> ToolbarSize.COMFORTABLE
                                 }
-                            }
-                        }
+                                configureDock(currentBar.geometry.copy(scale = scale),
+                                    if (primary) prefs.toolbarLook.copy(size = size) else prefs.toolbarLook)
+                            },
+                        )
                     }
                     if (toolbarPropertyTab == ToolbarPropertyTab.BARS) {
             FlowRow(
@@ -1578,24 +1568,7 @@ private fun CustomMaterialControls(prefs: Preferences, update: (Preferences) -> 
 
 @Composable
 private fun Chip(label: String, selected: Boolean, onClick: () -> Unit) {
-    val palette = LocalPalette.current
-    Box(
-        Modifier
-            .clip(MaterialTheme.shapes.small)
-            .background(if (selected) palette.selectionBackground.toComposeColor() else palette.surface.toComposeColor())
-            .border(1.dp, if (selected) palette.accent.toComposeColor() else palette.border.toComposeColor(), MaterialTheme.shapes.small)
-            .semantics { this.selected = selected }
-            .clickable(onClick = onClick)
-            .padding(horizontal = 12.dp, vertical = 6.dp),
-    ) {
-        Text(
-            label,
-            color = if (selected) palette.selectionForeground.toComposeColor() else palette.text.toComposeColor(),
-            fontSize = 14.sp,
-            maxLines = 1,
-            softWrap = false,
-        )
-    }
+    PreferenceChoiceChip(label, selected, onClick)
 }
 
 @Composable
