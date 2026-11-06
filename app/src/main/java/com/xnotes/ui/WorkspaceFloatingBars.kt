@@ -23,11 +23,11 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Rect
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.boundsInRoot
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.zIndex
-import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import com.xnotes.core.tools.ToolbarAnchor
 import com.xnotes.core.tools.ToolbarAnchorResolver
@@ -37,7 +37,6 @@ import com.xnotes.core.tools.ToolbarWorkspace
 import com.xnotes.settings.ToolbarLook
 import com.xnotes.settings.ToolbarPosition
 import com.xnotes.settings.ToolbarSize
-import kotlin.math.roundToInt
 
 /**
  * Hold anywhere on a toolbar's container to pick it up. Ordinary taps still reach
@@ -87,7 +86,12 @@ fun ToolbarDragSurface(
     }
     Box(
         Modifier
-            .offset { IntOffset(drag.x.roundToInt(), drag.y.roundToInt()) }
+            // Move the already-composed layer without relaying out its parent. In particular,
+            // Android SurfaceViews behind a dock must not be resized during each drag frame.
+            .graphicsLayer {
+                translationX = drag.x
+                translationY = drag.y
+            }
             // A docked bar is an earlier sibling of the canvas. Lift it while moving so the
             // canvas (and adjacent split panes) cannot paint over the dragged toolbar.
             .zIndex(if (dragging) 10f else 0f)

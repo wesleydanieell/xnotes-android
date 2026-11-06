@@ -156,9 +156,12 @@ internal fun ColumnScope.ToolbarAround(
 ) {
     val look = LocalToolbarLook.current
     val rest = Modifier.weight(1f).fillMaxWidth()
-    // Multi-dock occupies genuine document space on all four edges. The same plan drives
-    // the miniature preview; floating bars remain in the content's overlay layer.
-    if (workspace != null && dockedContent != null && workspace.hasMultiDock(look)) {
+    // Keep the document in the same Compose host as a docked primary changes edges.
+    // Switching between Row/Column branches re-parents the AndroidView surfaces and can
+    // leave stale black SurfaceView regions where the former dock used to be.
+    // The same plan also drives multi-dock and the miniature preview.
+    if (workspace != null && dockedContent != null &&
+        (workspace.hasMultiDock(look) || (!look.floating && !suppressBar))) {
         SideEffect { onCover(0.0, 0.0, 0.0, 0.0) }
         BoxWithConstraints(rest) {
             val plan = toolbarDockPlan(workspace, look, maxWidth, maxHeight)
