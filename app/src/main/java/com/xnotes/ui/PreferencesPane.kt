@@ -226,7 +226,8 @@ fun PreferencesPane(
         colors = editor.toolbarColors,
         colorCount = editor.toolbarColorCount,
     )
-    var selectedEntry by remember { mutableStateOf<Pair<Int, Int>?>(null) }
+    val toolbarInteraction = remember { ToolbarEditorInteractionState() }
+    var selectedEntry by toolbarInteraction.selectedEntry
     fun editedWorkspace(): ToolbarWorkspace =
         if (canvasTab) editor.toolbarWorkspaces.canvas else editor.toolbarWorkspaces.note
     fun selectedBar(): ToolbarBar = editedWorkspace().bars.firstOrNull { it.id == selectedBarId }
@@ -235,20 +236,20 @@ fun PreferencesPane(
     // Toolbar drag state, hoisted here so the floating "ghost" chip can be drawn at the pane
     // root (above and outside the scroll, so it is never clipped). Bounds are plain maps read
     // only at drag time; observable state is just the dragged item, finger, and drop slot.
-    var dragItem by remember { mutableStateOf<Pair<Int, Int>?>(null) }
-    var dragFinger by remember { mutableStateOf(Offset.Zero) }
-    var dragGrab by remember { mutableStateOf(Offset.Zero) }
-    var dropTarget by remember { mutableStateOf<Triple<Int, Int, Int>?>(null) }
-    var dragRegionTarget by remember { mutableStateOf<ToolbarRegion?>(null) }
-    val chipBounds = remember { mutableMapOf<Pair<Int, Int>, Rect>() }
-    val laneBounds = remember { mutableMapOf<Pair<Int, Int>, Rect>() }
-    val sectionBounds = remember { mutableMapOf<Int, Rect>() }
-    val sectionGrabBounds = remember { mutableMapOf<Int, Rect>() }
-    val regionBounds = remember { mutableMapOf<ToolbarRegion, Rect>() }
+    var dragItem by toolbarInteraction.dragItem
+    var dragFinger by toolbarInteraction.dragFinger
+    var dragGrab by toolbarInteraction.dragGrab
+    var dropTarget by toolbarInteraction.dropTarget
+    var dragRegionTarget by toolbarInteraction.dragRegionTarget
+    val chipBounds = toolbarInteraction.chipBounds
+    val laneBounds = toolbarInteraction.laneBounds
+    val sectionBounds = toolbarInteraction.sectionBounds
+    val sectionGrabBounds = toolbarInteraction.sectionGrabBounds
+    val regionBounds = toolbarInteraction.regionBounds
     // Section-drag state (the whole card, by its grip handle); shares the finger/grab with the
     // chip drag since only one gesture runs at a time. The drop slot is an insertion index.
-    var dragSection by remember { mutableStateOf<Int?>(null) }
-    var sectionDropTarget by remember { mutableStateOf<ToolbarSectionTarget?>(null) }
+    var dragSection by toolbarInteraction.dragSection
+    var sectionDropTarget by toolbarInteraction.sectionDropTarget
     var paneTopLeft by remember { mutableStateOf(Offset.Zero) }
     var viewport by remember { mutableStateOf(Rect.Zero) }
     fun editedLayout(): ToolbarLayout = selectedBar().layout
@@ -353,34 +354,12 @@ fun PreferencesPane(
         if (canvasTab == canvas) return
         canvasTab = canvas
         selectedBarId = null
-        selectedEntry = null
-        // The bounds maps are keyed by item and the two bars share most items, so stale entries
-        // from the other tab would aim a drop at a chip that is no longer there.
-        chipBounds.clear()
-        laneBounds.clear()
-        sectionBounds.clear()
-        sectionGrabBounds.clear()
-        regionBounds.clear()
-        dragItem = null
-        dragSection = null
-        dropTarget = null
-        dragRegionTarget = null
-        sectionDropTarget = null
+        toolbarInteraction.resetForSelectionChange()
     }
     fun showBar(id: String) {
         if (selectedBarId == id) return
         selectedBarId = id
-        selectedEntry = null
-        chipBounds.clear()
-        laneBounds.clear()
-        sectionBounds.clear()
-        sectionGrabBounds.clear()
-        regionBounds.clear()
-        dragItem = null
-        dragSection = null
-        dropTarget = null
-        dragRegionTarget = null
-        sectionDropTarget = null
+        toolbarInteraction.resetForSelectionChange()
     }
 
     transferDraft?.let { draft ->
