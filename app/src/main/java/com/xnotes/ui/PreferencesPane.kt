@@ -86,8 +86,6 @@ import com.xnotes.settings.ExplorerLayout
 import com.xnotes.core.tools.InkPalette
 import com.xnotes.core.tools.ToolbarAnchor
 import com.xnotes.core.tools.ToolbarBar
-import com.xnotes.core.tools.ToolbarDockAlignment
-import com.xnotes.core.tools.ToolbarDockEdge
 import com.xnotes.core.tools.ToolbarDistribution
 import com.xnotes.core.tools.ToolbarEntry
 import com.xnotes.core.tools.ToolbarRegion
@@ -100,7 +98,6 @@ import com.xnotes.core.util.NameTemplate
 import com.xnotes.settings.Preferences
 import com.xnotes.settings.MaterialStyle
 import com.xnotes.settings.CornerStyle
-import com.xnotes.settings.ToolbarPosition
 import com.xnotes.settings.ToolbarSize
 import com.xnotes.settings.MaterialColourMode
 import com.xnotes.settings.SwatchRole
@@ -1092,178 +1089,26 @@ fun PreferencesPane(
                         )
                     }
                     if (toolbarPropertyTab == ToolbarPropertyTab.BARS) {
-            FlowRow(
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
-                verticalArrangement = Arrangement.spacedBy(4.dp),
-            ) {
-            OutlinedTextField(
-                value = currentBar.name,
-                onValueChange = { name -> updateSelectedBar { it.copy(name = name.take(48)) } },
-                label = { Text(stringResource(R.string.toolbar_name)) },
-                singleLine = true,
-                modifier = Modifier.widthIn(max = 280.dp),
-            )
-            Chip(stringResource(R.string.toolbar_movable), currentBar.geometry.movable) {
-                updateSelectedBar { bar -> bar.copy(geometry = bar.geometry.copy(movable = !bar.geometry.movable)) }
-            }
-            }
-            if (currentBar.id != workspace.bars.first().id) {
-                val barIndex = workspace.bars.indexOfFirst { it.id == currentBar.id }
-                FlowRow(
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                    verticalArrangement = Arrangement.spacedBy(4.dp),
-                ) {
-                    Chip(stringResource(R.string.toolbar_visible), currentBar.visible) {
-                        updateSelectedBar { it.copy(visible = !it.visible) }
-                    }
-                    if (barIndex > 1) {
-                        TextButton(onClick = {
-                            val profiles = editor.toolbarWorkspaces
-                            val updated = editedWorkspace().moveBar(currentBar.id, barIndex - 1)
-                            editor.applyToolbarWorkspaces(
-                                if (canvasTab) profiles.copy(canvas = updated) else profiles.copy(note = updated),
-                            )
-                        }) { Text(stringResource(R.string.toolbar_move_up)) }
-                    }
-                    if (barIndex in 1 until workspace.bars.lastIndex) {
-                        TextButton(onClick = {
-                            val profiles = editor.toolbarWorkspaces
-                            val updated = editedWorkspace().moveBar(currentBar.id, barIndex + 1)
-                            editor.applyToolbarWorkspaces(
-                                if (canvasTab) profiles.copy(canvas = updated) else profiles.copy(note = updated),
-                            )
-                        }) { Text(stringResource(R.string.toolbar_move_down)) }
-                    }
-                }
-                val secondaryDocked = currentBar.geometry.dockEdge != null && !currentBar.geometry.floating
-                FieldLabel("Posicionamento")
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Chip("Encaixada", secondaryDocked) {
-                        val geo = currentBar.geometry
-                        configureDock(geo.copy(
-                            floating = false,
-                            dockEdge = geo.dockEdge ?: ToolbarDockEdge.TOP,
-                            dockLane = if (geo.dockEdge == null) 1 else geo.dockLane,
-                            widthDp = geo.widthDp ?: 200,
-                            heightDp = geo.heightDp,
-                        ))
-                    }
-                    Chip("Flutuante", !secondaryDocked) {
-                        configureDock(currentBar.geometry.copy(floating = true, dockEdge = null))
-                    }
-                }
-                if (secondaryDocked) {
-                    FieldLabel("Borda")
-                    FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                        for ((edge, label) in listOf(
-                            ToolbarDockEdge.TOP to "Superior", ToolbarDockEdge.BOTTOM to "Inferior",
-                            ToolbarDockEdge.LEFT to "Esquerda", ToolbarDockEdge.RIGHT to "Direita",
-                        )) {
-                            Chip(label, currentBar.geometry.dockEdge == edge) {
-                                val geo = currentBar.geometry
-                                val vertical = edge == ToolbarDockEdge.LEFT || edge == ToolbarDockEdge.RIGHT
-                                configureDock(geo.copy(
-                                    dockEdge = edge,
-                                    widthDp = if (vertical && geo.widthDp == 200) null else geo.widthDp ?: if (vertical) null else 200,
-                                    heightDp = if (!vertical && geo.heightDp == 200) null else geo.heightDp ?: if (vertical) 200 else null,
-                                ))
-                            }
-                        }
-                    }
-                } else {
-                    FieldLabel(stringResource(R.string.pref_toolbar_position))
-                    ToolbarAnchorGrid(
-                        selected = currentBar.geometry.anchor,
-                        onSelect = { anchor ->
-                            updateSelectedBar { bar -> bar.copy(geometry = bar.geometry.copy(anchor = anchor)) }
-                        },
-                    )
-                }
-            } else {
-                FieldLabel(stringResource(R.string.toolbar_primary_appearance))
-                val look = prefs.toolbarLook
-                val floatingPrimary = currentBar.geometry.floating || look.floating
-                val dockAnchor = when (look.position) {
-                    ToolbarPosition.TOP -> ToolbarAnchor.TOP_CENTER
-                    ToolbarPosition.BOTTOM -> ToolbarAnchor.BOTTOM_CENTER
-                    ToolbarPosition.LEFT -> ToolbarAnchor.CENTER_LEFT
-                    ToolbarPosition.RIGHT -> ToolbarAnchor.CENTER_RIGHT
-                }
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Chip(stringResource(R.string.toolbar_docked), !floatingPrimary) {
-                        configureDock(currentBar.geometry.copy(floating = false, anchor = dockAnchor), look.copy(floating = false))
-                    }
-                    Chip(stringResource(R.string.toolbar_floating), floatingPrimary) {
-                        configureDock(currentBar.geometry.copy(floating = true, anchor = if (currentBar.geometry.floating) currentBar.geometry.anchor else dockAnchor), look.copy(floating = true))
-                    }
-                }
-                FieldLabel(stringResource(R.string.pref_toolbar_position))
-                ToolbarAnchorGrid(
-                    selected = if (floatingPrimary) currentBar.geometry.anchor else dockAnchor,
-                    docked = !floatingPrimary,
-                    onSelect = { anchor ->
-                        if (!floatingPrimary) {
-                            val position = when (anchor) {
-                                ToolbarAnchor.TOP_CENTER -> ToolbarPosition.TOP
-                                ToolbarAnchor.BOTTOM_CENTER -> ToolbarPosition.BOTTOM
-                                ToolbarAnchor.CENTER_LEFT -> ToolbarPosition.LEFT
-                                ToolbarAnchor.CENTER_RIGHT -> ToolbarPosition.RIGHT
-                                else -> look.position
-                            }
-                            configureDock(currentBar.geometry.copy(anchor = anchor, floating = false), look.copy(floating = false, position = position))
-                        } else {
-                            configureDock(currentBar.geometry.copy(anchor = anchor, floating = true))
-                        }
-                    },
-                )
-            }
-            val isPrimaryDock = currentBar.id == workspace.bars.first().id &&
-                !currentBar.geometry.floating && !prefs.toolbarLook.floating
-            val isSecondaryDock = currentBar.id != workspace.bars.first().id &&
-                currentBar.geometry.dockEdge != null && !currentBar.geometry.floating
-            val floatingBar = !isPrimaryDock && !isSecondaryDock
-            FlowRow(horizontalArrangement = Arrangement.spacedBy(18.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                    FieldLabel(if (floatingBar) "Faixa flutuante preferida · máximo 3"
-                        else "Faixa de encaixe · máximo 3 por borda")
-            Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                for (lane in 0..2) {
-                    Chip("Faixa ${lane + 1}", currentBar.geometry.dockLane == lane) {
-                        configureDock(currentBar.geometry.copy(dockLane = lane))
-                    }
-                }
-            }
-                }
-                Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                    FieldLabel("Alinhamento na faixa")
-            Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                for ((align, label) in listOf(
-                    ToolbarDockAlignment.START to "Início",
-                    ToolbarDockAlignment.CENTER to "Centro",
-                    ToolbarDockAlignment.END to "Fim",
-                )) {
-                    Chip(label, (if (floatingBar) toolbarFloatingAlignment(currentBar)
-                        else currentBar.geometry.dockAlignment) == align) {
-                        val anchor = if (floatingBar) when (currentBar.geometry.anchor.floatingEdge()) {
-                            ToolbarDockEdge.TOP -> when (align) {
-                                ToolbarDockAlignment.START -> ToolbarAnchor.TOP_LEFT
-                                ToolbarDockAlignment.CENTER -> ToolbarAnchor.TOP_CENTER
-                                ToolbarDockAlignment.END -> ToolbarAnchor.TOP_RIGHT
-                            }
-                            ToolbarDockEdge.BOTTOM -> when (align) {
-                                ToolbarDockAlignment.START -> ToolbarAnchor.BOTTOM_LEFT
-                                ToolbarDockAlignment.CENTER -> ToolbarAnchor.BOTTOM_CENTER
-                                ToolbarDockAlignment.END -> ToolbarAnchor.BOTTOM_RIGHT
-                            }
-                            ToolbarDockEdge.LEFT -> ToolbarAnchor.CENTER_LEFT
-                            ToolbarDockEdge.RIGHT -> ToolbarAnchor.CENTER_RIGHT
-                        } else currentBar.geometry.anchor
-                        configureDock(currentBar.geometry.copy(dockAlignment = align, anchor = anchor))
-                    }
-                }
-            }
-                }
-            }
+                        ToolbarBarSettings(
+                            currentBar = currentBar,
+                            barIndex = workspace.bars.indexOfFirst { it.id == currentBar.id },
+                            barCount = workspace.bars.size,
+                            look = prefs.toolbarLook,
+                            onUpdateBar = { transform -> updateSelectedBar(transform) },
+                            onConfigureDock = { geometry, look -> configureDock(geometry, look) },
+                            onReorder = { index ->
+                                val profiles = editor.toolbarWorkspaces
+                                val updated = editedWorkspace().moveBar(currentBar.id, index)
+                                editor.applyToolbarWorkspaces(
+                                    if (canvasTab) profiles.copy(canvas = updated) else profiles.copy(note = updated),
+                                )
+                            },
+                        )
+                        val isPrimaryDock = currentBar.id == workspace.bars.first().id &&
+                            !currentBar.geometry.floating && !prefs.toolbarLook.floating
+                        val isSecondaryDock = currentBar.id != workspace.bars.first().id &&
+                            currentBar.geometry.dockEdge != null && !currentBar.geometry.floating
+                        val floatingBar = !isPrimaryDock && !isSecondaryDock
             val displayDockPlan = toolbarDockPlan(
                 workspace, prefs.toolbarLook,
                 screenConfiguration.screenWidthDp.dp, screenConfiguration.screenHeightDp.dp,
@@ -1729,69 +1574,6 @@ private fun MillimetreField(label: String, value: Double, onChange: (Double) -> 
 }
 
 /** Stable 3×3 placement grid; docked primary bars only accept the four edges. */
-@Composable
-private fun ToolbarAnchorGrid(
-    selected: ToolbarAnchor,
-    docked: Boolean = false,
-    onSelect: (ToolbarAnchor) -> Unit,
-) {
-    val palette = LocalPalette.current
-    val symbols = listOf("↖", "↑", "↗", "←", "", "→", "↙", "↓", "↘")
-    val dockable = setOf(
-        ToolbarAnchor.TOP_CENTER, ToolbarAnchor.CENTER_LEFT,
-        ToolbarAnchor.CENTER_RIGHT, ToolbarAnchor.BOTTOM_CENTER,
-    )
-    Column(verticalArrangement = Arrangement.spacedBy(5.dp)) {
-        for (row in 0..2) {
-            Row(horizontalArrangement = Arrangement.spacedBy(5.dp)) {
-                for (column in 0..2) {
-                    val index = row * 3 + column
-                    if (index == 4) {
-                        Spacer(Modifier.size(48.dp))
-                        continue
-                    }
-                    val anchor = ToolbarAnchor.entries[index]
-                    val enabled = !docked || anchor in dockable
-                    val active = selected == anchor && enabled
-                    Box(
-                        Modifier
-                            .size(48.dp)
-                            .clip(RoundedCornerShape(10.dp))
-                            .background(
-                                if (active) palette.accent.toComposeColor().copy(alpha = 0.18f)
-                                else palette.panel.toComposeColor(),
-                            )
-                            .border(
-                                if (active) 2.dp else 1.dp,
-                                (if (active) palette.accent else palette.border).toComposeColor(),
-                                RoundedCornerShape(10.dp),
-                            )
-                            .clickable(enabled = enabled) { onSelect(anchor) }
-                            .semantics {
-                                contentDescription = anchor.name.replace('_', ' ').lowercase()
-                                this.selected = active
-                            },
-                        contentAlignment = Alignment.Center,
-                    ) {
-                        Text(
-                            symbols[index],
-                            color = (if (!enabled) palette.textDim else if (active) palette.accent else palette.text).toComposeColor()
-                                .copy(alpha = if (enabled) 1f else 0.35f),
-                            fontSize = 21.sp,
-                        )
-                    }
-                }
-            }
-        }
-        if (docked) {
-            Text(
-                stringResource(R.string.toolbar_docked_positions_hint),
-                color = palette.textDim.toComposeColor(),
-                fontSize = 12.sp,
-            )
-        }
-    }
-}
 
 @Composable
 private fun OptionDropdown(options: List<Pair<String, String>>, selectedId: String, onSelect: (String) -> Unit) {
