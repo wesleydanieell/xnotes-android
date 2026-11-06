@@ -1,5 +1,29 @@
 # Estado executável — XNotes Toolbars
 
+## Conversão de modo preservando a borda — 06/11/2026
+
+- Relatos: barra docked não virava floating; floating na direita voltava ao topo
+  ao encaixar. Os controles usavam âncora flutuante antiga ou TOP como fallback,
+  mesmo quando a borda efetiva era lateral. Uma altura lateral explícita podia
+  virar profundidade horizontal e causar rejeição falsa por capacidade.
+- `toolbarFloatingGeometry` deriva a âncora da borda efetiva e limpa `dockEdge`.
+  `toolbarDockedGeometry` deriva o encaixe da âncora flutuante atual, respeitando
+  também o modo legado da principal. Main e secundárias usam os mesmos helpers;
+  dimensões e faixa são preservadas, sem largura de 200 dp ou TOP forçados.
+- Na Main, a posição global é sincronizada com a borda escolhida ao encaixar;
+  o seletor usa a borda explícita quando ela existe.
+- Três regressões percorrem Main/secundárias, quatro bordas, ida/volta sem
+  modificar dimensões, altura lateral rejeitada pela âncora antiga e a principal
+  legada flutuante cuja posição vem da aparência global.
+- Gate offline: 2.476 testes sem falhas/erros/skips, assembleDebug e diff-check
+  passaram. APK debug instalado no emulador isolado.
+- Smoke com fixture temporária passou para Main e secundária: docked direita →
+  floating direita → docked direita, verificando geometria persistida. A primeira
+  tentativa passou na Main, mas parou no seletor fora da tela; o script passou
+  completo após rolar ao seletor. Settings originais restaurados e comparados
+  ao backup no final de ambas as tentativas. Sem alteração nas notas.
+- Não substitui QA com stylus nem a matriz visual completa de rotação/encaixes.
+
 ## Reset sem ocultar outras barras na prévia — 06/11/2026
 
 - Relato: outra barra desaparecia da prévia ao resetar Main nas configurações.

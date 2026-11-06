@@ -91,17 +91,10 @@ internal fun ToolbarBarSettings(
         ToolbarSettingsLabel("Posicionamento")
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             PreferenceChoiceChip("Encaixada", secondaryDocked) {
-                val geo = currentBar.geometry
-                configureDock(geo.copy(
-                    floating = false,
-                    dockEdge = geo.dockEdge ?: ToolbarDockEdge.TOP,
-                    dockLane = if (geo.dockEdge == null) 1 else geo.dockLane,
-                    widthDp = geo.widthDp ?: 200,
-                    heightDp = geo.heightDp,
-                ))
+                configureDock(toolbarDockedGeometry(currentBar, barIndex, look))
             }
             PreferenceChoiceChip("Flutuante", !secondaryDocked) {
-                configureDock(currentBar.geometry.copy(floating = true, dockEdge = null))
+                configureDock(toolbarFloatingGeometry(currentBar, barIndex, look))
             }
         }
         if (secondaryDocked) {
@@ -134,7 +127,7 @@ internal fun ToolbarBarSettings(
     } else {
         ToolbarSettingsLabel(stringResource(R.string.toolbar_primary_appearance))
         val floatingPrimary = currentBar.geometry.floating || look.floating
-        val dockAnchor = when (look.position) {
+        val dockAnchor = when (currentBar.geometry.dockEdge?.toolbarPosition() ?: look.position) {
             ToolbarPosition.TOP -> ToolbarAnchor.TOP_CENTER
             ToolbarPosition.BOTTOM -> ToolbarAnchor.BOTTOM_CENTER
             ToolbarPosition.LEFT -> ToolbarAnchor.CENTER_LEFT
@@ -142,10 +135,11 @@ internal fun ToolbarBarSettings(
         }
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             PreferenceChoiceChip(stringResource(R.string.toolbar_docked), !floatingPrimary) {
-                configureDock(currentBar.geometry.copy(floating = false, anchor = dockAnchor), look.copy(floating = false))
+                val geometry = toolbarDockedGeometry(currentBar, barIndex, look)
+                configureDock(geometry, look.copy(floating = false, position = geometry.dockEdge!!.toolbarPosition()))
             }
             PreferenceChoiceChip(stringResource(R.string.toolbar_floating), floatingPrimary) {
-                configureDock(currentBar.geometry.copy(floating = true, anchor = if (currentBar.geometry.floating) currentBar.geometry.anchor else dockAnchor), look.copy(floating = true))
+                configureDock(toolbarFloatingGeometry(currentBar, barIndex, look), look.copy(floating = true))
             }
         }
         ToolbarSettingsLabel(stringResource(R.string.pref_toolbar_position))

@@ -10,6 +10,7 @@ import com.xnotes.core.tools.ToolbarDockPlan
 import com.xnotes.core.tools.ToolbarDockRequest
 import com.xnotes.core.tools.ToolbarScale
 import com.xnotes.core.tools.ToolbarWorkspace
+import com.xnotes.core.tools.ToolbarGeometry
 import com.xnotes.settings.ToolbarLook
 import com.xnotes.settings.ToolbarPosition
 import com.xnotes.settings.ToolbarSize
@@ -38,6 +39,28 @@ internal fun toolbarBarSize(bar: ToolbarBar, index: Int, look: ToolbarLook): Too
 internal fun toolbarDockEdge(bar: ToolbarBar, index: Int, look: ToolbarLook): ToolbarDockEdge? =
     if (bar.geometry.floating || (index == 0 && look.floating)) null
     else bar.geometry.dockEdge ?: if (index == 0) look.position.dockEdge() else null
+
+/** Floating orientation must follow the current dock, not an older saved floating anchor. */
+internal fun toolbarFloatingGeometry(bar: ToolbarBar, index: Int, look: ToolbarLook): ToolbarGeometry {
+    val edge = toolbarDockEdge(bar, index, look)
+        ?: if (index == 0 && !bar.geometry.floating && look.floating) look.position.dockEdge() else null
+    val anchor = when (edge) {
+        ToolbarDockEdge.TOP -> ToolbarAnchor.TOP_CENTER
+        ToolbarDockEdge.BOTTOM -> ToolbarAnchor.BOTTOM_CENTER
+        ToolbarDockEdge.LEFT -> ToolbarAnchor.CENTER_LEFT
+        ToolbarDockEdge.RIGHT -> ToolbarAnchor.CENTER_RIGHT
+        null -> bar.geometry.anchor
+    }
+    return bar.geometry.copy(anchor = anchor, floating = true, dockEdge = null)
+}
+
+/** Reattach to the edge occupied by the floating bar, including corner anchors. */
+internal fun toolbarDockedGeometry(bar: ToolbarBar, index: Int, look: ToolbarLook): ToolbarGeometry {
+    val edge = toolbarDockEdge(bar, index, look)
+        ?: if (index == 0 && !bar.geometry.floating && look.floating) look.position.dockEdge()
+        else bar.geometry.anchor.floatingEdge()
+    return bar.geometry.copy(floating = false, dockEdge = edge)
+}
 
 /** A null length is deliberately treated as a full-edge bar, not an optimistic guess. */
 internal fun toolbarDockPlan(
