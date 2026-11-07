@@ -6,8 +6,10 @@ import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.gestures.scrollBy
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.FlowRow
@@ -22,12 +24,14 @@ import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Checkbox
+import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
@@ -57,12 +61,14 @@ import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.boundsInRoot
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.platform.LocalFocusManager
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.selected
 import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.font.FontWeight
@@ -74,14 +80,17 @@ import com.xnotes.core.model.Orientation
 import com.xnotes.core.model.PageSize
 import com.xnotes.core.model.Rgba
 import com.xnotes.settings.ExplorerLayout
-import com.xnotes.core.tools.InkPalette
+import com.xnotes.core.tools.ToolbarAnchor
+import com.xnotes.core.tools.ToolbarContext
+import com.xnotes.core.tools.ToolbarBar
+import com.xnotes.core.tools.ToolbarGeometry
 import com.xnotes.core.tools.ToolbarItem
 import com.xnotes.core.tools.ToolbarLayout
+import com.xnotes.core.tools.ToolbarWorkspace
 import com.xnotes.core.util.NameTemplate
 import com.xnotes.settings.Preferences
 import com.xnotes.settings.MaterialStyle
 import com.xnotes.settings.CornerStyle
-import com.xnotes.settings.ToolbarPosition
 import com.xnotes.settings.ToolbarSize
 import com.xnotes.settings.MaterialColourMode
 import com.xnotes.settings.SwatchRole
@@ -106,6 +115,8 @@ private val tapGestureOptions = listOf(
     "toggle_previous" to R.string.toggle_previous,
 )
 
+private enum class ToolbarPropertyTab { BARS, DIMENSIONS, ELEMENTS }
+
 /**
  * Preferences as a backstage pane (spec 10 §8). Edits apply live — each change is
  * pushed straight to the [Editor] (and persisted), so theme/page tweaks are seen
@@ -122,9 +133,11 @@ fun PreferencesPane(
     onImportCodeTheme: () -> Unit = {},
     onImportFont: () -> Unit = {},
     onBackup: (export: Boolean) -> Unit = {},
+    openToolbarEditor: Boolean = false,
 ) {
     val palette = LocalPalette.current
     val focusManager = LocalFocusManager.current
+    val screenConfiguration = LocalConfiguration.current
     var prefs by remember { mutableStateOf(editor.preferences) }
     fun update(p: Preferences) {
         prefs = p
@@ -141,49 +154,172 @@ fun PreferencesPane(
     LaunchedEffect(editor.prefsVersion) { prefs = editor.preferences }
 
     val scrollState = rememberScrollState()
+    val toolbarPropertiesScroll = rememberScrollState()
+    val toolbarElementsScroll = rememberScrollState()
+    var previewExpanded by remember { mutableStateOf(false) }
+    var toolbarPropertyTab by remember { mutableStateOf(ToolbarPropertyTab.BARS) }
+    var colorControlsExpanded by remember { mutableStateOf(false) }
+    var dockError by remember { mutableStateOf<String?>(null) }
+    var toolbarEditorOpen by remember { mutableStateOf(openToolbarEditor) }
+    LaunchedEffect(openToolbarEditor) { if (openToolbarEditor) toolbarEditorOpen = true }
+    LaunchedEffect(toolbarEditorOpen) { scrollState.scrollTo(0) }
+    LaunchedEffect(toolbarPropertyTab) { toolbarPropertiesScroll.scrollTo(0) }
     // Which bar the toolbar section is arranging. The two are separate layouts, so the drag state
     // below always belongs to whichever is on screen.
     var canvasTab by remember { mutableStateOf(false) }
-    val layout = if (canvasTab) editor.canvasToolbarLayout else editor.toolbarLayout
+    var selectedBarId by remember { mutableStateOf<String?>(null) }
+    var barMenuExpanded by remember { mutableStateOf(false) }
+    var toolbarActionsExpanded by remember { mutableStateOf(false) }
+    var transferDraft by remember { mutableStateOf<com.xnotes.core.tools.ToolbarTransferDraft?>(null) }
+    val workspaceLibrary = remember { ToolbarWorkspaceLibraryState(editor.toolbarWorkspacePresets) }
+    fun activeWorkspacePreset() = com.xnotes.settings.ToolbarWorkspacePreset(
+        id = "current-export",
+        name = "Workspace atual",
+        workspaces = editor.toolbarWorkspaces,
+        look = prefs.toolbarLook,
+        colors = editor.toolbarColors,
+        colorCount = editor.toolbarColorCount,
+    )
+    val toolbarInteraction = remember { ToolbarEditorInteractionState() }
+    var selectedEntry by toolbarInteraction.selectedEntry
+    fun editedContext(): ToolbarContext = if (canvasTab) ToolbarContext.CANVAS else ToolbarContext.NOTE
+    fun editedWorkspace(): ToolbarWorkspace =
+        if (canvasTab) editor.toolbarWorkspaces.canvas else editor.toolbarWorkspaces.note
+    fun selectedBar(): ToolbarBar = editedWorkspace().bars.firstOrNull { it.id == selectedBarId }
+        ?: editedWorkspace().bars.first()
+    val layout = selectedBar().layout
     // Toolbar drag state, hoisted here so the floating "ghost" chip can be drawn at the pane
     // root (above and outside the scroll, so it is never clipped). Bounds are plain maps read
     // only at drag time; observable state is just the dragged item, finger, and drop slot.
-    var dragItem by remember { mutableStateOf<ToolbarItem?>(null) }
-    var dragFinger by remember { mutableStateOf(Offset.Zero) }
-    var dragGrab by remember { mutableStateOf(Offset.Zero) }
-    var dropTarget by remember { mutableStateOf<Pair<Int, Int>?>(null) }
-    val chipBounds = remember { mutableMapOf<ToolbarItem, Rect>() }
-    val sectionBounds = remember { mutableMapOf<Int, Rect>() }
-    val sectionGrabBounds = remember { mutableMapOf<Int, Rect>() }
+    val dragItem by toolbarInteraction.dragItem
+    val dragFinger by toolbarInteraction.dragFinger
+    val dragGrab by toolbarInteraction.dragGrab
+    val chipBounds = toolbarInteraction.chipBounds
+    val sectionBounds = toolbarInteraction.sectionBounds
     // Section-drag state (the whole card, by its grip handle); shares the finger/grab with the
     // chip drag since only one gesture runs at a time. The drop slot is an insertion index.
-    var dragSection by remember { mutableStateOf<Int?>(null) }
-    var sectionDropTarget by remember { mutableStateOf<Int?>(null) }
+    val dragSection by toolbarInteraction.dragSection
     var paneTopLeft by remember { mutableStateOf(Offset.Zero) }
     var viewport by remember { mutableStateOf(Rect.Zero) }
-    fun editedLayout(): ToolbarLayout = if (canvasTab) editor.canvasToolbarLayout else editor.toolbarLayout
+    fun editedLayout(): ToolbarLayout = selectedBar().layout
     fun applyEdited(next: ToolbarLayout) {
-        if (canvasTab) editor.applyCanvasToolbarLayout(next) else editor.applyToolbarLayout(next)
+        val workspace = editedWorkspace()
+        val bar = selectedBar()
+        if (bar.id == workspace.bars.first().id) {
+            if (canvasTab) editor.applyCanvasToolbarLayout(next) else editor.applyToolbarLayout(next)
+        } else {
+            val profiles = editor.toolbarWorkspaces
+            val changed = workspace.replaceBar(bar.copy(layout = next))
+            editor.applyToolbarWorkspaces(profiles.updateWorkspace(editedContext()) { changed })
+        }
     }
+    fun updateSelectedBar(transform: (ToolbarBar) -> ToolbarBar) {
+        val profiles = editor.toolbarWorkspaces
+        val changed = editedWorkspace().replaceBar(transform(selectedBar()))
+        editor.applyToolbarWorkspaces(profiles.updateWorkspace(editedContext()) { changed })
+    }
+    fun configureDock(next: ToolbarGeometry, nextLook: com.xnotes.settings.ToolbarLook = prefs.toolbarLook) {
+        val bar = selectedBar()
+        val candidate = editedWorkspace().replaceBar(bar.copy(geometry = next.constrained()))
+        if (!toolbarPlacementFits(
+                candidate, nextLook, screenConfiguration.screenWidthDp.dp,
+                screenConfiguration.screenHeightDp.dp, editor.toolbarColorCount,
+                dockWorkspace = candidate.onlyItems(if (canvasTab) ToolbarLayout.CANVAS_ITEMS else ToolbarLayout.NOTE_ITEMS),
+            )) {
+            dockError = "Sem espaço disponível. Reduza a barra, altere a borda ou escolha outra faixa."
+            return
+        }
+        dockError = null
+        updateSelectedBar { it.copy(geometry = next.constrained()) }
+        if (nextLook != prefs.toolbarLook) updateHome(prefs.copy(toolbarLook = nextLook))
+    }
+
+    fun beginCopyToolbar() {
+        val profiles = editor.toolbarWorkspaces
+        if (canvasTab && profiles.shared) {
+            dockError = "Desative o perfil compartilhado antes de copiar uma barra do XCanvas."
+            return
+        }
+        val targetCanvas = !canvasTab
+        val destination = if (targetCanvas) profiles.canvas else profiles.note
+        val target = if (targetCanvas) com.xnotes.core.tools.ToolbarContext.CANVAS
+            else com.xnotes.core.tools.ToolbarContext.NOTE
+        val source = selectedBar()
+        val initial = com.xnotes.core.tools.prepareToolbarTransfer(source, destination, target)
+        if (initial.retainedCount == 0) {
+            dockError = "Esta barra não possui elementos compatíveis com o editor de destino."
+            return
+        }
+        val draft = planToolbarCopy(source,
+            editedWorkspace().bars.first().id == source.id, destination, target,
+            prefs.toolbarLook, screenConfiguration.screenWidthDp.dp,
+            screenConfiguration.screenHeightDp.dp, editor.toolbarColorCount)
+        if (draft == null) {
+            dockError = "Não há espaço para esta barra no destino. Reduza suas dimensões antes de copiar."
+            return
+        }
+        dockError = null
+        transferDraft = draft
+    }
+
     fun retarget() {
-        dropTarget = toolbarDropTarget(editedLayout(), dragFinger, chipBounds, sectionBounds)
+        toolbarInteraction.retargetItem(editedLayout())
     }
     fun retargetSection() {
-        sectionDropTarget = toolbarSectionDropTarget(editedLayout(), dragFinger, sectionBounds)
+        toolbarInteraction.retargetSection(editedLayout())
     }
     fun showTab(canvas: Boolean) {
         if (canvasTab == canvas) return
         canvasTab = canvas
-        // The bounds maps are keyed by item and the two bars share most items, so stale entries
-        // from the other tab would aim a drop at a chip that is no longer there.
-        chipBounds.clear()
-        sectionBounds.clear()
-        sectionGrabBounds.clear()
-        dragItem = null
-        dragSection = null
-        dropTarget = null
-        sectionDropTarget = null
+        selectedBarId = null
+        toolbarInteraction.resetForSelectionChange()
     }
+    fun showBar(id: String) {
+        if (selectedBarId == id) return
+        selectedBarId = id
+        toolbarInteraction.resetForSelectionChange()
+    }
+
+    transferDraft?.let { draft ->
+        val profiles = editor.toolbarWorkspaces
+        val targetCanvas = !canvasTab
+        val destination = if (targetCanvas) profiles.canvas else profiles.note
+        ToolbarCopyDialog(
+            targetLabel = if (targetCanvas) "XCanvas" else "XNotes",
+            candidate = destination.addBar(draft.bar),
+            draft = draft,
+            look = prefs.toolbarLook,
+            colors = editor.toolbarColors.take(editor.toolbarColorCount),
+            activeColorIndex = editor.activeColorIndex,
+            sharedCanvasWillDisable = targetCanvas && profiles.shared,
+            onCopy = {
+                val changed = destination.addBar(draft.bar)
+                editor.applyToolbarWorkspaces(
+                    if (targetCanvas) profiles.copy(canvas = changed, shared = false)
+                    else profiles.copy(note = changed),
+                )
+                transferDraft = null
+                showTab(targetCanvas)
+                showBar(draft.bar.id)
+            },
+            onDismiss = { transferDraft = null },
+        )
+    }
+    ToolbarWorkspaceLibrary(
+        state = workspaceLibrary,
+        canvasInitially = canvasTab,
+        currentPreset = { activeWorkspacePreset() },
+        getPresets = { editor.toolbarWorkspacePresets },
+        onSave = { editor.saveToolbarWorkspacePreset(it) },
+        onDelete = { editor.deleteToolbarWorkspacePreset(it) },
+        onImport = { editor.importToolbarWorkspacePresets(it) },
+        onApply = { preset, targetContext ->
+            editor.applyToolbarWorkspacePreset(preset, targetContext)
+            prefs = editor.preferences
+            selectedBarId = null
+            selectedEntry = null
+        },
+    )
 
     // A tap on empty space dismisses the template field's focus; children consume their own taps.
     Box(
@@ -195,32 +331,45 @@ fun PreferencesPane(
         // Leading button inline with the title, at a constant row height so toggling the sidebar never
         // shifts the settings below: a back arrow to Home on compact, else a hamburger when hidden.
         Row(Modifier.fillMaxWidth().heightIn(min = 48.dp), verticalAlignment = Alignment.CenterVertically) {
-            if (compact) {
-                Tooltip(stringResource(R.string.back_to_home)) {
-                    IconButton(onClick = onBackToHome) {
-                        Icon(XnotesIcons.prev, stringResource(R.string.back_to_home), tint = palette.text.toComposeColor(), modifier = Modifier.size(24.dp))
+            if (toolbarEditorOpen) {
+                Tooltip(stringResource(R.string.preferences)) {
+                    IconButton(onClick = { toolbarEditorOpen = false }) {
+                        Icon(XnotesIcons.prev, stringResource(R.string.preferences), tint = palette.text.toComposeColor(), modifier = Modifier.size(24.dp))
                     }
                 }
                 Spacer(Modifier.width(4.dp))
-            } else if (!sidebarOpen) {
-                Tooltip(stringResource(R.string.show_sidebar)) {
-                    IconButton(onClick = onShowSidebar) {
-                        Icon(XnotesIcons.menu, stringResource(R.string.show_sidebar), tint = palette.text.toComposeColor(), modifier = Modifier.size(24.dp))
+                Text(stringResource(R.string.pref_toolbar), color = palette.text.toComposeColor(), fontWeight = FontWeight.Bold, fontSize = 20.sp)
+            } else {
+                if (compact) {
+                    Tooltip(stringResource(R.string.back_to_home)) {
+                        IconButton(onClick = onBackToHome) {
+                            Icon(XnotesIcons.prev, stringResource(R.string.back_to_home), tint = palette.text.toComposeColor(), modifier = Modifier.size(24.dp))
+                        }
                     }
+                    Spacer(Modifier.width(4.dp))
+                } else if (!sidebarOpen) {
+                    Tooltip(stringResource(R.string.show_sidebar)) {
+                        IconButton(onClick = onShowSidebar) {
+                            Icon(XnotesIcons.menu, stringResource(R.string.show_sidebar), tint = palette.text.toComposeColor(), modifier = Modifier.size(24.dp))
+                        }
+                    }
+                    Spacer(Modifier.width(4.dp))
                 }
-                Spacer(Modifier.width(4.dp))
+                Text(stringResource(R.string.preferences), color = palette.text.toComposeColor(), fontWeight = FontWeight.Bold, fontSize = 20.sp)
+                Spacer(Modifier.weight(1f))
+                TextButton(onClick = { update(Preferences()) }) { Text(stringResource(R.string.reset_to_defaults), fontSize = 13.sp) }
             }
-            Text(stringResource(R.string.preferences), color = palette.text.toComposeColor(), fontWeight = FontWeight.Bold, fontSize = 20.sp)
-            Spacer(Modifier.weight(1f))
-            TextButton(onClick = { update(Preferences()) }) { Text(stringResource(R.string.reset_to_defaults), fontSize = 13.sp) }
         }
         Spacer(Modifier.height(12.dp))
         Column(
             // Ending at the keyboard's edge scrolls a focused field up out from under it.
             Modifier.fillMaxSize().imePadding().verticalScroll(scrollState)
-                .onGloballyPositioned { viewport = it.boundsInRoot() },
+                .onGloballyPositioned {
+                    if (!toolbarEditorOpen) viewport = it.boundsInRoot()
+                },
             verticalArrangement = Arrangement.spacedBy(14.dp),
         ) {
+            if (!toolbarEditorOpen) {
             SectionTitle(stringResource(R.string.pref_general))
             FieldLabel(stringResource(R.string.pref_ui_theme))
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -547,35 +696,96 @@ fun PreferencesPane(
                 }
             }
 
-            HorizontalDivider(color = palette.border.toComposeColor())
-            SectionTitle(stringResource(R.string.pref_toolbar))
-            // The look, like the swatch count below, is one setting for both bars.
-            val look = prefs.toolbarLook
-            FieldLabel(stringResource(R.string.pref_toolbar_style))
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                Chip(stringResource(R.string.toolbar_docked), !look.floating) { updateHome(prefs.copy(toolbarLook = look.copy(floating = false))) }
-                Chip(stringResource(R.string.toolbar_floating), look.floating) { updateHome(prefs.copy(toolbarLook = look.copy(floating = true))) }
             }
-            FieldLabel(stringResource(R.string.pref_toolbar_position))
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                for ((position, label) in listOf(
-                    ToolbarPosition.TOP to R.string.edge_top,
-                    ToolbarPosition.BOTTOM to R.string.edge_bottom,
-                    ToolbarPosition.LEFT to R.string.edge_left,
-                    ToolbarPosition.RIGHT to R.string.edge_right,
-                )) {
-                    Chip(stringResource(label), look.position == position) { updateHome(prefs.copy(toolbarLook = look.copy(position = position))) }
+            if (!toolbarEditorOpen) {
+                HorizontalDivider(color = palette.border.toComposeColor())
+                SectionTitle(stringResource(R.string.pref_toolbar))
+                Text(
+                    stringResource(R.string.toolbar_workspace_intro),
+                    color = palette.textDim.toComposeColor(), fontSize = 13.sp,
+                )
+                TextButton(onClick = { toolbarEditorOpen = true }) { Text(stringResource(R.string.toolbar_configure)) }
+            } else {
+            val barLabel = stringResource(R.string.pref_toolbar)
+            val workspace = editedWorkspace()
+            val currentBar = selectedBar()
+            val toolbarActions: @Composable () -> Unit = {
+            Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                TextButton(onClick = {
+                    toolbarActionsExpanded = false
+                    val old = editedWorkspace()
+                    val id = generateSequence(1) { it + 1 }.map { "bar-$it" }
+                        .first { key -> old.bars.none { it.id == key } }
+                    val defaults = if (canvasTab) ToolbarLayout.CANVAS_DEFAULT else ToolbarLayout.DEFAULT
+                    val compact = ToolbarLayout(defaults.sections.map { section ->
+                        section.copy(entries = section.entries.map { entry ->
+                            entry.copy(visible = entry.item == ToolbarItem.COLORS)
+                        })
+                    })
+                    val bar = ToolbarBar(
+                        id = id,
+                        name = "$barLabel ${old.bars.size + 1}",
+                        layout = compact,
+                        geometry = ToolbarGeometry(anchor = ToolbarAnchor.BOTTOM_RIGHT, floating = true),
+                    )
+                    val profiles = editor.toolbarWorkspaces
+                    val changed = old.addBar(bar)
+                    val dockPlan = toolbarDockPlan(
+                        changed, prefs.toolbarLook,
+                        screenConfiguration.screenWidthDp.dp, screenConfiguration.screenHeightDp.dp,
+                    )
+                    val floated = toolbarFloatingPlan(
+                        changed, prefs.toolbarLook,
+                        screenConfiguration.screenWidthDp.dp - dockPlan.leftInset.dp - dockPlan.rightInset.dp,
+                        screenConfiguration.screenHeightDp.dp - dockPlan.topInset.dp - dockPlan.bottomInset.dp,
+                        editor.toolbarColorCount,
+                    )
+                    if (id in floated.rejected) {
+                        dockError = "Limite de barras alcançado nas faixas atuais. Libere espaço antes de adicionar."
+                    } else {
+                        dockError = null
+                        editor.applyToolbarWorkspaces(
+                            profiles.updateWorkspace(editedContext()) { changed },
+                        )
+                        showBar(id)
+                    }
+                }) { Text(stringResource(R.string.add) + " " + barLabel) }
+                TextButton(onClick = {
+                    toolbarActionsExpanded = false
+                    val old = editedWorkspace()
+                    val bar = selectedBar()
+                    val id = generateSequence(1) { it + 1 }.map { "bar-$it" }
+                        .first { key -> old.bars.none { it.id == key } }
+                    val changed = old.duplicateBar(bar.id, id, "$barLabel ${old.bars.size + 1}")
+                    val profiles = editor.toolbarWorkspaces
+                    if (!toolbarPlacementFits(changed, prefs.toolbarLook,
+                            screenConfiguration.screenWidthDp.dp, screenConfiguration.screenHeightDp.dp,
+                            editor.toolbarColorCount)) {
+                        dockError = "A cópia não cabe nas faixas disponíveis. Ajuste o tamanho ou a organização."
+                    } else {
+                        dockError = null
+                        editor.applyToolbarWorkspaces(
+                            profiles.updateWorkspace(editedContext()) { changed },
+                        )
+                        showBar(id)
+                    }
+                }) { Text(stringResource(R.string.duplicate)) }
+                if (workspace.bars.size > 1 && currentBar.id != workspace.bars.first().id) {
+                    TextButton(onClick = {
+                        toolbarActionsExpanded = false
+                        val old = editedWorkspace()
+                        val changed = old.removeBar(selectedBar().id)
+                        val profiles = editor.toolbarWorkspaces
+                        editor.applyToolbarWorkspaces(
+                            profiles.updateWorkspace(editedContext()) { changed },
+                        )
+                        showBar(changed.bars.first().id)
+                    }) { Text(stringResource(R.string.remove)) }
                 }
             }
-            FieldLabel(stringResource(R.string.pref_toolbar_size))
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                for ((size, label) in listOf(
-                    ToolbarSize.COMPACT to R.string.toolbar_size_compact,
-                    ToolbarSize.REGULAR to R.string.toolbar_size_regular,
-                    ToolbarSize.COMFORTABLE to R.string.toolbar_size_comfortable,
-                )) {
-                    Chip(stringResource(label), look.size == size) { updateHome(prefs.copy(toolbarLook = look.copy(size = size))) }
-                }
+            TextButton(onClick = { toolbarActionsExpanded = false; beginCopyToolbar() }) {
+                Text("Copiar para " + if (canvasTab) "XNotes" else "XCanvas")
+            }
             }
             FieldLabel(stringResource(R.string.pref_document_tabs_mode))
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -589,14 +799,6 @@ fun PreferencesPane(
                     }
                 }
             }
-            FieldLabel(stringResource(R.string.pref_toolbar_colours_n, editor.toolbarColorCount))
-            Slider(
-                value = editor.toolbarColorCount.toFloat(),
-                onValueChange = { editor.applyToolbarColorCount(Math.round(it)) },
-                valueRange = 1f..InkPalette.MAX_SWATCHES.toFloat(),
-                steps = InkPalette.MAX_SWATCHES - 2,
-                modifier = Modifier.width(280.dp),
-            )
             Row(
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(6.dp),
@@ -604,80 +806,209 @@ fun PreferencesPane(
                 Chip("xnote", selected = !canvasTab) { showTab(false) }
                 Chip("xcanvas", selected = canvasTab) { showTab(true) }
                 Spacer(Modifier.weight(1f))
-                TextButton(
-                    onClick = {
-                        applyEdited(if (canvasTab) ToolbarLayout.CANVAS_DEFAULT else ToolbarLayout.DEFAULT)
-                    },
-                ) { Text(stringResource(R.string.reset), fontSize = 13.sp) }
-            }
-            Text(
-                stringResource(R.string.pref_toolbar_help),
-                color = palette.textDim.toComposeColor(),
-                fontSize = 12.sp,
-            )
-            ToolbarCustomizerBody(
-                layout = layout,
-                dragItem = dragItem,
-                dropTarget = dropTarget,
-                dragSection = dragSection,
-                sectionDropTarget = sectionDropTarget,
-                chipBounds = chipBounds,
-                sectionBounds = sectionBounds,
-                sectionGrabBounds = sectionGrabBounds,
-                onToggle = { s, i -> applyEdited(editedLayout().toggleVisible(s, i)) },
-                onDelete = { s -> applyEdited(editedLayout().removeSection(s)) },
-                onAdd = { applyEdited(editedLayout().addSection()) },
-                onDragStart = { item, local ->
-                    dragItem = item
-                    dragGrab = local
-                    dragFinger = (chipBounds[item]?.topLeft ?: Offset.Zero) + local
-                    retarget()
-                },
-                onDrag = { delta -> dragFinger += delta; retarget() },
-                onDrop = {
-                    val target = dropTarget
-                    val moving = dragItem
-                    if (target != null && moving != null) {
-                        val cur = editedLayout()
-                        val fSec = cur.sections.indexOfFirst { s -> s.entries.any { it.item == moving } }
-                        val fIdx = if (fSec >= 0) cur.sections[fSec].entries.indexOfFirst { it.item == moving } else -1
-                        if (fSec >= 0 && fIdx >= 0) {
-                            applyEdited(cur.moveItem(fSec, fIdx, target.first, target.second))
+                Box {
+                    TextButton(onClick = { barMenuExpanded = true },
+                        modifier = Modifier.widthIn(max = 120.dp)) {
+                        Text("${currentBar.name} ▾", maxLines = 1, overflow = TextOverflow.Ellipsis)
+                    }
+                    DropdownMenu(
+                        expanded = barMenuExpanded,
+                        onDismissRequest = { barMenuExpanded = false },
+                    ) {
+                        workspace.bars.forEachIndexed { index, bar ->
+                            DropdownMenuItem(
+                                text = { Text("${index + 1}. ${bar.name}") },
+                                onClick = {
+                                    showBar(bar.id)
+                                    barMenuExpanded = false
+                                },
+                            )
+                        }
+                        HorizontalDivider()
+                        DropdownMenuItem(
+                            text = { Text(stringResource(R.string.reset)) },
+                            onClick = {
+                                val candidate = planToolbarReset(editedWorkspace(), selectedBar().id,
+                                    editedContext(), prefs.toolbarLook,
+                                    screenConfiguration.screenWidthDp.dp, screenConfiguration.screenHeightDp.dp,
+                                    editor.toolbarColorCount)
+                                if (candidate == null) {
+                                    dockError = "O padrão não cabe junto das outras barras. Reduza ou mova as barras antes de restaurar."
+                                } else {
+                                    dockError = null
+                                    applyEdited(candidate.bars.first { it.id == selectedBar().id }.layout)
+                                    toolbarInteraction.resetForSelectionChange()
+                                }
+                                barMenuExpanded = false
+                            },
+                        )
+                    }
+                }
+                TextButton(onClick = {
+                    workspaceLibrary.show(editor.toolbarWorkspacePresets)
+                }) { Text("Workspaces ▾", maxLines = 1) }
+                Box {
+                    IconButton(onClick = { toolbarActionsExpanded = true }) {
+                        Icon(XnotesIcons.more, "Criar, duplicar ou copiar barra")
+                    }
+                    DropdownMenu(
+                        expanded = toolbarActionsExpanded,
+                        onDismissRequest = { toolbarActionsExpanded = false },
+                    ) {
+                        Column(Modifier.widthIn(min = 290.dp).padding(8.dp)) {
+                            toolbarActions()
                         }
                     }
-                    dragItem = null
-                    dropTarget = null
-                },
-                onCancel = {
-                    dragItem = null
-                    dropTarget = null
-                },
-                onSectionDragStart = { sec, local ->
-                    dragSection = sec
-                    val grab = sectionGrabBounds[sec]?.topLeft ?: sectionBounds[sec]?.topLeft ?: Offset.Zero
-                    val card = sectionBounds[sec]?.topLeft ?: Offset.Zero
-                    dragFinger = grab + local
-                    dragGrab = dragFinger - card
-                    retargetSection()
-                },
-                onSectionDrag = { delta -> dragFinger += delta; retargetSection() },
-                onSectionDrop = {
-                    val from = dragSection
-                    val insertAt = sectionDropTarget
-                    if (from != null && insertAt != null) {
-                        val cur = editedLayout()
-                        val to = (if (insertAt > from) insertAt - 1 else insertAt).coerceIn(0, cur.sections.lastIndex)
-                        if (to != from) applyEdited(cur.moveSection(from, to))
+                }
+            }
+            dockError?.let { Text(it, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall) }
+            val barSize = if (currentBar.id == workspace.bars.first().id) prefs.toolbarLook.size
+                else when (currentBar.geometry.scale) {
+                    com.xnotes.core.tools.ToolbarScale.COMPACT -> ToolbarSize.COMPACT
+                    com.xnotes.core.tools.ToolbarScale.REGULAR -> ToolbarSize.REGULAR
+                    com.xnotes.core.tools.ToolbarScale.COMFORTABLE -> ToolbarSize.COMFORTABLE
+                }
+            val defaultEntrySize = resolvedBarMetrics(barSize, currentBar.geometry).button.value.toInt()
+            val preview: @Composable () -> Unit = {
+                ToolbarWorkspacePreview(
+                    workspace = workspace.onlyItems(if (canvasTab) ToolbarLayout.CANVAS_ITEMS else ToolbarLayout.NOTE_ITEMS),
+                    look = prefs.toolbarLook,
+                    selectedId = currentBar.id,
+                    selectedEntry = selectedEntry,
+                    colors = editor.toolbarColors.take(editor.toolbarColorCount),
+                    activeColorIndex = editor.activeColorIndex,
+                    pageNumber = editor.pageIndex + 1,
+                    pageCount = editor.pageCount,
+                    zoomLabel = "${editor.zoomPercent}%",
+                    titleLabel = editor.title,
+                    onSelectBar = { id ->
+                        showBar(id)
+                        selectedEntry = null
+                        toolbarPropertyTab = ToolbarPropertyTab.BARS
+                    },
+                    onSelectEntry = { id, section, index ->
+                        showBar(id)
+                        selectedEntry = section to index
+                        toolbarPropertyTab = ToolbarPropertyTab.ELEMENTS
+                    },
+                    onMoveBar = { id, anchor ->
+                        editor.moveToolbarBar(
+                            if (canvasTab) com.xnotes.core.tools.ToolbarContext.CANVAS else com.xnotes.core.tools.ToolbarContext.NOTE,
+                            id, anchor,
+                        )
+                    },
+                )
+            }
+            val propertyTabs: @Composable () -> Unit = {
+                Row(
+                    Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
+                    horizontalArrangement = Arrangement.spacedBy(6.dp),
+                ) {
+                    Chip("Barras", toolbarPropertyTab == ToolbarPropertyTab.BARS) {
+                        selectedEntry = null
+                        toolbarPropertyTab = ToolbarPropertyTab.BARS
                     }
-                    dragSection = null
-                    sectionDropTarget = null
-                },
-                onSectionCancel = {
-                    dragSection = null
-                    sectionDropTarget = null
-                },
+                    Chip("Aparência", toolbarPropertyTab == ToolbarPropertyTab.DIMENSIONS) {
+                        selectedEntry = null
+                        toolbarPropertyTab = ToolbarPropertyTab.DIMENSIONS
+                    }
+                    Chip("Elementos", toolbarPropertyTab == ToolbarPropertyTab.ELEMENTS) {
+                        toolbarPropertyTab = ToolbarPropertyTab.ELEMENTS
+                    }
+                 }
+            }
+            val inspector: @Composable () -> Unit = {
+                Column(
+                    Modifier.fillMaxWidth()
+                        .heightIn(max = if (toolbarPropertyTab == ToolbarPropertyTab.ELEMENTS) 380.dp else 500.dp)
+                        .onGloballyPositioned { viewport = it.boundsInRoot() }
+                        .verticalScroll(if (toolbarPropertyTab == ToolbarPropertyTab.ELEMENTS)
+                            toolbarElementsScroll else toolbarPropertiesScroll),
+                    verticalArrangement = Arrangement.spacedBy(8.dp),
+                ) {
+                    if (toolbarPropertyTab == ToolbarPropertyTab.ELEMENTS) {
+                        ToolbarElementsEditor(
+                            layout = layout,
+                            currentLayout = { editedLayout() },
+                            availableItems = if (canvasTab) ToolbarLayout.CANVAS_ITEMS else ToolbarLayout.NOTE_ITEMS,
+                            interaction = toolbarInteraction,
+                            defaultEntrySize = defaultEntrySize,
+                            colorCount = editor.toolbarColorCount,
+                            colorControlsExpanded = colorControlsExpanded,
+                            onToggleColorControls = { colorControlsExpanded = !colorControlsExpanded },
+                            onColorCountChange = { editor.applyToolbarColorCount(it) },
+                            onApplyLayout = { applyEdited(it) },
+                        )
+                    }
+                    if (toolbarPropertyTab == ToolbarPropertyTab.DIMENSIONS) {
+                        ToolbarAppearanceSettings(
+                            geometry = currentBar.geometry,
+                            onGeometryChange = { next -> configureDock(next) },
+                            onScaleChange = { scale ->
+                                val primary = currentBar.id == workspace.bars.first().id
+                                val size = when (scale) {
+                                    com.xnotes.core.tools.ToolbarScale.COMPACT -> ToolbarSize.COMPACT
+                                    com.xnotes.core.tools.ToolbarScale.REGULAR -> ToolbarSize.REGULAR
+                                    com.xnotes.core.tools.ToolbarScale.COMFORTABLE -> ToolbarSize.COMFORTABLE
+                                }
+                                configureDock(currentBar.geometry.copy(scale = scale),
+                                    if (primary) prefs.toolbarLook.copy(size = size) else prefs.toolbarLook)
+                            },
+                        )
+                    }
+                    if (toolbarPropertyTab == ToolbarPropertyTab.BARS) {
+                        ToolbarBarSettings(
+                            currentBar = currentBar,
+                            barIndex = workspace.bars.indexOfFirst { it.id == currentBar.id },
+                            barCount = workspace.bars.size,
+                            look = prefs.toolbarLook,
+                            onUpdateBar = { transform -> updateSelectedBar(transform) },
+                            onConfigureDock = { geometry, look -> configureDock(geometry, look) },
+                            onReorder = { index ->
+                                val profiles = editor.toolbarWorkspaces
+                                val updated = editedWorkspace().moveBar(currentBar.id, index)
+                                editor.applyToolbarWorkspaces(
+                                    profiles.updateWorkspace(editedContext()) { updated },
+                                )
+                            },
+                        )
+                        val isPrimaryDock = currentBar.id == workspace.bars.first().id &&
+                            toolbarDockEdge(currentBar, 0, prefs.toolbarLook) != null
+                        val isSecondaryDock = currentBar.id != workspace.bars.first().id &&
+                            currentBar.geometry.dockEdge != null && !currentBar.geometry.floating
+                        val floatingBar = !isPrimaryDock && !isSecondaryDock
+            val displayDockPlan = toolbarDockPlan(
+                workspace, prefs.toolbarLook,
+                screenConfiguration.screenWidthDp.dp, screenConfiguration.screenHeightDp.dp,
             )
+            val displayedPlacement = if (floatingBar) toolbarFloatingPlan(
+                workspace, prefs.toolbarLook,
+                screenConfiguration.screenWidthDp.dp - displayDockPlan.leftInset.dp - displayDockPlan.rightInset.dp,
+                screenConfiguration.screenHeightDp.dp - displayDockPlan.topInset.dp - displayDockPlan.bottomInset.dp,
+                editor.toolbarColorCount,
+            ).placement(currentBar.id) else displayDockPlan.placement(currentBar.id)
+            if (displayedPlacement != null && displayedPlacement.lane != currentBar.geometry.dockLane) {
+                Text("Redistribuída automaticamente para a Faixa ${displayedPlacement.lane + 1}.",
+                    color = palette.accent.toComposeColor(), style = MaterialTheme.typography.bodySmall)
+            }
+                    }
+                }
+            }
+            Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                FieldLabel(stringResource(R.string.toolbar_preview))
+                Spacer(Modifier.weight(1f))
+                TextButton(onClick = { previewExpanded = !previewExpanded }) {
+                    Text(if (previewExpanded) "Reduzir" else "Ampliar")
+                }
+            }
+            Box(Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
+                Box(Modifier.widthIn(max = if (previewExpanded) 680.dp else 390.dp)) { preview() }
+            }
+            propertyTabs()
+            inspector()
+            }
 
+            if (!toolbarEditorOpen) {
             HorizontalDivider(color = palette.border.toComposeColor())
             SectionTitle(stringResource(R.string.pref_backup))
             Text(stringResource(R.string.pref_backup_help), color = palette.textDim.toComposeColor(), fontSize = 12.sp)
@@ -686,18 +1017,25 @@ fun PreferencesPane(
                 TextButton(onClick = { onBackup(false) }) { Text(stringResource(R.string.import_settings), fontSize = 13.sp) }
             }
             Spacer(Modifier.size(8.dp))
+            }
         }
     }
         // The dragged chip/section's floating copy: a pane-root sibling so the scroll never clips it.
         val gx = (dragFinger.x - dragGrab.x - paneTopLeft.x).toInt()
         val gy = (dragFinger.y - dragGrab.y - paneTopLeft.y).toInt()
-        val ghostChip = dragItem
+        val ghostEntry = dragItem?.let { (sec, idx) ->
+            editedLayout().sections.getOrNull(sec)?.entries?.getOrNull(idx)
+        }
         val ghostSecIdx = dragSection
-        if (ghostChip != null) {
-            Box(Modifier.offset { IntOffset(gx, gy) }) { ToolbarDragGhost(ghostChip) }
+        if (ghostEntry != null) {
+            val widthPx = dragItem?.let { chipBounds[it]?.width }
+            if (widthPx != null) {
+                Box(Modifier.offset { IntOffset(gx, gy) }) {
+                    ToolbarDragGhost(ghostEntry.item, ghostEntry.visible, widthPx)
+                }
+            }
         } else if (ghostSecIdx != null) {
-            val sectionG = (if (canvasTab) editor.canvasToolbarLayout else editor.toolbarLayout)
-                .sections.getOrNull(ghostSecIdx)
+            val sectionG = editedLayout().sections.getOrNull(ghostSecIdx)
             val widthG = sectionBounds[ghostSecIdx]?.width
             if (sectionG != null && widthG != null) {
                 Box(Modifier.offset { IntOffset(gx, gy) }) { SectionCardGhost(sectionG, widthG) }
@@ -717,7 +1055,10 @@ fun PreferencesPane(
                 else -> 0f
             }
             if (delta != 0f) {
-                scrollState.scrollBy(delta)
+                if (toolbarEditorOpen && toolbarPropertyTab == ToolbarPropertyTab.ELEMENTS)
+                    toolbarElementsScroll.scrollBy(delta)
+                else if (toolbarEditorOpen) toolbarPropertiesScroll.scrollBy(delta)
+                else scrollState.scrollBy(delta)
                 if (dragItem != null) retarget() else retargetSection()
             }
             delay(16L)
@@ -781,24 +1122,7 @@ private fun CustomMaterialControls(prefs: Preferences, update: (Preferences) -> 
 
 @Composable
 private fun Chip(label: String, selected: Boolean, onClick: () -> Unit) {
-    val palette = LocalPalette.current
-    Box(
-        Modifier
-            .clip(MaterialTheme.shapes.small)
-            .background(if (selected) palette.selectionBackground.toComposeColor() else palette.surface.toComposeColor())
-            .border(1.dp, if (selected) palette.accent.toComposeColor() else palette.border.toComposeColor(), MaterialTheme.shapes.small)
-            .semantics { this.selected = selected }
-            .clickable(onClick = onClick)
-            .padding(horizontal = 12.dp, vertical = 6.dp),
-    ) {
-        Text(
-            label,
-            color = if (selected) palette.selectionForeground.toComposeColor() else palette.text.toComposeColor(),
-            fontSize = 14.sp,
-            maxLines = 1,
-            softWrap = false,
-        )
-    }
+    PreferenceChoiceChip(label, selected, onClick)
 }
 
 @Composable
@@ -957,6 +1281,8 @@ private fun MillimetreField(label: String, value: Double, onChange: (Double) -> 
         modifier = Modifier.width(136.dp),
     )
 }
+
+/** Stable 3×3 placement grid; docked primary bars only accept the four edges. */
 
 @Composable
 private fun OptionDropdown(options: List<Pair<String, String>>, selectedId: String, onSelect: (String) -> Unit) {

@@ -89,6 +89,7 @@ val ToolbarItem.labelRes: Int
         ToolbarItem.SPEED -> R.string.tool_speed
         ToolbarItem.TAPER -> R.string.tool_taper
         ToolbarItem.HIGHLIGHTER -> R.string.tool_highlighter
+        ToolbarItem.UNIFIED_PEN -> R.string.toolbar_unified_pen
         ToolbarItem.ERASER -> R.string.tool_eraser
         ToolbarItem.PAN -> R.string.tool_pan
         ToolbarItem.SELECT -> R.string.tool_select
@@ -114,6 +115,7 @@ val ToolbarItem.labelRes: Int
         ToolbarItem.ZOOM_LOCK -> R.string.toolbar_zoom_lock
         ToolbarItem.FULLSCREEN -> R.string.toolbar_fullscreen
         ToolbarItem.COLORS -> R.string.toolbar_colours
+        ToolbarItem.SPACER -> R.string.toolbar_spacer
         ToolbarItem.WAYPOINTS -> R.string.toolbar_waypoints
         ToolbarItem.MINIMAP -> R.string.toolbar_minimap
     }
