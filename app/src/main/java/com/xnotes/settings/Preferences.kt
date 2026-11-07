@@ -28,6 +28,7 @@ data class Preferences(
     /** Initial document tab layout: auto, compact, or expanded. Users may toggle it afterward. */
     val documentTabsMode: String = "auto",
     val documentTabsBar: DocumentTabsBarConfig = DocumentTabsBarConfig(),
+    val adaptiveSplitToolbars: Boolean = true,
     val hideWindowDecoration: Boolean = false,
     val pageColor: Rgba? = null, // null ⇒ follow theme paper
     val pageTemplatePdf: String? = null,
@@ -229,6 +230,7 @@ data class Preferences(
             if (toolbarLook.size != ToolbarSize.REGULAR) put("toolbar_size", toolbarLook.size.id)
             if (toolbarLook.floating) put("toolbar_floating", true)
             if (documentTabsMode != "auto") put("document_tabs_mode", documentTabsMode)
+            if (!adaptiveSplitToolbars) put("adaptive_split_toolbars", false)
             if (documentTabsBar != DocumentTabsBarConfig()) put("document_tabs_bar", documentTabsBar.toJson())
             startFullscreen?.let { put("start_fullscreen", it) }
             codeThemePath?.let { put("code_theme_path", it) }
@@ -320,6 +322,7 @@ data class Preferences(
                     floating = o.optBoolean("toolbar_floating", false),
                 ),
                 documentTabsBar = DocumentTabsBarConfig.fromJson(o.optJSONObject("document_tabs_bar")),
+                adaptiveSplitToolbars = o.optBoolean("adaptive_split_toolbars", true),
                 documentTabsMode = o.optString("document_tabs_mode", "auto")
                     .takeIf { it == "compact" || it == "expanded" } ?: "auto",
                 hideWindowDecoration = o.optBoolean("hide_window_decoration", false),

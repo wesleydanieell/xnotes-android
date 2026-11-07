@@ -70,18 +70,21 @@ internal fun toolbarDockPlan(
     look: ToolbarLook,
     windowWidth: Dp,
     windowHeight: Dp,
+    fitToViewport: Boolean = false,
 ): ToolbarDockPlan {
     val requests = workspace.bars.mapIndexedNotNull { index, bar ->
         val edge = toolbarDockEdge(bar, index, look)?.takeIf { bar.visible } ?: return@mapIndexedNotNull null
         val metrics = resolvedBarMetrics(toolbarBarSize(bar, index, look), bar.geometry)
         val vertical = edge == ToolbarDockEdge.LEFT || edge == ToolbarDockEdge.RIGHT
+        val requestedLength = if (vertical) (bar.geometry.heightDp?.toFloat() ?: windowHeight.value)
+            else (bar.geometry.widthDp?.toFloat() ?: windowWidth.value)
+        val availableLength = if (vertical) windowHeight.value else windowWidth.value
         ToolbarDockRequest(
             id = bar.id,
             edge = edge,
             lane = bar.geometry.dockLane,
             alignment = bar.geometry.dockAlignment,
-            length = if (vertical) (bar.geometry.heightDp?.toFloat() ?: windowHeight.value)
-                else (bar.geometry.widthDp?.toFloat() ?: windowWidth.value),
+            length = if (fitToViewport) requestedLength.coerceAtMost(availableLength.coerceAtLeast(0f)) else requestedLength,
             depth = if (vertical) toolbarWidth(metrics, bar.layout, bar.geometry).value
                 else toolbarHeight(metrics, bar.layout, bar.geometry).value,
             autoLength = if (vertical) bar.geometry.heightDp == null else bar.geometry.widthDp == null,
