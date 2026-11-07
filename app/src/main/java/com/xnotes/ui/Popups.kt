@@ -21,6 +21,7 @@ import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.rememberPagerState
@@ -39,7 +40,6 @@ import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -252,6 +252,7 @@ fun StylesPopup(editor: Editor, onImportTemplate: () -> Unit = {}, onDismiss: ()
     var customizing by remember { mutableStateOf(false) }
     var docStyle by remember { mutableStateOf(editor.documentStyle) }
     var pageStyle by remember { mutableStateOf(editor.currentPageStyle) }
+    var textColor by remember { mutableStateOf(editor.flowConfigValue().color) }
     val style = if (tab == 0) docStyle else pageStyle
     // "Default for new notes" shows once the All Pages style differs from the saved new-note
     // default, and stays for the rest of the popup session (so it doesn't vanish when checked).
@@ -305,6 +306,30 @@ fun StylesPopup(editor: Editor, onImportTemplate: () -> Unit = {}, onDismiss: ()
             ) {
                 ModeChip(stringResource(R.string.default_choice), style.pageColor == null) { apply(style.copy(pageColor = null)) }
                 SwatchCircles(editor, SwatchRole.PAPER, style.pageColor) { apply(style.copy(pageColor = it)) }
+            }
+
+            Spacer(Modifier.size(12.dp))
+            StyleCaption(stringResource(R.string.text_colour))
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                // The page tab's null follows All Pages, like its page colour.
+                val own = if (tab == 0) textColor else pageStyle.textColor
+                val shown = own ?: if (tab == 0) editor.flowDefaultColor() else editor.currentPageTextColor()
+                fun setText(c: Rgba?) {
+                    if (tab == 0) {
+                        editor.setFlowConfig(editor.flowConfigValue().copy(color = c))
+                        textColor = c
+                    } else {
+                        apply(pageStyle.copy(textColor = c))
+                    }
+                }
+                // Auto picks light or dark text against the paper; turning it off keeps the colour it showed.
+                ModeChip(stringResource(if (tab == 0) R.string.auto else R.string.default_choice), own == null) {
+                    setText(if (own == null) shown else null)
+                }
+                Spacer(Modifier.width(8.dp))
+                ColorPickerDot(own, custom = own != null, onPick = { setText(it) }, dismissOnPick = false) { d, p ->
+                    ColorPickerPopup(shown, editor.recentColors, d, p)
+                }
             }
 
             Spacer(Modifier.size(12.dp))
@@ -995,8 +1020,9 @@ fun SelectConfigPopup(editor: ToolPopupHost, tool: Tool = Tool.SELECT, onDismiss
     val base = remember { editor.toolConfig(tool) }
     var switchBack by remember { mutableStateOf(base.switchBackAfterSelect) }
     var whole by remember { mutableStateOf(base.selectWholeItems) }
+    var snap by remember { mutableStateOf(base.snapToMargins) }
 
-    fun emit() = editor.updateToolConfig(tool, base.copy(switchBackAfterSelect = switchBack, selectWholeItems = whole))
+    fun emit() = editor.updateToolConfig(tool, base.copy(switchBackAfterSelect = switchBack, selectWholeItems = whole, snapToMargins = snap))
 
     DropdownMenu(expanded = true, onDismissRequest = onDismiss) {
         Column(Modifier.width(250.dp).padding(horizontal = 14.dp, vertical = 8.dp)) {
@@ -1006,6 +1032,7 @@ fun SelectConfigPopup(editor: ToolPopupHost, tool: Tool = Tool.SELECT, onDismiss
             // cut, copy, duplicate) finishes, so a quick edit doesn't strand you in select.
             if (tool == Tool.SELECT) {
                 ToggleRow(stringResource(R.string.caption_switch_back), switchBack) { switchBack = it; emit() }
+                if (editor.hostIsPaged) ToggleRow(stringResource(R.string.caption_snap_to_margins), snap) { snap = it; emit() }
             }
         }
     }
@@ -1206,7 +1233,7 @@ internal fun PopupTitle(text: String) {
 
 @Composable
 internal fun ToggleRow(label: String, checked: Boolean, onChange: (Boolean) -> Unit) {
-    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween, modifier = Modifier.width(220.dp)) {
+    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween, modifier = Modifier.widthIn(min = 220.dp).fillMaxWidth()) {
         Text(label, color = LocalPalette.current.text.toComposeColor(), fontSize = 12.sp)
         Switch(checked = checked, onCheckedChange = onChange)
     }
@@ -1313,11 +1340,9 @@ internal fun DropdownMenu(
     content: @Composable ColumnScope.() -> Unit,
 ) {
     val palette = LocalPalette.current
-    // An eyedropper armed from a picker in here closes the whole stack, so the screen is free to touch.
-    val dropperArmed = Eyedropper.target != null
-    if (expanded && dropperArmed) LaunchedEffect(Unit) { onDismissRequest() }
+    // An armed eyedropper hides the whole stack so the screen is free to touch; it comes back after the pick.
     androidx.compose.material3.DropdownMenu(
-        expanded = expanded,
+        expanded = expanded && Eyedropper.target == null,
         onDismissRequest = onDismissRequest,
         modifier = modifier,
         offset = LocalMenuOffset.current,
@@ -1347,6 +1372,8 @@ internal fun AlertDialog(
     shape: Shape = MaterialTheme.shapes.large,
     containerColor: Color = LocalPalette.current.menuBg.toComposeColor(),
 ) {
+    // Hidden, not dismissed, while an eyedropper armed from inside it picks off the screen.
+    if (Eyedropper.target != null) return
     androidx.compose.material3.AlertDialog(
         onDismissRequest = onDismissRequest,
         confirmButton = confirmButton,

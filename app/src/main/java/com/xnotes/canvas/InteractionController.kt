@@ -11,6 +11,10 @@ import com.xnotes.core.geometry.Geometry
 import com.xnotes.core.geometry.Obb
 import com.xnotes.core.geometry.Pt
 import com.xnotes.core.geometry.Rect
+import com.xnotes.core.model.sourceHeight
+import com.xnotes.core.model.sourceWidth
+import com.xnotes.core.text.FlowLayout
+import com.xnotes.core.text.PageBox
 import com.xnotes.core.history.AddItem
 import com.xnotes.core.history.AddItems
 import com.xnotes.core.history.Command
@@ -387,6 +391,8 @@ class InteractionController(
     private var bandRect: Rect? = null
     private var moveOrigin = Pt.ZERO
     private var moveOffset = Pt.ZERO
+    /** Content-space guide lines (from, to) shown while a move is snapped to the margins or centre. */
+    private var snapGuides: List<Pair<Pt, Pt>> = emptyList()
 
     // SCREENSHOT (drag a rectangle; on release it stays frozen and offers "copy as image")
     /** The capture rectangle in content space: live while dragging (mode == SHOT), then frozen
@@ -551,6 +557,8 @@ class InteractionController(
     private var editingText: TextItem? = null
     private var editingIsNew = false
     private var editingOldText = ""
+    /** The image or shape a new draft captions: on commit the two join one group. */
+    private var editingCaptionOf: CanvasItem? = null
     private var editingPageIndex = -1
     val editingItem: TextItem? get() = editingText
 
@@ -2159,7 +2167,7 @@ class InteractionController(
     }
 
     private fun extendMove(content: Pt) {
-        moveOffset = content - moveOrigin
+        moveOffset = snapMove(content - moveOrigin)
         if (follows.isNotEmpty()) {
             val local = state.vectorToPageSpace(moveOffset)
             val shift = Affine.translateBy(local.x, local.y)
@@ -2169,7 +2177,8 @@ class InteractionController(
     }
 
     private fun endMove(content: Pt) {
-        moveOffset = content - moveOrigin
+        moveOffset = snapMove(content - moveOrigin)
+        snapGuides = emptyList()
         val moved = abs(moveOffset.x) > MOVE_EPS || abs(moveOffset.y) > MOVE_EPS
         if (moved) {
             val items = selection.map { it.item }
@@ -2208,6 +2217,32 @@ class InteractionController(
         refreshSelectionMenu()
         requestRender()
         if (moved) maybeSwitchBackAfterSelect()
+    }
+
+    /**
+     * [raw] nudged so the moved box's sides or centre land on the text margins or centre lines
+     * of the page under it, when one is within [MARGIN_SNAP_PX] on screen. Sets [snapGuides].
+     */
+    private fun snapMove(raw: Pt): Pt {
+        snapGuides = emptyList()
+        if (!configFor(Tool.SELECT).snapToMargins) return raw
+        val box = selObb?.let { Rect.bounding(it.corners()) }?.translate(raw.x, raw.y) ?: return raw
+        val pi = state.pageIndexAtContent(box.center) ?: return raw
+        val page = state.document.pages[pi]
+        val text = FlowLayout.contentRectOf(PageBox(page.sourceWidth, page.sourceHeight), state.document.flow.margins, state.document.dpi)
+        val m = state.fromPageSpaceRect(pi, text)
+        val paper = state.pageRects[pi]
+        val reach = MARGIN_SNAP_PX / state.zoom
+        // The closest (target - side) within reach along one axis, or null.
+        fun pull(sides: List<Double>, targets: List<Double>): Pair<Double, Double>? =
+            sides.flatMap { s -> targets.map { t -> (t - s) to t } }.filter { abs(it.first) <= reach }.minByOrNull { abs(it.first) }
+        val dx = pull(listOf(box.left, box.centerX, box.right), listOf(m.left, m.centerX, m.right))
+        val dy = pull(listOf(box.top, box.centerY, box.bottom), listOf(m.top, m.centerY, m.bottom))
+        snapGuides = listOfNotNull(
+            dx?.let { Pt(it.second, paper.top) to Pt(it.second, paper.bottom) },
+            dy?.let { Pt(paper.left, it.second) to Pt(paper.right, it.second) },
+        )
+        return Pt(raw.x + (dx?.first ?: 0.0), raw.y + (dy?.first ?: 0.0))
     }
 
     // --- RESIZE ---
@@ -3331,7 +3366,12 @@ class InteractionController(
         if (editingIsNew) {
             if (!empty && page != null) {
                 page.items.add(item)
-                history.push(AddItem(page, item))
+                val target = editingCaptionOf?.takeIf { t -> page.items.any { it === t } }
+                val grouped = target?.let {
+                    val id = it.group ?: com.xnotes.core.model.Groups.nextId(state.document.pages.flatMap { p -> p.items })
+                    Regroup(listOf(it, item), id).also { r -> r.redo() }
+                }
+                history.push(if (grouped == null) AddItem(page, item) else CompositeCommand(listOf(AddItem(page, item), grouped)))
                 state.document.dirty = true
                 onContentChanged()
             }
@@ -3357,6 +3397,7 @@ class InteractionController(
         }
         editingText = null
         editingIsNew = false
+        editingCaptionOf = null
         editingPageIndex = -1
         editingOldText = ""
         // Repaint just the box's region in place (it is now unlifted, so it bakes back in) rather
@@ -3658,6 +3699,42 @@ class InteractionController(
         requestRender()
     }
 
+    /** The selection box's width and height in page units, or null when the selection has no box to size (a lone connector or table). */
+    fun selectionSize(): Pair<Double, Double>? {
+        if (loneConnector() != null || singleSelectedTable() != null) return null
+        val box = selObb ?: return null
+        return box.halfW * 2.0 to box.halfH * 2.0
+    }
+
+    /** Scale the selection about its box's centre, along the box's own axes, to [w] by [h], as one undo step. A flat side keeps its size. */
+    fun resizeSelection(w: Double, h: Double) {
+        val (bw, bh) = selectionSize() ?: return
+        val box = selObb ?: return
+        if (w <= 0.0 || h <= 0.0) return
+        val world = Affine.scaleAlongAxes(box.center, box.angle, if (bw > 0.0) w / bw else 1.0, if (bh > 0.0) h / bh else 1.0)
+        val members = selection.toList()
+        val before = members.map { it.item.snapshotGeometry() }
+        beginFollow(rigid = true, pin = true)
+        for (sel in members) {
+            if (state.pageRects.getOrNull(sel.pageIndex) == null) continue
+            sel.item.applyTransform(state.affineToPageSpace(sel.pageIndex, world))
+        }
+        for ((pi, f) in follows) {
+            if (state.pageRects.getOrNull(pi) == null) continue
+            f.follow(state.affineToPageSpace(pi, world))
+        }
+        for ((_, f) in follows) f.settle()
+        val tx = TransformItems(members.map { it.item }, before, members.map { it.item.snapshotGeometry() })
+        val cmds = listOfNotNull(tx, followCommand(), reassignSelectionPages())
+        history.push(cmds.singleOrNull() ?: CompositeCommand(cmds))
+        endFollow()
+        state.document.dirty = true
+        selObb = selectionBox()
+        onContentChanged()
+        refreshSelectionMenu()
+        requestRender()
+    }
+
     /** A lone connector's own chrome: its ends (solid when glued), middle segments, waypoints and stretch middles. */
     private fun drawConnectorChrome(r: Renderer) {
         if (mode == PointerMode.MOVE) return
@@ -3689,13 +3766,15 @@ class InteractionController(
     // --- shape labels ---
 
     /** True when the lone selection is a shape that can take a label. */
-    fun canLabelSelection(): Boolean = (selection.singleOrNull()?.item as? Labelled)?.let { it.takesLabel && !it.locked } == true
+    fun canLabelSelection(): Boolean = (singleSelectedItem() as? Labelled)?.let { it.takesLabel && !it.locked } == true
 
-    /** Type the lone selected shape's label. */
+    fun selectionHasLabel(): Boolean = (singleSelectedItem() as? Labelled)?.label?.text?.isNotBlank() == true
+
+    /** Type the selected shape's label; a shape grouped with its caption counts as selected alone. */
     fun labelSelection() {
-        val sel = selection.singleOrNull() ?: return
-        val shape = sel.item as? Labelled ?: return
-        if (shape.takesLabel && !shape.locked) startLabelEdit(shape, sel.pageIndex)
+        val shape = singleSelectedItem() as? Labelled ?: return
+        val pi = selection.first().pageIndex
+        if (shape.takesLabel && !shape.locked) startLabelEdit(shape, pi)
     }
 
     /**
@@ -3975,12 +4054,12 @@ class InteractionController(
     /** The single selected text box, or null (enables the Edit action). */
     fun singleSelectedText(): TextItem? = selection.singleOrNull()?.item as? TextItem
 
-    /** The single selected item of any kind, or null (backs the Add/Edit link action). */
-    fun singleSelectedItem(): CanvasItem? = selection.singleOrNull()?.item
+    /** The single selected item, or the image/shape of a selected captioned pair (backs the Add/Edit link action). */
+    fun singleSelectedItem(): CanvasItem? = selection.singleOrNull()?.item ?: captionedSelection()?.first?.item
 
     /** Set or clear the single selected item's hyperlink. Not undoable (metadata, not geometry). */
     fun setSelectedLink(url: String?) {
-        val item = selection.singleOrNull()?.item ?: return
+        val item = singleSelectedItem() ?: return
         item.link = url
         state.document.dirty = true
     }
@@ -4002,6 +4081,38 @@ class InteractionController(
         refreshSelectionMenu()
         requestRender()
         return true
+    }
+
+    private fun captionable(item: CanvasItem) = (item is ImageItem || item is ShapeItem) && !item.locked
+
+    /** A selected group of exactly one image or shape and one text box: the item and its caption. */
+    private fun captionedSelection(): Pair<Selected, TextItem>? {
+        if (selection.size != 2) return null
+        val (a, b) = selection
+        if (a.pageIndex != b.pageIndex || a.item.group == null || a.item.group != b.item.group) return null
+        val text = (a.item as? TextItem ?: b.item as? TextItem) ?: return null
+        val main = if (text === a.item) b else a
+        return if (captionable(main.item) && !text.locked) main to text else null
+    }
+
+    fun canCaptionSelection(): Boolean = selection.singleOrNull()?.item?.let(::captionable) == true || captionedSelection() != null
+
+    fun selectionHasCaption(): Boolean = captionedSelection() != null
+
+    /** Edit the selected item's caption, or open a centred draft under it that joins the item's group once typed. */
+    fun captionSelection() {
+        captionedSelection()?.let { (sel, text) ->
+            if (state.pageRects.getOrNull(sel.pageIndex) != null) startEditing(text, sel.pageIndex, isNew = false)
+            return
+        }
+        if (!canCaptionSelection()) return
+        val sel = selection.single()
+        if (state.pageRects.getOrNull(sel.pageIndex) == null) return
+        val b = sel.item.bounds()
+        val w = b.w.coerceAtLeast(80.0)
+        val item = newTextItem(Pt(b.center.x - w / 2.0, b.bottom + CAPTION_GAP), w, 0.0).apply { align = com.xnotes.core.pal.HAlign.CENTER }
+        startEditing(item, sel.pageIndex, isNew = true)
+        editingCaptionOf = sel.item
     }
 
     /** Reopen the editor on the single selected text box (from the selection menu Edit action). */
@@ -5079,7 +5190,7 @@ class InteractionController(
         if (mode == PointerMode.POLYGON) showPolygonDraft(null)
         if (mode == PointerMode.ROOM) insertSpace.abort()
         roomButton = null
-        if (mode == PointerMode.MOVE) moveOffset = Pt.ZERO
+        if (mode == PointerMode.MOVE) { moveOffset = Pt.ZERO; snapGuides = emptyList() }
         if (mode == PointerMode.MOVE || mode == PointerMode.TRANSFORM || mode == PointerMode.VERTEX || mode == PointerMode.JOINT) {
             for ((_, f) in follows) f.restore()
         }
@@ -5123,7 +5234,7 @@ class InteractionController(
 
             // Lifted (selected) items, drawn live at the move offset; one that bends to stay joined is drawn below.
             for (sel in selection) {
-                if (sel.item in followed) continue
+                if (sel.item in followed || sel.item === editingText) continue // the open editor shows a box being typed
                 val pr = state.pageRects.getOrNull(sel.pageIndex) ?: continue
                 if (state.isUnderText(state.document.pages[sel.pageIndex], sel.item)) continue // painted under the ink
                 r.withSave {
@@ -5199,6 +5310,8 @@ class InteractionController(
             }
 
             // Resize + rotate handles for the settled selection (single, multi, or mixed).
+            for ((a, b) in snapGuides) r.strokePolyline(listOf(a, b), chromePen(1.0))
+
             if (selection.isNotEmpty() && mode != PointerMode.BAND && mode != PointerMode.LASSO_DRAW) {
                 val side = HANDLE_SIZE / state.zoom
                 val sel = state.selectionAccent(selectionPageIndex())
@@ -5536,6 +5649,9 @@ class InteractionController(
 
         const val MOVE_EPS = 0.01
 
+        /** How close (viewport px) a moved selection must come to a margin or centre line to snap. */
+        const val MARGIN_SNAP_PX = 10.0
+
         /** Vendor key some pens send for a genuinely held side button (OnePlus Pad Go 2 Stylo,
          *  which reports a real down/up pair with auto-repeat rather than a momentary click). */
         const val VENDOR_HELD_BUTTON_KEYCODE = KeyEvent.KEYCODE_F21
@@ -5602,6 +5718,7 @@ class InteractionController(
 
         /** Min drag (viewport px, either axis) for a text-box gesture to size a box rather than tap-create. */
         const val TEXT_DRAG_SLOP = 14.0
+        const val CAPTION_GAP = 6.0
 
         /** Text point-size clamp for the style bar. */
         const val TEXT_MIN_PT = 6.0

@@ -176,7 +176,7 @@ data class ContextMenuTarget(
  * folder (where colour writes go), and [color] is the item's explorer colour code, if any.
  */
 /** An item link to another stored file: this prefix, then the file's path below the top folder. */
-const val DOCUMENT_LINK = "xnotes-doc:"
+const val DOCUMENT_LINK = TextItem.DOCUMENT_LINK
 
 /** What a document link shows when its label is hidden: a page with an arrow out of it. */
 private const val DOCUMENT_LINK_ICON = """<svg xmlns="http://www.w3.org/2000/svg" width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="#1E88E5" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M14 3H6a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z"/><path d="M14 3v6h6"/><path d="M9 15l6-6M11 9h4v4"/></svg>"""
@@ -603,7 +603,7 @@ class Editor(context: Context, val pane: Pane = Pane.PRIMARY) : ToolPopupHost, S
 
     /** When non-null, the current note lives in the granted folder and autosaves to this URI. */
     var autosaveUri: String? = null
-        private set
+        private set(value) { field = value; com.xnotes.sync.OpenNotes.set(this, value) }
     private val autosaveScope = kotlinx.coroutines.MainScope()
 
     /** The note autosave's debounce timer. Cancelled freely: nothing has been written yet. */
@@ -831,6 +831,11 @@ class Editor(context: Context, val pane: Pane = Pane.PRIMARY) : ToolPopupHost, S
     override val selectionCanLink: Boolean get() = controller.singleSelectedItem() != null
     override val selectionLink: String? get() = controller.singleSelectedItem()?.link
     override fun setSelectionLink(url: String?) = controller.setSelectedLink(url?.trim()?.ifEmpty { null })
+
+    override val selectionCanCaption: Boolean get() = controller.canCaptionSelection()
+    override val selectionHasCaption: Boolean get() = controller.selectionHasCaption()
+
+    override fun captionSelection() = controller.captionSelection()
 
     override val selectionHasInk: Boolean get() = controller.inkSelection() != null
 
@@ -2523,7 +2528,7 @@ class Editor(context: Context, val pane: Pane = Pane.PRIMARY) : ToolPopupHost, S
                 if (line.mathStarts.isEmpty()) continue
                 for (seg in line.segs) {
                     if (!seg.math) continue
-                    val color = seg.style.color ?: frame.defaultColor
+                    val color = seg.style.color ?: frame.pages[idx].defaultColor
                     com.xnotes.platform.MathRendering.prefetch(seg.text, seg.font.pointSize, seg.style.mathDisplay, color, scale.toFloat())
                 }
             }
@@ -2570,13 +2575,14 @@ class Editor(context: Context, val pane: Pane = Pane.PRIMARY) : ToolPopupHost, S
             }
         }
         flowLayout.codeBackground = { activeCodeTheme().background }
-        flowLayout.autoColor = { defaultTextColor() }
+        flowLayout.autoColor = { defaultTextColor(state.document, it) }
+        flowLayout.pageTextColor = { state.document.pages.getOrNull(it)?.style?.textColor }
         flowLayout.accentColor = { palette.accent }
         flowLayout.ruleColor = { tableRuleColor() }
         flowLayout.revealedMath = { revealedMathIn(it) }
         flowLayout.pageBreakLabel = appContext.getString(R.string.page_break)
         val callouts = com.xnotes.core.text.CalloutKind.entries.associateWith { appContext.getString(calloutLabelRes(it)) }
-        flowLayout.calloutLabel = { callouts.getValue(it) }
+        flowLayout.calloutLabel = { if (settings.prefs.translateCallouts) callouts.getValue(it) else it.title }
     }
 
     /**
@@ -2829,8 +2835,9 @@ class Editor(context: Context, val pane: Pane = Pane.PRIMARY) : ToolPopupHost, S
             insertImageAt(DOCUMENT_LINK_ICON.toByteArray(), null) ?: return
         } else {
             val font = com.xnotes.core.pal.FontSpec(TextItem.DEFAULT_POINT_SIZE, TextItem.DEFAULT_FACE)
-            val width = textMeasurer.measure(label, font, page.width * 0.8).w + 8.0
+            val width = textMeasurer.measure(label, font, page.width * 0.8).w + 8.0 + TextItem.docLinkInset(font.pointSize)
             TextItem(Pt(0.0, 0.0), width = width, text = label, rgba = palette.accent, measurer = textMeasurer, underline = true).also {
+                it.link = link
                 it.translate((page.width - width) / 2.0, (page.height - it.bounds().h) / 2.0)
                 page.items.add(it)
                 state.appendToCache(page, it)
@@ -2850,9 +2857,27 @@ class Editor(context: Context, val pane: Pane = Pane.PRIMARY) : ToolPopupHost, S
         val root = browseRoot ?: return
         autosaveScope.launch {
             val hit = withContext(Dispatchers.IO) { runCatching { findLinkedFile(root, path) }.getOrNull() }
-            if (hit == null) message = appContext.getString(R.string.reader_link_missing, path)
-            else openInPane?.invoke(hit.documentUri)
+            if (hit == null) {
+                message = appContext.getString(R.string.reader_link_missing, path)
+            } else {
+                val from = currentUri
+                if (from != null) linkBack = LinkBack(from, state.document.displayName?.let { com.xnotes.core.util.Paths.stem(it) } ?: title, hit.documentUri)
+                openInPane?.invoke(hit.documentUri)
+            }
         }
+    }
+
+    /** Where a followed document link came from: the note at [uri] titled [title], shown as a back pill while [to] is open. */
+    class LinkBack(val uri: String, val title: String, val to: String)
+
+    var linkBack by mutableStateOf<LinkBack?>(null)
+        private set
+
+    /** Go back to the note the open document link was followed from. */
+    fun followLinkBack() {
+        val back = linkBack ?: return
+        linkBack = null
+        openInPane?.invoke(back.uri)
     }
 
     // --- table tool ---
@@ -2987,11 +3012,13 @@ class Editor(context: Context, val pane: Pane = Pane.PRIMARY) : ToolPopupHost, S
      * layout, so [flow]'s code blocks are parsed synchronously here — cheap (blocks are
      * small) and safe off-thread (the highlighter is stateless per call).
      */
-    private fun themedFlowLayout(flow: com.xnotes.core.text.TextFlow): FlowLayout {
+    private fun themedFlowLayout(doc: Document): FlowLayout {
+        val flow = doc.flow
         val layout = FlowLayout(textMeasurer, com.xnotes.platform.MathRendering.Blocking)
         val theme = activeCodeTheme()
         layout.codeBackground = { theme.background }
-        layout.autoColor = { defaultTextColor() }
+        layout.autoColor = { defaultTextColor(doc, it) }
+        layout.pageTextColor = { doc.pages.getOrNull(it)?.style?.textColor }
         val accent = palette.accent
         layout.accentColor = { accent }
         val rule = tableRuleColor()
@@ -3033,7 +3060,7 @@ class Editor(context: Context, val pane: Pane = Pane.PRIMARY) : ToolPopupHost, S
      */
     private fun flowExportHooks(doc: Document): com.xnotes.platform.PdfExporter.FlowExport {
         if (doc.flow.isEmpty) return com.xnotes.platform.PdfExporter.FlowExport.NONE
-        val frame = themedFlowLayout(doc.flow)
+        val frame = themedFlowLayout(doc)
             .layout(doc.flow, doc.pages.map { PageBox(it.sourceWidth, it.sourceHeight) }, doc.dpi, firstPage = flowStart(doc))
         val index = HashMap<Page, Int>(doc.pages.size * 2)
         doc.pages.forEachIndexed { i, p -> index[p] = i }
@@ -3219,6 +3246,20 @@ class Editor(context: Context, val pane: Pane = Pane.PRIMARY) : ToolPopupHost, S
             editor.slashCommands = on
             editor.flowText.slashCommands = on
             if (!on) editor.slashDismissed = null
+        }
+    }
+
+    /** Whether callout titles follow the app language; the text tool's config popup toggles it. */
+    var translateCallouts by mutableStateOf(settings.prefs.translateCallouts)
+        private set
+
+    /** Set the callout title preference, relaying out both panes and persisting it. */
+    fun setTranslateCalloutsPref(on: Boolean) {
+        settings = settings.copy(prefs = settings.prefs.copy(translateCallouts = on))
+        settingsRepo.save(settings)
+        for (editor in listOfNotNull(this, sibling)) {
+            editor.translateCallouts = on
+            editor.republishFlow(invalidate = true)
         }
     }
 
@@ -3661,6 +3702,7 @@ class Editor(context: Context, val pane: Pane = Pane.PRIMARY) : ToolPopupHost, S
         } else {
             state.invalidatePaper()
         }
+        if (prev.pageColor != next.pageColor || prev.textColor != next.textColor) republishFlow(invalidate = true)
         state.document.dirty = true
         refreshContent()
         view.requestRender()
@@ -4070,6 +4112,7 @@ class Editor(context: Context, val pane: Pane = Pane.PRIMARY) : ToolPopupHost, S
             doc.displayName = name
             doc.dirty = false
             leaveCanvasForPagedNote()
+            if (linkBack?.to != uri) linkBack = null
             replaceDocument(doc)
             state.openFileBytes = fileBytes
             state.lastSaveBytes = fileBytes // the on-disk size, until the first autosave rewrites it
@@ -4248,7 +4291,7 @@ class Editor(context: Context, val pane: Pane = Pane.PRIMARY) : ToolPopupHost, S
         // and only as far as this page, so a tile never sets the formulas further on.
         PageLayers.paint(itemsSnapshot(page), {
             if (!doc.flow.isEmpty) {
-                val frame = themedFlowLayout(doc.flow)
+                val frame = themedFlowLayout(doc)
                     .layout(doc.flow, doc.pages.map { PageBox(it.sourceWidth, it.sourceHeight) }, doc.dpi, throughPage = index, firstPage = flowStart(doc))
                 FlowPainter.paintPage(r, frame, index, Rect(0.0, 0.0, page.width, page.height))
             }
@@ -4899,7 +4942,7 @@ class Editor(context: Context, val pane: Pane = Pane.PRIMARY) : ToolPopupHost, S
         doc.flow.paragraphs.addAll(
             com.xnotes.core.text.MarkdownParser.parse(markdown, newTableDefaults.style, toolbarInk()),
         )
-        val layout = themedFlowLayout(doc.flow)
+        val layout = themedFlowLayout(doc)
         fun frame() = layout.layout(doc.flow, doc.pages.map { PageBox(it.sourceWidth, it.sourceHeight) }, doc.dpi, firstPage = flowStart(doc))
         frame().pages.firstOrNull()?.contentRect?.w?.let { width ->
             for (b in CellIndex(doc.flow.paragraphs).tables) b.table.widths = layout.fitColumns(doc.flow, b.table, width)
@@ -5223,6 +5266,7 @@ class Editor(context: Context, val pane: Pane = Pane.PRIMARY) : ToolPopupHost, S
         accentColor = accentColor ?: base.accentColor,
         params = params ?: base.params,
         colors = colors ?: base.colors,
+        textColor = textColor,
     )
 
     /** The text of the markdown file at [uri], or null when it cannot be read or is too big to be one. IO. */
@@ -7297,6 +7341,7 @@ class Editor(context: Context, val pane: Pane = Pane.PRIMARY) : ToolPopupHost, S
     override val hostActiveColorIndex: Int get() = activeColorIndex
     override val hostRecentColors: List<Rgba> get() = recentColors
     override val hostHasPdf: Boolean get() = hasPdf
+    override val hostIsPaged: Boolean get() = true
 
     override val hostHiddenShapes: Set<String> get() = settings.prefs.hiddenShapes
     override val hostShapeOrder: List<String> get() = settings.prefs.shapeOrder
@@ -8272,6 +8317,8 @@ class Editor(context: Context, val pane: Pane = Pane.PRIMARY) : ToolPopupHost, S
 
     override fun canLabelSelection() = controller.canLabelSelection()
 
+    override fun selectionHasLabel() = controller.selectionHasLabel()
+
     override fun labelSelection() = controller.labelSelection()
 
     override fun canRerouteSelection() = controller.canRerouteSelection()
@@ -8281,6 +8328,12 @@ class Editor(context: Context, val pane: Pane = Pane.PRIMARY) : ToolPopupHost, S
     override fun canMirrorSelection() = controller.canMirrorSelection()
 
     override fun mirrorSelection(upsideDown: Boolean) = controller.mirrorSelection(upsideDown)
+
+    override fun documentDpi(): Int = state.document.dpi
+
+    override fun selectionSize() = controller.selectionSize()
+
+    override fun resizeSelection(width: Double, height: Double) = controller.resizeSelection(width, height)
 
     override fun restyleSelection(color: Rgba?, width: Double?, preview: Boolean) {
         controller.restyleSelection(color, width, preview)
@@ -8486,15 +8539,22 @@ class Editor(context: Context, val pane: Pane = Pane.PRIMARY) : ToolPopupHost, S
 
     fun flowDefaultSizePt(): Double = state.document.flow.defaultSizePt
     /**
-     * The flow's base text colour for the active paper: the near-white default on
-     * dark/OLED paper, a near-black on light paper (where near-white would vanish).
+     * The flow's base text colour for the note's paper: the near-white default on
+     * dark paper, a near-black on light paper (where near-white would vanish).
      */
-    private fun defaultTextColor(): Rgba =
-        if (palette.isDark) com.xnotes.core.text.TextFlow.DEFAULT_COLOR else Rgba(28, 28, 28, 255)
+    private fun defaultTextColor(doc: Document, pageIndex: Int = -1): Rgba {
+        val paper = doc.pages.getOrNull(pageIndex)?.resolvedPageColor(doc, state.pageColorOverride)
+            ?: doc.style.pageColor ?: state.pageColorOverride ?: palette.paper
+        return if (paper.luminance() < 0.5) com.xnotes.core.text.TextFlow.DEFAULT_COLOR else Rgba(28, 28, 28, 255)
+    }
 
     /** The effective base text colour: the flow's explicit default, else the theme auto colour. */
-    fun flowDefaultColor(): Rgba = state.document.flow.defaultColor ?: defaultTextColor()
+    fun flowDefaultColor(): Rgba = state.document.flow.defaultColor ?: defaultTextColor(state.document)
     fun flowDefaultFace(): FontFace = state.document.flow.defaultFace
+
+    /** The base text colour the current page shows: its own, else the note's. */
+    fun currentPageTextColor(): Rgba = currentPageStyle.textColor ?: state.document.flow.defaultColor
+        ?: defaultTextColor(state.document, state.currentPageIndex())
 
     /** Rewrite character styles over the selection, or arm them for the next typed run. */
     fun flowSetChar(apply: (CharStyle) -> CharStyle) {
@@ -8819,6 +8879,29 @@ class Editor(context: Context, val pane: Pane = Pane.PRIMARY) : ToolPopupHost, S
         }
         flowSelTick++
         return true
+    }
+
+    /** Run a slash entry from the toolbar's insert menu, where no query was typed. Only argless entries. */
+    fun runInsertEntry(entry: SlashCommands.Entry) {
+        if (!flowText.active) return
+        when (entry.kind) {
+            SlashCommands.Kind.QUOTE -> flowStartQuote(null)
+            SlashCommands.Kind.CALLOUT -> flowStartQuote(com.xnotes.core.text.CalloutKind.entries[entry.level])
+            SlashCommands.Kind.PAGE_BREAK -> flowInsertPageBreak()
+            SlashCommands.Kind.DATE, SlashCommands.Kind.TIME -> {
+                val stamp = if (entry.kind == SlashCommands.Kind.DATE) {
+                    dateStamp(java.time.format.FormatStyle.MEDIUM, time = false)
+                } else {
+                    dateStamp(java.time.format.FormatStyle.SHORT, time = true)
+                }
+                flowText.flushBurst()
+                flowText.mirrorStale = true
+                val (cmd, caret) = FlowEditor(state.document.flow).replaceRange(flowText.selection.normalized(), stamp, null)
+                flowText.commitEdit(cmd, caret)
+            }
+            else -> return
+        }
+        flowSelTick++
     }
 
     /** Today's date or the time, in the reader's locale. */
@@ -9262,6 +9345,7 @@ class Editor(context: Context, val pane: Pane = Pane.PRIMARY) : ToolPopupHost, S
             editor.explorerView = next.explorerView
             editor.markdownInput = next.prefs.markdownInput
             editor.slashCommands = next.prefs.slashCommands
+            editor.translateCallouts = next.prefs.translateCallouts
             editor.infiniteOrNull?.let { c ->
                 c.toolbarLayout = next.canvasToolbarLayout
                 c.toolbarColorCount = next.toolbarColorCount

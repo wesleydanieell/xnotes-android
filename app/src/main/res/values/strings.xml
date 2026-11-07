@@ -74,6 +74,7 @@
     <string name="caption_scale">Scale</string>
     <string name="caption_snap_to_shapes">Snap to shapes</string>
     <string name="caption_select_whole_items">Only fully enclosed items</string>
+    <string name="caption_snap_to_margins">Snap to margins and centre</string>
     <string name="caption_dash">Dash</string>
     <string name="caption_gap">Gap</string>
     <string name="caption_intensity">Intensity</string>
@@ -385,6 +386,11 @@
     <string name="preferences">Preferences</string>
     <string name="reset_to_defaults">Reset to defaults</string>
     <string name="pref_general">General</string>
+    <string name="pref_language">Language</string>
+    <string name="pref_language_open">Choose app language</string>
+    <string name="pref_language_system">The app follows the system language.</string>
+    <string name="pref_language_disclaimer">Only English is fully supported. Other languages are translated with an LLM. If a translation looks wrong, open a bug on GitHub and it will be fixed.</string>
+    <string name="pref_appearance">Appearance</string>
     <string name="pref_ui_theme">UI theme</string>
     <string name="theme_system">System</string>
     <string name="theme_dark">Dark</string>
@@ -537,7 +543,7 @@
     <string name="search_settings">Search settings</string>
     <string name="search_keywords_port">Port old notes shapes axes number line curve function graph upgrade check</string>
     <string name="pref_port">Port old notes</string>
-    <string name="pref_port_help">Earlier n-notes versions drew the X-Y axes, the number line, the smooth curve and function graphs as shapes of their own. Notes open with these turned into today\'s shapes, but the files keep the old ones until they are saved again. Scan finds them and Port rewrites them. Each file is checked after it is written, and its old copy is kept first. A file that does not check out, or that changes meanwhile, is left as it was. Notes open in an editor are skipped.</string>
+    <string name="pref_port_help">Rewrites notes that still store axes, number lines, curves or graphs from older n-notes versions. Old copies are backed up, open notes are skipped.</string>
     <string name="port_scan">Scan</string>
     <string name="port_run">Port</string>
     <string name="port_scanning">Scanning...</string>
@@ -836,10 +842,18 @@
     <string name="duplicate">Duplicate</string>
     <string name="change_style">Change style</string>
     <string name="lock">Lock</string>
-    <string name="shape_label">Label</string>
+    <string name="shape_label_add">Add label</string>
+    <string name="shape_label_edit">Edit label</string>
     <string name="connector_reroute">Re-route</string>
     <string name="mirror_left_right">Mirror left-right</string>
     <string name="mirror_upside_down">Mirror upside down</string>
+    <string name="mirror">Mirror</string>
+    <string name="selection_size">Size</string>
+    <string name="units_px">px</string>
+    <string name="units_mm">mm</string>
+    <string name="width">Width</string>
+    <string name="height">Height</string>
+    <string name="keep_aspect_ratio">Keep aspect ratio</string>
     <string name="title_change_style">Change style</string>
     <string name="caption_thickness">Thickness</string>
     <string name="colour_drop_not_closed">This area is not closed.</string>
@@ -888,6 +902,7 @@
     <string name="margins_mm">Margins (mm)</string>
     <string name="markdown_shortcuts">Markdown shortcuts</string>
     <string name="slash_commands">Slash commands</string>
+    <string name="translate_callouts">Translate callout titles</string>
     <string name="equation">Equation</string>
     <string name="insert_date">Date</string>
     <string name="insert_time">Time</string>

@@ -70,6 +70,12 @@ data class Preferences(
     val stylusButton2Tap: String = "none",
     /** Whether the volume keys turn pages in a note (up for the previous page, down for the next). */
     val volumeKeysTurnPages: Boolean = false,
+    /** Keep the screen from sleeping while the app is open. */
+    val keepScreenOn: Boolean = false,
+    /** Look for a newer release on GitHub each time the app starts. */
+    val checkUpdatesOnStartup: Boolean = true,
+    /** Preferences open on a list of categories; off shows every setting in one long list. */
+    val prefsCategories: Boolean = true,
     /** Horizontal margin (px) on each side of the page column; 0 ⇒ fit-width fills the screen. */
     val sideMargin: Double = 16.0,
     /** Whether the hairline outline around every page is left undrawn. */
@@ -110,10 +116,14 @@ data class Preferences(
     val syncOnAppOpen: Boolean = false,
     /** Which way notes flow: "both", "up" (local to cloud), "down" (cloud to local), "off". */
     val syncDirection: String = "both",
+    /** Keep the screen from sleeping while a sync runs with the app open. */
+    val syncKeepScreenOn: Boolean = false,
     /** Whether typed markdown markers (# - ** `) convert the text as you write. */
     val markdownInput: Boolean = true,
     /** Whether typing "/" at a word start opens the command menu. */
     val slashCommands: Boolean = true,
+    /** Whether callout titles follow the app language; off keeps them in English. */
+    val translateCallouts: Boolean = true,
     /** Layouts the explorer header's switcher offers, in switcher order. */
     val switcherLayouts: List<ExplorerLayout> = ExplorerLayout.entries,
     val sidebarRecent: Boolean = true,
@@ -185,6 +195,9 @@ data class Preferences(
         .put("stylus_button_1_tap", stylusButton1Tap)
         .put("stylus_button_2_tap", stylusButton2Tap)
         .put("volume_keys_turn_pages", volumeKeysTurnPages)
+        .put("keep_screen_on", keepScreenOn)
+        .put("check_updates_on_startup", checkUpdatesOnStartup)
+        .put("prefs_categories", prefsCategories)
         .put("side_margin", sideMargin)
         .put("hide_page_borders", hidePageBorders)
         .put("min_zoom_enabled", minZoomEnabled)
@@ -230,8 +243,10 @@ data class Preferences(
             put("sync_on_note_exit", syncOnNoteExit)
             put("sync_on_app_open", syncOnAppOpen)
             put("sync_direction", syncDirection)
+            put("sync_keep_screen_on", syncKeepScreenOn)
             put("markdown_input", markdownInput)
             put("slash_commands", slashCommands)
+            put("translate_callouts", translateCallouts)
         }
         .put("switcher_layouts", org.json.JSONArray().apply { switcherLayouts.forEach { put(it.id) } })
         .put("sidebar_recent", sidebarRecent)
@@ -330,6 +345,9 @@ data class Preferences(
                 stylusButton1Tap = tapAction("stylus_button_1_tap"),
                 stylusButton2Tap = tapAction("stylus_button_2_tap"),
                 volumeKeysTurnPages = o.optBoolean("volume_keys_turn_pages", false),
+                keepScreenOn = o.optBoolean("keep_screen_on", false),
+                checkUpdatesOnStartup = o.optBoolean("check_updates_on_startup", true),
+                prefsCategories = o.optBoolean("prefs_categories", true),
                 sideMargin = o.optDouble("side_margin", 16.0).coerceIn(0.0, 80.0),
                 hidePageBorders = o.optBoolean("hide_page_borders", false),
                 minZoomEnabled = o.optBoolean("min_zoom_enabled", false),
@@ -359,8 +377,10 @@ data class Preferences(
                 syncOnAppOpen = o.optBoolean("sync_on_app_open", o.optBoolean("filen_sync_on_app_open", false)),
                 syncDirection = o.optString("sync_direction", o.optString("filen_sync_direction", "both"))
                     .let { if (it == "up" || it == "down" || it == "off") it else "both" },
+                syncKeepScreenOn = o.optBoolean("sync_keep_screen_on", false),
                 markdownInput = o.optBoolean("markdown_input", true),
                 slashCommands = o.optBoolean("slash_commands", true),
+                translateCallouts = o.optBoolean("translate_callouts", true),
                 switcherLayouts = o.optJSONArray("switcher_layouts")?.let { a ->
                     (0 until a.length()).mapNotNull { ExplorerLayout.fromId(a.optString(it)) }.distinct()
                 } ?: ExplorerLayout.entries,

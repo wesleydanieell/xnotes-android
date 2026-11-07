@@ -27,9 +27,9 @@ android {
         applicationId = "com.neddy.nnotes"
         minSdk = 26
         targetSdk = 36
-        versionCode = 102
+        versionCode = 106
         // <upstream xnotes version>-<n-notes fork version>
-        versionName = "0.9.7-0.49"
+        versionName = "0.9.7-0.53"
         testInstrumentationRunner = "android.test.InstrumentationTestRunner"
         ndk {
             abiFilters += listOf("arm64-v8a", "armeabi-v7a", "x86_64")
@@ -154,6 +154,7 @@ dependencies {
     implementation(libs.latex.renderer)
     implementation(libs.onnxruntime.android)
     implementation(libs.bundles.commonmark)
+    implementation(libs.okhttp)
     debugImplementation(libs.androidx.ui.tooling)
 
     // The platform instrumentation runner provides these libraries on the device.

@@ -951,6 +951,13 @@ private fun HomePane(
         Column(Modifier.fillMaxSize()) {
             // Cloud sync heads-up when a note was changed on two devices; renders nothing otherwise.
             SyncConflictBanner()
+            // Any finished sync (sidebar, app open, note close, background worker) may have changed files, so list again.
+            LaunchedEffect(Unit) {
+                var last = com.xnotes.sync.SyncManager.status.value.lastSyncMs
+                com.xnotes.sync.SyncManager.status.collect { s ->
+                    if (s.lastSyncMs != last) { last = s.lastSyncMs; editor.relistTree() }
+                }
+            }
             // Pulling down from the top syncs with the cloud service when it is set up, then lists the folder again.
             PullToRefreshBox(
                 isRefreshing = refreshing,
@@ -2651,7 +2658,7 @@ private fun SyncNowCommand(onOpenSettings: () -> Unit) {
     if (!com.xnotes.sync.SyncManager.isConfigured(ctx)) return
     val status by com.xnotes.sync.SyncManager.status.collectAsState()
     val scope = rememberCoroutineScope()
-    Command(Icons.Filled.Sync, if (status.running) "Syncing..." else "Sync now", onLongClick = onOpenSettings) {
+    Command(Icons.Filled.Sync, if (status.running) "Syncing ${syncProgress(status)}" else "Sync now", onLongClick = onOpenSettings) {
         if (!status.running) scope.launch { com.xnotes.sync.SyncManager.syncNow(ctx) }
     }
 }
@@ -2663,10 +2670,14 @@ private fun SyncRailItem(onOpenSettings: () -> Unit) {
     if (!com.xnotes.sync.SyncManager.isConfigured(ctx)) return
     val status by com.xnotes.sync.SyncManager.status.collectAsState()
     val scope = rememberCoroutineScope()
-    RailItem(Icons.Filled.Sync, if (status.running) "Syncing..." else "Sync now", selected = status.running, onLongClick = onOpenSettings) {
+    RailItem(Icons.Filled.Sync, if (status.running) "Syncing ${syncProgress(status)}" else "Sync now", selected = status.running, onLongClick = onOpenSettings) {
         if (!status.running) scope.launch { com.xnotes.sync.SyncManager.syncNow(ctx) }
     }
 }
+
+/** Files synced out of the total; until listing both sides gives the total, the last sync's count stands in. */
+private fun syncProgress(status: com.xnotes.sync.SyncManager.Status): String =
+    if (status.total > 0) "${status.done}/${status.total}" else "0/${status.fileCount}"
 
 /**
  * A quiet line at the foot of the sidebar: when cloud sync is set up, how long ago the last sync
@@ -2679,23 +2690,25 @@ private fun SyncSidebarStatus() {
     if (!com.xnotes.sync.SyncManager.isConfigured(ctx)) return
     LaunchedEffect(Unit) { com.xnotes.sync.SyncManager.primeStatus(ctx) }
     val status by com.xnotes.sync.SyncManager.status.collectAsState()
-    val line = when {
-        status.running -> "Syncing…"
-        status.lastSyncMs == 0L -> "${com.xnotes.sync.SyncManager.activeService(ctx)?.displayName}: not synced yet"
-        else -> {
-            val ago = android.text.format.DateUtils.getRelativeTimeSpanString(
-                status.lastSyncMs, System.currentTimeMillis(), android.text.format.DateUtils.MINUTE_IN_MILLIS,
-            )
-            val files = if (status.fileCount == 1) "1 file" else "${status.fileCount} files"
-            "Last synced $ago · $files"
+    var now by remember { mutableStateOf(System.currentTimeMillis()) }
+    LaunchedEffect(Unit) {
+        while (true) {
+            kotlinx.coroutines.delay(30_000)
+            now = System.currentTimeMillis()
         }
     }
-    Text(
-        line,
-        color = palette.textDim.toComposeColor(),
-        fontSize = 11.sp,
-        modifier = Modifier.padding(start = 18.dp, end = 12.dp, top = 8.dp),
-    )
+    val synced = if (status.lastSyncMs == 0L) {
+        "${com.xnotes.sync.SyncManager.activeService(ctx)?.displayName}: not synced yet"
+    } else {
+        "Last synced " + android.text.format.DateUtils.getRelativeTimeSpanString(
+            status.lastSyncMs, maxOf(now, status.lastSyncMs), android.text.format.DateUtils.MINUTE_IN_MILLIS,
+        )
+    }
+    val files = if (status.running) "${syncProgress(status)} files" else "${status.fileCount}/${status.fileCount} files"
+    Column(Modifier.padding(start = 18.dp, end = 12.dp, top = 8.dp)) {
+        Text(synced, color = palette.textDim.toComposeColor(), fontSize = 11.sp)
+        Text(files, color = palette.textDim.toComposeColor(), fontSize = 11.sp)
+    }
 }
 
 /**

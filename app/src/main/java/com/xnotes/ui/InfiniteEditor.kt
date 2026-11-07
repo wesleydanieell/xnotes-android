@@ -13,6 +13,7 @@ import com.xnotes.canvas.ItemClipboard
 import com.xnotes.core.fill.ColorDrop
 import com.xnotes.core.fill.DropAction
 import com.xnotes.core.fill.FillGrid
+import com.xnotes.core.geometry.Affine
 import com.xnotes.core.geometry.Pt
 import com.xnotes.core.geometry.Rect
 import com.xnotes.core.history.Command
@@ -998,6 +999,11 @@ class InfiniteEditor(context: Context) : ToolPopupHost, SelectionMenuHost, LongP
     override val selectionLink: String? get() = null
     override fun setSelectionLink(url: String?) {}
 
+    override val selectionCanCaption: Boolean get() = false
+    override val selectionHasCaption: Boolean get() = false
+
+    override fun captionSelection() {}
+
     override val selectionHasInk: Boolean get() = false
     override fun convertSelectionToText() {}
     override val canConvertToMath: Boolean get() = false
@@ -1245,6 +1251,8 @@ class InfiniteEditor(context: Context) : ToolPopupHost, SelectionMenuHost, LongP
 
     override fun canLabelSelection(): Boolean = (selection.items.singleOrNull() as? Labelled)?.let { it.takesLabel && !it.locked } == true
 
+    override fun selectionHasLabel(): Boolean = (selection.items.singleOrNull() as? Labelled)?.label?.text?.isNotBlank() == true
+
     override fun canRerouteSelection(): Boolean =
         selection.loneConnector?.let { !it.locked && (it.routing.orthogonal || it.waypoints.isNotEmpty()) } == true
 
@@ -1269,6 +1277,24 @@ class InfiniteEditor(context: Context) : ToolPopupHost, SelectionMenuHost, LongP
     override fun mirrorSelection(upsideDown: Boolean) {
         if (!canMirrorSelection()) return
         selection.mirror(upsideDown)?.let { history.push(it) }
+        markDirty()
+        refresh()
+        publishOverlay()
+    }
+
+    override fun documentDpi(): Int = document.dpi
+
+    override fun selectionSize(): Pair<Double, Double>? {
+        if (selection.loneConnector != null || selection.items.singleOrNull() is com.xnotes.core.model.TableItem) return null
+        val box = selection.box ?: return null
+        return box.halfW * 2.0 to box.halfH * 2.0
+    }
+
+    override fun resizeSelection(width: Double, height: Double) {
+        val (bw, bh) = selectionSize() ?: return
+        val box = selection.box ?: return
+        if (width <= 0.0 || height <= 0.0) return
+        selection.transform(Affine.scaleAlongAxes(box.center, box.angle, if (bw > 0.0) width / bw else 1.0, if (bh > 0.0) height / bh else 1.0))?.let { history.push(it) }
         markDirty()
         refresh()
         publishOverlay()

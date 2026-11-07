@@ -23,7 +23,6 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material3.AlertDialog
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.verticalScroll
@@ -76,6 +75,7 @@ import com.xnotes.R
 import com.xnotes.core.model.DrawStyle
 import com.xnotes.core.model.FunctionCurve
 import com.xnotes.core.model.FunctionSpec
+import com.xnotes.core.model.PageSize
 import com.xnotes.core.model.Rgba
 import com.xnotes.ui.icons.XnotesIcons
 import com.xnotes.ui.theme.LocalPalette
@@ -144,6 +144,15 @@ interface SelectionMenuHost : SwatchHost {
     /** Set (or clear, when null) the selected item's hyperlink. */
     fun setSelectionLink(url: String?)
 
+    /** True when the lone selected item is an image or shape that can take a caption below it. */
+    val selectionCanCaption: Boolean
+
+    /** True when the selection is an image or shape grouped with its caption. */
+    val selectionHasCaption: Boolean
+
+    /** Start typing a caption under the selected image or shape. */
+    fun captionSelection()
+
     /** True when the selection contains handwriting (shows the Convert to text action). */
     val selectionHasInk: Boolean
 
@@ -191,6 +200,9 @@ interface SelectionMenuHost : SwatchHost {
     /** True when the lone selection is a shape that can take a typed label. */
     fun canLabelSelection(): Boolean
 
+    /** True when that shape's label already has words. */
+    fun selectionHasLabel(): Boolean
+
     /** Open the editor on that shape's label. */
     fun labelSelection()
 
@@ -229,6 +241,15 @@ interface SelectionMenuHost : SwatchHost {
 
     /** Put that picture in crop mode, the frame standing over it. */
     fun startCrop()
+
+    /** Pixels per inch of the document's units, to show sizes in mm. */
+    fun documentDpi(): Int
+
+    /** The selection box's width and height in document px, or null when it cannot be sized. */
+    fun selectionSize(): Pair<Double, Double>?
+
+    /** Scale the selection about its centre to [width] by [height] document px, as one undo step. */
+    fun resizeSelection(width: Double, height: Double)
 }
 
 /**
@@ -254,11 +275,15 @@ fun SelectionMenu(
     var functionDialogOpen by remember { mutableStateOf(false) }
     var mathDialogOpen by remember { mutableStateOf(false) }
     var renamingAudio by remember { mutableStateOf<com.xnotes.core.model.AudioItem?>(null) }
+    var sizeDialogOpen by remember { mutableStateOf(false) }
+    var mirrorOpen by remember { mutableStateOf(false) }
 
     val audio = host.selectedAudio()
     val crops = host.canCropSelection()
+    val size = host.selectionSize()
+    val mirrors = host.canMirrorSelection()
     val barHeightPx = with(density) { 48.dp.toPx() }
-    val barWidthPx = with(density) { ((6 + (if (audio != null) 1 else 0) + (if (crops) 1 else 0)) * 46).dp.toPx() }
+    val barWidthPx = with(density) { ((7 + (if (audio != null) 1 else 0) + (if (crops) 1 else 0) + (if (size != null) 1 else 0) + (if (mirrors) 1 else 0)) * 46).dp.toPx() }
     val gap = with(density) { 10.dp.toPx() }
     val centerX = ((rect.left + rect.right) / 2.0).toFloat()
     val xPx = (centerX - barWidthPx / 2f).coerceAtLeast(with(density) { 8.dp.toPx() })
@@ -279,14 +304,10 @@ fun SelectionMenu(
                 .background(palette.menuBg.toComposeColor())
                 .border(1.dp, palette.border.toComposeColor(), MaterialTheme.shapes.medium),
         ) {
-            if (audio != null) {
-                val playing = AudioPlayback.session?.let { it.item === audio && it.playing } == true
-                ActionIcon(if (playing) XnotesIcons.pause else XnotesIcons.play, stringResource(if (playing) R.string.audio_pause else R.string.audio_play)) { host.playSelectedAudio() }
-            }
-            if (crops) ActionIcon(XnotesIcons.crop, stringResource(R.string.crop)) { host.startCrop() }
-            ActionIcon(XnotesIcons.trash, stringResource(R.string.delete), shortcut = Keys.DELETE) { host.deleteSelection() }
+            ActionIcon(XnotesIcons.trash, stringResource(R.string.delete), shortcut = Keys.DELETE, tint = palette.danger.toComposeColor()) { host.deleteSelection() }
             ActionIcon(XnotesIcons.cut, stringResource(R.string.cut)) { host.cutSelection() }
             ActionIcon(XnotesIcons.copy, stringResource(R.string.copy)) { host.copySelection(); host.dismissSelectionMenu() }
+            ActionIcon(XnotesIcons.duplicate, stringResource(R.string.duplicate)) { host.duplicateSelection() }
             Box {
                 ActionIcon(XnotesIcons.front, stringResource(R.string.arrange)) { arrangeOpen = true }
                 DropdownMenu(
@@ -299,7 +320,30 @@ fun SelectionMenu(
                     }
                 }
             }
-            ActionIcon(XnotesIcons.duplicate, stringResource(R.string.duplicate)) { host.duplicateSelection() }
+            ActionIcon(XnotesIcons.lock, stringResource(R.string.lock)) { host.lockSelection() }
+            if (audio != null) {
+                val playing = AudioPlayback.session?.let { it.item === audio && it.playing } == true
+                ActionIcon(if (playing) XnotesIcons.pause else XnotesIcons.play, stringResource(if (playing) R.string.audio_pause else R.string.audio_play)) { host.playSelectedAudio() }
+            }
+            if (crops) ActionIcon(XnotesIcons.crop, stringResource(R.string.crop)) { host.startCrop() }
+            if (size != null) ActionIcon(XnotesIcons.resize, stringResource(R.string.selection_size)) { sizeDialogOpen = true }
+            if (mirrors) Box {
+                ActionIcon(XnotesIcons.mirror, stringResource(R.string.mirror)) { mirrorOpen = true }
+                DropdownMenu(
+                    expanded = mirrorOpen,
+                    onDismissRequest = { mirrorOpen = false },
+                    properties = PopupProperties(focusable = false),
+                ) {
+                    DropdownMenuItem(
+                        text = { Text(stringResource(R.string.mirror_left_right)) },
+                        onClick = { mirrorOpen = false; host.mirrorSelection(upsideDown = false) },
+                    )
+                    DropdownMenuItem(
+                        text = { Text(stringResource(R.string.mirror_upside_down)) },
+                        onClick = { mirrorOpen = false; host.mirrorSelection(upsideDown = true) },
+                    )
+                }
+            }
             Box {
                 ActionIcon(XnotesIcons.more, stringResource(R.string.more)) { overflowOpen = true }
                 DropdownMenu(
@@ -331,14 +375,15 @@ fun SelectionMenu(
                         )
                         androidx.compose.material3.HorizontalDivider(color = palette.border.toComposeColor())
                     }
-                    // Empty when nothing selected carries ink or a fill: an image or a text box has
-                    // no colour-and-width pair to restyle.
+                    // Empty when nothing selected carries ink, a fill or text colour: an image
+                    // has nothing to restyle.
                     val styles = host.selectionStyles()
                     DropdownMenuItem(
                         text = { Text(stringResource(R.string.change_style)) },
                         enabled = styles.isNotEmpty() || host.selectionFills().isNotEmpty(),
                         onClick = { overflowOpen = false; styleOpen = true },
                     )
+                    androidx.compose.material3.HorizontalDivider(color = palette.border.toComposeColor())
                     if (host.selectionFunction != null) {
                         DropdownMenuItem(
                             text = { Text("Edit function") },
@@ -370,9 +415,15 @@ fun SelectionMenu(
                             onClick = { overflowOpen = false; linkDialogOpen = true },
                         )
                     }
+                    if (host.selectionCanCaption) {
+                        DropdownMenuItem(
+                            text = { Text(if (host.selectionHasCaption) "Edit caption" else "Add caption") },
+                            onClick = { overflowOpen = false; host.captionSelection() },
+                        )
+                    }
                     if (host.canLabelSelection()) {
                         DropdownMenuItem(
-                            text = { Text(stringResource(R.string.shape_label)) },
+                            text = { Text(stringResource(if (host.selectionHasLabel()) R.string.shape_label_edit else R.string.shape_label_add)) },
                             onClick = { overflowOpen = false; host.labelSelection() },
                         )
                     }
@@ -382,17 +433,6 @@ fun SelectionMenu(
                             onClick = { overflowOpen = false; host.rerouteSelection() },
                         )
                     }
-                    val mirrors = host.canMirrorSelection()
-                    DropdownMenuItem(
-                        text = { Text(stringResource(R.string.mirror_left_right)) },
-                        enabled = mirrors,
-                        onClick = { overflowOpen = false; host.mirrorSelection(upsideDown = false) },
-                    )
-                    DropdownMenuItem(
-                        text = { Text(stringResource(R.string.mirror_upside_down)) },
-                        enabled = mirrors,
-                        onClick = { overflowOpen = false; host.mirrorSelection(upsideDown = true) },
-                    )
                     if (host.canGroupSelection()) {
                         DropdownMenuItem(
                             text = { Text(stringResource(R.string.group)) },
@@ -405,6 +445,7 @@ fun SelectionMenu(
                             onClick = { overflowOpen = false; host.ungroupSelection() },
                         )
                     }
+                    androidx.compose.material3.HorizontalDivider(color = palette.border.toComposeColor())
                     DropdownMenuItem(
                         text = { Text(stringResource(R.string.copy_as_image)) },
                         onClick = { overflowOpen = false; host.copySelectionAsImage() },
@@ -415,10 +456,6 @@ fun SelectionMenu(
                             onClick = { overflowOpen = false; host.selectionImageForShare()?.let(share) },
                         )
                     }
-                    DropdownMenuItem(
-                        text = { Text(stringResource(R.string.lock)) },
-                        onClick = { overflowOpen = false; host.lockSelection() },
-                    )
                 }
                 if (styleOpen) {
                     // Closing settles any preview the slider left open.
@@ -448,6 +485,14 @@ fun SelectionMenu(
                         onDismiss = { linkDialogOpen = false },
                     )
                 }
+                if (sizeDialogOpen && size != null) {
+                    SizeDialog(
+                        initial = size,
+                        dpi = host.documentDpi(),
+                        onConfirm = { w, h -> sizeDialogOpen = false; host.resizeSelection(w, h) },
+                        onDismiss = { sizeDialogOpen = false },
+                    )
+                }
                 renamingAudio?.let { item ->
                     AudioNameDialog(item.name, onConfirm = { renamingAudio = null; host.renameSelectedAudio(it) }) { renamingAudio = null }
                 }
@@ -463,6 +508,77 @@ private val ARRANGE_ROWS = listOf(
     com.xnotes.core.model.Arrange.BACKWARD to R.string.send_backward,
     com.xnotes.core.model.Arrange.BACK to R.string.send_to_back,
 )
+
+/**
+ * The selection's exact width and height, typed in px (document units) or mm. While the aspect
+ * ratio is kept, the other side follows; a flat side (a straight line) is left to itself.
+ */
+@Composable
+private fun SizeDialog(initial: Pair<Double, Double>, dpi: Int, onConfirm: (Double, Double) -> Unit, onDismiss: () -> Unit) {
+    val ratio = if (initial.first > 0.0 && initial.second > 0.0) initial.second / initial.first else null
+    var mm by remember { mutableStateOf(false) }
+    fun toUnit(px: Double) = if (mm) PageSize.pxToMm(px, dpi) else px
+    fun toPx(v: Double) = if (mm) PageSize.mmToPx(v, dpi) else v
+    fun fmt(v: Double) = "%.1f".format(java.util.Locale.ROOT, v).removeSuffix(".0")
+    fun parse(raw: String) = raw.trim().replace(',', '.').toDoubleOrNull()?.takeIf { it > 0.0 && it.isFinite() }
+    var w by remember { mutableStateOf(fmt(initial.first)) }
+    var h by remember { mutableStateOf(fmt(initial.second)) }
+    var keep by remember { mutableStateOf(ratio != null) }
+    val wPx = parse(w)?.let(::toPx)
+    val hPx = parse(h)?.let(::toPx)
+    fun switchUnits(toMm: Boolean) {
+        if (toMm == mm) return
+        val pw = wPx ?: initial.first
+        val ph = hPx ?: initial.second
+        mm = toMm
+        w = fmt(toUnit(pw))
+        h = fmt(toUnit(ph))
+    }
+    val number = androidx.compose.foundation.text.KeyboardOptions(keyboardType = androidx.compose.ui.text.input.KeyboardType.Decimal)
+    val unit = stringResource(if (mm) R.string.units_mm else R.string.units_px)
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(stringResource(R.string.selection_size)) },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    ModeChip(stringResource(R.string.units_px), !mm) { switchUnits(false) }
+                    ModeChip(stringResource(R.string.units_mm), mm) { switchUnits(true) }
+                }
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    OutlinedTextField(
+                        value = w,
+                        onValueChange = { w = it; if (keep && ratio != null) parse(it)?.let { v -> h = fmt(v * ratio) } },
+                        singleLine = true,
+                        label = { Text("${stringResource(R.string.width)} ($unit)") },
+                        isError = wPx == null,
+                        keyboardOptions = number,
+                        modifier = Modifier.weight(1f),
+                    )
+                    OutlinedTextField(
+                        value = h,
+                        onValueChange = { h = it; if (keep && ratio != null) parse(it)?.let { v -> w = fmt(v / ratio) } },
+                        singleLine = true,
+                        label = { Text("${stringResource(R.string.height)} ($unit)") },
+                        isError = hPx == null,
+                        keyboardOptions = number,
+                        modifier = Modifier.weight(1f),
+                    )
+                }
+                if (ratio != null) {
+                    Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.clickable { keep = !keep }) {
+                        androidx.compose.material3.Checkbox(keep, { keep = it })
+                        Text(stringResource(R.string.keep_aspect_ratio))
+                    }
+                }
+            }
+        },
+        confirmButton = {
+            TextButton(enabled = wPx != null && hPx != null, onClick = { if (wPx != null && hPx != null) onConfirm(wPx, hPx) }) { Text(stringResource(R.string.apply)) }
+        },
+        dismissButton = { TextButton(onClick = onDismiss) { Text(stringResource(R.string.cancel)) } },
+    )
+}
 
 /** Rename a recording: its name, ready to type over. */
 @Composable
@@ -723,7 +839,8 @@ private fun SelectionStylePopup(host: SelectionMenuHost, onDismiss: () -> Unit) 
     val first = opened.firstOrNull()
     val shared = opened.firstOrNull()?.color?.takeIf { c -> opened.all { it.color == c } }
     var color by remember { mutableStateOf(shared ?: first?.color ?: Rgba(0, 0, 0)) }
-    var width by remember { mutableStateOf((first?.width ?: 1.0).toFloat()) }
+    val sized = opened.firstOrNull { it.width != DrawStyle.NO_WIDTH }
+    var width by remember { mutableStateOf((sized?.width ?: 1.0).toFloat()) }
     val fills = remember { host.selectionFills() }
     // Only dropped colours selected: they have a fill and nothing else to restyle.
     val fillsOnly = first == null
@@ -826,7 +943,7 @@ private fun SelectionStylePopup(host: SelectionMenuHost, onDismiss: () -> Unit) 
                     StepDot("+", stringResource(R.string.count_more), enabled = count < range.last) { host.setSelectionCount(count + 1) }
                 }
             }
-            if (fillsOnly) return@Column
+            if (fillsOnly || sized == null) return@Column
             Spacer(Modifier.size(8.dp))
             // The drag previews live and commits on release, so it is one undo step, not fifty.
             SliderRow(
@@ -940,16 +1057,16 @@ fun ScreenshotMenu(editor: Editor, onShare: (java.io.File) -> Unit) {
 }
 
 @Composable
-private fun ActionIcon(icon: ImageVector, desc: String, enabled: Boolean = true, active: Boolean = false, shortcut: String? = null, onClick: () -> Unit) {
+private fun ActionIcon(icon: ImageVector, desc: String, enabled: Boolean = true, active: Boolean = false, shortcut: String? = null, tint: Color? = null, onClick: () -> Unit) {
     val palette = LocalPalette.current
-    val tint = when {
+    val color = when {
         !enabled -> palette.text.toComposeColor().copy(alpha = 0.35f)
         active -> palette.accent.toComposeColor()
-        else -> palette.text.toComposeColor()
+        else -> tint ?: palette.text.toComposeColor()
     }
     Tooltip(desc, shortcut = shortcut) {
         IconButton(onClick = onClick, enabled = enabled, modifier = Modifier.size(46.dp)) {
-            Icon(icon, contentDescription = desc, tint = tint, modifier = Modifier.size(22.dp))
+            Icon(icon, contentDescription = desc, tint = color, modifier = Modifier.size(22.dp))
         }
     }
 }

@@ -62,6 +62,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.SideEffect
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -195,6 +196,7 @@ class MainActivity : ComponentActivity() {
             val context = LocalContext.current
             val ed = remember { Editor(context).also { editor = it } }
             LaunchedEffect(ed.fullscreen) { applyFullscreen(ed.fullscreen) }
+            KeepScreenOn(ed)
             // Re-arm the periodic cloud sync to match the saved preferences.
             LaunchedEffect(Unit) { com.xnotes.sync.SyncManager.reschedule(context) }
             var ready by remember { mutableStateOf(false) }
@@ -205,6 +207,12 @@ class MainActivity : ComponentActivity() {
                 if (elapsed < MIN_LOADER_MS) kotlinx.coroutines.delay(MIN_LOADER_MS - elapsed)
                 ready = true
                 ed.prewarmBackstage() // warm recents/explorer caches so the first backstage open is instant
+            }
+            var update by remember { mutableStateOf<com.xnotes.update.UpdateChecker.Status.Available?>(null) }
+            LaunchedEffect(ready) {
+                if (!ready || rebuilt || !ed.preferences.checkUpdatesOnStartup) return@LaunchedEffect
+                val version = runCatching { packageManager.getPackageInfo(packageName, 0).versionName ?: "" }.getOrDefault("")
+                update = com.xnotes.update.UpdateChecker.check(version).getOrNull() as? com.xnotes.update.UpdateChecker.Status.Available
             }
             XnotesTheme(ed.palette, ed.cornerStyle) {
                 CompositionLocalProvider(com.xnotes.ui.LocalToolbarLook provides ed.toolbarLook) {
@@ -224,6 +232,28 @@ class MainActivity : ComponentActivity() {
                             com.xnotes.ui.XnotesLoader()
                         }
                         com.xnotes.ui.EyedropperOverlay()
+                    }
+                    update?.let { u ->
+                        com.xnotes.ui.AlertDialog(
+                            onDismissRequest = { update = null },
+                            title = { androidx.compose.material3.Text("Update available") },
+                            text = { androidx.compose.material3.Text("n-notes ${u.version} is out.") },
+                            confirmButton = {
+                                androidx.compose.material3.TextButton(onClick = {
+                                    update = null
+                                    runCatching { startActivity(Intent(Intent.ACTION_VIEW, android.net.Uri.parse(u.apkUrl ?: u.releaseUrl))) }
+                                }) { androidx.compose.material3.Text("Download") }
+                            },
+                            dismissButton = {
+                                androidx.compose.foundation.layout.Row {
+                                    androidx.compose.material3.TextButton(onClick = { update = null }) { androidx.compose.material3.Text("Later") }
+                                    androidx.compose.material3.TextButton(onClick = {
+                                        update = null
+                                        ed.applyHomePreferences(ed.preferences.copy(checkUpdatesOnStartup = false))
+                                    }) { androidx.compose.material3.Text("Turn off") }
+                                }
+                            },
+                        )
                     }
                 }
             }
@@ -2425,6 +2455,7 @@ private fun EditorPane(
                             com.xnotes.ui.FlowTableMenu(editor)
                             com.xnotes.ui.TableChrome(editor)
                             ZoomLockHint(editor)
+                            LinkBackPill(editor)
                             CanvasToastPill(editor)
                         }
                     }
@@ -2838,6 +2869,40 @@ private fun PdfBatchExportDialog(p: com.xnotes.platform.PdfBatch.Progress, onCan
                 Text(stringResource(R.string.cancel), color = palette.accent.toComposeColor())
             }
         }
+    }
+}
+
+/** Holds the screen awake while the app is open, or only while a sync runs, as Preferences say. */
+@Composable
+private fun KeepScreenOn(editor: Editor) {
+    val syncing = com.xnotes.sync.SyncManager.status.collectAsState().value.running
+    editor.prefsVersion // re-read the preferences below whenever they change
+    val keepOn = editor.preferences.let { it.keepScreenOn || (it.syncKeepScreenOn && syncing) }
+    val view = androidx.compose.ui.platform.LocalView.current
+    SideEffect { view.keepScreenOn = keepOn }
+}
+
+/** After following a document link: a back arrow and the previous note's title, tapping it goes back. */
+@Composable
+private fun BoxScope.LinkBackPill(editor: Editor) {
+    editor.title // recompose when another note opens
+    val back = editor.linkBack?.takeIf { it.to == editor.currentUri } ?: return
+    val palette = LocalPalette.current
+    Row(
+        modifier = Modifier
+            .align(Alignment.TopStart)
+            .padding(com.xnotes.ui.LocalToolbarCover.current)
+            .padding(start = 8.dp, top = 8.dp)
+            .clip(androidx.compose.foundation.shape.CircleShape)
+            .background(palette.surface.toComposeColor())
+            .border(1.dp, palette.border.toComposeColor(), androidx.compose.foundation.shape.CircleShape)
+            .clickable { editor.followLinkBack() }
+            .padding(start = 6.dp, end = 12.dp, top = 4.dp, bottom = 4.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Icon(XnotesIcons.prev, contentDescription = null, tint = palette.textDim.toComposeColor(), modifier = Modifier.size(16.dp))
+        Spacer(Modifier.width(4.dp))
+        Text(back.title, color = palette.text.toComposeColor(), fontSize = 12.sp, maxLines = 1)
     }
 }
 
