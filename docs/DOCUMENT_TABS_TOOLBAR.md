@@ -30,3 +30,6 @@ between bars remain drawable and closing a bar removes its exclusion rectangle.
 Validation: see `COMMUNITY_INTEGRATION.md` for each fork's recorded test/build
 results. Physical Xiaomi Smart Pen latency and the complete rotation/docking
 matrix still require device QA; emulator interaction does not establish those.
+
+For future maintenance and the distinction between the historical element and
+the current standalone bar, see [LLM handoff](TABS_TOOLBAR_LLM_HANDOFF.md).
