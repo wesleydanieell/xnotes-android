@@ -170,3 +170,23 @@ As branches community desta sessão são locais. n-notes tem `origin` apontando
 para `NeDDy3z/n-notes`, enquanto XNotes aponta para o fork `wesleydanieell`.
 Atualizar branches locais não autoriza trocar remotes, force-push, publicar PR,
 tag ou release. Inspecione o destino e a autorização antes de publicar.
+
+## Tamanho adaptável e barras vizinhas
+
+O tamanho expandido floating deixou de ser fixo em 360 dp. `DocumentTabsBarConfig`
+persiste `sizing` (DYNAMIC/MANUAL), `manual_extent_dp`, `min_extent_dp` e
+`max_extent_dp` (zero = espaço livre). Configurações antigas assumem DYNAMIC.
+Dinâmico usa o intervalo livre na mesma fileira até a próxima toolbar; manual
+escolhe uma extensão, sempre limitada ao espaço disponível. Há presets mínimo,
+360 dp e máximo, além de limites mínimo/máximo. Na lateral, extensão significa
+altura; as abas individuais mantêm altura de 42 dp. Docked conserva a extensão
+da borda reservada e não usa o limite floating.
+
+`documentTabsFreeStrip` mede obstáculos reais, troca os eixos para laterais e
+procura um intervalo próximo da âncora, com margem de segurança. Não basta
+expandir até a borda da tela: outra barra pode ocupar a mesma fileira. O host
+limita também a medição do AnimatedContent ao intervalo livre, para que o tamanho
+manual e os frames da animação não invadam a próxima barra. Se a fileira inteira
+estiver ocupada, procura outra faixa; se nenhuma faixa comportar tudo, não há
+garantia absoluta de não sobreposição. Mínimos e tamanhos manuais cedem aos
+limites físicos. Runtime e preview continuam compartilhando o mesmo cálculo.

@@ -43,3 +43,53 @@ internal fun documentTabsOffset(host: Size, card: Size, anchor: ToolbarAnchor,
     }
     return origin
 }
+
+/** Longest usable strip near the requested edge. Swapping axes also handles side rails. */
+internal fun documentTabsFreeStrip(host: Size, anchor: ToolbarAnchor, vertical: Boolean,
+    crossExtent: Float, obstacles: List<Rect>, gap: Float, minimumExtent: Float): Rect {
+    val main = if (vertical) host.height else host.width
+    val cross = if (vertical) host.width else host.height
+    val margin = gap.coerceAtMost(minOf(main, cross).coerceAtLeast(0f) / 2)
+    val start = margin
+    val end = (main - margin).coerceAtLeast(start)
+    val thickness = crossExtent.coerceIn(0f, (cross - 2 * margin).coerceAtLeast(0f))
+    val crossLimit = (cross - margin - thickness).coerceAtLeast(margin)
+    val edge = DocumentTabsBarConfig.edgeOf(anchor)
+    val desired = when (edge) {
+        ToolbarPosition.TOP, ToolbarPosition.LEFT -> margin
+        else -> crossLimit
+    }
+    fun crossStart(r: Rect) = if (vertical) r.left else r.top
+    fun crossEnd(r: Rect) = if (vertical) r.right else r.bottom
+    fun mainStart(r: Rect) = if (vertical) r.top else r.left
+    fun mainEnd(r: Rect) = if (vertical) r.bottom else r.right
+    fun rect(a: Float, b: Float, c: Float) = if (vertical) Rect(c, a, c + thickness, b)
+        else Rect(a, c, b, c + thickness)
+    val candidates = (listOf(desired, margin, crossLimit) + obstacles.flatMap {
+        listOf(crossEnd(it) + gap, crossStart(it) - gap - thickness)
+    }).filter { it in margin..crossLimit }.distinct().sortedBy { kotlin.math.abs(it - desired) }
+    var fallback: Rect? = null
+    for (c in candidates) {
+        val blockers = obstacles.filter { crossStart(it) < c + thickness + gap && crossEnd(it) > c - gap }
+            .map { (mainStart(it) - gap).coerceIn(start, end) to (mainEnd(it) + gap).coerceIn(start, end) }
+            .sortedBy { it.first }
+        val intervals = mutableListOf<Pair<Float, Float>>()
+        var cursor = start
+        for ((a, b) in blockers) { if (a > cursor) intervals.add(cursor to a); cursor = maxOf(cursor, b) }
+        if (cursor < end) intervals.add(cursor to end)
+        val mainAnchor = if (vertical) main / 2 else when (anchor) {
+            ToolbarAnchor.TOP_LEFT, ToolbarAnchor.BOTTOM_LEFT -> start
+            ToolbarAnchor.TOP_RIGHT, ToolbarAnchor.BOTTOM_RIGHT -> end
+            else -> main / 2
+        }
+        val free = intervals.minWithOrNull(compareBy<Pair<Float, Float>> {
+            kotlin.math.abs(mainAnchor - mainAnchor.coerceIn(it.first, it.second))
+        }.thenByDescending { it.second - it.first }) ?: continue
+        val result = rect(free.first, free.second, c)
+        val extent = free.second - free.first
+        val previous = fallback?.let { if (vertical) it.height else it.width } ?: -1f
+        if (extent > previous) fallback = result
+        if (extent >= minimumExtent.coerceAtMost(end - start)) return result
+    }
+    return fallback ?: rect(start, end, desired)
+}
