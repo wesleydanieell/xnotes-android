@@ -119,9 +119,22 @@ class SplitCustomToolbarTest : InstrumentationTestCase() {
         for (action in listOf(MotionEvent.ACTION_DOWN, MotionEvent.ACTION_UP)) {
             val e = MotionEvent.obtain(down, SystemClock.uptimeMillis(), action,
                 r.exactCenterX() - origin[0], r.exactCenterY() - origin[1], 0)
+            e.source = android.view.InputDevice.SOURCE_TOUCHSCREEN
             instrumentation.runOnMainSync { activity.dispatchTouchEvent(e) }; e.recycle()
             Thread.sleep(100)
         }
-        assertTrue("Overflow must expose the unavailable bar", nodes { it.text?.toString() == "Extra 4" }.isNotEmpty())
+        val deadline = SystemClock.uptimeMillis() + 4000
+        var exposed = nodes { it.text?.toString() == "Extra 4" }.isNotEmpty()
+        while (!exposed && SystemClock.uptimeMillis() < deadline) {
+            Thread.sleep(50)
+            exposed = nodes { it.text?.toString() == "Extra 4" }.isNotEmpty()
+        }
+        instrumentation.uiAutomation.takeScreenshot()?.let { bitmap ->
+            java.io.File(instrumentation.targetContext.cacheDir, "split-overflow.png").outputStream().use {
+                bitmap.compress(android.graphics.Bitmap.CompressFormat.PNG, 100, it)
+            }
+            bitmap.recycle()
+        }
+        assertTrue("Overflow must expose the unavailable bar", exposed)
     }
 }
