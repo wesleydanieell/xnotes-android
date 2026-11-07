@@ -77,4 +77,34 @@ class SelectionCacheRepairTest {
         // The ink layer stays cached too (repaired in place), never dropped to bare paper.
         assertEquals(1, st.cacheSnapshot().inkPages)
     }
+    @Test fun pdfInkDeletionSupportsUndoRedoAndPreservesBackground() {
+        val st = state(background = true)
+        val history = History()
+        val ctrl = InteractionController(st, history, FakeTextMeasurer(), requestRender = {})
+        val page = st.document.pages[0]
+        val before = page.items.toList()
+        st.cacheFor(page); st.backgroundFor(page)
+        ctrl.selectAll(); ctrl.deleteSelection()
+        assertEquals(0, page.items.size)
+        assertEquals(0, page.pdfPage)
+        assertEquals(1, st.cacheSnapshot().bgPages)
+        history.undo()
+        assertEquals(before, page.items.toList())
+        assertEquals(1, st.cacheSnapshot().bgPages)
+        history.redo()
+        assertEquals(0, page.items.size)
+        assertEquals(0, page.pdfPage)
+    }
+
+    @Test fun selectAllPublishesActionsAndDeleteDismissesThemOnPdfPages() {
+        val st = state(background = true)
+        var menu: com.xnotes.core.geometry.Rect? = null
+        val ctrl = InteractionController(st, History(), FakeTextMeasurer(), requestRender = {}, onSelectionMenu = { menu = it })
+        ctrl.selectAll()
+        org.junit.Assert.assertNotNull("Select all must expose selection actions", menu)
+        ctrl.deleteSelection()
+        org.junit.Assert.assertNull(menu)
+        assertEquals(0, st.document.pages[0].items.size)
+    }
+
 }
