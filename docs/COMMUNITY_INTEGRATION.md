@@ -68,3 +68,12 @@ General when there is no saved selection. Selecting a page updates its content
 and selection without replacing category navigation. The index and back-to-index
 behavior remain on phones; continuous settings and search remain supported.
 The dedicated toolbar configurator is unchanged by this fork-specific fix.
+
+Validation for this layout fix: debug/community builds passed. On the tablet
+emulator, category bounds were identical on first opening and after selection.
+At a phone-sized viewport, the index opened a category and Back restored it.
+The signed community APK was updated in place on Redmi Pad 2 and its installed
+SHA-256 matched the local APK. On Redmi, General/Appearance/Input/OCR navigation
+rectangles were unchanged across selection (224 dp sidebar); no settings values
+or documents were edited by the navigation checks. This verifies layout stability,
+not a guarantee against every cold-start frame delay.
