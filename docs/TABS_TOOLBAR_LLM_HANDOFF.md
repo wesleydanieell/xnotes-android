@@ -227,3 +227,6 @@ composto nessa guia; ações/perfis de toolbars não aparecem nela. O preview é
 compartilhado, e arrastar a navegação nele abre sua guia. Os seletores quebram
 linha em telas estreitas. Não volte a inserir todos os controles de navegação
 acima do inspector de ferramentas: isso dificultava configurar as outras barras.
+
+Para a correção da lixeira com caneta e a adaptação de barras em split, consulte
+[o guia de port para a master](UPSTREAM_PORT_SELECTION_SPLIT_TOOLBARS.md).

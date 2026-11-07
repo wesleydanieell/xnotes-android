@@ -77,3 +77,15 @@ SHA-256 matched the local APK. On Redmi, General/Appearance/Input/OCR navigation
 rectangles were unchanged across selection (224 dp sidebar); no settings values
 or documents were edited by the navigation checks. This verifies layout stability,
 not a guarantee against every cold-start frame delay.
+
+## Selection actions and custom toolbars in split — 2026-11-07
+
+Selection menus now exclude their actual surfaces from native stylus forwarding,
+fit their pane and scroll when necessary. Select-all publishes its action menu.
+Split toolbars can adapt temporarily to small panes without rewriting presets;
+rejected bars remain accessible in an overflow menu. Pane grips are protected
+from native forwarding and use measured drag origins.
+
+See [upstream port guide](UPSTREAM_PORT_SELECTION_SPLIT_TOOLBARS.md) for separated
+commits, dependency checks for an already partly integrated master, UX sources,
+regression commands, test results and device update evidence.
