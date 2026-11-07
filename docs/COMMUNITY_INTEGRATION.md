@@ -34,8 +34,23 @@ absent; the community release workflow signs using repository secrets.
 ## Navigation update — 2026-11-07
 
 The historical toolbar element has been replaced by independent floating/docked
-navigation with shared runtime/preview rendering. The 21 interface tests passed
-in each fork on the tablet emulator; JVM totals were 2,625 (XNotes) and 2,730
+navigation with shared runtime/preview rendering. The initial 21 interface tests passed
+for XNotes on the tablet emulator; the n-notes invocation initially used the
+wrong runner and does not establish n-notes UI coverage; JVM totals were 2,625 (XNotes) and 2,730
 (n-notes), without failures. Earlier element-specific validation above is
 historical. See [LLM handoff](TABS_TOOLBAR_LLM_HANDOFF.md) for the architecture,
 migration, fork differences, branch map and remaining device QA.
+
+## Validação final do tamanho adaptável — 2026-11-07
+
+- XNotes: 2.628 testes JVM sem falhas; 22 testes de interface no Redmi.
+- n-notes: 2.733 testes JVM sem falhas; 22 testes de interface no Small_Tablet,
+  usando o runner correto `com.neddy.nnotes.debug.test`.
+- Ambas as variantes community compilaram e foram atualizadas no Redmi por
+  `adb install -r`, preservando dados e certificado. O hash SHA-256 do APK
+  instalado foi comparado ao APK assinado local em cada app; ambos coincidiram.
+  Os dois apps abriram sem FATAL EXCEPTION no smoke test de lançamento.
+- A validação de gestos via Activity não substitui QA físico de caneta e áreas
+  reservadas a gestos do Android. O debug n-notes foi recusado pelo instalador
+  do Redmi; por isso sua bateria de interface final foi executada no emulador,
+  enquanto a instalação community e o lançamento foram verificados no Redmi.
