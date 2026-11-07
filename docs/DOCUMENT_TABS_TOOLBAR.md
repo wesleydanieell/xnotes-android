@@ -64,3 +64,8 @@ See the handoff for correct per-fork commands and subsequent verification.
   reservadas a gestos do Android. O debug n-notes foi recusado pelo instalador
   do Redmi; por isso sua bateria de interface final foi executada no emulador,
   enquanto a instalação community e o lançamento foram verificados no Redmi.
+
+The configurator has a dedicated **Barra de abas** property tab. Position, mode,
+expanded sizing and limits appear only there; tool bar/profile actions stay in
+the other property tabs. The preview remains shared, and moving navigation in
+the preview selects its own settings tab. Property chips wrap on narrow screens.

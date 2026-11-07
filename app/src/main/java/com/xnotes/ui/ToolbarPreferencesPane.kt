@@ -101,7 +101,7 @@ import com.xnotes.ui.theme.LocalPalette
 import com.xnotes.ui.theme.toComposeColor
 import kotlinx.coroutines.delay
 
-private enum class ToolbarPropertyTab { BARS, DIMENSIONS, ELEMENTS }
+private enum class ToolbarPropertyTab { BARS, DIMENSIONS, ELEMENTS, DOCUMENT_TABS }
 
 /** Dedicated toolbar editor, independent of the fork's general preferences. */
 @OptIn(ExperimentalLayoutApi::class)
@@ -398,69 +398,71 @@ internal fun ToolbarPreferencesPane(editor: Editor, onBack: () -> Unit) {
                 Text("Copiar para " + if (canvasTab) "XNotes" else "XCanvas")
             }
             }
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(6.dp),
-            ) {
-                Chip("xnote", selected = !canvasTab) { showTab(false) }
-                Chip("xcanvas", selected = canvasTab) { showTab(true) }
-                Spacer(Modifier.weight(1f))
-                Box {
-                    TextButton(onClick = { barMenuExpanded = true },
-                        modifier = Modifier.widthIn(max = 120.dp)) {
-                        Text("${currentBar.name} ▾", maxLines = 1, overflow = TextOverflow.Ellipsis)
-                    }
-                    DropdownMenu(
-                        expanded = barMenuExpanded,
-                        onDismissRequest = { barMenuExpanded = false },
-                    ) {
-                        workspace.bars.forEachIndexed { index, bar ->
+            if (toolbarPropertyTab != ToolbarPropertyTab.DOCUMENT_TABS) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(6.dp),
+                ) {
+                    Chip("xnote", selected = !canvasTab) { showTab(false) }
+                    Chip("xcanvas", selected = canvasTab) { showTab(true) }
+                    Spacer(Modifier.weight(1f))
+                    Box {
+                        TextButton(onClick = { barMenuExpanded = true },
+                            modifier = Modifier.widthIn(max = 120.dp)) {
+                            Text("${currentBar.name} ▾", maxLines = 1, overflow = TextOverflow.Ellipsis)
+                        }
+                        DropdownMenu(
+                            expanded = barMenuExpanded,
+                            onDismissRequest = { barMenuExpanded = false },
+                        ) {
+                            workspace.bars.forEachIndexed { index, bar ->
+                                DropdownMenuItem(
+                                    text = { Text("${index + 1}. ${bar.name}") },
+                                    onClick = {
+                                        showBar(bar.id)
+                                        barMenuExpanded = false
+                                    },
+                                )
+                            }
+                            HorizontalDivider()
                             DropdownMenuItem(
-                                text = { Text("${index + 1}. ${bar.name}") },
+                                text = { Text(stringResource(R.string.reset)) },
                                 onClick = {
-                                    showBar(bar.id)
+                                    val candidate = planToolbarReset(editedWorkspace(), selectedBar().id,
+                                        editedContext(), prefs.toolbarLook,
+                                        screenConfiguration.screenWidthDp.dp, screenConfiguration.screenHeightDp.dp,
+                                        editor.toolbarColorCount)
+                                    if (candidate == null) {
+                                        dockError = "O padrão não cabe junto das outras barras. Reduza ou mova as barras antes de restaurar."
+                                    } else {
+                                        dockError = null
+                                        applyEdited(candidate.bars.first { it.id == selectedBar().id }.layout)
+                                        toolbarInteraction.resetForSelectionChange()
+                                    }
                                     barMenuExpanded = false
                                 },
                             )
                         }
-                        HorizontalDivider()
-                        DropdownMenuItem(
-                            text = { Text(stringResource(R.string.reset)) },
-                            onClick = {
-                                val candidate = planToolbarReset(editedWorkspace(), selectedBar().id,
-                                    editedContext(), prefs.toolbarLook,
-                                    screenConfiguration.screenWidthDp.dp, screenConfiguration.screenHeightDp.dp,
-                                    editor.toolbarColorCount)
-                                if (candidate == null) {
-                                    dockError = "O padrão não cabe junto das outras barras. Reduza ou mova as barras antes de restaurar."
-                                } else {
-                                    dockError = null
-                                    applyEdited(candidate.bars.first { it.id == selectedBar().id }.layout)
-                                    toolbarInteraction.resetForSelectionChange()
-                                }
-                                barMenuExpanded = false
-                            },
-                        )
                     }
-                }
-                TextButton(onClick = {
-                    workspaceLibrary.show(editor.toolbarWorkspacePresets)
-                }) { Text("Workspaces ▾", maxLines = 1) }
-                Box {
-                    IconButton(onClick = { toolbarActionsExpanded = true }) {
-                        Icon(XnotesIcons.more, "Criar, duplicar ou copiar barra")
-                    }
-                    DropdownMenu(
-                        expanded = toolbarActionsExpanded,
-                        onDismissRequest = { toolbarActionsExpanded = false },
-                    ) {
-                        Column(Modifier.widthIn(min = 290.dp).padding(8.dp)) {
-                            toolbarActions()
+                    TextButton(onClick = {
+                        workspaceLibrary.show(editor.toolbarWorkspacePresets)
+                    }) { Text("Workspaces ▾", maxLines = 1) }
+                    Box {
+                        IconButton(onClick = { toolbarActionsExpanded = true }) {
+                            Icon(XnotesIcons.more, "Criar, duplicar ou copiar barra")
+                        }
+                        DropdownMenu(
+                            expanded = toolbarActionsExpanded,
+                            onDismissRequest = { toolbarActionsExpanded = false },
+                        ) {
+                            Column(Modifier.widthIn(min = 290.dp).padding(8.dp)) {
+                                toolbarActions()
+                            }
                         }
                     }
                 }
+                dockError?.let { Text(it, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall) }
             }
-            dockError?.let { Text(it, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall) }
             val barSize = if (currentBar.id == workspace.bars.first().id) prefs.toolbarLook.size
                 else when (currentBar.geometry.scale) {
                     com.xnotes.core.tools.ToolbarScale.COMPACT -> ToolbarSize.COMPACT
@@ -471,7 +473,11 @@ internal fun ToolbarPreferencesPane(editor: Editor, onBack: () -> Unit) {
             val preview: @Composable () -> Unit = {
                 ToolbarWorkspacePreview(
                     documentTabsConfig = prefs.documentTabsBar,
-                    onMoveDocumentTabs = { anchor -> updateHome(prefs.copy(documentTabsBar = prefs.documentTabsBar.movedTo(anchor))) },
+                    onMoveDocumentTabs = { anchor ->
+                        toolbarPropertyTab = ToolbarPropertyTab.DOCUMENT_TABS
+                        selectedEntry = null
+                        updateHome(prefs.copy(documentTabsBar = prefs.documentTabsBar.movedTo(anchor)))
+                    },
                     workspace = workspace.onlyItems(if (canvasTab) ToolbarLayout.CANVAS_ITEMS else ToolbarLayout.NOTE_ITEMS),
                     look = prefs.toolbarLook,
                     selectedId = currentBar.id,
@@ -501,9 +507,10 @@ internal fun ToolbarPreferencesPane(editor: Editor, onBack: () -> Unit) {
                 )
             }
             val propertyTabs: @Composable () -> Unit = {
-                Row(
-                    Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
+                FlowRow(
+                    Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.spacedBy(6.dp),
+                    verticalArrangement = Arrangement.spacedBy(6.dp),
                 ) {
                     Chip("Barras", toolbarPropertyTab == ToolbarPropertyTab.BARS) {
                         selectedEntry = null
@@ -516,6 +523,10 @@ internal fun ToolbarPreferencesPane(editor: Editor, onBack: () -> Unit) {
                     Chip("Elementos", toolbarPropertyTab == ToolbarPropertyTab.ELEMENTS) {
                         toolbarPropertyTab = ToolbarPropertyTab.ELEMENTS
                     }
+                    Chip("Barra de abas", toolbarPropertyTab == ToolbarPropertyTab.DOCUMENT_TABS) {
+                        selectedEntry = null
+                        toolbarPropertyTab = ToolbarPropertyTab.DOCUMENT_TABS
+                    }
                  }
             }
             val inspector: @Composable () -> Unit = {
@@ -527,6 +538,13 @@ internal fun ToolbarPreferencesPane(editor: Editor, onBack: () -> Unit) {
                             toolbarElementsScroll else toolbarPropertiesScroll),
                     verticalArrangement = Arrangement.spacedBy(8.dp),
                 ) {
+                    if (toolbarPropertyTab == ToolbarPropertyTab.DOCUMENT_TABS) {
+                        Text("Estas configurações valem para XNotes e XCanvas.",
+                            style = MaterialTheme.typography.bodySmall, color = palette.textDim.toComposeColor())
+                        DocumentTabsBarControls(prefs.documentTabsBar, prefs.documentTabsMode == "expanded",
+                            onConfig = { updateHome(prefs.copy(documentTabsBar = it)) },
+                            onInitiallyExpanded = { updateHome(prefs.copy(documentTabsMode = if (it) "expanded" else "compact")) })
+                    }
                     if (toolbarPropertyTab == ToolbarPropertyTab.ELEMENTS) {
                         ToolbarElementsEditor(
                             layout = layout,
@@ -605,9 +623,6 @@ internal fun ToolbarPreferencesPane(editor: Editor, onBack: () -> Unit) {
             Box(Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
                 Box(Modifier.widthIn(max = if (previewExpanded) 680.dp else 390.dp)) { preview() }
             }
-            DocumentTabsBarControls(prefs.documentTabsBar, prefs.documentTabsMode == "expanded",
-                onConfig = { updateHome(prefs.copy(documentTabsBar = it)) },
-                onInitiallyExpanded = { updateHome(prefs.copy(documentTabsMode = if (it) "expanded" else "compact")) })
             propertyTabs()
             inspector()
 
