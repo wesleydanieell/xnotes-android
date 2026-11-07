@@ -83,7 +83,6 @@ val ToolbarItem.labelRes: Int
     get() = when (this) {
         ToolbarItem.HOME -> R.string.toolbar_home
         ToolbarItem.TITLE -> R.string.toolbar_title
-        ToolbarItem.DOCUMENT_TABS -> R.string.toolbar_document_tabs
         ToolbarItem.SIDEBAR -> R.string.toolbar_sidebar
         ToolbarItem.PEN -> R.string.tool_pen
         ToolbarItem.DASHED -> R.string.tool_dashed

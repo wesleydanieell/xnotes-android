@@ -20,12 +20,16 @@ internal class ToolbarHitAreas {
     fun bounds(): List<Rect> = areas.values.toList()
 }
 
+internal val LocalGlobalToolHitAreas = compositionLocalOf<ToolbarHitAreas?> { null }
+internal val LocalDocumentTabsHitAreas = compositionLocalOf<ToolbarHitAreas?> { null }
+
 internal val LocalToolbarHitAreas = compositionLocalOf<ToolbarHitAreas?> { null }
 
 @Composable
 internal fun ToolbarHitArea(modifier: Modifier = Modifier, content: @Composable () -> Unit) {
     val areas = LocalToolbarHitAreas.current
+    val global = LocalGlobalToolHitAreas.current
     val key = remember { Any() }
-    DisposableEffect(areas, key) { onDispose { areas?.remove(key) } }
-    Box(modifier.onGloballyPositioned { areas?.update(key, it.boundsInWindow()) }) { content() }
+    DisposableEffect(areas, global, key) { onDispose { areas?.remove(key); global?.remove(key) } }
+    Box(modifier.onGloballyPositioned { areas?.update(key, it.boundsInWindow()); global?.update(key, it.boundsInWindow()) }) { content() }
 }

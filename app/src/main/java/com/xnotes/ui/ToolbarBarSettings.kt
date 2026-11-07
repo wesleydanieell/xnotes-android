@@ -216,7 +216,7 @@ private fun ToolbarSettingsLabel(text: String) {
 }
 
 @Composable
-private fun ToolbarAnchorGrid(
+internal fun ToolbarAnchorGrid(
     selected: ToolbarAnchor,
     docked: Boolean = false,
     onSelect: (ToolbarAnchor) -> Unit,

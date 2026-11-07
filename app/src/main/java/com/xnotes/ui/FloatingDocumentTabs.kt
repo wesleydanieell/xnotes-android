@@ -1,6 +1,11 @@
 package com.xnotes.ui
 
-import androidx.compose.animation.animateContentSize
+import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.SizeTransform
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.togetherWith
+import androidx.compose.animation.core.tween
 import androidx.compose.animation.core.spring
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -52,6 +57,8 @@ fun FloatingDocumentTabs(
     modifier: Modifier = Modifier,
     expandedWidth: Dp? = null,
     embedded: Boolean = false,
+    selection: DocumentTabsSelectionState? = null,
+    vertical: Boolean = false,
 ) {
     val palette = LocalPalette.current
     val shape = MaterialTheme.shapes.extraLarge
@@ -62,28 +69,47 @@ fun FloatingDocumentTabs(
     Column(
         modifier.then(if (embedded) Modifier else Modifier.shadow(5.dp, shape).clip(shape)
             .background(palette.panel.toComposeColor())
-            .border(1.dp, palette.border.toComposeColor(), shape))
-            .animateContentSize(animationSpec = spring(stiffness = androidx.compose.animation.core.Spring.StiffnessMediumLow)),
+            .border(1.dp, palette.border.toComposeColor(), shape)),
     ) {
-        if (expanded) {
-            Box(Modifier.width(maxWidth).height(42.dp)) {
+        AnimatedContent(
+            targetState = expanded,
+            transitionSpec = {
+                (fadeIn(tween(150)) togetherWith fadeOut(tween(120))).using(
+                    SizeTransform(clip = true, sizeAnimationSpec = { _, _ ->
+                        spring(stiffness = androidx.compose.animation.core.Spring.StiffnessMediumLow)
+                    }),
+                )
+            },
+            contentAlignment = Alignment.CenterStart,
+            label = "documentTabsExpansion",
+        ) { shownExpanded ->
+        if (shownExpanded) {
+            Box(Modifier.width(if (vertical) DOCUMENT_TABS_SIDE_WIDTH_DP.dp else maxWidth)
+                .height(if (vertical) (tabs.tabs.size * 42 + 36).coerceAtMost(360).dp else 42.dp)) {
                 NoteTabBar(tabs, activeUri,
                     onSelect = onSelect,
                     onClose = onClose,
                     onReorder = onReorder,
                     onSplit = onSplit,
-                    modifier = Modifier.padding(end = 36.dp),
+                    modifier = if (vertical) Modifier.padding(bottom = 36.dp) else Modifier.padding(end = 36.dp),
+                    vertical = vertical,
                     floatingSurface = true,
                     dropArea = dropArea,
+                    selection = selection,
                 )
                 Box(
-                    Modifier.align(Alignment.CenterEnd).size(36.dp)
+                    Modifier.align(if (vertical) Alignment.BottomCenter else Alignment.CenterEnd).size(36.dp)
                         .clickable { onExpandedChange(false) },
                     contentAlignment = Alignment.Center,
                 ) {
                     Icon(Icons.Filled.KeyboardArrowUp, contentDescription = "Collapse document tabs",
                         modifier = Modifier.size(20.dp), tint = palette.textDim.toComposeColor())
                 }
+            }
+        } else if (vertical) {
+            ToolbarIcon(com.xnotes.ui.icons.XnotesIcons.bookmark,
+                androidx.compose.ui.res.stringResource(com.xnotes.R.string.toolbar_document_tabs)) {
+                onExpandedChange(true)
             }
         } else {
             Row(
@@ -106,6 +132,7 @@ fun FloatingDocumentTabs(
                 Icon(Icons.Filled.KeyboardArrowDown, contentDescription = "Expand document tabs",
                     modifier = Modifier.size(18.dp), tint = palette.textDim.toComposeColor())
             }
+        }
         }
     }
 }
