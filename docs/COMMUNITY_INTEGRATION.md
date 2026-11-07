@@ -18,3 +18,17 @@ split readers, sync, navigation, toolbar customizations and stylus on test files
 Package ID stays `com.neddy.nnotes.community`. Updating an existing installation
 requires its original signing key. Local community APKs are unsigned when
 `keystore.properties` is absent; do not uninstall to bypass a signature mismatch.
+
+## Validation — 2026-11-06
+
+- 2,729 JVM tests passed, zero failures/errors/skips; `assembleCommunity` passed.
+  The concurrent build exhausted its previous heap; sequential compilation with
+  an in-process 4 GB heap passed both debug and community Kotlin compilation.
+- Community APK signed with the same local Android Debug certificate already on
+  Redmi Pad 2. `adb install -r` succeeded; the installed version is
+  `0.9.7-0.53-community`, versionCode 106. App launched with a live PID and no
+  fatal exception in its startup logs. Package ID and signing certificate match
+  the previous installation; no uninstall or app-data reset was performed.
+- The emulator was closed at the user's request. No completed animation/gesture
+  smoke test or stylus QA is claimed. Existing animations and gestures are reused
+  by the toolbar element, and their existing model/drop tests remain enabled.

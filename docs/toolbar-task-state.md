@@ -9,7 +9,8 @@
   cloud-sync UI are retained. The same animated switcher is an optional element
   for any note/canvas toolbar, including a separate movable tabs-only bar.
 - 2,729 JVM tests passed without failures/errors/skips. Both debug and community
-  Kotlin compilation passed. Final APK packaging/install evidence is recorded
+  Kotlin compilation passed. Community APK assembled, signed with the matching existing key and updated
+  on Redmi Pad 2 using install -r; launch check passed. Details are recorded
   in `COMMUNITY_INTEGRATION.md`.
 - Builds are run sequentially on this machine; concurrent variant compilation
   exhausted the old heap. Reproducible local command:
