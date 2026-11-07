@@ -165,7 +165,15 @@ fun PreferencesPane(
     focusSync: Boolean = false,
     onSyncFocused: () -> Unit = {},
     onBackup: (export: Boolean) -> Unit = {},
+    openToolbarEditor: Boolean = false,
 ) {
+    var dedicatedToolbarOpen by rememberSaveable { mutableStateOf(openToolbarEditor) }
+    LaunchedEffect(openToolbarEditor) { if (openToolbarEditor) dedicatedToolbarOpen = true }
+    if (dedicatedToolbarOpen) {
+        BackHandler { dedicatedToolbarOpen = false }
+        ToolbarPreferencesPane(editor, onBack = { dedicatedToolbarOpen = false })
+        return
+    }
     val palette = LocalPalette.current
     val focusManager = LocalFocusManager.current
     var prefs by remember { mutableStateOf(editor.preferences) }
@@ -216,50 +224,9 @@ fun PreferencesPane(
     }
     LaunchedEffect(category) { scrollState.scrollTo(0) }
     BackHandler(enabled = categorized && category != null) { category = null }
-    // Which bar the toolbar section is arranging. The two are separate layouts, so the drag state
-    // below always belongs to whichever is on screen.
-    var canvasTab by remember { mutableStateOf(false) }
-    val layout = if (canvasTab) editor.canvasToolbarLayout else editor.toolbarLayout
-    // Toolbar drag state, hoisted here so the floating "ghost" chip can be drawn at the pane
-    // root (above and outside the scroll, so it is never clipped). Bounds are plain maps read
-    // only at drag time; observable state is just the dragged item, finger, and drop slot.
-    var dragItem by remember { mutableStateOf<ToolbarItem?>(null) }
-    var dragFinger by remember { mutableStateOf(Offset.Zero) }
-    var dragGrab by remember { mutableStateOf(Offset.Zero) }
-    var dropTarget by remember { mutableStateOf<Pair<Int, Int>?>(null) }
-    val chipBounds = remember { mutableMapOf<ToolbarItem, Rect>() }
-    val sectionBounds = remember { mutableMapOf<Int, Rect>() }
-    val sectionGrabBounds = remember { mutableMapOf<Int, Rect>() }
-    // Section-drag state (the whole card, by its grip handle); shares the finger/grab with the
-    // chip drag since only one gesture runs at a time. The drop slot is an insertion index.
-    var dragSection by remember { mutableStateOf<Int?>(null) }
-    var sectionDropTarget by remember { mutableStateOf<Int?>(null) }
     val reorder = remember { KeyReorder() }
     var paneTopLeft by remember { mutableStateOf(Offset.Zero) }
     var viewport by remember { mutableStateOf(Rect.Zero) }
-    fun editedLayout(): ToolbarLayout = if (canvasTab) editor.canvasToolbarLayout else editor.toolbarLayout
-    fun applyEdited(next: ToolbarLayout) {
-        if (canvasTab) editor.applyCanvasToolbarLayout(next) else editor.applyToolbarLayout(next)
-    }
-    fun retarget() {
-        dropTarget = toolbarDropTarget(editedLayout(), dragFinger, chipBounds, sectionBounds)
-    }
-    fun retargetSection() {
-        sectionDropTarget = toolbarSectionDropTarget(editedLayout(), dragFinger, sectionBounds)
-    }
-    fun showTab(canvas: Boolean) {
-        if (canvasTab == canvas) return
-        canvasTab = canvas
-        // The bounds maps are keyed by item and the two bars share most items, so stale entries
-        // from the other tab would aim a drop at a chip that is no longer there.
-        chipBounds.clear()
-        sectionBounds.clear()
-        sectionGrabBounds.clear()
-        dragItem = null
-        dragSection = null
-        dropTarget = null
-        sectionDropTarget = null
-    }
 
     // A tap on empty space dismisses the template field's focus; children consume their own taps.
     Box(
@@ -735,134 +702,9 @@ fun PreferencesPane(
             if (shown(PrefCategory.TOOLBAR)) {
                 if (all) HorizontalDivider(color = palette.border.toComposeColor())
                 if (all) SectionTitle(stringResource(R.string.pref_toolbar))
-                // The look, like the swatch count below, is one setting for both bars.
-                val look = prefs.toolbarLook
-                FieldLabel(stringResource(R.string.pref_toolbar_style))
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Chip(stringResource(R.string.toolbar_docked), !look.floating) { updateHome(prefs.copy(toolbarLook = look.copy(floating = false))) }
-                    Chip(stringResource(R.string.toolbar_floating), look.floating) { updateHome(prefs.copy(toolbarLook = look.copy(floating = true))) }
+                TextButton(onClick = { dedicatedToolbarOpen = true }) {
+                    Text(stringResource(R.string.toolbar_configure))
                 }
-                FieldLabel(stringResource(R.string.pref_toolbar_position))
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    for ((position, label) in listOf(
-                        ToolbarPosition.TOP to R.string.edge_top,
-                        ToolbarPosition.BOTTOM to R.string.edge_bottom,
-                        ToolbarPosition.LEFT to R.string.edge_left,
-                        ToolbarPosition.RIGHT to R.string.edge_right,
-                    )) {
-                        Chip(stringResource(label), look.position == position) { updateHome(prefs.copy(toolbarLook = look.copy(position = position))) }
-                    }
-                }
-                FieldLabel(stringResource(R.string.pref_toolbar_size))
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    for ((size, label) in listOf(
-                        ToolbarSize.COMPACT to R.string.toolbar_size_compact,
-                        ToolbarSize.REGULAR to R.string.toolbar_size_regular,
-                        ToolbarSize.COMFORTABLE to R.string.toolbar_size_comfortable,
-                    )) {
-                        Chip(stringResource(label), look.size == size) { updateHome(prefs.copy(toolbarLook = look.copy(size = size))) }
-                    }
-                }
-                FieldLabel(stringResource(R.string.pref_document_tabs_mode))
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    for ((mode, label) in listOf(
-                        "auto" to R.string.document_tabs_auto,
-                        "compact" to R.string.document_tabs_compact,
-                        "expanded" to R.string.document_tabs_expanded,
-                    )) {
-                        Chip(stringResource(label), prefs.documentTabsMode == mode) {
-                            updateHome(prefs.copy(documentTabsMode = mode))
-                        }
-                    }
-                }
-                FieldLabel(stringResource(R.string.pref_toolbar_colours_n, editor.toolbarColorCount))
-                Slider(
-                    value = editor.toolbarColorCount.toFloat(),
-                    onValueChange = { editor.applyToolbarColorCount(Math.round(it)) },
-                    valueRange = 1f..InkPalette.MAX_SWATCHES.toFloat(),
-                    steps = InkPalette.MAX_SWATCHES - 2,
-                    modifier = Modifier.width(280.dp),
-                )
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(6.dp),
-                ) {
-                    Chip("xnote", selected = !canvasTab) { showTab(false) }
-                    Chip("xcanvas", selected = canvasTab) { showTab(true) }
-                    Spacer(Modifier.weight(1f))
-                    TextButton(
-                        onClick = {
-                            applyEdited(if (canvasTab) ToolbarLayout.CANVAS_DEFAULT else ToolbarLayout.DEFAULT)
-                        },
-                    ) { Text(stringResource(R.string.reset), fontSize = 13.sp) }
-                }
-                Text(
-                    stringResource(R.string.pref_toolbar_help),
-                    color = palette.textDim.toComposeColor(),
-                    fontSize = 12.sp,
-                )
-                ToolbarCustomizerBody(
-                    layout = layout,
-                    dragItem = dragItem,
-                    dropTarget = dropTarget,
-                    dragSection = dragSection,
-                    sectionDropTarget = sectionDropTarget,
-                    chipBounds = chipBounds,
-                    sectionBounds = sectionBounds,
-                    sectionGrabBounds = sectionGrabBounds,
-                    onToggle = { s, i -> applyEdited(editedLayout().toggleVisible(s, i)) },
-                    onDelete = { s -> applyEdited(editedLayout().removeSection(s)) },
-                    onAdd = { applyEdited(editedLayout().addSection()) },
-                    onDragStart = { item, local ->
-                        dragItem = item
-                        dragGrab = local
-                        dragFinger = (chipBounds[item]?.topLeft ?: Offset.Zero) + local
-                        retarget()
-                    },
-                    onDrag = { delta -> dragFinger += delta; retarget() },
-                    onDrop = {
-                        val target = dropTarget
-                        val moving = dragItem
-                        if (target != null && moving != null) {
-                            val cur = editedLayout()
-                            val fSec = cur.sections.indexOfFirst { s -> s.entries.any { it.item == moving } }
-                            val fIdx = if (fSec >= 0) cur.sections[fSec].entries.indexOfFirst { it.item == moving } else -1
-                            if (fSec >= 0 && fIdx >= 0) {
-                                applyEdited(cur.moveItem(fSec, fIdx, target.first, target.second))
-                            }
-                        }
-                        dragItem = null
-                        dropTarget = null
-                    },
-                    onCancel = {
-                        dragItem = null
-                        dropTarget = null
-                    },
-                    onSectionDragStart = { sec, local ->
-                        dragSection = sec
-                        val grab = sectionGrabBounds[sec]?.topLeft ?: sectionBounds[sec]?.topLeft ?: Offset.Zero
-                        val card = sectionBounds[sec]?.topLeft ?: Offset.Zero
-                        dragFinger = grab + local
-                        dragGrab = dragFinger - card
-                        retargetSection()
-                    },
-                    onSectionDrag = { delta -> dragFinger += delta; retargetSection() },
-                    onSectionDrop = {
-                        val from = dragSection
-                        val insertAt = sectionDropTarget
-                        if (from != null && insertAt != null) {
-                            val cur = editedLayout()
-                            val to = (if (insertAt > from) insertAt - 1 else insertAt).coerceIn(0, cur.sections.lastIndex)
-                            if (to != from) applyEdited(cur.moveSection(from, to))
-                        }
-                        dragSection = null
-                        sectionDropTarget = null
-                    },
-                    onSectionCancel = {
-                        dragSection = null
-                        sectionDropTarget = null
-                    },
-                )
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     FieldLabel(stringResource(R.string.pref_hidden_shapes))
                     Spacer(Modifier.weight(1f))
@@ -944,41 +786,21 @@ fun PreferencesPane(
         }
         }
     }
-        // The dragged chip/section's floating copy: a pane-root sibling so the scroll never clips it.
-        val gx = (dragFinger.x - dragGrab.x - paneTopLeft.x).toInt()
-        val gy = (dragFinger.y - dragGrab.y - paneTopLeft.y).toInt()
-        val ghostChip = dragItem
-        val ghostSecIdx = dragSection
         if (reorder.dragging != null) {
             val f = reorder.finger - reorder.grab - paneTopLeft
             Box(Modifier.offset { IntOffset(f.x.toInt(), f.y.toInt()) }) { reorder.ghost() }
-        } else if (ghostChip != null) {
-            Box(Modifier.offset { IntOffset(gx, gy) }) { ToolbarDragGhost(ghostChip) }
-        } else if (ghostSecIdx != null) {
-            val sectionG = (if (canvasTab) editor.canvasToolbarLayout else editor.toolbarLayout)
-                .sections.getOrNull(ghostSecIdx)
-            val widthG = sectionBounds[ghostSecIdx]?.width
-            if (sectionG != null && widthG != null) {
-                Box(Modifier.offset { IntOffset(gx, gy) }) { SectionCardGhost(sectionG, widthG) }
-            }
         }
     }
-
-    // While dragging near a vertical edge of the scroll viewport, ease the list along so items
-    // off-screen can be reached without lifting the finger.
-    LaunchedEffect(dragItem != null || dragSection != null || reorder.dragging != null) {
-        while (dragItem != null || dragSection != null || reorder.dragging != null) {
+    LaunchedEffect(reorder.dragging != null) {
+        while (reorder.dragging != null) {
             val band = 90f
-            val y = if (reorder.dragging != null) reorder.finger.y else dragFinger.y
+            val y = reorder.finger.y
             val delta = when {
                 y < viewport.top + band -> -((viewport.top + band - y) / band) * 14f
                 y > viewport.bottom - band -> ((y - (viewport.bottom - band)) / band) * 14f
                 else -> 0f
             }
-            if (delta != 0f) {
-                scrollState.scrollBy(delta)
-                if (reorder.dragging != null) reorder.retarget() else if (dragItem != null) retarget() else retargetSection()
-            }
+            if (delta != 0f) { scrollState.scrollBy(delta); reorder.retarget() }
             delay(16L)
         }
     }

@@ -75,6 +75,8 @@ import com.xnotes.R
 import com.xnotes.core.model.Rgba
 import com.xnotes.core.tools.Tool
 import com.xnotes.core.tools.ToolbarItem
+import com.xnotes.core.tools.ToolbarGeometry
+import com.xnotes.core.tools.ToolbarLayout
 import com.xnotes.platform.ImageDecoder
 import com.xnotes.ui.icons.XnotesIcons
 import com.xnotes.ui.theme.LocalPalette
@@ -101,6 +103,9 @@ fun Toolbar(
     onRecordAudio: () -> Unit = {},
     onTakePhoto: () -> Unit = {},
     onImagePage: () -> Unit = {},
+    onConfigureToolbars: () -> Unit = {},
+    layout: ToolbarLayout = editor.toolbarLayout,
+    geometry: ToolbarGeometry? = null,
 ) {
     // The five stroke tools use the designed vector drawables (res/drawable/ic_stroke_*),
     // tinted at the call site like every other icon; the rest use the built-in line set.
@@ -130,7 +135,8 @@ fun Toolbar(
     @Composable
     fun Item(item: ToolbarItem) = ToolbarItemView(
         editor = editor,
-        item = item,
+        entry = com.xnotes.core.tools.ToolbarEntry(item),
+        onConfigureToolbars = onConfigureToolbars,
         toolIcons = toolIcons,
         configForTool = configForTool,
         setConfigForTool = { configForTool = it },
@@ -151,6 +157,8 @@ fun Toolbar(
         // The file reader's bar for a note: where you are and how you see it, and the way back to editing.
         ToolbarFrame(
             armed = null,
+            layout = layout,
+            geometry = geometry,
             trailing = {
                 ToolbarIcon(Icons.Outlined.AutoStories, stringResource(R.string.reader_exit), active = true) { editor.exitReader() }
                 onClosePane?.let { ClosePaneButton(it) }
@@ -158,6 +166,7 @@ fun Toolbar(
         ) {
             Item(ToolbarItem.HOME)
             Item(ToolbarItem.TITLE)
+            if (layout.visibleSections.any { section -> section.visibleEntries.any { it.item == ToolbarItem.DOCUMENT_TABS } }) Item(ToolbarItem.DOCUMENT_TABS)
             Separator()
             Item(ToolbarItem.SIDEBAR)
             Separator()
@@ -173,15 +182,36 @@ fun Toolbar(
             Item(ToolbarItem.FULLSCREEN)
         }
     } else {
-        // Pinned outside the scrolling strip so closing a split pane is always one tap away.
-        ToolbarFrame(armed = editor.tool, trailing = onClosePane?.let { { ClosePaneButton(it) } }) {
-            // The bar is driven by the user-customisable layout; separators sit between non-empty
-            // sections, and each item dispatches to its renderer (see ToolbarItemView).
-            editor.toolbarLayout.visibleSections.forEachIndexed { si, section ->
-                if (si > 0) Separator()
-                section.visibleEntries.forEach { entry -> Item(entry.item) }
+    // Pinned outside the scrolling strip so closing a split pane is always one tap away.
+    ToolbarFrame(armed = editor.tool, layout = layout, geometry = geometry, trailing = onClosePane?.let { { ClosePaneButton(it) } }) {
+        // The bar is driven by the user-customisable layout; separators sit between non-empty
+        // sections, and each item dispatches to its renderer (see ToolbarItemView).
+        ToolbarSections(layout) { _, section ->
+            ToolbarSectionGrid(section) { entry ->
+                ToolbarItemView(
+                    editor = editor,
+                    entry = entry,
+                    toolIcons = toolIcons,
+                    configForTool = configForTool,
+                    setConfigForTool = { configForTool = it },
+                    switcherIndex = switcherIndex,
+                    setSwitcherIndex = { switcherIndex = it },
+                    onRename = { renaming = true },
+                    onOpenBackstage = onOpenBackstage,
+                    onConfigureToolbars = onConfigureToolbars,
+                    onInsertImage = onInsertImage,
+                    onAddStickers = onAddStickers,
+                    onToggleFullscreen = onToggleFullscreen,
+                    onImportTemplate = onImportTemplate,
+                    onInsertAudio = onInsertAudio,
+                    onRecordAudio = onRecordAudio,
+                    onTakePhoto = onTakePhoto,
+                    onImagePage = onImagePage,
+                )
             }
         }
+    }
+
     }
 
     if (renaming) {
@@ -201,7 +231,7 @@ fun Toolbar(
 @Composable
 private fun ToolbarItemView(
     editor: Editor,
-    item: ToolbarItem,
+    entry: com.xnotes.core.tools.ToolbarEntry,
     toolIcons: Map<Tool, ImageVector>,
     configForTool: Tool?,
     setConfigForTool: (Tool?) -> Unit,
@@ -209,6 +239,7 @@ private fun ToolbarItemView(
     setSwitcherIndex: (Int?) -> Unit,
     onRename: () -> Unit,
     onOpenBackstage: () -> Unit,
+    onConfigureToolbars: () -> Unit,
     onInsertImage: () -> Unit,
     onTakePhoto: () -> Unit,
     onImagePage: () -> Unit,
@@ -218,9 +249,11 @@ private fun ToolbarItemView(
     onInsertAudio: () -> Unit,
     onRecordAudio: () -> Unit,
 ) {
-    when (item) {
+    when (val item = entry.item) {
         // Canvas-only items; a stored paged layout can never hold one, so nothing is drawn.
         ToolbarItem.WAYPOINTS, ToolbarItem.MINIMAP -> Unit
+        ToolbarItem.SPACER -> ToolbarSpacer(entry)
+        ToolbarItem.DOCUMENT_TABS -> ToolbarDocumentTabs()
 
         ToolbarItem.HOME -> ToolbarIcon(XnotesIcons.prev, stringResource(R.string.toolbar_home)) { onOpenBackstage() }
         // A name has no room down a side rail.
@@ -237,6 +270,14 @@ private fun ToolbarItemView(
             ToolbarIcon(Icons.Outlined.AutoStories, stringResource(R.string.tool_reader)) { editor.enterReader() }
         ToolbarItem.SIDEBAR ->
             ToolbarIcon(XnotesIcons.sidebar, stringResource(R.string.side_panel), active = editor.sidebarVisible, shortcut = Keys.SIDEBAR) { editor.toggleSidebar() }
+
+        ToolbarItem.UNIFIED_PEN -> UnifiedPenLauncher(
+            host = editor,
+            armedTool = editor.tool,
+            ink = editor.toolbarColors[editor.activeColorIndex.coerceIn(0, editor.toolbarColors.lastIndex)].toComposeColor(),
+            onChooseTool = editor::selectTool,
+            onSelectColor = editor::pickColor,
+        )
 
         ToolbarItem.PEN, ToolbarItem.DASHED, ToolbarItem.CALLIGRAPHY, ToolbarItem.SPEED,
         ToolbarItem.TAPER, ToolbarItem.HIGHLIGHTER, ToolbarItem.ERASER, ToolbarItem.PAN,
@@ -285,7 +326,7 @@ private fun ToolbarItemView(
         }
         ToolbarItem.STYLES -> StylesButton(editor, onImportTemplate)
         ToolbarItem.MARGINS -> MarginsButton(editor)
-        ToolbarItem.VIEW -> ViewButton(editor)
+        ToolbarItem.VIEW -> ViewButton(editor, onConfigureToolbars)
 
         ToolbarItem.ZOOM -> {
             ToolbarIcon(XnotesIcons.zoomOut, stringResource(R.string.zoom_out), enabled = !editor.zoomLocked, shortcut = Keys.ZOOM_OUT) { editor.zoomOut() }
@@ -312,7 +353,8 @@ private fun ToolbarItemView(
 
         ToolbarItem.FULLSCREEN -> ToolbarIcon(XnotesIcons.fullscreen, stringResource(R.string.toolbar_fullscreen), shortcut = Keys.FULLSCREEN) { onToggleFullscreen() }
 
-        ToolbarItem.COLORS -> editor.toolbarColors.take(editor.toolbarColorCount).forEachIndexed { i, color ->
+        ToolbarItem.COLORS -> entry.colorIndices(editor.toolbarColorCount).forEach { i ->
+            val color = editor.toolbarColors[i]
             Box {
                 Swatch(
                     color = color.toComposeColor(),
@@ -429,11 +471,11 @@ private fun MarginsButton(editor: Editor) {
 
 /** Opens the view menu (viewing mode, scroll direction, free movement, PDF filters, rotation, scrollbar). */
 @Composable
-private fun ViewButton(editor: Editor) {
+private fun ViewButton(editor: Editor, onConfigureToolbars: () -> Unit) {
     var open by remember { mutableStateOf(false) }
     Box {
         ToolbarIcon(XnotesIcons.view, stringResource(R.string.toolbar_view)) { open = true }
-        if (open) ViewMenuPopup(editor) { open = false }
+        if (open) ViewMenuPopup(editor, onConfigureToolbars) { open = false }
     }
 }
 
@@ -443,8 +485,10 @@ private const val SELECT_FADE_MS = 150
  * The armed-tool circle of one bar, drawn once behind the row so it can glide from the old tool to
  * the new one. Tool buttons report their centres here and the row paints the circle.
  */
+internal data class ToolGlideTarget(val center: Offset, val radiusPx: Float)
+
 internal class ToolGlide {
-    val centers = mutableStateMapOf<Any, Offset>()
+    val centers = mutableStateMapOf<Any, ToolGlideTarget>()
     var row: LayoutCoordinates? = null
 }
 
@@ -454,14 +498,19 @@ internal val LocalToolGlide = staticCompositionLocalOf<ToolGlide?> { null }
 private class GlideTrip {
     var from = 0f
     var to = 0f
-    /** Where the circle sits across the bar. */
-    var across = 0f
+    var fromAcross = 0f
+    var toAcross = 0f
+    var fromRadius = 0f
+    var toRadius = 0f
     var stretch = 0f
     /** Stretch left over from a hop cut short, let go of over the new one. */
     var carry = 0f
 
     /** Where the circle's centre is at [t] of the way: eased in and out along a half cosine. */
-    fun x(t: Float) = from + (to - from) * (1 - cos(PI * t).toFloat()) / 2
+    private fun ease(t: Float) = (1 - cos(PI * t).toFloat()) / 2
+    fun x(t: Float) = from + (to - from) * ease(t)
+    fun across(t: Float) = fromAcross + (toAcross - fromAcross) * ease(t)
+    fun radius(t: Float) = fromRadius + (toRadius - fromRadius) * ease(t)
 
     /** How drawn out it is at [t]: in step with its speed, so it swells and settles smoothly. */
     fun drawnOut(t: Float) = stretch * sin(PI * t).toFloat() + carry * (1 + cos(PI * t).toFloat()) / 2
@@ -477,7 +526,6 @@ internal fun Modifier.toolGlide(glide: ToolGlide, armed: Any?): Modifier {
     val target = glide.centers[armed]
     val density = LocalDensity.current
     val bar = LocalBar.current
-    val r = with(density) { bar.circle.toPx() / 2 }
     val trip = remember { GlideTrip() }
     val progress = remember { Animatable(1f) }
     val shown = remember { Animatable(0f) }
@@ -487,12 +535,16 @@ internal fun Modifier.toolGlide(glide: ToolGlide, armed: Any?): Modifier {
             return@LaunchedEffect
         }
         val t = progress.value
-        val along = if (bar.vertical) target.y else target.x
+        val along = if (bar.vertical) target.center.y else target.center.x
+        val across = if (bar.vertical) target.center.x else target.center.y
         trip.carry = if (shown.value == 0f) 0f else trip.drawnOut(t)
         trip.from = if (shown.value == 0f) along else trip.x(t)
         trip.to = along
-        trip.across = if (bar.vertical) target.x else target.y
-        val hopDp = abs(trip.to - trip.from) / density.density
+        trip.fromAcross = if (shown.value == 0f) across else trip.across(t)
+        trip.toAcross = across
+        trip.fromRadius = if (shown.value == 0f) target.radiusPx else trip.radius(t)
+        trip.toRadius = target.radiusPx
+        val hopDp = kotlin.math.hypot(trip.to - trip.from, trip.toAcross - trip.fromAcross) / density.density
         // Longer hops stretch further, levelling off towards the cap rather than hitting it.
         trip.stretch = with(density) { GLIDE_MAX_STRETCH.toPx() } * (1 - exp(-hopDp / GLIDE_REACH_DP))
         launch { shown.animateTo(1f, tween(SELECT_FADE_MS)) }
@@ -504,13 +556,15 @@ internal fun Modifier.toolGlide(glide: ToolGlide, armed: Any?): Modifier {
         if (shown.value == 0f) return@drawBehind
         val t = progress.value
         val x = trip.x(t)
+        val cross = trip.across(t)
+        val r = trip.radius(t)
         val s = trip.drawnOut(t)
         // The leading side takes most of the stretch, so the tail seems to trail behind.
         val ahead = if (trip.to >= trip.from) GLIDE_LEAD else 1 - GLIDE_LEAD
         val start = x - r - s * (1 - ahead)
         drawRoundRect(
             fill.copy(alpha = fill.alpha * shown.value),
-            topLeft = if (bar.vertical) Offset(trip.across - r, start) else Offset(start, trip.across - r),
+            topLeft = if (bar.vertical) Offset(cross - r, start) else Offset(start, cross - r),
             size = if (bar.vertical) Size(2 * r, 2 * r + s) else Size(2 * r + s, 2 * r),
             cornerRadius = CornerRadius(r),
         )
@@ -570,7 +624,12 @@ internal fun ToolbarIcon(
                     .then(
                         if (glide == null || glideKey == null) Modifier
                         else Modifier.onGloballyPositioned { c ->
-                            glide.row?.let { glide.centers[glideKey] = it.localPositionOf(c, Offset(c.size.width / 2f, c.size.height / 2f)) }
+                            glide.row?.let {
+                                glide.centers[glideKey] = ToolGlideTarget(
+                                    center = it.localPositionOf(c, Offset(c.size.width / 2f, c.size.height / 2f)),
+                                    radiusPx = c.size.width / 2f,
+                                )
+                            }
                         },
                     )
                     .drawBehind { if (fill > 0f) drawCircle(circle.copy(alpha = circle.alpha * fill)) },
@@ -643,7 +702,7 @@ private fun Rule() {
 
 /** "3 / 12" along the bar; down a side rail, where that is too wide, the two numbers stack. */
 @Composable
-private fun PageCounter(current: Int, count: Int, modifier: Modifier) {
+internal fun PageCounter(current: Int, count: Int, modifier: Modifier) {
     if (!LocalBar.current.vertical) {
         Label("$current / $count", modifier)
         return

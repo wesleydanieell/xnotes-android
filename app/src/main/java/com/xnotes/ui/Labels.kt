@@ -83,6 +83,7 @@ val ToolbarItem.labelRes: Int
     get() = when (this) {
         ToolbarItem.HOME -> R.string.toolbar_home
         ToolbarItem.TITLE -> R.string.toolbar_title
+        ToolbarItem.DOCUMENT_TABS -> R.string.toolbar_document_tabs
         ToolbarItem.SIDEBAR -> R.string.toolbar_sidebar
         ToolbarItem.PEN -> R.string.tool_pen
         ToolbarItem.DASHED -> R.string.tool_dashed
@@ -90,6 +91,7 @@ val ToolbarItem.labelRes: Int
         ToolbarItem.SPEED -> R.string.tool_speed
         ToolbarItem.TAPER -> R.string.tool_taper
         ToolbarItem.HIGHLIGHTER -> R.string.tool_highlighter
+        ToolbarItem.UNIFIED_PEN -> R.string.toolbar_unified_pen
         ToolbarItem.ERASER -> R.string.tool_eraser
         ToolbarItem.PAN -> R.string.tool_pan
         ToolbarItem.READER -> R.string.tool_reader
@@ -118,6 +120,7 @@ val ToolbarItem.labelRes: Int
         ToolbarItem.ZOOM_LOCK -> R.string.toolbar_zoom_lock
         ToolbarItem.FULLSCREEN -> R.string.toolbar_fullscreen
         ToolbarItem.COLORS -> R.string.toolbar_colours
+        ToolbarItem.SPACER -> R.string.toolbar_spacer
         ToolbarItem.WAYPOINTS -> R.string.toolbar_waypoints
         ToolbarItem.MINIMAP -> R.string.toolbar_minimap
     }

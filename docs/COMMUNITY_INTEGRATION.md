@@ -1,13 +1,20 @@
 # Community integration
 
-`community/n-notes` combines the reviewed n-notes base with this fork's features.
-Text rendering, tab dragging and split-view adaptations need device QA.
+This n-notes community branch includes upstream `3f7d7c2f` (0.9.7-0.53), the
+existing community features, and `feat/customizable-toolbars` at `5e786579`.
+Document tabs are optional toolbar elements; see [Document tabs](DOCUMENT_TABS_TOOLBAR.md).
 
-To update: fetch `NeDDy3z/n-notes` master, merge it into this branch, resolve conflicts
-without removing fork features, then run `:app:testDebugUnitTest :app:assembleCommunity`.
-Review the diff and exercise notes, canvases, tabs, split readers, sync and navigation
-gestures on a separate test document before installing. Push only after validation.
+The upstream history was reorganized, so the update uses already integrated
+n-notes `a164adda` as the content merge base. It preserves community tab dragging,
+split readers, external drops, incremental canvas loading and text optimizations,
+while adopting upstream sync, document links, OCR and preference improvements.
+The configurator is separate from the n-notes preference categories/search and
+reader toolbar. Original IDs, version name and community signing remain intact.
 
-The community variant uses `com.neddy.nnotes.community`, separate from n-notes.
-Updating an existing installation requires its original signing key; never uninstall
-it to work around a signature mismatch.
+To update, fetch and merge `origin/master`, review conflicts and run
+`:app:testDebugUnitTest :app:assembleCommunity`. Exercise notes, canvases, tabs,
+split readers, sync, navigation, toolbar customizations and stylus on test files.
+
+Package ID stays `com.neddy.nnotes.community`. Updating an existing installation
+requires its original signing key. Local community APKs are unsigned when
+`keystore.properties` is absent; do not uninstall to bypass a signature mismatch.
