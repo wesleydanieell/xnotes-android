@@ -2,7 +2,7 @@
 
 The XNotes community integration contains upstream `3926304a` (0.9.7), the existing
 community PR features, and `feat/customizable-toolbars` at `5e786579`. Document tabs
-are optional toolbar elements; see [Document tabs](DOCUMENT_TABS_TOOLBAR.md).
+use an independent movable navigation bar; see [Document tabs](DOCUMENT_TABS_TOOLBAR.md).
 
 The original toolbar prototype had been removed while its history remained
 merged. The new integration explicitly reapplies its complete changes from the
@@ -30,3 +30,12 @@ absent; the community release workflow signs using repository secrets.
   is claimed; physical stylus latency, rotation and the full docking matrix remain
   pending. `FloatingDocumentTabs` and `NoteTabBar` retain their existing animations
   and input handling; the new element mounts those components.
+
+## Navigation update — 2026-11-07
+
+The historical toolbar element has been replaced by independent floating/docked
+navigation with shared runtime/preview rendering. The 21 interface tests passed
+in each fork on the tablet emulator; JVM totals were 2,625 (XNotes) and 2,730
+(n-notes), without failures. Earlier element-specific validation above is
+historical. See [LLM handoff](TABS_TOOLBAR_LLM_HANDOFF.md) for the architecture,
+migration, fork differences, branch map and remaining device QA.

@@ -37,3 +37,6 @@ the same eight cases in a reduced preview, four long-press drag cases
 (runtime/preview × floating/docked), and continuous selection animation when
 the document renderer changes. Emulator success does not cover every device
 or every possible toolbar arrangement.
+
+For future maintenance and the distinction between the historical element and
+the current standalone bar, see [LLM handoff](TABS_TOOLBAR_LLM_HANDOFF.md).
