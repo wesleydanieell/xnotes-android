@@ -7,6 +7,9 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.*
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.layout.boundsInWindow
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Rect
 import com.xnotes.MainActivity
@@ -23,6 +26,8 @@ class DocumentTabsBarAnimationTest : InstrumentationTestCase() {
     private var expanded by mutableStateOf(true)
     private var uri by mutableStateOf("one")
     private var host by mutableStateOf(false)
+    private var neighbor by mutableStateOf(false)
+    private var neighborBounds = Rect.Zero
     private lateinit var motion: DocumentTabsSelectionState
     private var config by mutableStateOf(DocumentTabsBarConfig())
 
@@ -59,7 +64,10 @@ class DocumentTabsBarAnimationTest : InstrumentationTestCase() {
                         } else {
                             DocumentTabsHost(documents, config, { config = config.movedTo(it) }, Modifier.fillMaxSize()) {
                                 key(host) {
-                                    Column(Modifier.fillMaxSize()) {
+                                    if (neighbor) Box(Modifier.fillMaxSize()) {
+                                        ToolbarHitArea(Modifier.align(Alignment.TopEnd).width(180.dp).height(50.dp)
+                                            .onGloballyPositioned { neighborBounds = it.boundsInWindow() }) {}
+                                    } else Column(Modifier.fillMaxSize()) {
                                         ToolbarFrame(null, layout) { ToolbarIcon(com.xnotes.ui.icons.XnotesIcons.edit, "Tool") {} }
                                         Box(Modifier.weight(1f).fillMaxWidth())
                                     }
@@ -149,6 +157,25 @@ class DocumentTabsBarAnimationTest : InstrumentationTestCase() {
     fun testDragDockedNavigation() = dragNavigation(false, false)
     fun testDragPreviewFloatingNavigation() = dragNavigation(true, true)
     fun testDragPreviewDockedNavigation() = dragNavigation(false, true)
+
+    fun testDynamicAndManualSizingStopBeforeNeighborOnSameRow() {
+        neighbor = true
+        show(ToolbarPosition.TOP, true)
+        Thread.sleep(300)
+        val dynamic = sizes.last()
+        assertTrue("Dynamic bar must use the available row", dynamic.width > 360 * activity.resources.displayMetrics.density)
+        assertTrue("Navigation should stay beside its neighbor", dynamic.top < neighborBounds.bottom)
+        assertTrue("Dynamic navigation overlaps neighbor", dynamic.right < neighborBounds.left)
+        instrumentation.runOnMainSync { config = config.copy(sizing = DocumentTabsSizing.MANUAL, manualExtentDp = 240) }
+        Thread.sleep(900)
+        val manual = sizes.last()
+        assertEquals(240f * activity.resources.displayMetrics.density, manual.width, 3f)
+        assertTrue(manual.right < neighborBounds.left)
+        instrumentation.runOnMainSync { config = config.copy(manualExtentDp = 4000) }
+        Thread.sleep(900)
+        assertTrue("Oversized manual navigation overlaps neighbor", sizes.last().right < neighborBounds.left)
+        assertEquals(dynamic.width, sizes.last().width, 3f)
+    }
 
     fun testSelectionKeepsAnimatingWhenDocumentRendererChanges() {
         show(ToolbarPosition.TOP, true)

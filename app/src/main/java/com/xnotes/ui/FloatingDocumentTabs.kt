@@ -59,6 +59,7 @@ fun FloatingDocumentTabs(
     embedded: Boolean = false,
     selection: DocumentTabsSelectionState? = null,
     vertical: Boolean = false,
+    expandedHeight: Dp? = null,
 ) {
     val palette = LocalPalette.current
     val shape = MaterialTheme.shapes.extraLarge
@@ -85,7 +86,7 @@ fun FloatingDocumentTabs(
         ) { shownExpanded ->
         if (shownExpanded) {
             Box(Modifier.width(if (vertical) DOCUMENT_TABS_SIDE_WIDTH_DP.dp else maxWidth)
-                .height(if (vertical) (tabs.tabs.size * 42 + 36).coerceAtMost(360).dp else 42.dp)) {
+                .height(if (vertical) expandedHeight ?: (tabs.tabs.size * 42 + 36).coerceAtMost(360).dp else 42.dp)) {
                 NoteTabBar(tabs, activeUri,
                     onSelect = onSelect,
                     onClose = onClose,

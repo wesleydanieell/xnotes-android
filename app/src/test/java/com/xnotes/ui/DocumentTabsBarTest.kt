@@ -71,4 +71,42 @@ class DocumentTabsBarTest {
         val placed = documentTabsOffset(Size(100f, 50f), Size(360f, 120f), ToolbarAnchor.BOTTOM_RIGHT, emptyList(), 8f)
         assertEquals(0f, placed.x, 0f); assertEquals(0f, placed.y, 0f)
     }
+    @Test fun expandedSizingFillsAvailableSpaceOrClampsManualSizeAndLimits() {
+        val dynamic = DocumentTabsBarConfig()
+        assertEquals(1000f, dynamic.expandedExtent(1000f), 0f)
+        assertEquals(480f, dynamic.copy(maxExtentDp = 480).expandedExtent(1000f), 0f)
+        val manual = dynamic.copy(sizing = DocumentTabsSizing.MANUAL, manualExtentDp = 600, minExtentDp = 240, maxExtentDp = 720)
+        assertEquals(600f, manual.expandedExtent(1000f), 0f)
+        assertEquals(180f, manual.expandedExtent(180f), 0f)
+        assertEquals(240f, manual.copy(manualExtentDp = 80).expandedExtent(1000f), 0f)
+        assertEquals(manual, DocumentTabsBarConfig.fromJson(JSONObject(manual.toJson().toString())))
+        assertEquals(DocumentTabsSizing.DYNAMIC, DocumentTabsBarConfig.fromJson(JSONObject().put("sizing", "unknown")).sizing)
+    }
+
+    @Test fun expandedStripStopsBeforeNeighborOnTheSameRowAndHandlesSideRails() {
+        val host = Size(1200f, 800f)
+        val neighbors = listOf(Rect(800f, 0f, 1200f, 70f))
+        val strip = documentTabsFreeStrip(host, ToolbarAnchor.TOP_LEFT, false, 50f, neighbors, 8f, 80f)
+        assertEquals(8f, strip.left, 0f)
+        assertEquals(792f, strip.right, 0f)
+        assertEquals(8f, strip.top, 0f)
+        assertFalse(neighbors.any { it.overlaps(strip) })
+        val rail = documentTabsFreeStrip(host, ToolbarAnchor.CENTER_RIGHT, true, 168f,
+            listOf(Rect(1000f, 600f, 1200f, 800f)), 8f, 80f)
+        assertEquals(592f, rail.bottom, 0f)
+        assertEquals(1192f, rail.right, 0f)
+    }
+
+    @Test fun expandedStripUsesWholeWindowAndMovesPastFullEdgeObstructions() {
+        val host = Size(1200f, 800f)
+        val open = documentTabsFreeStrip(host, ToolbarAnchor.TOP_CENTER, false, 50f, emptyList(), 8f, 80f)
+        assertEquals(1184f, open.width, 0f)
+        val obstacles = listOf(Rect(0f, 0f, 1200f, 60f), Rect(0f, 60f, 80f, 800f), Rect(1100f, 60f, 1200f, 800f))
+        val strip = documentTabsFreeStrip(host, ToolbarAnchor.TOP_CENTER, false, 50f, obstacles, 8f, 80f)
+        assertEquals(68f, strip.top, 0f)
+        assertEquals(88f, strip.left, 0f)
+        assertEquals(1092f, strip.right, 0f)
+        assertFalse(obstacles.any { it.overlaps(strip) })
+    }
+
 }

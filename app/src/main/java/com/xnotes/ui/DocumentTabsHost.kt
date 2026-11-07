@@ -61,6 +61,17 @@ internal fun DocumentTabsHost(
     val state = documents.copy(dropArea = workspace ?: documents.dropArea)
     val edge = if (config.floating) DocumentTabsBarConfig.edgeOf(config.anchor) else config.position
     val vertical = edge == ToolbarPosition.LEFT || edge == ToolbarPosition.RIGHT
+    val screen = androidx.compose.ui.platform.LocalConfiguration.current
+    val hostSize = if (window.width > 0f) window.size else with(density) {
+        Size(screen.screenWidthDp.dp.toPx(), screen.screenHeightDp.dp.toPx())
+    }
+    val relative = toolRects.map { it.translate(-window.topLeft) }
+    val freeStrip = documentTabsFreeStrip(hostSize, config.anchor, vertical,
+        with(density) { (if (vertical) 168.dp else 50.dp).toPx() }, relative,
+        with(density) { 8.dp.toPx() }, with(density) { 80.dp.toPx() })
+    val floatingExtent = with(density) {
+        config.expandedExtent((if (vertical) freeStrip.height else freeStrip.width).toDp().value).dp
+    }
     val renderBar: @Composable () -> Unit = {
         Box(Modifier.zIndex(20f).onGloballyPositioned { if (card != it.size.toSize()) card = it.size.toSize(); observer?.invoke(it.boundsInWindow()) }) {
             ToolbarDragSurface("document-navigation", config.anchor, true, root,
@@ -68,7 +79,7 @@ internal fun DocumentTabsHost(
                 CompositionLocalProvider(LocalToolbarHitAreas provides navigation,
                     LocalGlobalToolHitAreas provides null) {
                     ToolbarHitArea {
-                        DocumentTabsSurface(state, config.floating, edge)
+                        DocumentTabsSurface(state, config.floating, edge, floatingExtent)
                     }
                 }
             }
@@ -93,16 +104,10 @@ internal fun DocumentTabsHost(
                 if (!config.floating && edge == ToolbarPosition.BOTTOM) renderBar()
             }
             if (config.floating) {
-                val screen = androidx.compose.ui.platform.LocalConfiguration.current
-                val hostSize = if (window.width > 0f) window.size else with(density) {
-                    Size(screen.screenWidthDp.dp.toPx(), screen.screenHeightDp.dp.toPx())
-                }
-                val relative = toolRects.map { it.translate(-window.topLeft) }
-                val offset = documentTabsOffset(hostSize, card, config.anchor, relative,
-                    with(density) { 8.dp.toPx() })
+                val offset = freeStrip.topLeft + documentTabsOffset(freeStrip.size, card, config.anchor, emptyList(), 0f)
                 Box(Modifier.zIndex(20f).alpha(if (card == Size.Zero) 0f else 1f).offset { IntOffset(offset.x.roundToInt(), offset.y.roundToInt()) }
-                    .widthIn(max = with(density) { (hostSize.width - 16.dp.toPx()).coerceAtLeast(1f).toDp() })
-                    .heightIn(max = with(density) { (hostSize.height - 16.dp.toPx()).coerceAtLeast(1f).toDp() })) {
+                    .widthIn(max = with(density) { freeStrip.width.coerceAtLeast(1f).toDp() })
+                    .heightIn(max = with(density) { freeStrip.height.coerceAtLeast(1f).toDp() })) {
                     renderBar()
                 }
             }
@@ -111,7 +116,8 @@ internal fun DocumentTabsHost(
 }
 
 @Composable
-private fun DocumentTabsSurface(state: DocumentTabsState, floating: Boolean, edge: ToolbarPosition) {
+private fun DocumentTabsSurface(state: DocumentTabsState, floating: Boolean, edge: ToolbarPosition,
+    floatingExtent: androidx.compose.ui.unit.Dp) {
     val palette = LocalPalette.current
     val vertical = edge == ToolbarPosition.LEFT || edge == ToolbarPosition.RIGHT
     val shape = if (floating) MaterialTheme.shapes.extraLarge else RectangleShape
@@ -133,14 +139,15 @@ private fun DocumentTabsSurface(state: DocumentTabsState, floating: Boolean, edg
                 horizontalAlignment = Alignment.CenterHorizontally) {
                 grip()
                 DocumentTabsSwitcher(state, if (floating) Modifier else Modifier.weight(1f), vertical = true,
-                    expandedWidth = DOCUMENT_TABS_WIDTH_DP.dp)
+                    expandedWidth = DOCUMENT_TABS_WIDTH_DP.dp,
+                    expandedHeight = if (floating) (floatingExtent - 32.dp).coerceAtLeast(36.dp) else null)
             }
         } else {
             Row(surface.then(if (floating) Modifier else Modifier.fillMaxWidth()).padding(4.dp),
                 verticalAlignment = Alignment.CenterVertically) {
                 grip()
                 DocumentTabsSwitcher(state, if (floating) Modifier else Modifier.weight(1f), vertical = false,
-                    expandedWidth = if (floating) DOCUMENT_TABS_WIDTH_DP.dp else
+                    expandedWidth = if (floating) (floatingExtent - 32.dp).coerceAtLeast(36.dp) else
                         androidx.compose.ui.platform.LocalConfiguration.current.screenWidthDp.dp)
             }
         }
@@ -149,9 +156,9 @@ private fun DocumentTabsSurface(state: DocumentTabsState, floating: Boolean, edg
 
 @Composable
 private fun DocumentTabsSwitcher(state: DocumentTabsState, modifier: Modifier, vertical: Boolean,
-    expandedWidth: androidx.compose.ui.unit.Dp) {
+    expandedWidth: androidx.compose.ui.unit.Dp, expandedHeight: androidx.compose.ui.unit.Dp? = null) {
     FloatingDocumentTabs(state.tabs, state.activeUri, state.expanded, state.onExpandedChange,
         state.onSelect, state.onClose, state.onReorder, state.onSplit,
         dropArea = state.dropArea, modifier = modifier, expandedWidth = expandedWidth,
-        embedded = true, selection = state.selection, vertical = vertical)
+        embedded = true, selection = state.selection, vertical = vertical, expandedHeight = expandedHeight)
 }

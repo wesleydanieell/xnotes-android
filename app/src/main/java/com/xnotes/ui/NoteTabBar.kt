@@ -109,7 +109,7 @@ fun NoteTabBar(
     BoxWithConstraints(modifier.then(if (vertical) Modifier.fillMaxHeight() else Modifier.fillMaxWidth()).onGloballyPositioned { barOrigin[0] = it.positionInWindow() }) {
         val axisLength = if (vertical) maxHeight else maxWidth
         val visibleSlots = visibleTabSlots(if (vertical) axisLength.value * 144f / 42f else axisLength.value, tabs.tabs.size)
-        val tabWidth = axisLength / visibleSlots
+        val tabWidth = if (vertical) 42.dp else axisLength / visibleSlots
         val animatedWidth by animateDpAsState(tabWidth, tween(240), label = "tabWidth")
         val activeIndex = tabs.tabs.indexOfFirst { it.uri == activeUri }
         val density = LocalDensity.current

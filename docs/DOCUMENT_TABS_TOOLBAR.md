@@ -40,3 +40,9 @@ or every possible toolbar arrangement.
 
 For future maintenance and the distinction between the historical element and
 the current standalone bar, see [LLM handoff](TABS_TOOLBAR_LLM_HANDOFF.md).
+
+Floating expanded navigation now defaults to dynamic sizing: it fills the free
+interval beside neighboring toolbars, respecting measured obstacles and margins.
+Manual sizing, minimum/360 dp/maximum presets and minimum/maximum limits are
+available. Limits yield to smaller windows and neighboring bars. Side navigation
+uses the same policy for height; individual vertical tabs remain 42 dp tall.
