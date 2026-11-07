@@ -126,20 +126,27 @@ No worktree de cada community, com ANDROID_HOME configurado:
 ./gradlew :app:testDebugUnitTest :app:assembleDebug :app:assembleDebugAndroidTest --no-parallel --max-workers=1
 adb -s SERIAL install -r app/build/outputs/apk/debug/app-debug.apk
 adb -s SERIAL install -r app/build/outputs/apk/androidTest/debug/app-debug-androidTest.apk
+# XNotes
 adb -s SERIAL shell am instrument -w -r -e class com.xnotes.ui.DocumentTabsBarAnimationTest com.xnotes.debug.test/android.test.InstrumentationTestRunner
+# n-notes
+adb -s SERIAL shell am instrument -w -r -e class com.xnotes.ui.DocumentTabsBarAnimationTest com.neddy.nnotes.debug.test/android.test.InstrumentationTestRunner
 ./gradlew :app:assembleCommunity --no-parallel --max-workers=1
 ```
 
-As variantes debug dos dois forks usam `com.xnotes.debug`: instalar a de outro
-fork substitui a anterior no emulador. Execute cada bateria após instalar seu par
-de APKs correspondente. Use documentos sintéticos para testes instrumentados.
+As variantes debug têm IDs diferentes: XNotes `com.xnotes.debug` e n-notes
+`com.neddy.nnotes.debug`; os testes acrescentam `.test`. Confirme o package ID
+no APK e use o runner correspondente. Ambos têm classes no namespace `com.xnotes`,
+mas isso **não** torna seus application IDs iguais. Executar o runner XNotes
+depois de instalar n-notes testa novamente XNotes. Use documentos sintéticos.
 
-Resultados antes desta documentação: XNotes 2.625 e n-notes 2.730 testes JVM sem
-falhas. Os 21 testes de interface passaram **em cada fork** no Small_Tablet,
-1920×1200: recolhimento nos dois modos nas quatro bordas, os mesmos oito casos no
-preview reduzido, quatro arrastes long-press (app/preview × floating/docked), e
-animação de seleção contínua quando o renderer muda. Testes adicionais cobrem
-persistência, migração, âncoras/obstáculos, seleção e geometria orientada de drop.
+Resultados antes do tamanho dinâmico: XNotes 2.625 e n-notes 2.730 testes JVM
+sem falhas. Os 21 testes iniciais de interface passaram no XNotes no Small_Tablet,
+1920×1200. O registro inicial de interface do n-notes usou o runner XNotes por
+engano; ele não comprovava n-notes e é substituído pela validação posterior com
+o pacote correto. A bateria cobre recolhimento nos dois modos nas quatro bordas,
+oito casos no preview reduzido, quatro arrastes long-press (app/preview × modos)
+e seleção contínua. O tamanho dinâmico acrescenta persistência/limites, espaços
+livres entre vizinhos e um teste instrumentado com barra na mesma fileira.
 
 Uma falha inicial de arraste do teste veio das coordenadas: no preview reduzido,
 o toque atingia a área de status ou não acompanhava a escala. O fixture agora
@@ -190,3 +197,24 @@ manual e os frames da animação não invadam a próxima barra. Se a fileira int
 estiver ocupada, procura outra faixa; se nenhuma faixa comportar tudo, não há
 garantia absoluta de não sobreposição. Mínimos e tamanhos manuais cedem aos
 limites físicos. Runtime e preview continuam compartilhando o mesmo cálculo.
+
+O fixture de arraste aplica MotionEvents pela Activity para testar os handlers
+Compose sem direcionar eventos a janelas transitórias do sistema. Isso verifica
+a lógica de gestos do app, não arbitragem do Android em bordas/gestos do sistema.
+Antes desse ajuste, uma rodada completa do XNotes com injeção de toque do sistema
+passou no Redmi; outras rodadas tiveram erros de janela-alvo. O preview do fixture
+tem margens superior e esquerda para não confundir barras com áreas do sistema.
+
+## Validação final do tamanho adaptável — 2026-11-07
+
+- XNotes: 2.628 testes JVM sem falhas; 22 testes de interface no Redmi.
+- n-notes: 2.733 testes JVM sem falhas; 22 testes de interface no Small_Tablet,
+  usando o runner correto `com.neddy.nnotes.debug.test`.
+- Ambas as variantes community compilaram e foram atualizadas no Redmi por
+  `adb install -r`, preservando dados e certificado. O hash SHA-256 do APK
+  instalado foi comparado ao APK assinado local em cada app; ambos coincidiram.
+  Os dois apps abriram sem FATAL EXCEPTION no smoke test de lançamento.
+- A validação de gestos via Activity não substitui QA físico de caneta e áreas
+  reservadas a gestos do Android. O debug n-notes foi recusado pelo instalador
+  do Redmi; por isso sua bateria de interface final foi executada no emulador,
+  enquanto a instalação community e o lançamento foram verificados no Redmi.

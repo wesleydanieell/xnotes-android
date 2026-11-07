@@ -53,7 +53,7 @@ class DocumentTabsBarAnimationTest : InstrumentationTestCase() {
                         LocalDocumentTabsConfig provides config,
                         LocalDocumentTabsBoundsObserver provides { sizes.add(it) }) {
                         if (preview) {
-                            Box(Modifier.padding(top = 64.dp).width(420.dp)) {
+                            Box(Modifier.padding(start = 32.dp, top = 64.dp).width(420.dp)) {
                             ToolbarWorkspacePreview(tools, ToolbarLook(), "tools",
                                 colors = listOf(com.xnotes.core.model.Rgba(0, 0, 0, 255)), activeColorIndex = 0,
                                 pageNumber = 1, pageCount = 1, zoomLabel = "100%", titleLabel = "First",
@@ -134,7 +134,9 @@ class DocumentTabsBarAnimationTest : InstrumentationTestCase() {
         val down = android.os.SystemClock.uptimeMillis()
         fun send(action: Int, py: Float) {
             val event = android.view.MotionEvent.obtain(down, android.os.SystemClock.uptimeMillis(), action, x, py, 0)
-            instrumentation.sendPointerSync(event)
+            // Exercise the app's gesture handlers without targeting transient system windows.
+            // Coordinates from boundsInWindow are in the Activity dispatch coordinate space.
+            instrumentation.runOnMainSync { activity.dispatchTouchEvent(event) }
             event.recycle()
         }
         send(android.view.MotionEvent.ACTION_DOWN, y)

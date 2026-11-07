@@ -31,7 +31,7 @@ Emulator verification uses synthetic documents in the isolated debug package.
 Physical pen latency and the complete device rotation matrix require device QA.
 
 Validation on 2026-11-07: 2730 JVM tests passed; debug app and instrumented
-test APKs built successfully. All 21 interface tests passed on the Small_Tablet
+test APKs built successfully. The initial 21 interface tests passed for XNotes on the Small_Tablet
 emulator (1920×1200): collapse animation for both modes on all four edges,
 the same eight cases in a reduced preview, four long-press drag cases
 (runtime/preview × floating/docked), and continuous selection animation when
@@ -46,3 +46,21 @@ interval beside neighboring toolbars, respecting measured obstacles and margins.
 Manual sizing, minimum/360 dp/maximum presets and minimum/maximum limits are
 available. Limits yield to smaller windows and neighboring bars. Side navigation
 uses the same policy for height; individual vertical tabs remain 42 dp tall.
+
+Correction: the initial n-notes interface invocation used the XNotes runner.
+It did not verify n-notes; use `com.neddy.nnotes.debug.test` for that fork.
+See the handoff for correct per-fork commands and subsequent verification.
+
+## Validação final do tamanho adaptável — 2026-11-07
+
+- XNotes: 2.628 testes JVM sem falhas; 22 testes de interface no Redmi.
+- n-notes: 2.733 testes JVM sem falhas; 22 testes de interface no Small_Tablet,
+  usando o runner correto `com.neddy.nnotes.debug.test`.
+- Ambas as variantes community compilaram e foram atualizadas no Redmi por
+  `adb install -r`, preservando dados e certificado. O hash SHA-256 do APK
+  instalado foi comparado ao APK assinado local em cada app; ambos coincidiram.
+  Os dois apps abriram sem FATAL EXCEPTION no smoke test de lançamento.
+- A validação de gestos via Activity não substitui QA físico de caneta e áreas
+  reservadas a gestos do Android. O debug n-notes foi recusado pelo instalador
+  do Redmi; por isso sua bateria de interface final foi executada no emulador,
+  enquanto a instalação community e o lançamento foram verificados no Redmi.
