@@ -218,3 +218,12 @@ tem margens superior e esquerda para não confundir barras com áreas do sistema
   reservadas a gestos do Android. O debug n-notes foi recusado pelo instalador
   do Redmi; por isso sua bateria de interface final foi executada no emulador,
   enquanto a instalação community e o lançamento foram verificados no Redmi.
+
+## Organização do configurador
+
+`ToolbarPreferencesPane` separa a navegação numa guia `DOCUMENT_TABS` (Barra de
+abas), ao lado de Barras/Aparência/Elementos. `DocumentTabsBarControls` só é
+composto nessa guia; ações/perfis de toolbars não aparecem nela. O preview é
+compartilhado, e arrastar a navegação nele abre sua guia. Os seletores quebram
+linha em telas estreitas. Não volte a inserir todos os controles de navegação
+acima do inspector de ferramentas: isso dificultava configurar as outras barras.
