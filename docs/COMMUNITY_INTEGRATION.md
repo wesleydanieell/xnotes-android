@@ -2,7 +2,7 @@
 
 This n-notes community branch includes upstream `3f7d7c2f` (0.9.7-0.53), the
 existing community features, and `feat/customizable-toolbars` at `5e786579`.
-Document tabs are optional toolbar elements; see [Document tabs](DOCUMENT_TABS_TOOLBAR.md).
+Document tabs use an independent movable navigation bar; see [Document tabs](DOCUMENT_TABS_TOOLBAR.md).
 
 The upstream history was reorganized, so the update uses already integrated
 n-notes `a164adda` as the content merge base. It preserves community tab dragging,
@@ -33,3 +33,12 @@ requires its original signing key. Local community APKs are unsigned when
 - The emulator was closed at the user's request. No completed animation/gesture
   smoke test or stylus QA is claimed. Existing animations and gestures are reused
   by the toolbar element, and their existing model/drop tests remain enabled.
+
+## Navigation update — 2026-11-07
+
+The historical toolbar element has been replaced by independent floating/docked
+navigation with shared runtime/preview rendering. The 21 interface tests passed
+in each fork on the tablet emulator; JVM totals were 2,625 (XNotes) and 2,730
+(n-notes), without failures. Earlier element-specific validation above is
+historical. See [LLM handoff](TABS_TOOLBAR_LLM_HANDOFF.md) for the architecture,
+migration, fork differences, branch map and remaining device QA.
