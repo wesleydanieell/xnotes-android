@@ -13,6 +13,8 @@ import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectDragGesturesAfterLongPress
 import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
@@ -91,6 +93,8 @@ fun NoteTabBar(
     modifier: Modifier = Modifier,
     floatingSurface: Boolean = false,
     dropArea: DocumentDropArea? = null,
+    selection: DocumentTabsSelectionState? = null,
+    vertical: Boolean = false,
 ) {
     val palette = LocalPalette.current
     // All tabs are equal-width, so the indicator can be positioned arithmetically.
@@ -102,35 +106,31 @@ fun NoteTabBar(
     var dragPoint by remember { mutableStateOf(Offset.Zero) }
     val reorderNow by rememberUpdatedState(onReorder)
     val splitNow by rememberUpdatedState(onSplit)
-    BoxWithConstraints(modifier.fillMaxWidth().onGloballyPositioned { barOrigin[0] = it.positionInWindow() }) {
-        val visibleSlots = visibleTabSlots(maxWidth.value, tabs.tabs.size)
-        val tabWidth = maxWidth / visibleSlots
+    BoxWithConstraints(modifier.then(if (vertical) Modifier.fillMaxHeight() else Modifier.fillMaxWidth()).onGloballyPositioned { barOrigin[0] = it.positionInWindow() }) {
+        val axisLength = if (vertical) maxHeight else maxWidth
+        val visibleSlots = visibleTabSlots(if (vertical) axisLength.value * 144f / 42f else axisLength.value, tabs.tabs.size)
+        val tabWidth = axisLength / visibleSlots
         val animatedWidth by animateDpAsState(tabWidth, tween(240), label = "tabWidth")
         val activeIndex = tabs.tabs.indexOfFirst { it.uri == activeUri }
         val density = LocalDensity.current
         val scrollState = rememberScrollState()
-        val barWidthPx = with(density) { maxWidth.toPx() }
+        val barWidthPx = with(density) { axisLength.toPx() }
         val slotWidthPx = with(density) { animatedWidth.toPx() }
-        val barHeightPx = with(density) { 42.dp.toPx() }
+        val barHeightPx = with(density) { if (vertical) maxWidth.toPx() else 42.dp.toPx() }
         val splitThresholdPx = with(density) { 48.dp.toPx() }
-        val workspaceBottomPx = with(density) { LocalConfiguration.current.screenHeightDp.dp.toPx() }
         // The pointer detector may outlive width/scroll animations. Keep its drop resolver current
         // so releasing at either end uses the same geometry as the visible insertion preview.
         val resolveDrop: (String, Offset) -> TabDrop? = { uri, point ->
-            val candidate = resolveTabDrop(
-                fromIndex = tabs.tabs.indexOfFirst { it.uri == uri },
-                x = point.x, y = point.y,
-                barLeft = barOrigin[0].x, barTop = barOrigin[0].y,
-                barWidth = barWidthPx, barHeight = barHeightPx,
-                slotWidth = slotWidthPx, scrollOffset = scrollState.value.toFloat(),
+            com.xnotes.core.workspace.resolveTabStripDrop(
+                fromIndex = tabs.tabs.indexOfFirst { it.uri == uri }, x = point.x, y = point.y,
+                strip = com.xnotes.core.workspace.TabStripGeometry(
+                    com.xnotes.core.workspace.TabStripBounds(barOrigin[0].x, barOrigin[0].y,
+                        if (vertical) barHeightPx else barWidthPx, if (vertical) barWidthPx else barHeightPx),
+                    slotWidthPx, scrollState.value.toFloat(), vertical),
                 tabCount = tabs.tabs.size, splitThreshold = splitThresholdPx,
-                workspaceBottom = workspaceBottomPx,
+                workspace = dropArea?.let { com.xnotes.core.workspace.TabStripBounds(
+                    it.origin.x, it.origin.y, it.size.width.toFloat(), it.size.height.toFloat()) },
             )
-            if (candidate is TabDrop.Split && dropArea != null &&
-                dropArea.size.width > 0 && dropArea.size.height > 0) {
-                paneDropSide(point.x - dropArea.origin.x, point.y - dropArea.origin.y,
-                    dropArea.size.width.toFloat(), dropArea.size.height.toFloat())?.let(TabDrop::Split)
-            } else candidate
         }
         val currentResolveDrop by rememberUpdatedState(resolveDrop)
         val previewDrop = draggingUri?.let { uri -> resolveDrop(uri, dragPoint) }
@@ -141,20 +141,25 @@ fun NoteTabBar(
         val targetX = with(density) { highlightXDp.dp.toPx() }
         val targetWidth = with(density) { highlightWidthDp.dp.toPx() }
         val highlightMotion = spring<Float>(dampingRatio = 1f, stiffness = Spring.StiffnessHigh)
-        val highlightX by animateFloatAsState(targetX, highlightMotion, label = "tabHighlightX")
+        val localHighlightX by animateFloatAsState(targetX, highlightMotion, label = "tabHighlightX")
+        val highlightX = selection?.let {
+            with(density) { (it.position.value * animatedWidth.value + 2f).dp.toPx() }
+        } ?: localHighlightX
         val highlightWidth by animateFloatAsState(targetWidth, highlightMotion, label = "tabHighlightWidth")
-    Row(
-        Modifier.fillMaxWidth()
+    DocumentTabStrip(
+        vertical = vertical,
+        modifier = Modifier.fillMaxWidth()
             .background((if (floatingSurface) palette.panel else palette.bg).toComposeColor())
-            .horizontalScroll(scrollState)
-            .height(42.dp)
+            .then(if (vertical) Modifier.fillMaxHeight().verticalScroll(scrollState)
+                else Modifier.horizontalScroll(scrollState).height(42.dp))
             .drawBehind {
                 if (activeIndex >= 0 && highlightWidth > 0f) {
                     val inset = 2.dp.toPx()
                     drawRoundRect(
                         highlight,
-                        topLeft = Offset(highlightX, inset),
-                        size = Size(highlightWidth, size.height - inset * 2),
+                        topLeft = if (vertical) Offset(inset, highlightX) else Offset(highlightX, inset),
+                        size = if (vertical) Size(size.width - inset * 2, highlightWidth)
+                            else Size(highlightWidth, size.height - inset * 2),
                         cornerRadius = CornerRadius((size.height - inset * 2) / 2),
                     )
                 }
@@ -162,27 +167,32 @@ fun NoteTabBar(
                     val indicatorWidth = 4.dp.toPx()
                     drawRoundRect(
                         color = highlight,
-                        topLeft = Offset(x - indicatorWidth / 2, 3.dp.toPx()),
-                        size = Size(indicatorWidth, size.height - 6.dp.toPx()),
+                        topLeft = if (vertical) Offset(3.dp.toPx(), x - indicatorWidth / 2)
+                            else Offset(x - indicatorWidth / 2, 3.dp.toPx()),
+                        size = if (vertical) Size(size.width - 6.dp.toPx(), indicatorWidth)
+                            else Size(indicatorWidth, size.height - 6.dp.toPx()),
                         cornerRadius = CornerRadius(indicatorWidth / 2),
                     )
                 }
             },
-        verticalAlignment = Alignment.CenterVertically,
     ) {
         tabs.tabs.forEach { tab ->
             key(tab.uri) {
             DisposableEffect(tab.uri) {
                 onDispose { tabOrigins.remove(tab.uri) }
             }
-            val tabTint by animateColorAsState(
+            val localTabTint by animateColorAsState(
                 targetValue = if (tab.uri == activeUri) palette.selectionForeground.toComposeColor()
                     else palette.textDim.toComposeColor(),
                 animationSpec = tween(300),
                 label = "tabTint",
             )
+            val tabTint = selection?.let {
+                androidx.compose.ui.graphics.lerp(palette.textDim.toComposeColor(),
+                    palette.selectionForeground.toComposeColor(), it.weight(tab.uri))
+            } ?: localTabTint
             Row(
-                Modifier.width(animatedWidth)
+                Modifier.then(if (vertical) Modifier.fillMaxWidth().height(animatedWidth) else Modifier.width(animatedWidth))
                     .padding(horizontal = 2.dp)
                     .graphicsLayer { alpha = if (draggingUri == tab.uri) 0.55f else 1f }
                     .clip(MaterialTheme.shapes.small),
@@ -354,3 +364,9 @@ internal fun visibleTabSlots(widthDp: Float, tabCount: Int): Int =
 /** Stable indicator geometry independent of animation frames and removed-tab measurements. */
 internal fun tabHighlightBounds(tabWidthDp: Float, activeIndex: Int): Pair<Float, Float> =
     (activeIndex.coerceAtLeast(0) * tabWidthDp + 2f) to (tabWidthDp - 4f).coerceAtLeast(0f)
+
+@Composable
+private fun DocumentTabStrip(modifier: Modifier, vertical: Boolean, content: @Composable () -> Unit) {
+    if (vertical) Column(modifier, horizontalAlignment = Alignment.CenterHorizontally) { content() }
+    else Row(modifier, verticalAlignment = Alignment.CenterVertically) { content() }
+}

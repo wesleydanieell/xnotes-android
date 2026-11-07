@@ -24,6 +24,7 @@ data class Preferences(
     val toolbarLook: ToolbarLook = ToolbarLook(),
     /** Initial document tab layout: auto, compact, or expanded. Users may toggle it afterward. */
     val documentTabsMode: String = "auto",
+    val documentTabsBar: DocumentTabsBarConfig = DocumentTabsBarConfig(),
     val hideWindowDecoration: Boolean = false,
     val pageColor: Rgba? = null, // null ⇒ follow theme paper
     val pageTemplatePdf: String? = null,
@@ -180,6 +181,7 @@ data class Preferences(
             if (toolbarLook.size != ToolbarSize.REGULAR) put("toolbar_size", toolbarLook.size.id)
             if (toolbarLook.floating) put("toolbar_floating", true)
             if (documentTabsMode != "auto") put("document_tabs_mode", documentTabsMode)
+            if (documentTabsBar != DocumentTabsBarConfig()) put("document_tabs_bar", documentTabsBar.toJson())
             startFullscreen?.let { put("start_fullscreen", it) }
             codeThemePath?.let { put("code_theme_path", it) }
             codeThemeName?.let { put("code_theme_name", it) }
@@ -248,6 +250,7 @@ data class Preferences(
                     size = ToolbarSize.fromId(o.optString("toolbar_size")),
                     floating = o.optBoolean("toolbar_floating", false),
                 ),
+                documentTabsBar = DocumentTabsBarConfig.fromJson(o.optJSONObject("document_tabs_bar")),
                 documentTabsMode = o.optString("document_tabs_mode", "auto")
                     .takeIf { it == "compact" || it == "expanded" } ?: "auto",
                 hideWindowDecoration = o.optBoolean("hide_window_decoration", false),

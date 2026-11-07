@@ -12,8 +12,6 @@ package com.xnotes.core.tools
 enum class ToolbarItem(val id: String) {
     HOME("home"),
     TITLE("title"),
-    /** Optional document switcher; its navigation state belongs to the workspace. */
-    DOCUMENT_TABS("document_tabs"),
     SIDEBAR("sidebar"),
     PEN("pen"),
     DASHED("dashed"),
@@ -379,7 +377,7 @@ data class ToolbarLayout(
     fun withMissingItemsAppended(among: Set<ToolbarItem> = NOTE_ITEMS): ToolbarLayout {
         var layout = this
         for (item in ToolbarItem.entries) {
-            if (item !in among || item == ToolbarItem.SPACER || item == ToolbarItem.DOCUMENT_TABS) continue
+            if (item !in among || item == ToolbarItem.SPACER) continue
             if (layout.sections.any { s -> s.entries.any { it.item == item } }) continue
             layout = layout.insertMissing(item)
         }
@@ -423,7 +421,7 @@ data class ToolbarLayout(
          * drawn as a dead chip.
          */
         val CANVAS_ITEMS: Set<ToolbarItem> = setOf(
-            ToolbarItem.HOME, ToolbarItem.TITLE, ToolbarItem.DOCUMENT_TABS,
+            ToolbarItem.HOME, ToolbarItem.TITLE,
             ToolbarItem.PEN, ToolbarItem.DASHED, ToolbarItem.CALLIGRAPHY, ToolbarItem.SPEED,
             ToolbarItem.TAPER, ToolbarItem.HIGHLIGHTER, ToolbarItem.UNIFIED_PEN, ToolbarItem.ERASER,
             ToolbarItem.PAN, ToolbarItem.SELECT, ToolbarItem.LASSO, ToolbarItem.WAND,

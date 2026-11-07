@@ -48,3 +48,34 @@ fun resolveTabDrop(
     val to = (contentX / slotWidth).toInt().coerceIn(0, tabCount - 1)
     return if (to == fromIndex) null else TabDrop.Reorder(fromIndex, to)
 }
+
+/** Physical window bounds, independent of the strip's axis or dock edge. */
+data class TabStripBounds(val left: Float, val top: Float, val width: Float, val height: Float)
+
+data class TabStripGeometry(val bounds: TabStripBounds, val slotExtent: Float,
+    val scrollOffset: Float, val vertical: Boolean = false)
+
+/** Reordering follows the strip axis. Splitting works towards the document from either side of
+ * the strip, including dragging up from a bottom bar and left from a right-hand rail. */
+fun resolveTabStripDrop(fromIndex: Int, x: Float, y: Float, strip: TabStripGeometry,
+    tabCount: Int, splitThreshold: Float, workspace: TabStripBounds? = null): TabDrop? {
+    if (fromIndex !in 0 until tabCount || strip.slotExtent <= 0f) return null
+    val b = strip.bounds
+    val across = if (strip.vertical) x else y
+    val crossStart = if (strip.vertical) b.left else b.top
+    val crossSize = if (strip.vertical) b.width else b.height
+    val offStrip = across < crossStart - splitThreshold || across >= crossStart + crossSize + splitThreshold
+    if (offStrip && workspace != null && tabCount >= 2) {
+        if (workspace.width <= 0f || workspace.height <= 0f ||
+            x < workspace.left || x > workspace.left + workspace.width ||
+            y < workspace.top || y > workspace.top + workspace.height) return null
+        return paneDropSide(x - workspace.left, y - workspace.top,
+            workspace.width, workspace.height)?.let(TabDrop::Split)
+    }
+    return resolveTabDrop(fromIndex,
+        x = if (strip.vertical) y else x, y = across,
+        barLeft = if (strip.vertical) b.top else b.left, barTop = crossStart,
+        barWidth = if (strip.vertical) b.height else b.width, barHeight = crossSize,
+        slotWidth = strip.slotExtent, scrollOffset = strip.scrollOffset,
+        tabCount = tabCount, splitThreshold = splitThreshold)
+}

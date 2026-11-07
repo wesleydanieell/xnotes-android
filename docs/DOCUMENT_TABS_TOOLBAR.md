@@ -1,32 +1,39 @@
-# Document tabs as a toolbar element
+# Independent document navigation bar
 
-Branch: `feat/document-tabs-toolbar-element`.
+Document tabs belong to the app navigation, independently of customizable toolbars.
+Preferences → Toolbar shows the tabs in the live preview and provides two modes:
+**Floating** and **Docked**. Choose a position in the grid, or long-press the grip
+and drag the navigation bar. Docked navigation reserves its own edge outside the
+tool workspace; floating navigation uses eight anchors and avoids measured tool
+surfaces. It cannot be inserted into a tool section or attached to another bar.
 
-This branch combines `feat/customizable-toolbars` at `5e786579` with the existing
-community document tabs and split-view integration. The element commit can be
-ported separately to a fork with those dependencies; the branch is not an
-independent upstream PR. No PR or release is published automatically.
+Runtime and preview use `DocumentTabsHost` and the same animated tab renderer.
+The preview maintains its own selection, expansion and ordering without changing
+open documents. Horizontal navigation displays a row; left/right navigation uses
+a vertical strip. Floating navigation shrinks when collapsed, while docked side
+navigation reduces its width and horizontal docked navigation retains the edge.
+Selection position and tint animation belong to the document workspace, so replacing
+the active pane does not reset them. Tab closing, scrolling, long-press reordering
+and dragging toward a document split remain supported.
 
-Open Preferences → Toolbar → Configure → Elements, add **Document tabs** from a
-section's catalog, and move it between sections or bars as with any other element.
-It works in note and canvas profiles and survives workspace JSON export/import,
-presets, and copying between profiles. Existing layouts do not gain a new item
-automatically. Hiding/removing the configured item restores legacy navigation.
+The navigation configuration is saved in preferences as `document_tabs_bar`.
+Documents are never serialized into tool presets. Legacy `document_tabs` elements
+are removed on workspace loading, preserving other tools and compacting affected
+section lanes. Bars that contained only that element are removed; an otherwise
+empty migrated profile regains its default tool workspace.
 
-Horizontal bars contain the existing animated document switcher in a bounded
-360 dp slot. A fixed footprint prevents expansion from moving unrelated bars.
-Side rails show a document-tabs button opening the same switcher upright in a
-popup. Selection highlights, tint/width animations, collapsing/expanding, closing,
-scrolling, long-press reordering and dragging to split reuse `FloatingDocumentTabs`
-and `NoteTabBar`; there is no second navigation model. Each split pane routes tab
-selection and split actions through its own focus. Documents are not serialized
-inside toolbar presets.
+A shareable local branch is `feat/standalone-document-tabs-bar`.
+The older element implementation is preserved on
+`feat/document-tabs-toolbar-element`; the original `feat/customizable-toolbars`
+branch is unchanged. No branch or release is published automatically.
 
-The toolbar configurator is a separate `ToolbarPreferencesPane`, so n-notes keeps
-its general preference categories, search, handwriting settings and cloud sync.
-All toolbar surfaces register their actual rectangles with stylus routing; gaps
-between bars remain drawable and closing a bar removes its exclusion rectangle.
+Emulator verification uses synthetic documents in the isolated debug package.
+Physical pen latency and the complete device rotation matrix require device QA.
 
-Validation: see `COMMUNITY_INTEGRATION.md` for each fork's recorded test/build
-results. Physical Xiaomi Smart Pen latency and the complete rotation/docking
-matrix still require device QA; emulator interaction does not establish those.
+Validation on 2026-11-07: 2625 JVM tests passed; debug app and instrumented
+test APKs built successfully. All 21 interface tests passed on the Small_Tablet
+emulator (1920×1200): collapse animation for both modes on all four edges,
+the same eight cases in a reduced preview, four long-press drag cases
+(runtime/preview × floating/docked), and continuous selection animation when
+the document renderer changes. Emulator success does not cover every device
+or every possible toolbar arrangement.

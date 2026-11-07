@@ -92,6 +92,7 @@ internal object ToolbarWorkspaceJson {
         if (rawBars.length() == 0) return null
         val ids = HashSet<String>()
         val bars = ArrayList<ToolbarBar>()
+        var removedLegacyTabs = false
         for (index in 0 until minOf(rawBars.length(), MAX_BARS)) {
             val raw = rawBars.optJSONObject(index) ?: continue
             val id = raw.optString("id").trim()
@@ -99,8 +100,10 @@ internal object ToolbarWorkspaceJson {
             val rawSections = raw.optJSONArray("sections") ?: continue
             val seen = HashSet<ToolbarItem>()
             val sections = ArrayList<ToolbarSection>()
+            var legacyTabsInBar = false
             for (i in 0 until minOf(rawSections.length(), MAX_SECTIONS)) {
                 val entries = ArrayList<ToolbarEntry>()
+                var legacyTabsInSection = false
                 // v1 stores arrays, v2 rigid grid columns, v3 independent section lanes.
                 val rawSection = rawSections.opt(i)
                 val rawEntries = when (rawSection) {
@@ -110,6 +113,10 @@ internal object ToolbarWorkspaceJson {
                 } ?: continue
                 for (j in 0 until minOf(rawEntries.length(), MAX_ENTRIES)) {
                     val entry = rawEntries.optJSONObject(j) ?: continue
+                    if (entry.optString("id") == "document_tabs") {
+                        legacyTabsInBar = true; legacyTabsInSection = true; removedLegacyTabs = true
+                        continue
+                    }
                     val item = ToolbarItem.fromId(entry.optString("id")) ?: continue
                     if (item !in available || (item != ToolbarItem.COLORS && item != ToolbarItem.SPACER && !seen.add(item))) continue
                     val columns = (rawSection as? JSONObject)?.optInt("grid_columns", 0) ?: 0
@@ -130,7 +137,11 @@ internal object ToolbarWorkspaceJson {
                 val lanes = sectionObject?.optInt("lanes", if (columns in 1..3) 2 else 1) ?: 1
                 val region = ToolbarRegion.entries.firstOrNull { it.name == sectionObject?.optString("region") }
                     ?: ToolbarRegion.START
-                sections.add(ToolbarSection(entries, lanes, region).normalized())
+                if (legacyTabsInSection) {
+                    val occupied = entries.map { it.lane }.distinct().sorted()
+                    sections.add(ToolbarSection(entries.map { it.copy(lane = occupied.indexOf(it.lane).coerceAtLeast(0)) },
+                        occupied.size.coerceAtLeast(1), region).normalized())
+                } else sections.add(ToolbarSection(entries, lanes, region).normalized())
             }
             // The transient v3 preview stored absolute colour intervals. Convert its copies
             // into dynamic fractions so changing the global swatch count never leaves stale rows.
@@ -143,6 +154,7 @@ internal object ToolbarWorkspaceJson {
                     else entry
                 }) }
             } else sections
+            if (legacyTabsInBar && migratedSections.all { it.entries.isEmpty() }) continue
             bars.add(ToolbarBar(
                 id = id,
                 name = raw.optString("name", "Toolbar").take(64),
@@ -154,6 +166,11 @@ internal object ToolbarWorkspaceJson {
                 visible = raw.optBoolean("visible", true),
                 geometry = readGeometry(raw.optJSONObject("geometry")),
             ))
+        }
+        if (bars.isEmpty() && removedLegacyTabs) {
+            val note = ToolbarItem.PAGE_NAV in available
+            return ToolbarWorkspace.fromLegacy(if (note) "note-primary" else "canvas-primary", "Main toolbar",
+                if (note) ToolbarLayout.DEFAULT else ToolbarLayout.CANVAS_DEFAULT)
         }
         return bars.takeIf { it.isNotEmpty() }?.let(::ToolbarWorkspace)
     }

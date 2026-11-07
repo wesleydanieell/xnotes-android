@@ -398,18 +398,6 @@ internal fun ToolbarPreferencesPane(editor: Editor, onBack: () -> Unit) {
                 Text("Copiar para " + if (canvasTab) "XNotes" else "XCanvas")
             }
             }
-            FieldLabel(stringResource(R.string.pref_document_tabs_mode))
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                for ((mode, label) in listOf(
-                    "auto" to R.string.document_tabs_auto,
-                    "compact" to R.string.document_tabs_compact,
-                    "expanded" to R.string.document_tabs_expanded,
-                )) {
-                    Chip(stringResource(label), prefs.documentTabsMode == mode) {
-                        updateHome(prefs.copy(documentTabsMode = mode))
-                    }
-                }
-            }
             Row(
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(6.dp),
@@ -482,6 +470,8 @@ internal fun ToolbarPreferencesPane(editor: Editor, onBack: () -> Unit) {
             val defaultEntrySize = resolvedBarMetrics(barSize, currentBar.geometry).button.value.toInt()
             val preview: @Composable () -> Unit = {
                 ToolbarWorkspacePreview(
+                    documentTabsConfig = prefs.documentTabsBar,
+                    onMoveDocumentTabs = { anchor -> updateHome(prefs.copy(documentTabsBar = prefs.documentTabsBar.movedTo(anchor))) },
                     workspace = workspace.onlyItems(if (canvasTab) ToolbarLayout.CANVAS_ITEMS else ToolbarLayout.NOTE_ITEMS),
                     look = prefs.toolbarLook,
                     selectedId = currentBar.id,
@@ -615,6 +605,9 @@ internal fun ToolbarPreferencesPane(editor: Editor, onBack: () -> Unit) {
             Box(Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
                 Box(Modifier.widthIn(max = if (previewExpanded) 680.dp else 390.dp)) { preview() }
             }
+            DocumentTabsBarControls(prefs.documentTabsBar, prefs.documentTabsMode == "expanded",
+                onConfig = { updateHome(prefs.copy(documentTabsBar = it)) },
+                onInitiallyExpanded = { updateHome(prefs.copy(documentTabsMode = if (it) "expanded" else "compact")) })
             propertyTabs()
             inspector()
 

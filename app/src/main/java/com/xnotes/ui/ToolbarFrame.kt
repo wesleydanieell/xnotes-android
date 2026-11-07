@@ -125,7 +125,6 @@ internal fun toolbarDepth(bar: BarMetrics, layout: ToolbarLayout?): Dp {
             val laneButton = section.entriesInLane(lane)
                 .maxOfOrNull { entry ->
                     if (entry.item == com.xnotes.core.tools.ToolbarItem.SPACER) bar.button
-                    else if (entry.item == com.xnotes.core.tools.ToolbarItem.DOCUMENT_TABS) maxOf(42.dp, entry.sizeDp?.dp ?: bar.button)
                     else entry.sizeDp?.dp ?: bar.button
                 } ?: bar.button
             total + maxOf(bar.button, laneButton)

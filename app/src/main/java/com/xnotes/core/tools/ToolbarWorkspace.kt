@@ -76,13 +76,6 @@ data class ToolbarBar(
  * Each bar's existing [ToolbarLayout] remains independently editable.
  */
 data class ToolbarWorkspace(val bars: List<ToolbarBar>) {
-    /** Hidden bars/entries must not suppress the legacy navigation fallback. */
-    fun hasVisibleDocumentTabs(): Boolean = bars.any { bar ->
-        bar.visible && bar.layout.visibleSections.any { section ->
-            section.visibleEntries.any { it.item == ToolbarItem.DOCUMENT_TABS }
-        }
-    }
-
     fun addBar(bar: ToolbarBar): ToolbarWorkspace =
         if (bar.id.isBlank() || bars.any { it.id == bar.id }) this
         else copy(bars = bars + bar)
