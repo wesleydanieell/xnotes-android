@@ -201,14 +201,16 @@ fun PreferencesPane(
         val y = hits[search.current].second
         searchScope.launch { scrollState.animateScrollTo((y - 24f * search.density).roundToInt().coerceAtLeast(0)) }
     }
-    // Null shows the list of categories; a search shows every category so its matches can be stepped through.
-    // With categories off, every setting sits in one long list as before.
+    // Phones use a category index. Tablets always keep the same sidebar/content layout,
+    // including the first frame, so choosing a category never shrinks/replaces the index.
+    // Searching shows every category; disabling categories restores the continuous list.
     val categorized = prefs.prefsCategories
     var category by rememberSaveable { mutableStateOf<PrefCategory?>(null) }
+    val activeCategory = if (categorized && !compact) category ?: PrefCategory.GENERAL else category
     val searching = search.query.isNotBlank()
     val all = searching || !categorized
-    fun shown(c: PrefCategory) = all || category == c
-    // Categorized, only phones fold the categories away; tablets always show them beside an open category.
+    fun shown(c: PrefCategory) = all || activeCategory == c
+    // Only phones fold category navigation away; tablets keep its width and typography stable.
     var sectionsOpen by rememberSaveable { mutableStateOf(!compact && !categorized) }
     var syncTop by remember { mutableStateOf<Int?>(null) }
     LaunchedEffect(focusSync, syncTop) {
@@ -222,8 +224,8 @@ fun PreferencesPane(
             onSyncFocused()
         }
     }
-    LaunchedEffect(category) { scrollState.scrollTo(0) }
-    BackHandler(enabled = categorized && category != null) { category = null }
+    LaunchedEffect(activeCategory) { scrollState.scrollTo(0) }
+    BackHandler(enabled = categorized && compact && category != null) { category = null }
     val reorder = remember { KeyReorder() }
     var paneTopLeft by remember { mutableStateOf(Offset.Zero) }
     var viewport by remember { mutableStateOf(Rect.Zero) }
@@ -238,8 +240,8 @@ fun PreferencesPane(
         // Leading button inline with the title, at a constant row height so toggling the sidebar never
         // shifts the settings below: a back arrow to Home on compact, else a hamburger when hidden.
         Row(Modifier.fillMaxWidth().heightIn(min = 48.dp), verticalAlignment = Alignment.CenterVertically) {
-            val open = if (categorized) category else null
-            if (open != null) {
+            val open = if (categorized) activeCategory else null
+            if (compact && open != null) {
                 IconButton(onClick = { category = null }) {
                     Icon(XnotesIcons.prev, stringResource(R.string.preferences), tint = palette.text.toComposeColor(), modifier = Modifier.size(24.dp))
                 }
@@ -291,7 +293,7 @@ fun PreferencesPane(
         }
         val sectionsPanel = @Composable {
             if (categorized) {
-                PrefSectionsPanel(PrefCategory.entries.map { it.title }, category?.title) { title ->
+                PrefSectionsPanel(PrefCategory.entries.map { it.title }, activeCategory?.title) { title ->
                     category = PrefCategory.entries.first { it.title == title }
                     if (compact) sectionsOpen = false
                 }
@@ -305,7 +307,7 @@ fun PreferencesPane(
                 }
             }
         }
-        val panelBeside = if (categorized) category != null && !compact else sectionsOpen && !compact
+        val panelBeside = if (categorized) !compact else sectionsOpen && !compact
         val panelOver = sectionsOpen && compact && (!categorized || category != null)
         Row(Modifier.fillMaxSize()) {
         if (panelBeside) {
@@ -320,7 +322,7 @@ fun PreferencesPane(
                 .onGloballyPositioned { viewport = it.boundsInRoot() },
             verticalArrangement = Arrangement.spacedBy(14.dp),
         ) {
-            if (categorized && category == null && !searching) {
+            if (categorized && compact && category == null && !searching) {
                 for (c in PrefCategory.entries) {
                     Column(Modifier.fillMaxWidth().clip(MaterialTheme.shapes.small).clickable { category = c }.padding(horizontal = 8.dp, vertical = 4.dp)) {
                         Text(c.title, color = palette.text.toComposeColor(), fontSize = 16.sp)

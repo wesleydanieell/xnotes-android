@@ -57,3 +57,14 @@ migration, fork differences, branch map and remaining device QA.
   reservadas a gestos do Android. O debug n-notes foi recusado pelo instalador
   do Redmi; por isso sua bateria de interface final foi executada no emulador,
   enquanto a instalação community e o lançamento foram verificados no Redmi.
+
+## Stable categorized preferences on tablets
+
+The initial category index used 16 sp titles and full-width summary cards. Picking
+a category replaced it with a 224 dp sidebar using 12 sp titles and resized the
+content, which looked like the settings suddenly shrank. Categorized tablet
+preferences now show that same sidebar from the first frame, defaulting to
+General when there is no saved selection. Selecting a page updates its content
+and selection without replacing category navigation. The index and back-to-index
+behavior remain on phones; continuous settings and search remain supported.
+The dedicated toolbar configurator is unchanged by this fork-specific fix.
