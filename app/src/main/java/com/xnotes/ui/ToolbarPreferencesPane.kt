@@ -576,6 +576,12 @@ internal fun ToolbarPreferencesPane(editor: Editor, onBack: () -> Unit) {
                         )
                     }
                     if (toolbarPropertyTab == ToolbarPropertyTab.BARS) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Checkbox(prefs.adaptiveSplitToolbars,
+                                onCheckedChange = { updateHome(prefs.copy(adaptiveSplitToolbars = it)) })
+                            Text("Adaptar barras a painéis menores na tela dividida",
+                                style = MaterialTheme.typography.bodySmall)
+                        }
                         ToolbarBarSettings(
                             currentBar = currentBar,
                             barIndex = workspace.bars.indexOfFirst { it.id == currentBar.id },

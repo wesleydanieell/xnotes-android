@@ -75,6 +75,7 @@ import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.foundation.focusable
+import androidx.compose.ui.zIndex
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.layout.onGloballyPositioned
@@ -1995,6 +1996,7 @@ private fun EditorPane(
     val navigationAreas = com.xnotes.ui.LocalDocumentTabsHitAreas.current
     val toolbarBoundsInWindow = toolbarHitAreas.bounds() + navigationAreas?.bounds().orEmpty()
     val focused = app.active === editor
+    val panePreferences = remember(app.prefsVersion) { app.preferences }
     SideEffect { editor.openInPane = { uri -> actions.onOpenFile(editor, uri) } }
     // This pane owns the keyboard while it is the focused one; (re)grab it as that changes.
     LaunchedEffect(focused, editor.noteOpen) {
@@ -2038,7 +2040,12 @@ private fun EditorPane(
     // The colour a swatch drag carries rides over the whole pane, toolbar and page alike.
     var paneBounds by remember { mutableStateOf(Rect.Zero) }
     androidx.compose.runtime.CompositionLocalProvider(com.xnotes.ui.LocalToolbarHitAreas provides toolbarHitAreas) {
-    Box(modifier.onGloballyPositioned { paneBounds = it.boundsInRoot() }) {
+    BoxWithConstraints(modifier.onGloballyPositioned { paneBounds = it.boundsInRoot() }) {
+        val presentation = com.xnotes.ui.splitToolbarPresentation(
+            app.toolbarWorkspaces.forContext(if (editor.canvasOpen) ToolbarContext.CANVAS else ToolbarContext.NOTE),
+            com.xnotes.ui.LocalToolbarLook.current, maxWidth.value, maxHeight.value,
+            closable && panePreferences.adaptiveSplitToolbars)
+        androidx.compose.runtime.CompositionLocalProvider(com.xnotes.ui.LocalToolbarLook provides presentation.look) {
         Column(
             modifier = Modifier
                 .fillMaxSize()
@@ -2060,12 +2067,12 @@ private fun EditorPane(
                         .fillMaxWidth()
                         .height(2.dp)
                         .background((if (focused) palette.accent else palette.border).toComposeColor()
-                            .copy(alpha = if (focused) 0.30f else 0.50f)),
+                            .copy(alpha = if (focused) 0.65f else 0.20f)),
                 )
             }
             if (editor.canvasOpen) {
                 val canvas = editor.infinite
-                val primary = app.toolbarWorkspaces.forContext(ToolbarContext.CANVAS).bars.firstOrNull()
+                val primary = presentation.workspace.bars.firstOrNull()
                 val bareBar: @Composable () -> Unit = {
                     com.xnotes.ui.InfiniteToolbar(
                         canvas,
@@ -2076,6 +2083,7 @@ private fun EditorPane(
                         onInsertAudio = { actions.onInsertAudio(editor) },
                         onRecordAudio = { actions.onRecordAudio(editor) },
                         onTakePhoto = { actions.onTakePhoto(editor) },
+                        layout = primary?.layout ?: canvas.toolbarLayout,
                         geometry = primary?.geometry,
                     )
                 }
@@ -2087,7 +2095,7 @@ private fun EditorPane(
                         ) { bareBar() }
                     } else bareBar()
                 }
-                val activeWorkspace = app.toolbarWorkspaces.forContext(ToolbarContext.CANVAS)
+                val activeWorkspace = presentation.workspace
                 val secondaryBar: @Composable (com.xnotes.core.tools.ToolbarBar) -> Unit = { extraBar ->
                     com.xnotes.ui.InfiniteToolbar(
                         canvas,
@@ -2132,7 +2140,7 @@ private fun EditorPane(
                     }
                 }
             } else {
-                val primary = app.toolbarWorkspaces.forContext(ToolbarContext.NOTE).bars.firstOrNull()
+                val primary = presentation.workspace.bars.firstOrNull()
                 val bareBar: @Composable () -> Unit = {
                     Box(Modifier.endsPageSelection(editor)) { Toolbar(
                         editor,
@@ -2146,6 +2154,7 @@ private fun EditorPane(
                         onInsertAudio = { actions.onInsertAudio(editor) },
                         onRecordAudio = { actions.onRecordAudio(editor) },
                         onTakePhoto = { actions.onTakePhoto(editor) },
+                        layout = primary?.layout ?: editor.toolbarLayout,
                         geometry = primary?.geometry,
                     ) }
                 }
@@ -2157,7 +2166,7 @@ private fun EditorPane(
                         ) { bareBar() }
                     } else bareBar()
                 }
-                val activeWorkspace = app.toolbarWorkspaces.forContext(ToolbarContext.NOTE)
+                val activeWorkspace = presentation.workspace
                 val secondaryBar: @Composable (com.xnotes.core.tools.ToolbarBar) -> Unit = { extraBar ->
                     Toolbar(
                         editor,
@@ -2238,17 +2247,20 @@ private fun EditorPane(
             val dropNow by rememberUpdatedState(onDrop)
             val previewNow by rememberUpdatedState(onSwapPreview)
             val ghostNow by rememberUpdatedState(onGhost)
-            val gripOriginNow by rememberUpdatedState(gripRootOrigin)
+            var measuredGripOrigin by remember { mutableStateOf(gripRootOrigin) }
+            val gripOriginNow by rememberUpdatedState(measuredGripOrigin)
             var dragStartOrigin by remember { mutableStateOf(Offset.Zero) }
             var ghostOffset by remember { mutableStateOf(Offset.Zero) }
             val threshold = with(LocalDensity.current) { 48.dp.toPx() }
             val hostOriginNow by rememberUpdatedState(hostOrigin)
             val hostPixelsNow by rememberUpdatedState(hostPixels)
             var previewTarget by remember { mutableStateOf<SplitSide?>(null) }
-            Box(
+            com.xnotes.ui.ToolbarHitArea(
                 Modifier.align(Alignment.TopCenter)
                     .offset(y = gripTopInset)
                     .size(width = 48.dp, height = 16.dp)
+                    .zIndex(25f)
+                    .onGloballyPositioned { measuredGripOrigin = it.positionInRoot() }
                     .pointerInput(Unit) {
                         detectDragGesturesAfterLongPress(
                             onDragStart = { touchInGrip ->
@@ -2281,10 +2293,10 @@ private fun EditorPane(
                             },
                         )
                     },
-                contentAlignment = Alignment.Center,
             ) {
-                PaneGripDots()
+                Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { PaneGripDots() }
             }
+        }
         }
     }
 }

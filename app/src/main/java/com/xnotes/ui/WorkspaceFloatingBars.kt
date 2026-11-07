@@ -25,6 +25,9 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.boundsInRoot
+import androidx.compose.ui.layout.positionInWindow
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.zIndex
 import androidx.compose.ui.unit.IntOffset
@@ -111,9 +114,23 @@ fun BoxScope.WorkspaceFloatingBars(
 ) {
     var paneBounds by remember { mutableStateOf(Rect.Zero) }
     val baseLook = LocalToolbarLook.current
+    val unavailableDockBars = LocalUnavailableDockBars.current
+    val obstacles = LocalGlobalToolHitAreas.current?.bounds().orEmpty() + LocalDocumentTabsHitAreas.current?.bounds().orEmpty()
+    var windowOrigin by remember { mutableStateOf(Offset.Zero) }
+    val density = LocalDensity.current
     val showPrimary = workspace.hasMultiDock(baseLook)
-    BoxWithConstraints(Modifier.fillMaxSize().zIndex(10f).onGloballyPositioned { paneBounds = it.boundsInRoot() }) {
+    BoxWithConstraints(Modifier.fillMaxSize().zIndex(10f).onGloballyPositioned {
+        paneBounds = it.boundsInRoot(); windowOrigin = it.positionInWindow()
+    }) {
         val plan = toolbarFloatingPlan(workspace, baseLook, maxWidth, maxHeight, colorCount)
+        val unavailable = (unavailableDockBars + workspace.bars.filter { it.visible && it.id in plan.rejected }).distinctBy { it.id }
+        if (unavailable.isNotEmpty()) {
+            val offset = documentTabsOffset(with(density) { Size(maxWidth.toPx(), maxHeight.toPx()) },
+                with(density) { Size(40.dp.toPx(), 40.dp.toPx()) }, ToolbarAnchor.BOTTOM_RIGHT,
+                obstacles.map { it.translate(-windowOrigin) }, with(density) { 8.dp.toPx() })
+            ToolbarOverflowMenu(unavailable, baseLook, maxWidth - 16.dp,
+                Modifier.zIndex(25f).offset { IntOffset(offset.x.roundToInt(), offset.y.roundToInt()) }, content)
+        }
         for ((index, bar) in workspace.bars.withIndex()) {
             val placement = plan.placement(bar.id) ?: continue
             // Legacy floating primary is already rendered by ToolbarAround.

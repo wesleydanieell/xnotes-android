@@ -191,11 +191,15 @@ internal fun ColumnScope.ToolbarAround(
     if (workspace != null && dockedContent != null && workspace.hasMultiDock(look)) {
         SideEffect { onCover(0.0, 0.0, 0.0, 0.0) }
         BoxWithConstraints(rest) {
-            val plan = toolbarDockPlan(workspace, look, maxWidth, maxHeight)
+            val plan = toolbarDockPlan(workspace, look, maxWidth, maxHeight, fitToViewport = true)
             Box(Modifier.fillMaxSize().padding(
                 start = plan.leftInset.dp, top = plan.topInset.dp,
                 end = plan.rightInset.dp, bottom = plan.bottomInset.dp,
-            )) { content({}) }
+            )) {
+                CompositionLocalProvider(LocalUnavailableDockBars provides workspace.bars.filter { it.id in plan.rejected }) {
+                    content({})
+                }
+            }
             for ((index, dockBar) in workspace.bars.withIndex()) {
                 val placement = plan.placement(dockBar.id) ?: continue
                 val barLook = look.copy(
