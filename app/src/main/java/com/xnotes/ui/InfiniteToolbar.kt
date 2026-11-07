@@ -93,6 +93,7 @@ fun InfiniteToolbar(
         ToolbarSections(layout) { _, section ->
             ToolbarSectionGrid(section) { entry ->
                 when (val item = entry.item) {
+                    ToolbarItem.DOCUMENT_TABS -> ToolbarDocumentTabs()
                     ToolbarItem.SPACER -> ToolbarSpacer(entry)
                     ToolbarItem.HOME -> ToolbarIcon(XnotesIcons.prev, stringResource(R.string.toolbar_home)) { onOpenBackstage() }
                     ToolbarItem.UNIFIED_PEN -> UnifiedPenLauncher(

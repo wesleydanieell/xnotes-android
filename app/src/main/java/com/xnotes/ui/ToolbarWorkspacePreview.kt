@@ -339,6 +339,7 @@ private fun PreviewTool(
     val controls: @Composable () -> Unit = {
         when (item) {
             ToolbarItem.SPACER -> ToolbarSpacer(entry)
+            ToolbarItem.DOCUMENT_TABS -> ToolbarDocumentTabsPreview(onSelect)
             ToolbarItem.COLORS -> entry.colorIndices(colors.size).forEach { index ->
                 Swatch(colors[index].toComposeColor(), active = index == activeColorIndex, onClick = onSelect)
             }

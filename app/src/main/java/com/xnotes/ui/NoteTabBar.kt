@@ -78,7 +78,7 @@ data class DocumentDropArea(val origin: Offset, val size: IntSize)
 
 /**
  * Independent workspace bar. It depends on tab metadata and actions, not on the page toolbar,
- * canvas, or Editor. A future customizable toolbar host can mount or replace this component.
+ * canvas, or Editor. Standalone navigation and customizable toolbar elements mount this component.
  */
 @Composable
 fun NoteTabBar(

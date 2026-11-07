@@ -154,6 +154,7 @@ private fun estimatedFloatingLength(bar: ToolbarBar, index: Int, look: ToolbarLo
                     com.xnotes.core.tools.ToolbarItem.PAGE_NAV,
                     com.xnotes.core.tools.ToolbarItem.ZOOM -> 3f * unit
                     com.xnotes.core.tools.ToolbarItem.TITLE -> if (vertical) 0f else 120f
+                    com.xnotes.core.tools.ToolbarItem.DOCUMENT_TABS -> if (vertical) unit else DOCUMENT_TABS_WIDTH_DP
                     else -> unit
                 }.toDouble()
             }.toFloat()

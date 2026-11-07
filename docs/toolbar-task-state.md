@@ -1,5 +1,23 @@
 # Estado executável — XNotes Toolbars
 
+## Community document-tabs element — 06/11/2026
+
+- Prepared on `feat/document-tabs-toolbar-element`, above customizable toolbars
+  `5e786579` and the existing community tab/split implementation. Catalog entry
+  is optional, persisted and supported in note/canvas and primary/secondary bars.
+- Reuses animated `FloatingDocumentTabs` / `NoteTabBar`; horizontal composite is
+  360 dp, side rails open an upright switcher. Legacy navigation remains when
+  the configured bar is hidden or rejected by capacity. Per-pane focus and all
+  toolbar stylus exclusion rectangles are retained.
+- Dedicated `ToolbarPreferencesPane` allows n-notes to keep preference categories,
+  search and reader behavior. See `DOCUMENT_TABS_TOOLBAR.md` for dependencies.
+- XNotes gate: 2,624 JVM tests without failures/errors/skips, assembleCommunity,
+  assembleDebug and diff-check passed. Community update installed on Redmi Pad 2
+  using its matching existing signing key; launch check passed.
+- Emulator closed on user request. No completed gesture/animation/stylus QA is
+  claimed; next action is manual checking on a separate test note on the tablet.
+
+
 ## Presets aplicam também o modo da principal — 06/11/2026
 
 - Relato: aplicar workspace mudava elementos, mas podia manter o modo docked/

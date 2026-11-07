@@ -1,5 +1,17 @@
 package com.xnotes.ui
 
+import androidx.compose.foundation.layout.size
+import androidx.compose.material.icons.filled.KeyboardArrowDown
+import androidx.compose.material.icons.filled.KeyboardArrowUp
+import androidx.compose.material.icons.Icons
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.shrinkVertically
+import androidx.compose.animation.expandVertically
+import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.horizontalScroll
@@ -30,9 +42,6 @@ import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.AbsoluteAlignment
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.geometry.Rect
-import androidx.compose.ui.layout.onGloballyPositioned
-import androidx.compose.ui.layout.boundsInWindow
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.platform.LocalDensity
@@ -116,6 +125,7 @@ internal fun toolbarDepth(bar: BarMetrics, layout: ToolbarLayout?): Dp {
             val laneButton = section.entriesInLane(lane)
                 .maxOfOrNull { entry ->
                     if (entry.item == com.xnotes.core.tools.ToolbarItem.SPACER) bar.button
+                    else if (entry.item == com.xnotes.core.tools.ToolbarItem.DOCUMENT_TABS) maxOf(42.dp, entry.sizeDp?.dp ?: bar.button)
                     else entry.sizeDp?.dp ?: bar.button
                 } ?: bar.button
             total + maxOf(bar.button, laneButton)
@@ -168,7 +178,6 @@ internal fun ColumnScope.ToolbarAround(
     bar: @Composable () -> Unit,
     onCover: (Double, Double, Double, Double) -> Unit,
     tabExtension: ToolbarTabExtension? = null,
-    onBarBounds: (Rect) -> Unit = {},
     suppressBar: Boolean = false,
     barLayout: ToolbarLayout? = null,
     barGeometry: ToolbarGeometry? = null,
@@ -176,9 +185,6 @@ internal fun ColumnScope.ToolbarAround(
     dockedContent: (@Composable (ToolbarBar) -> Unit)? = null,
     content: @Composable (floatingBar: @Composable BoxScope.() -> Unit) -> Unit,
 ) {
-    val measuredBar: @Composable () -> Unit = {
-        Box(Modifier.onGloballyPositioned { onBarBounds(it.boundsInWindow()) }) { bar() }
-    }
     val look = LocalToolbarLook.current
     val rest = Modifier.weight(1f).fillMaxWidth()
     // Multi-dock occupies genuine document space on all four edges. The same plan drives
@@ -201,7 +207,7 @@ internal fun ColumnScope.ToolbarAround(
                 Box(Modifier.offset(x = placement.x.dp, y = placement.y.dp)
                     .width(placement.width.dp).height(placement.height.dp)) {
                     CompositionLocalProvider(LocalToolbarLook provides barLook) {
-                        if (index == 0) measuredBar() else dockedContent(dockBar)
+                        if (index == 0) bar() else dockedContent(dockBar)
                     }
                 }
             }
@@ -221,10 +227,10 @@ internal fun ColumnScope.ToolbarAround(
         val dockedBar: @Composable () -> Unit = {
             when {
                 !look.position.vertical && barGeometry?.widthDp != null ->
-                    Box(Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) { measuredBar() }
+                    Box(Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) { bar() }
                 look.position.vertical && barGeometry?.heightDp != null ->
-                    Box(Modifier.fillMaxHeight(), contentAlignment = Alignment.Center) { measuredBar() }
-                else -> measuredBar()
+                    Box(Modifier.fillMaxHeight(), contentAlignment = Alignment.Center) { bar() }
+                else -> bar()
             }
         }
         // Left and right are the screen's, as the canvas insets are, whatever the language.
@@ -257,7 +263,37 @@ internal fun ColumnScope.ToolbarAround(
         ToolbarPosition.RIGHT -> PaddingValues.Absolute(right = depth) to AbsoluteAlignment.CenterRight
     }
     CompositionLocalProvider(LocalToolbarCover provides cover) {
-        Box(rest) { content { Box(Modifier.align(edge).padding(FLOAT_MARGIN)) { measuredBar() } } }
+        BoxWithConstraints(rest) {
+            val availableTabWidth = (maxWidth - FLOAT_MARGIN * 2).coerceAtLeast(120.dp)
+            content {
+                if (position == ToolbarPosition.TOP && tabExtension != null) {
+                    val shape = MaterialTheme.shapes.extraLarge
+                    val palette = LocalPalette.current
+                    ToolbarHitArea(Modifier.align(edge).padding(FLOAT_MARGIN)) {
+                        Column(
+                            Modifier.shadow(6.dp, shape).clip(shape)
+                                .background(palette.panel.toComposeColor())
+                                .border(1.dp, palette.border.toComposeColor(), shape),
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                        ) {
+                            AnimatedVisibility(
+                                visible = tabExtension.expanded,
+                                enter = expandVertically(animationSpec = tween(200)) + fadeIn(tween(150)),
+                                exit = shrinkVertically(animationSpec = tween(180)) + fadeOut(tween(120)),
+                            ) {
+                                Box(Modifier.width(availableTabWidth)) { tabExtension.content() }
+                            }
+                            CompositionLocalProvider(
+                                LocalToolbarTabExtension provides tabExtension,
+                                LocalGroupedToolbarSurface provides true,
+                            ) { bar() }
+                        }
+                    }
+                } else {
+                    ToolbarHitArea(Modifier.align(edge).padding(FLOAT_MARGIN)) { bar() }
+                }
+            }
+        }
     }
 }
 
@@ -283,7 +319,10 @@ internal fun ToolbarFrame(
     val palette = LocalPalette.current
     val shape = MaterialTheme.shapes.extraLarge
     // Docked, the strip fills its edge; floating, a pill only as long as its tools, up to that edge.
-    val surface = if (!look.floating) {
+    val tabExtension = LocalToolbarTabExtension.current
+    val surface = if (LocalGroupedToolbarSurface.current) {
+        Modifier
+    } else if (!look.floating) {
         Modifier.background(palette.panel.toComposeColor())
     } else {
         Modifier
@@ -313,6 +352,7 @@ internal fun ToolbarFrame(
         ToolbarPosition.LEFT -> TipSide.RIGHT
         ToolbarPosition.RIGHT -> TipSide.LEFT
     }
+    ToolbarHitArea {
     CompositionLocalProvider(LocalToolGlide provides glide, LocalBar provides bar,
         LocalCompactToolbarRegions provides compactRegions, LocalMenuOffset provides menuOffset,
         LocalTipSide provides tipSide) {
@@ -347,7 +387,17 @@ internal fun ToolbarFrame(
                     verticalAlignment = Alignment.CenterVertically,
                 ) { content() }
                 trailing?.invoke()
+                if (tabExtension?.showToggle == true) {
+                    IconButton(onClick = tabExtension.onToggle, modifier = Modifier.size(bar.button)) {
+                        Icon(
+                            if (tabExtension.expanded) Icons.Filled.KeyboardArrowUp else Icons.Filled.KeyboardArrowDown,
+                            contentDescription = if (tabExtension.expanded) "Hide document tabs" else "Show document tabs",
+                            tint = palette.text.toComposeColor(),
+                        )
+                    }
+                }
             }
         }
+    }
     }
 }

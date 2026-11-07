@@ -29,6 +29,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.xnotes.core.workspace.NoteTabs
@@ -49,17 +50,19 @@ fun FloatingDocumentTabs(
     onSplit: (String, SplitSide) -> Unit,
     dropArea: DocumentDropArea? = null,
     modifier: Modifier = Modifier,
+    expandedWidth: Dp? = null,
+    embedded: Boolean = false,
 ) {
     val palette = LocalPalette.current
     val shape = MaterialTheme.shapes.extraLarge
     val active = tabs.tabs.firstOrNull { it.uri == activeUri } ?: tabs.tabs.firstOrNull()
     val title = active?.title?.replace(Regex("(?i)\\.(xnote|xcanvas)$"), "") ?: "Documents"
     val canvas = active?.uri?.substringBefore('?')?.endsWith(".xcanvas", true) == true
-    val maxWidth = (LocalConfiguration.current.screenWidthDp.dp - 16.dp).coerceAtLeast(200.dp)
+    val maxWidth = expandedWidth ?: (LocalConfiguration.current.screenWidthDp.dp - 16.dp).coerceAtLeast(200.dp)
     Column(
-        modifier.shadow(5.dp, shape).clip(shape)
+        modifier.then(if (embedded) Modifier else Modifier.shadow(5.dp, shape).clip(shape)
             .background(palette.panel.toComposeColor())
-            .border(1.dp, palette.border.toComposeColor(), shape)
+            .border(1.dp, palette.border.toComposeColor(), shape))
             .animateContentSize(animationSpec = spring(stiffness = androidx.compose.animation.core.Spring.StiffnessMediumLow)),
     ) {
         if (expanded) {

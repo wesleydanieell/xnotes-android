@@ -28,7 +28,7 @@ class ToolbarWorkspacePresetsTest {
             layout = ToolbarLayout(
                 sections = listOf(
                     ToolbarSection(listOf(ToolbarEntry(ToolbarItem.PEN, sizeDp = 44),
-                        ToolbarEntry(ToolbarItem.TEXT_BOX),
+                        ToolbarEntry(ToolbarItem.TEXT),
                         ToolbarEntry(ToolbarItem.COLORS, colorPart = 1, colorParts = 2))),
                     ToolbarSection(listOf(ToolbarEntry(ToolbarItem.ERASER))),
                 ),
@@ -38,7 +38,7 @@ class ToolbarWorkspacePresetsTest {
         )
         val destination = ToolbarWorkspace(listOf(ToolbarBar("canvas-primary", "Main", ToolbarLayout.CANVAS_DEFAULT)))
         val draft = prepareToolbarTransfer(original, destination, ToolbarContext.CANVAS)
-        assertEquals(listOf(ToolbarItem.TEXT_BOX), draft.omitted)
+        assertEquals(listOf(ToolbarItem.TEXT), draft.omitted)
         assertEquals(3, draft.retainedCount)
         assertEquals(original.geometry, draft.bar.geometry)
         assertEquals(original.layout.distribution, draft.bar.layout.distribution)
@@ -46,7 +46,7 @@ class ToolbarWorkspacePresetsTest {
         assertEquals(44, draft.bar.layout.sections[0].entries[0].sizeDp)
         assertEquals(2, draft.bar.layout.sections[0].entries[1].colorParts)
         assertEquals(3, original.layout.sections.sumOf { it.entries.size } - draft.omitted.size)
-        assertTrue(original.layout.sections[0].entries.any { it.item == ToolbarItem.TEXT_BOX })
+        assertTrue(original.layout.sections[0].entries.any { it.item == ToolbarItem.TEXT })
         assertNotEquals(original.id, draft.bar.id)
     }
 
@@ -115,7 +115,7 @@ class ToolbarWorkspacePresetsTest {
         val current = ToolbarWorkspaces.fromLegacy(ToolbarLayout.DEFAULT, ToolbarLayout.CANVAS_DEFAULT)
         val preset = ToolbarWorkspaces(
             note = ToolbarWorkspace.fromLegacy("shared-note", "Escrita", ToolbarLayout(listOf(
-                ToolbarSection(listOf(ToolbarEntry(ToolbarItem.PEN), ToolbarEntry(ToolbarItem.TEXT_BOX))),
+                ToolbarSection(listOf(ToolbarEntry(ToolbarItem.PEN), ToolbarEntry(ToolbarItem.TEXT))),
             ))),
             canvas = ToolbarWorkspace.fromLegacy("ignored-canvas", "Separado", ToolbarLayout.CANVAS_DEFAULT),
             shared = true,
