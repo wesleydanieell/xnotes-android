@@ -4377,6 +4377,7 @@ class InteractionController(
             page.items.forEach { if (!it.locked) all.add(Selected(i, it)) }
         }
         setSelection(all)
+        refreshSelectionMenu()
     }
 
     /**

@@ -282,28 +282,7 @@ fun SelectionMenu(
     val crops = host.canCropSelection()
     val size = host.selectionSize()
     val mirrors = host.canMirrorSelection()
-    val barHeightPx = with(density) { 48.dp.toPx() }
-    val barWidthPx = with(density) { ((7 + (if (audio != null) 1 else 0) + (if (crops) 1 else 0) + (if (size != null) 1 else 0) + (if (mirrors) 1 else 0)) * 46).dp.toPx() }
-    val gap = with(density) { 10.dp.toPx() }
-    val centerX = ((rect.left + rect.right) / 2.0).toFloat()
-    val xPx = (centerX - barWidthPx / 2f).coerceAtLeast(with(density) { 8.dp.toPx() })
-    val barAbove = rect.top.toFloat() - barHeightPx - gap > 0f
-    val yPx = if (barAbove) {
-        rect.top.toFloat() - barHeightPx - gap
-    } else {
-        rect.bottom.toFloat() + gap
-    }
-    val xDp = with(density) { xPx.toDp() }
-    val yDp = with(density) { yPx.toDp() }
-
-    CompositionLocalProvider(LocalTipSide provides tipSideFor(barAbove)) {
-        Row(
-            modifier = Modifier
-                .offset(xDp, yDp)
-                .clip(MaterialTheme.shapes.medium)
-                .background(palette.menuBg.toComposeColor())
-                .border(1.dp, palette.border.toComposeColor(), MaterialTheme.shapes.medium),
-        ) {
+    CanvasSelectionActionBar(rect) {
             ActionIcon(XnotesIcons.trash, stringResource(R.string.delete), shortcut = Keys.DELETE, tint = palette.danger.toComposeColor()) { host.deleteSelection() }
             ActionIcon(XnotesIcons.cut, stringResource(R.string.cut)) { host.cutSelection() }
             ActionIcon(XnotesIcons.copy, stringResource(R.string.copy)) { host.copySelection(); host.dismissSelectionMenu() }
@@ -497,7 +476,6 @@ fun SelectionMenu(
                     AudioNameDialog(item.name, onConfirm = { renamingAudio = null; host.renameSelectedAudio(it) }) { renamingAudio = null }
                 }
             }
-        }
     }
 }
 
