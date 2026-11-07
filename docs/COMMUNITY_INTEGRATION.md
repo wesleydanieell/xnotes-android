@@ -21,7 +21,8 @@ requires its original signing key. Local community APKs are unsigned when
 
 ## Validation — 2026-11-06
 
-- 2,729 JVM tests passed, zero failures/errors/skips; `assembleCommunity` passed.
+- 2,729 JVM tests passed, zero failures/errors/skips; `assembleCommunity` and
+  `assembleDebug` passed.
   The concurrent build exhausted its previous heap; sequential compilation with
   an in-process 4 GB heap passed both debug and community Kotlin compilation.
 - Community APK signed with the same local Android Debug certificate already on
