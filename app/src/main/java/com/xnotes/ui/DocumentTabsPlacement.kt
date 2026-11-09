@@ -93,3 +93,20 @@ internal fun documentTabsFreeStrip(host: Size, anchor: ToolbarAnchor, vertical: 
     }
     return fallback ?: rect(start, end, desired)
 }
+
+/** Clearance for the pane's top-center drag handle, using window-coordinate obstacles. */
+internal fun paneGripClearance(pane: Rect, obstacles: List<Rect>, width: Float, height: Float, gap: Float): Float {
+    if (pane.isEmpty) return gap
+    val left = pane.center.x - width / 2f
+    val right = left + width
+    var top = pane.top + gap
+    // Walk down through overlapping rows, independent of obstacle registration order.
+    repeat(obstacles.size + 1) {
+        val bottom = obstacles.filter { it.left < right && it.right > left &&
+            it.top < top + height && it.bottom > top }.maxOfOrNull { it.bottom } ?: return top - pane.top
+        val next = bottom + gap
+        if (next + height > pane.bottom) return (pane.height - height).coerceAtLeast(0f)
+        top = next
+    }
+    return top - pane.top
+}

@@ -184,3 +184,43 @@ não somente se um commit já aparece no histórico. Os dois guias antigos conti
 Aplicar o adaptador somente aos blocos ainda necessários, preservando recursos
 novos do upstream e do fork. A branch independente continua sem dependência deste
 adaptador community.
+
+## Correção: comprimento das barras, abas adjacentes e puxadores
+
+O workspace compartilhado usa as dimensões e distribuição normais do perfil,
+sem passar por `splitToolbarPresentation`: a compactação adaptativa destina-se
+aos painéis individuais. A área compartilhada pode diminuir com abas docked ou
+IME; isso não deve trocar automaticamente os tamanhos dos controles ou comprimentos
+salvos. Os limites reais da janela e o scroll da barra continuam sendo respeitados.
+
+O registro global `LocalGlobalToolHitAreas` é usado pelo host das abas para
+calcular a faixa livre. Os três pontinhos de cada painel estavam entrando nesse
+registro como se fossem barras de ferramentas. Assim, sua posição alterava o
+comprimento/posicionamento das abas; reposicionar as abas também podia exigir mover
+o puxador, formando uma dependência circular de layout. `ToolbarHitArea` agora
+permite `toolObstacle = false`: o puxador continua excluído do roteamento nativo
+da caneta no painel, mas não reserva espaço como uma toolbar.
+
+`paneGripClearance` calcula a posição vertical do puxador a partir dos retângulos
+reais das ferramentas e da barra de abas, em coordenadas da janela. Só considera
+obstáculos que cruzam a largura do puxador; percorre linhas sobrepostas sem depender
+da ordem do registro. Barras docked fora da área do painel e barras do outro painel
+não acrescentam um inset fictício. O preview de arraste usa a mesma folga medida.
+
+Regressões adicionais alternam shared/per-pane nos pares xnote/xnote,
+xcanvas/xcanvas e mistos, com abas expandidas flutuantes junto das barras, nas
+quatro bordas e nos modos floating/docked. Conferir que existe uma toolbar em cada
+lado, que suas ferramentas estão dentro da janela e que abas/puxadores não as
+cobrem. O teste com IME também compara largura e distância entre controles antes
+e depois de abrir o teclado. Quatro testes JVM cobrem a folga dos puxadores.
+
+Validação JVM desta correção: 2.653 testes no XNotes e 2.758 no n-notes,
+sem falhas. `assembleCommunity` passou nos dois, incluindo a verificação vital
+do lint e otimização R8. Os casos de dispositivo acima são executados em pacotes
+isolados; os arquivos do usuário não são usados como fixtures.
+
+Redmi Pad 2: 49 testes de dispositivo aprovados em cada fork (98 no total),
+incluindo as animações das abas, exclusão em PDF e regressões de barras por painel.
+Os dois APKs corrigidos foram instalados por atualização no Redmi e abertos com
+sucesso. Os hashes dos APKs instalados coincidem com os artefatos assinados.
+Restaurado para `0` o ajuste temporário de manter a tela acesa por USB.
