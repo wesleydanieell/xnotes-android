@@ -1364,6 +1364,7 @@ private fun EditorScreen(
         onSplit = ::splitFromTab,
         dropArea = tabHostArea,
         splitControls = if (editor.inSplit && readerSplit.isEmpty()) ({ com.xnotes.ui.SplitToolbarTabsControl(editor) }) else null,
+        dockAboveSplit = editor.inSplit && readerSplit.isEmpty() && !tabsPreferences.sharedSplitToolbars,
     )
     Scaffold(
         snackbarHost = { SnackbarHost(snackbar, Modifier.windowInsetsPadding(WindowInsets.ime.exclude(contentInsets))) },
@@ -1564,8 +1565,10 @@ private fun EditorScreen(
             com.xnotes.ui.DocumentTabsHost(
                 documents = documentNavigation,
                 config = tabsPreferences.documentTabsBar,
-                onMove = { anchor -> editor.applyHomePreferences(tabsPreferences.copy(
-                    documentTabsBar = tabsPreferences.documentTabsBar.movedTo(anchor))) },
+                onMove = { anchor ->
+                    val current = editor.preferences
+                    editor.applyHomePreferences(current.copy(documentTabsBar = current.documentTabsBar.movedTo(anchor)))
+                },
                 modifier = Modifier.fillMaxSize().imePadding(),
                 enabled = noteTabs.tabs.isNotEmpty() && editor.openPanes.isNotEmpty(),
             ) {
@@ -1940,6 +1943,12 @@ private fun SplitHost(
     }
     // A pane that closed on its own leaves the other one full-screen; once neither is open the
     // second editor is released, freeing its canvas and GL surfaces.
+    LaunchedEffect(split) {
+        if (!split) {
+            editor.clearPaneToolbarPlacement()
+            second?.clearPaneToolbarPlacement()
+        }
+    }
     LaunchedEffect(editor.noteOpen, second?.noteOpen) {
         if (second != null && !second.noteOpen) editor.releaseClosedSecondary()
     }
@@ -2419,11 +2428,20 @@ private fun EditorPane(
     }
     // The colour a swatch drag carries rides over the whole pane, toolbar and page alike.
     var paneBounds by remember { mutableStateOf(Rect.Zero) }
-    androidx.compose.runtime.CompositionLocalProvider(com.xnotes.ui.LocalToolbarHitAreas provides toolbarHitAreas) {
-    BoxWithConstraints(modifier.onGloballyPositioned { paneBounds = it.boundsInRoot() }) {
+    val isolatedTools = closable && sharedToolbars == null
+    fun moveBar(context: ToolbarContext, id: String, anchor: com.xnotes.core.tools.ToolbarAnchor) {
+        if (isolatedTools) editor.movePaneToolbarBar(app, context, id, anchor)
+        else app.moveToolbarBar(context, id, anchor)
+    }
+    androidx.compose.runtime.CompositionLocalProvider(
+        com.xnotes.ui.LocalToolbarHitAreas provides toolbarHitAreas,
+        com.xnotes.ui.LocalPaneToolObstacles provides if (isolatedTools) toolbarHitAreas else null,
+    ) {
+    BoxWithConstraints(modifier.clipToBounds().onGloballyPositioned { paneBounds = it.boundsInRoot() }) {
         val presentation = com.xnotes.ui.splitToolbarPresentation(
-            app.toolbarWorkspaces.forContext(if (editor.canvasOpen) ToolbarContext.CANVAS else ToolbarContext.NOTE),
-            com.xnotes.ui.LocalToolbarLook.current, maxWidth.value, maxHeight.value,
+            ((if (isolatedTools) editor.paneToolbarWorkspaces else null) ?: app.toolbarWorkspaces).forContext(
+                if (editor.canvasOpen) ToolbarContext.CANVAS else ToolbarContext.NOTE),
+            (if (isolatedTools) editor.paneToolbarLook else null) ?: com.xnotes.ui.LocalToolbarLook.current, maxWidth.value, maxHeight.value,
             closable && panePreferences.adaptiveSplitToolbars && sharedToolbars == null)
         androidx.compose.runtime.CompositionLocalProvider(com.xnotes.ui.LocalToolbarLook provides presentation.look) {
         Column(
@@ -2471,7 +2489,7 @@ private fun EditorPane(
                     if (primary != null && !primary.geometry.floating) {
                         ToolbarDragSurface(
                             primary.id, primary.geometry.anchor, primary.geometry.movable,
-                            paneBounds, { id, anchor -> app.moveToolbarBar(ToolbarContext.CANVAS, id, anchor) },
+                            paneBounds, { id, anchor -> moveBar(ToolbarContext.CANVAS, id, anchor) },
                         ) { bareBar() }
                     } else bareBar()
                 }
@@ -2504,7 +2522,7 @@ private fun EditorPane(
                         floatingBar()
                         if (sharedToolbars == null) WorkspaceFloatingBars(
                             workspace = activeWorkspace,
-                            onMoveBar = { id, anchor -> app.moveToolbarBar(ToolbarContext.CANVAS, id, anchor) },
+                            onMoveBar = { id, anchor -> moveBar(ToolbarContext.CANVAS, id, anchor) },
                             primaryContent = { bar() },
                             content = secondaryBar,
                             colorCount = editor.toolbarColorCount,
@@ -2547,7 +2565,7 @@ private fun EditorPane(
                     if (primary != null && !primary.geometry.floating) {
                         ToolbarDragSurface(
                             primary.id, primary.geometry.anchor, primary.geometry.movable,
-                            paneBounds, { id, anchor -> app.moveToolbarBar(ToolbarContext.NOTE, id, anchor) },
+                            paneBounds, { id, anchor -> moveBar(ToolbarContext.NOTE, id, anchor) },
                         ) { bareBar() }
                     } else bareBar()
                 }
@@ -2596,7 +2614,7 @@ private fun EditorPane(
                             floatingBar()
                             if (sharedToolbars == null) WorkspaceFloatingBars(
                                 workspace = activeWorkspace,
-                                onMoveBar = { id, anchor -> app.moveToolbarBar(ToolbarContext.NOTE, id, anchor) },
+                                onMoveBar = { id, anchor -> moveBar(ToolbarContext.NOTE, id, anchor) },
                                 primaryContent = { bar() },
                                 content = secondaryBar,
                             colorCount = editor.toolbarColorCount,

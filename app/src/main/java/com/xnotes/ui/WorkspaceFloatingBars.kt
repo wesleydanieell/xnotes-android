@@ -17,6 +17,8 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
+import androidx.compose.runtime.compositionLocalOf
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.AbsoluteAlignment
 import androidx.compose.ui.Alignment
@@ -56,6 +58,7 @@ fun ToolbarDragSurface(
     onMoveBar: (String, ToolbarAnchor) -> Unit,
     content: @Composable () -> Unit,
 ) {
+    val moveBarNow by rememberUpdatedState(onMoveBar)
     var drag by remember(id) { mutableStateOf(Offset.Zero) }
     var dragging by remember(id) { mutableStateOf(false) }
     var barBounds by remember(id) { mutableStateOf(Rect.Zero) }
@@ -80,7 +83,7 @@ fun ToolbarDragSurface(
                     )?.let { target ->
                         // The saved anchor can differ from a primary bar's effective dock edge.
                         // The caller owns the no-op check against the full placement state.
-                        onMoveBar(id, target)
+                        moveBarNow(id, target)
                     }
                 }
             },
@@ -103,6 +106,9 @@ fun ToolbarDragSurface(
     }
 }
 
+/** Per-pane overflow considers only this pane's tools; global navigation stays global. */
+internal val LocalPaneToolObstacles = compositionLocalOf<ToolbarHitAreas?> { null }
+
 /** Floating bars auto-pack along screen edges and overflow to free lanes, never covering each other. */
 @Composable
 fun BoxScope.WorkspaceFloatingBars(
@@ -115,7 +121,8 @@ fun BoxScope.WorkspaceFloatingBars(
     var paneBounds by remember { mutableStateOf(Rect.Zero) }
     val baseLook = LocalToolbarLook.current
     val unavailableDockBars = LocalUnavailableDockBars.current
-    val obstacles = LocalGlobalToolHitAreas.current?.bounds().orEmpty() + LocalDocumentTabsHitAreas.current?.bounds().orEmpty()
+    val obstacles = (LocalPaneToolObstacles.current ?: LocalGlobalToolHitAreas.current)?.bounds().orEmpty() +
+        LocalDocumentTabsHitAreas.current?.bounds().orEmpty()
     var windowOrigin by remember { mutableStateOf(Offset.Zero) }
     val density = LocalDensity.current
     val showPrimary = workspace.hasMultiDock(baseLook)

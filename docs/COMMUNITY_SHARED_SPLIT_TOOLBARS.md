@@ -224,3 +224,46 @@ incluindo as animações das abas, exclusão em PDF e regressões de barras por 
 Os dois APKs corrigidos foram instalados por atualização no Redmi e abertos com
 sucesso. Os hashes dos APKs instalados coincidem com os artefatos assinados.
 Restaurado para `0` o ajuste temporário de manter a tela acesa por USB.
+
+## Correção: arraste, escolhas atuais e isolamento por painel
+
+`ToolbarDragSurface` tem um detector `pointerInput(id, anchor, paneBounds)`. Esses
+parâmetros podem permanecer iguais quando o usuário troca xnote/xcanvas ou o modo
+da divisão. O detector antes conservava o callback da composição inicial. Agora
+`rememberUpdatedState(onMoveBar)` entrega o callback atual no fim do gesto.
+O movimento da navegação também faz um patch sobre `editor.preferences` no momento
+da ação; nunca copiar `tabsPreferences` capturado para salvar uma nova âncora.
+Isso evita restaurar `mixedSplitToolbar`/`sharedSplitToolbars` antigos ao arrastar.
+
+A política de mudança de geometria foi extraída para `movedToolbarBar`. No modo
+compartilhado/single, `moveToolbarBar` continua persistindo o perfil apropriado.
+No modo por painel, `movePaneToolbarBar` muda apenas `paneToolbarWorkspaces` e
+`paneToolbarLook` do editor daquela visualização. São posições da sessão da
+divisão: não são gravadas por cima do perfil normal/compartilhado. Fechar a divisão
+limpa os overrides; editar explicitamente os perfis também os invalida. Alterar o
+foco ou mover a outra toolbar não deve mexer nesses overrides.
+
+Cada painel é recortado pelos próprios limites e fornece seus próprios obstáculos
+para o overflow de ferramentas. Continua publicando seus retângulos no registro
+global, pois a navegação e os puxadores precisam enxergar as posições reais, mas
+não usa as ferramentas do outro painel para escolher sua própria posição.
+
+No modo por painel há uma única barra de abas docked em cima, fora e acima das
+duas visualizações. `DocumentTabsState.dockAboveSplit` aplica essa apresentação no
+host e no preview, retira a alça e desativa o arraste. A configuração de abas salva
+não é sobrescrita; voltar ao modo compartilhado restaura a posição anterior.
+ReaderScreen do n-notes mantém a exceção anterior.
+
+Regressões usam arrastes reais com long press: mudança da interface antes de mover
+a toolbar compartilhada, mudança de preferências antes de mover as abas e arraste
+separado nas duas visualizações com dois xnote ou dois xcanvas. Verificar os
+retângulos da outra toolbar, os perfis salvos e as escolhas de compartilhamento e
+interface antes/depois. Outro teste verifica a linha superior acima dos dois
+viewports e a restauração da posição floating ao voltar ao modo compartilhado.
+
+Validação desta etapa: 25 testes da suíte de tela dividida em cada app, todos
+aprovados no Redmi (50 no total); 2.653 testes JVM no XNotes e 2.758 no n-notes,
+sem falhas. Builds `assembleCommunity`, R8 e lint vital concluídos nos dois forks.
+Atualização instalada nos dois community por `adb install -r`, mantendo os dados
+e o certificado. Abertura dos dois apps concluída e APKs instalados conferidos por
+SHA-256. Restaurado o ajuste temporário de tela acesa por USB para `0`.

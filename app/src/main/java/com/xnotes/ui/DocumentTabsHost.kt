@@ -49,6 +49,8 @@ internal fun DocumentTabsHost(
     content: @Composable () -> Unit,
 ) {
     if (!enabled || documents.tabs.tabs.isEmpty()) { Box(modifier) { content() }; return }
+    val effectiveConfig = if (documents.dockAboveSplit) config.copy(
+        floating = false, position = ToolbarPosition.TOP) else config
     val tools = remember { ToolbarHitAreas() }
     val navigation = remember { ToolbarHitAreas() }
     var root by remember { mutableStateOf(Rect.Zero) }
@@ -59,27 +61,27 @@ internal fun DocumentTabsHost(
     val observer = LocalDocumentTabsBoundsObserver.current
     val density = LocalDensity.current
     val state = documents.copy(dropArea = documents.dropArea ?: workspace)
-    val edge = if (config.floating) DocumentTabsBarConfig.edgeOf(config.anchor) else config.position
+    val edge = if (effectiveConfig.floating) DocumentTabsBarConfig.edgeOf(effectiveConfig.anchor) else effectiveConfig.position
     val vertical = edge == ToolbarPosition.LEFT || edge == ToolbarPosition.RIGHT
     val screen = androidx.compose.ui.platform.LocalConfiguration.current
     val hostSize = if (window.width > 0f) window.size else with(density) {
         Size(screen.screenWidthDp.dp.toPx(), screen.screenHeightDp.dp.toPx())
     }
     val relative = toolRects.map { it.translate(-window.topLeft) }
-    val freeStrip = documentTabsFreeStrip(hostSize, config.anchor, vertical,
+    val freeStrip = documentTabsFreeStrip(hostSize, effectiveConfig.anchor, vertical,
         with(density) { (if (vertical) 168.dp else 50.dp).toPx() }, relative,
         with(density) { 8.dp.toPx() }, with(density) { 80.dp.toPx() })
     val floatingExtent = with(density) {
-        config.expandedExtent((if (vertical) freeStrip.height else freeStrip.width).toDp().value).dp
+        effectiveConfig.expandedExtent((if (vertical) freeStrip.height else freeStrip.width).toDp().value).dp
     }
     val renderBar: @Composable () -> Unit = {
         Box(Modifier.zIndex(20f).onGloballyPositioned { if (card != it.size.toSize()) card = it.size.toSize(); observer?.invoke(it.boundsInWindow()) }) {
-            ToolbarDragSurface("document-navigation", config.anchor, true, root,
+            ToolbarDragSurface("document-navigation", effectiveConfig.anchor, !documents.dockAboveSplit, root,
                 { _, anchor -> onMove(anchor) }) {
                 CompositionLocalProvider(LocalToolbarHitAreas provides navigation,
                     LocalGlobalToolHitAreas provides null) {
                     ToolbarHitArea {
-                        DocumentTabsSurface(state, config.floating, edge, floatingExtent)
+                        DocumentTabsSurface(state, effectiveConfig.floating, edge, floatingExtent)
                     }
                 }
             }
@@ -92,19 +94,19 @@ internal fun DocumentTabsHost(
             val w = it.boundsInWindow(); if (window != w) window = w
         }) {
             Column(Modifier.fillMaxSize()) {
-                if (!config.floating && edge == ToolbarPosition.TOP) renderBar()
+                if (!effectiveConfig.floating && edge == ToolbarPosition.TOP) renderBar()
                 Row(Modifier.weight(1f).fillMaxWidth()) {
-                    if (!config.floating && edge == ToolbarPosition.LEFT) renderBar()
+                    if (!effectiveConfig.floating && edge == ToolbarPosition.LEFT) renderBar()
                     Box(Modifier.weight(1f).fillMaxHeight().onGloballyPositioned {
                         val next = DocumentDropArea(it.boundsInWindow().topLeft, it.size)
                         if (workspace != next) { workspace = next; onWorkspaceBounds(next) }
                     }) { content() }
-                    if (!config.floating && edge == ToolbarPosition.RIGHT) renderBar()
+                    if (!effectiveConfig.floating && edge == ToolbarPosition.RIGHT) renderBar()
                 }
-                if (!config.floating && edge == ToolbarPosition.BOTTOM) renderBar()
+                if (!effectiveConfig.floating && edge == ToolbarPosition.BOTTOM) renderBar()
             }
-            if (config.floating) {
-                val offset = freeStrip.topLeft + documentTabsOffset(freeStrip.size, card, config.anchor, emptyList(), 0f)
+            if (effectiveConfig.floating) {
+                val offset = freeStrip.topLeft + documentTabsOffset(freeStrip.size, card, effectiveConfig.anchor, emptyList(), 0f)
                 Box(Modifier.zIndex(20f).alpha(if (card == Size.Zero) 0f else 1f).offset { IntOffset(offset.x.roundToInt(), offset.y.roundToInt()) }
                     .widthIn(max = with(density) { freeStrip.width.coerceAtLeast(1f).toDp() })
                     .heightIn(max = with(density) { freeStrip.height.coerceAtLeast(1f).toDp() })) {
@@ -147,7 +149,7 @@ private fun DocumentTabsSurface(state: DocumentTabsState, floating: Boolean, edg
             Column(surface.then(if (floating) Modifier.widthIn(max = DOCUMENT_TABS_SIDE_WIDTH_DP.dp + 8.dp)
                 else Modifier.width(sideWidth).fillMaxHeight()).padding(4.dp),
                 horizontalAlignment = Alignment.CenterHorizontally) {
-                grip()
+                if (!state.dockAboveSplit) grip()
                 splitControls()
                 DocumentTabsSwitcher(state, if (floating) Modifier else Modifier.weight(1f), vertical = true,
                     expandedWidth = DOCUMENT_TABS_WIDTH_DP.dp,
@@ -156,7 +158,7 @@ private fun DocumentTabsSurface(state: DocumentTabsState, floating: Boolean, edg
         } else {
             Row(surface.then(if (floating) Modifier else Modifier.fillMaxWidth()).padding(4.dp),
                 verticalAlignment = Alignment.CenterVertically) {
-                grip()
+                if (!state.dockAboveSplit) grip()
                 splitControls()
                 DocumentTabsSwitcher(state, if (floating) Modifier else Modifier.weight(1f), vertical = false,
                     expandedWidth = if (floating) (floatingExtent - 32.dp - controlsExtent).coerceAtLeast(36.dp) else
