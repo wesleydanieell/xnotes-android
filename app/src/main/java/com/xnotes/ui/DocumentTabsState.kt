@@ -19,6 +19,8 @@ internal data class DocumentTabsState(
     val onSplit: (String, SplitSide) -> Unit,
     val dropArea: DocumentDropArea?,
     val splitControls: (@Composable () -> Unit)? = null,
+    /** Per-pane tools use one fixed navigation row above the complete split. */
+    val dockAboveSplit: Boolean = false,
 )
 
 internal val LocalDocumentTabsBoundsObserver = compositionLocalOf<((androidx.compose.ui.geometry.Rect) -> Unit)?> { null }

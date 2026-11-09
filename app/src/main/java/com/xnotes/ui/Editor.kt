@@ -632,6 +632,17 @@ class Editor(context: Context, val pane: Pane = Pane.PRIMARY) : ToolPopupHost, S
     /** Device-wide toolbar profiles; observed by every pane's Compose renderer. */
     var toolbarWorkspaces by mutableStateOf(settings.effectiveToolbarWorkspaces())
         private set
+    /** Session-only placements for this split pane. Never overwrite the shared/single profile. */
+    internal var paneToolbarWorkspaces by mutableStateOf<com.xnotes.core.tools.ToolbarWorkspaces?>(null)
+        private set
+    internal var paneToolbarLook by mutableStateOf<com.xnotes.settings.ToolbarLook?>(null)
+        private set
+
+    internal fun clearPaneToolbarPlacement() {
+        paneToolbarWorkspaces = null
+        paneToolbarLook = null
+    }
+
     var renderScale by mutableStateOf(1.0)
         private set
     var sidebarVisible by mutableStateOf(false)
@@ -3057,6 +3068,7 @@ class Editor(context: Context, val pane: Pane = Pane.PRIMARY) : ToolPopupHost, S
 
     /** Apply an edited toolbar layout live and persist (used by the toolbar customiser). */
     fun applyToolbarLayout(layout: ToolbarLayout) {
+        for (pane in listOfNotNull(this, sibling)) pane.clearPaneToolbarPlacement()
         toolbarLayout = layout
         settings = settings.withToolbarLayout(ToolbarContext.NOTE, layout)
         toolbarWorkspaces = settings.effectiveToolbarWorkspaces()
@@ -3065,6 +3077,7 @@ class Editor(context: Context, val pane: Pane = Pane.PRIMARY) : ToolPopupHost, S
 
     /** The same, for the infinite canvas's bar. */
     fun applyCanvasToolbarLayout(layout: ToolbarLayout) {
+        for (pane in listOfNotNull(this, sibling)) pane.clearPaneToolbarPlacement()
         canvasToolbarLayout = layout
         infiniteOrNull?.toolbarLayout = layout
         settings = settings.withToolbarLayout(ToolbarContext.CANVAS, layout)
@@ -3074,6 +3087,7 @@ class Editor(context: Context, val pane: Pane = Pane.PRIMARY) : ToolPopupHost, S
 
     /** Save the full multi-bar profile, keeping legacy primary-bar fields in sync. */
     fun applyToolbarWorkspaces(workspaces: com.xnotes.core.tools.ToolbarWorkspaces) {
+        for (pane in listOfNotNull(this, sibling)) pane.clearPaneToolbarPlacement()
         toolbarWorkspaces = workspaces
         toolbarLayout = workspaces.note.bars.first().layout
         canvasToolbarLayout = workspaces.canvas.bars.first().layout
@@ -3160,27 +3174,18 @@ class Editor(context: Context, val pane: Pane = Pane.PRIMARY) : ToolPopupHost, S
 
     /** Hold-drag any toolbar, including the docked primary, to a persisted floating anchor. */
     fun moveToolbarBar(context: ToolbarContext, id: String, anchor: ToolbarAnchor) {
-        val profiles = toolbarWorkspaces
-        val workspace = if (context == ToolbarContext.NOTE || profiles.shared) profiles.note else profiles.canvas
-        val bar = workspace.bars.firstOrNull { it.id == id && it.geometry.movable } ?: return
-        val isPrimary = workspace.bars.firstOrNull()?.id == id
-        // An edge drop keeps a docked primary docked. Center/corner drops float it.
-        val dockPosition = if (isPrimary && !bar.geometry.floating) when (anchor) {
-            ToolbarAnchor.TOP_CENTER -> com.xnotes.settings.ToolbarPosition.TOP
-            ToolbarAnchor.BOTTOM_CENTER -> com.xnotes.settings.ToolbarPosition.BOTTOM
-            ToolbarAnchor.CENTER_LEFT -> com.xnotes.settings.ToolbarPosition.LEFT
-            ToolbarAnchor.CENTER_RIGHT -> com.xnotes.settings.ToolbarPosition.RIGHT
-            else -> null
-        } else null
-        val moved = bar.copy(geometry = bar.geometry.movedTo(anchor, floating = dockPosition == null))
-        if (moved == bar && (bar.geometry.floating || dockPosition != null && toolbarLook.position == dockPosition)) return
-        val changed = workspace.replaceBar(moved)
-        if (dockPosition != null) {
-            applyHomePreferences(settings.prefs.copy(toolbarLook = toolbarLook.copy(floating = false, position = dockPosition)))
+        val moved = movedToolbarBar(toolbarWorkspaces, toolbarLook, context, id, anchor) ?: return
+        if (moved.look != toolbarLook) {
+            applyHomePreferences(preferences.copy(toolbarLook = moved.look))
         }
-        applyToolbarWorkspaces(
-            profiles.updateWorkspace(if (profiles.shared) ToolbarContext.NOTE else context) { changed },
-        )
+        applyToolbarWorkspaces(moved.profiles)
+    }
+
+    internal fun movePaneToolbarBar(app: Editor, context: ToolbarContext, id: String, anchor: ToolbarAnchor) {
+        val moved = movedToolbarBar(paneToolbarWorkspaces ?: app.toolbarWorkspaces,
+            paneToolbarLook ?: app.toolbarLook, context, id, anchor) ?: return
+        paneToolbarWorkspaces = moved.profiles
+        paneToolbarLook = moved.look
     }
 
     /** Set how many colour swatches the toolbar shows (1-15) and persist. */

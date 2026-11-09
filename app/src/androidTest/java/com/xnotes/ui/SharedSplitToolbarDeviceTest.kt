@@ -210,7 +210,9 @@ class SharedSplitToolbarDeviceTest : InstrumentationTestCase() {
         click(activity.getString(R.string.split_settings))
         click(activity.getString(R.string.split_per_pane))
         assertFalse(editor.preferences.sharedSplitToolbars)
-        instrumentation.sendKeyDownUpSync(android.view.KeyEvent.KEYCODE_BACK)
+        // Moving navigation to/from the fixed split row can already dismiss its popup.
+        if (nodes(activity.getString(R.string.split_per_pane)).isNotEmpty())
+            instrumentation.sendKeyDownUpSync(android.view.KeyEvent.KEYCODE_BACK)
         settle()
         assertEquals(2, waitNodes(activity.getString(R.string.tool_pen)).size)
         instrumentation.runOnMainSync {
@@ -227,7 +229,9 @@ class SharedSplitToolbarDeviceTest : InstrumentationTestCase() {
             screenshot.compress(android.graphics.Bitmap.CompressFormat.PNG, 100, it)
         }
         screenshot.recycle()
-        instrumentation.sendKeyDownUpSync(android.view.KeyEvent.KEYCODE_BACK)
+        // Moving navigation to/from the fixed split row can already dismiss its popup.
+        if (nodes(activity.getString(R.string.split_per_pane)).isNotEmpty())
+            instrumentation.sendKeyDownUpSync(android.view.KeyEvent.KEYCODE_BACK)
         settle()
         assertEquals(1, waitNodes(activity.getString(R.string.tool_pen)).size)
     }
@@ -517,7 +521,7 @@ class SharedSplitToolbarDeviceTest : InstrumentationTestCase() {
                 val grips = waitNodes(activity.getString(R.string.move_split_pane)).map { it.first }
                 assertTrue("Pane grip overlaps tools at $edge/$floating", grips.none { g -> boxes.any { Rect.intersects(g, it) } })
                 val tabs = Rect()
-                for (tabLabel in listOf("Mover barra de abas", "Fixture A", "Fixture B", activity.getString(R.string.split_settings))) {
+                for (tabLabel in listOf("Fixture A", "Fixture B", activity.getString(R.string.split_settings))) {
                     for ((bounds, _) in waitNodes(tabLabel)) tabs.union(bounds)
                 }
                 assertTrue("Tabs cover a pane toolbar at $edge/$floating: $tabs / $boxes",
@@ -525,6 +529,141 @@ class SharedSplitToolbarDeviceTest : InstrumentationTestCase() {
                 assertTrue("Pane grip overlaps tabs at $edge/$floating", grips.none { Rect.intersects(tabs, it) })
             }
         }
+    }
+
+    private fun dragBar(x: Float, y: Float, targetX: Float, targetY: Float) {
+        val down = SystemClock.uptimeMillis()
+        fun send(action: Int, sx: Float, sy: Float) {
+            val event = MotionEvent.obtain(down, SystemClock.uptimeMillis(), action, sx, sy, 0)
+            event.source = InputDevice.SOURCE_TOUCHSCREEN
+            val origin = IntArray(2)
+            instrumentation.runOnMainSync {
+                activity.window.decorView.getLocationOnScreen(origin)
+                event.offsetLocation(-origin[0].toFloat(), -origin[1].toFloat())
+                activity.dispatchTouchEvent(event)
+            }
+            event.recycle()
+        }
+        send(MotionEvent.ACTION_DOWN, x, y)
+        Thread.sleep(android.view.ViewConfiguration.getLongPressTimeout().toLong() + 150)
+        for (step in 1..16) {
+            send(MotionEvent.ACTION_MOVE, x + (targetX - x) * step / 16, y + (targetY - y) * step / 16)
+            Thread.sleep(20)
+        }
+        send(MotionEvent.ACTION_UP, targetX, targetY)
+        Thread.sleep(500)
+        settle()
+    }
+
+    fun testDraggingTabsPreservesLatestSplitChoices() {
+        show(false, true)
+        instrumentation.runOnMainSync {
+            editor.applyHomePreferences(editor.preferences.copy(mixedSplitToolbar = SplitToolbarInterface.CANVAS,
+                documentTabsBar = DocumentTabsBarConfig(floating = true, anchor = ToolbarAnchor.TOP_LEFT)))
+        }
+        settle()
+        for (shared in listOf(true)) {
+            instrumentation.runOnMainSync {
+                editor.applyHomePreferences(editor.preferences.copy(sharedSplitToolbars = shared,
+                    mixedSplitToolbar = SplitToolbarInterface.NOTE))
+            }
+            settle()
+            val grip = waitNodes("Mover barra de abas").single().first
+            val previousAnchor = editor.preferences.documentTabsBar.anchor
+            val targetX = if (editor.preferences.documentTabsBar.anchor == ToolbarAnchor.BOTTOM_RIGHT) 60f
+                else activity.window.decorView.width - 60f
+            dragBar(grip.exactCenterX(), grip.exactCenterY(), targetX, activity.window.decorView.height - 160f)
+            assertTrue("Navigation did not move", previousAnchor != editor.preferences.documentTabsBar.anchor)
+            assertEquals(shared, editor.preferences.sharedSplitToolbars)
+            assertEquals(SplitToolbarInterface.NOTE, editor.preferences.mixedSplitToolbar)
+        }
+    }
+
+    fun testDraggingSharedToolsUsesLatestMixedInterface() {
+        show(false, true)
+        val layout = ToolbarLayout(listOf(ToolbarSection(listOf(ToolbarEntry(ToolbarItem.PEN)))))
+        val workspace = ToolbarWorkspace(listOf(ToolbarBar("primary", "Ink", layout,
+            geometry = ToolbarGeometry(floating = true, widthDp = 240))))
+        instrumentation.runOnMainSync {
+            editor.applyToolbarWorkspaces(ToolbarWorkspaces(workspace, workspace))
+            editor.applyHomePreferences(editor.preferences.copy(mixedSplitToolbar = SplitToolbarInterface.CANVAS))
+        }
+        settle()
+        instrumentation.runOnMainSync {
+            editor.applyHomePreferences(editor.preferences.copy(mixedSplitToolbar = SplitToolbarInterface.NOTE))
+        }
+        settle()
+        val pen = waitNodes(activity.getString(R.string.tool_pen)).single().first
+        dragBar(pen.left + 300f, pen.exactCenterY(), 80f, activity.window.decorView.height - 150f)
+        assertTrue(editor.preferences.sharedSplitToolbars)
+        assertEquals(SplitToolbarInterface.NOTE, editor.preferences.mixedSplitToolbar)
+        assertEquals(workspace, editor.toolbarWorkspaces.canvas)
+        assertTrue("The drag did not move the current xnote profile", workspace != editor.toolbarWorkspaces.note)
+    }
+
+    fun testNotePaneDraggingDoesNotMoveTheOtherPane() = checkPaneDragIsolation(false)
+    fun testCanvasPaneDraggingDoesNotMoveTheOtherPane() = checkPaneDragIsolation(true)
+
+    fun testMixedPaneDraggingDoesNotMoveTheOtherPane() = checkPaneDragIsolation(false, true)
+
+    private fun checkPaneDragIsolation(firstCanvas: Boolean, secondCanvas: Boolean = firstCanvas) {
+        show(firstCanvas, secondCanvas)
+        val layout = ToolbarLayout(listOf(ToolbarSection(listOf(ToolbarEntry(ToolbarItem.PEN)))))
+        val workspace = ToolbarWorkspace(listOf(ToolbarBar("primary", "Ink", layout,
+            geometry = ToolbarGeometry(floating = true, widthDp = 240))))
+        val profiles = ToolbarWorkspaces(workspace, workspace)
+        instrumentation.runOnMainSync {
+            activity.requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_LANDSCAPE
+            editor.splitAxis = SplitAxis.HORIZONTAL
+            editor.splitRatio = .5f
+            editor.applyToolbarWorkspaces(profiles)
+            editor.applyHomePreferences(editor.preferences.copy(sharedSplitToolbars = false,
+                mixedSplitToolbar = SplitToolbarInterface.NOTE))
+        }
+        Thread.sleep(700)
+        val label = activity.getString(R.string.tool_pen)
+        val before = waitNodes(label).map { it.first }.sortedBy { it.left }
+        assertEquals(2, before.size)
+        dragBar(before[0].left + 300f, before[0].exactCenterY(), 80f, activity.window.decorView.height - 150f)
+        val after = waitNodes(label).map { it.first }.sortedBy { it.left }
+        assertEquals("Moving the left toolbar changed the right toolbar", before[1], after[1])
+        assertTrue("Left toolbar did not move", after[0].top > before[0].bottom)
+        assertNotNull(editor.paneToolbarWorkspaces)
+        assertNull(editor.secondary!!.paneToolbarWorkspaces)
+        assertEquals(profiles, editor.toolbarWorkspaces)
+        assertFalse(editor.preferences.sharedSplitToolbars)
+        assertEquals(SplitToolbarInterface.NOTE, editor.preferences.mixedSplitToolbar)
+        val firstPosition = after[0]
+        dragBar(after[1].left + 300f, after[1].exactCenterY(), activity.window.decorView.width - 100f,
+            activity.window.decorView.height - 150f)
+        val final = waitNodes(label).map { it.first }.sortedBy { it.left }
+        assertEquals("Moving the right toolbar changed the left toolbar", firstPosition, final[0])
+        assertNotNull(editor.secondary!!.paneToolbarWorkspaces)
+        assertEquals(profiles, editor.toolbarWorkspaces)
+    }
+
+    fun testPerPaneTabsDockAboveBothViewsAndRestoreSharedPlacement() {
+        show(false, true)
+        val configured = DocumentTabsBarConfig(floating = true, anchor = ToolbarAnchor.BOTTOM_RIGHT)
+        instrumentation.runOnMainSync {
+            editor.applyHomePreferences(editor.preferences.copy(sharedSplitToolbars = false,
+                documentTabsBar = configured, mixedSplitToolbar = SplitToolbarInterface.NOTE))
+        }
+        settle()
+        assertTrue(nodes("Mover barra de abas").isEmpty())
+        val control = waitNodes(activity.getString(R.string.split_settings)).single().first
+        val origins = listOf(editor.surfaces, editor.secondary!!.infinite.surfaces).map {
+            IntArray(2).also { location -> instrumentation.runOnMainSync { it.getLocationOnScreen(location) } }
+        }
+        assertTrue("Navigation must sit above both document viewports", origins.all { control.bottom <= it[1] })
+        assertEquals(configured, editor.preferences.documentTabsBar)
+        instrumentation.runOnMainSync {
+            editor.applyHomePreferences(editor.preferences.copy(sharedSplitToolbars = true))
+        }
+        settle()
+        val grip = waitNodes("Mover barra de abas").single().first
+        assertTrue("Shared navigation did not restore its floating bottom placement", grip.top > activity.window.decorView.height / 2)
+        assertEquals(configured, editor.preferences.documentTabsBar)
     }
 
 }
