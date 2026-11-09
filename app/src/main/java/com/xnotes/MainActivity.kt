@@ -58,6 +58,8 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
@@ -1763,21 +1765,22 @@ private fun SplitHost(editor: Editor, actions: PaneActions, openingSplit: Boolea
 
         val swapped = split && editor.splitSwapped
         val toolbarLook = com.xnotes.ui.LocalToolbarLook.current
-        val floatingTabExtension = com.xnotes.ui.LocalToolbarTabExtension.current
-        val baseGripInset = if (shared) 4.dp else com.xnotes.ui.paneGripTopInset(toolbarLook)
+        // Grips avoid the actual tools and tabs, not an assumed primary bar size.
+        // Grips themselves must never enter the tool obstacle registry (feedback loop).
+        val gripObstacles = com.xnotes.ui.LocalGlobalToolHitAreas.current?.bounds().orEmpty() +
+            com.xnotes.ui.LocalDocumentTabsHitAreas.current?.bounds().orEmpty()
         val gripDensity = LocalDensity.current
         fun gripInset(pane: com.xnotes.ui.Pane): Dp {
-            if (!shared) return baseGripInset +
-                if (toolbarLook.floating && toolbarLook.position == com.xnotes.settings.ToolbarPosition.TOP &&
-                    floatingTabExtension?.expanded == true && editor.active.pane == pane) 42.dp else 0.dp
             val firstSlot = (pane == com.xnotes.ui.Pane.PRIMARY) != swapped
             val along = if (firstSlot) 0.dp else firstExtent
             val extent = if (firstSlot) firstExtent else secondExtent
-            val paneRect = with(gripDensity) { Rect(
-                hostOrigin + Offset(if (sideBySide) along.toPx() else 0f, if (sideBySide) 0f else along.toPx()),
-                androidx.compose.ui.geometry.Size(if (sideBySide) extent.toPx() else fullW.toPx(),
-                    if (sideBySide) fullH.toPx() else extent.toPx())) }
-            return with(gripDensity) { sharedState.insets(paneRect).top.toFloat().toDp() } + 4.dp
+            return with(gripDensity) {
+                val paneRect = Rect(
+                    hostOrigin + Offset(if (sideBySide) along.toPx() else 0f, if (sideBySide) 0f else along.toPx()),
+                    androidx.compose.ui.geometry.Size(if (sideBySide) extent.toPx() else fullW.toPx(),
+                        if (sideBySide) fullH.toPx() else extent.toPx()))
+                com.xnotes.ui.paneGripClearance(paneRect, gripObstacles, 48.dp.toPx(), 16.dp.toPx(), 4.dp.toPx()).toDp()
+            }
         }
         val primaryGripInset by androidx.compose.animation.core.animateDpAsState(
             gripInset(editor.pane), tween(190), label = "primaryGripPosition",
@@ -1859,12 +1862,8 @@ private fun SplitHost(editor: Editor, actions: PaneActions, openingSplit: Boolea
                 if (sourceFirst) SplitSide.TOP else SplitSide.BOTTOM
             }
             val effective = side != currentSide
-            val previewClearance = baseGripInset +
-                if (floatingTabExtension?.expanded == true &&
-                    toolbarLook.floating && toolbarLook.position == com.xnotes.settings.ToolbarPosition.TOP) 42.dp
-                else 0.dp
-            val bounds = com.xnotes.ui.splitPreviewRect(side, fullW, fullH,
-                if (toolbarLook.position == com.xnotes.settings.ToolbarPosition.TOP) previewClearance else 0.dp)
+            val previewClearance = maxOf(primaryGripInset, secondaryGripInset)
+            val bounds = com.xnotes.ui.splitPreviewRect(side, fullW, fullH, previewClearance)
             val previewW by androidx.compose.animation.core.animateDpAsState(
                 bounds.width, tween(150), label = "gripPreviewWidth",
             )
@@ -2011,14 +2010,15 @@ private fun SharedCommunityWorkspace(
             val mixed = app.canvasOpen != second?.canvasOpen
             val context = if (if (mixed) prefs.mixedSplitToolbar == com.xnotes.core.tools.SplitToolbarInterface.CANVAS else app.active.canvasOpen)
                 ToolbarContext.CANVAS else ToolbarContext.NOTE
-            val presentation = com.xnotes.ui.splitToolbarPresentation(app.toolbarWorkspaces.forContext(context),
-                com.xnotes.ui.LocalToolbarLook.current, maxWidth.value, maxHeight.value, prefs.adaptiveSplitToolbars)
-            val workspace = presentation.workspace
+            // Shared tools own the full workspace, just as in a single document. The
+            // per-pane compact policy must not shrink their saved lengths or controls.
+            val workspace = app.toolbarWorkspaces.forContext(context)
+            val sharedLook = com.xnotes.ui.LocalToolbarLook.current
             val primary = workspace.bars.firstOrNull()
             val active = app.active
             var bounds by remember { mutableStateOf(Rect.Zero) }
             androidx.compose.runtime.CompositionLocalProvider(com.xnotes.ui.LocalToolbarHitAreas provides state.hitAreas,
-                com.xnotes.ui.LocalToolbarLook provides presentation.look) {
+                com.xnotes.ui.LocalToolbarLook provides sharedLook) {
             Column(Modifier.fillMaxSize().onGloballyPositioned { bounds = it.boundsInRoot() }) {
                 val render: @Composable (com.xnotes.core.tools.ToolbarBar) -> Unit = { bar ->
                     SharedCommunityBar(active, bar, actions, state)
@@ -2405,8 +2405,11 @@ private fun EditorPane(
             val hostOriginNow by rememberUpdatedState(hostOrigin)
             val hostPixelsNow by rememberUpdatedState(hostPixels)
             var previewTarget by remember { mutableStateOf<SplitSide?>(null) }
+            val movePaneLabel = stringResource(R.string.move_split_pane)
             com.xnotes.ui.ToolbarHitArea(
-                Modifier.align(Alignment.TopCenter)
+                toolObstacle = false,
+                modifier = Modifier.align(Alignment.TopCenter)
+                    .semantics { contentDescription = movePaneLabel }
                     .offset(y = gripTopInset)
                     .size(width = 48.dp, height = 16.dp)
                     .zIndex(25f)

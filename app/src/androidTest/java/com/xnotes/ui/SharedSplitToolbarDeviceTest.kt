@@ -429,6 +429,8 @@ class SharedSplitToolbarDeviceTest : InstrumentationTestCase() {
                     anchor = ToolbarAnchor.BOTTOM_CENTER)))
         }
         settle()
+        val penBeforeIme = waitNodes(activity.getString(R.string.tool_pen)).single().first
+        val redoBeforeIme = waitNodes(activity.getString(R.string.redo)).single().first
         instrumentation.runOnMainSync {
             editor.selectTool(Tool.TEXT)
             editor.flowText.startSession(com.xnotes.core.text.FlowRange.caret(com.xnotes.core.text.FlowPos.START))
@@ -452,6 +454,11 @@ class SharedSplitToolbarDeviceTest : InstrumentationTestCase() {
             keyboardTop = activity.windowManager.currentWindowMetrics.bounds.bottom -
                 (insets?.getInsets(androidx.core.view.WindowInsetsCompat.Type.ime())?.bottom ?: 0)
         }
+        val penAfterIme = waitNodes(activity.getString(R.string.tool_pen)).single().first
+        val redoAfterIme = waitNodes(activity.getString(R.string.redo)).single().first
+        assertEquals("Shared buttons shrank with the viewport", penBeforeIme.width(), penAfterIme.width())
+        assertEquals("Shared bar length changed with the viewport",
+            redoBeforeIme.centerX() - penBeforeIme.centerX(), redoAfterIme.centerX() - penAfterIme.centerX())
         for (label in listOf(activity.getString(R.string.tool_pen), activity.getString(R.string.split_settings))) {
             assertTrue("Bottom UI is covered by the IME: $label", waitNodes(label).all { it.first.bottom <= keyboardTop + 2 })
         }
@@ -461,6 +468,63 @@ class SharedSplitToolbarDeviceTest : InstrumentationTestCase() {
             input.hideSoftInputFromWindow(activity.window.decorView.windowToken, 0)
         }
         settle()
+    }
+
+    fun testMixedPerPaneBarsStayInsideBothPanesAfterModeSwitch() = checkPerPaneBars(false, true)
+    fun testNotesPerPaneBarsStayInsideBothPanesAfterModeSwitch() = checkPerPaneBars(false, false)
+    fun testCanvasesPerPaneBarsStayInsideBothPanesAfterModeSwitch() = checkPerPaneBars(true, true)
+
+    private fun checkPerPaneBars(firstCanvas: Boolean, secondCanvas: Boolean) {
+        show(firstCanvas, secondCanvas)
+        instrumentation.runOnMainSync {
+            activity.requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_LANDSCAPE
+            editor.splitAxis = SplitAxis.HORIZONTAL
+            editor.splitRatio = .5f
+        }
+        Thread.sleep(600)
+        fun one(item: ToolbarItem) = ToolbarLayout(listOf(ToolbarSection(listOf(ToolbarEntry(item)))))
+        for (floating in listOf(false, true)) for (edge in ToolbarPosition.entries) {
+            val workspace = ToolbarWorkspace(listOf(
+                ToolbarBar("primary", "Pen", one(ToolbarItem.PEN), geometry = ToolbarGeometry(
+                    floating = floating, anchor = DocumentTabsBarConfig.anchorOf(edge),
+                    dockEdge = if (floating) null else edge.dockEdge(),
+                    widthDp = if (edge.vertical) null else 700,
+                    heightDp = if (edge.vertical) 500 else null)),
+                ToolbarBar("erase", "Erase", one(ToolbarItem.ERASER), geometry = ToolbarGeometry(
+                    floating = true, anchor = ToolbarAnchor.BOTTOM_RIGHT)),
+            ))
+            instrumentation.runOnMainSync {
+                editor.applyToolbarWorkspaces(ToolbarWorkspaces(workspace, workspace))
+                editor.applyHomePreferences(editor.preferences.copy(sharedSplitToolbars = true,
+                    toolbarLook = ToolbarLook(edge, floating = floating),
+                    documentTabsMode = "expanded",
+                    documentTabsBar = DocumentTabsBarConfig(floating = true,
+                        anchor = if (edge == ToolbarPosition.BOTTOM) ToolbarAnchor.BOTTOM_LEFT else ToolbarAnchor.TOP_LEFT)))
+            }
+            settle()
+            assertEquals(1, waitNodes(activity.getString(R.string.tool_pen)).size)
+            instrumentation.runOnMainSync {
+                editor.applyHomePreferences(editor.preferences.copy(sharedSplitToolbars = false))
+            }
+            settle()
+            for (label in listOf(R.string.tool_pen, R.string.tool_eraser)) {
+                val boxes = waitNodes(activity.getString(label)).map { it.first }
+                assertEquals("Missing bar at $edge/$floating", 2, boxes.size)
+                val seam = activity.window.decorView.width / 2
+                assertEquals("Tools escaped their pane at $edge/$floating: $boxes", 1,
+                    boxes.count { it.centerX() < seam })
+                assertTrue(boxes.all { it.left >= 0 && it.right <= activity.window.decorView.width })
+                val grips = waitNodes(activity.getString(R.string.move_split_pane)).map { it.first }
+                assertTrue("Pane grip overlaps tools at $edge/$floating", grips.none { g -> boxes.any { Rect.intersects(g, it) } })
+                val tabs = Rect()
+                for (tabLabel in listOf("Mover barra de abas", "Fixture A", "Fixture B", activity.getString(R.string.split_settings))) {
+                    for ((bounds, _) in waitNodes(tabLabel)) tabs.union(bounds)
+                }
+                assertTrue("Tabs cover a pane toolbar at $edge/$floating: $tabs / $boxes",
+                    boxes.none { Rect.intersects(tabs, it) })
+                assertTrue("Pane grip overlaps tabs at $edge/$floating", grips.none { Rect.intersects(tabs, it) })
+            }
+        }
     }
 
 }

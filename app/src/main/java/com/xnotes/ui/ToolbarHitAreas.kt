@@ -26,9 +26,9 @@ internal val LocalDocumentTabsHitAreas = compositionLocalOf<ToolbarHitAreas?> { 
 internal val LocalToolbarHitAreas = compositionLocalOf<ToolbarHitAreas?> { null }
 
 @Composable
-internal fun ToolbarHitArea(modifier: Modifier = Modifier, content: @Composable () -> Unit) {
+internal fun ToolbarHitArea(modifier: Modifier = Modifier, toolObstacle: Boolean = true, content: @Composable () -> Unit) {
     val areas = LocalToolbarHitAreas.current
-    val global = LocalGlobalToolHitAreas.current
+    val global = if (toolObstacle) LocalGlobalToolHitAreas.current else null
     val key = remember { Any() }
     DisposableEffect(areas, global, key) { onDispose { areas?.remove(key); global?.remove(key) } }
     Box(modifier.onGloballyPositioned { areas?.update(key, it.boundsInWindow()); global?.update(key, it.boundsInWindow()) }) { content() }

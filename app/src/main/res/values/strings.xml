@@ -1205,4 +1205,5 @@
     <string name="split_shared_help">One toolbox controls the active document. Tap a document or its title to activate it.</string>
     <string name="split_per_pane_help">Each document has its own toolbar and tool selection.</string>
     <string name="split_mixed_help">For xnote + xcanvas only. Both documents use this layout; unavailable tools are disabled for the active format.</string>
+    <string name="move_split_pane">Move split pane</string>
 </resources>
