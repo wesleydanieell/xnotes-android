@@ -101,7 +101,7 @@ import com.xnotes.ui.theme.LocalPalette
 import com.xnotes.ui.theme.toComposeColor
 import kotlinx.coroutines.delay
 
-private enum class ToolbarPropertyTab { BARS, DIMENSIONS, ELEMENTS, DOCUMENT_TABS }
+private enum class ToolbarPropertyTab { BARS, DIMENSIONS, ELEMENTS, DOCUMENT_TABS, SPLIT_VIEW }
 
 /** Dedicated toolbar editor, independent of the fork's general preferences. */
 @OptIn(ExperimentalLayoutApi::class)
@@ -398,7 +398,7 @@ internal fun ToolbarPreferencesPane(editor: Editor, onBack: () -> Unit) {
                 Text("Copiar para " + if (canvasTab) "XNotes" else "XCanvas")
             }
             }
-            if (toolbarPropertyTab != ToolbarPropertyTab.DOCUMENT_TABS) {
+            if (toolbarPropertyTab != ToolbarPropertyTab.DOCUMENT_TABS && toolbarPropertyTab != ToolbarPropertyTab.SPLIT_VIEW) {
                 Row(
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.spacedBy(6.dp),
@@ -527,6 +527,11 @@ internal fun ToolbarPreferencesPane(editor: Editor, onBack: () -> Unit) {
                         selectedEntry = null
                         toolbarPropertyTab = ToolbarPropertyTab.DOCUMENT_TABS
                     }
+                    Chip(stringResource(R.string.split_settings), toolbarPropertyTab == ToolbarPropertyTab.SPLIT_VIEW) {
+                        selectedEntry = null
+                        toolbarPropertyTab = ToolbarPropertyTab.SPLIT_VIEW
+                    }
+
                  }
             }
             val inspector: @Composable () -> Unit = {
@@ -538,6 +543,15 @@ internal fun ToolbarPreferencesPane(editor: Editor, onBack: () -> Unit) {
                             toolbarElementsScroll else toolbarPropertiesScroll),
                     verticalArrangement = Arrangement.spacedBy(8.dp),
                 ) {
+                    if (toolbarPropertyTab == ToolbarPropertyTab.SPLIT_VIEW) {
+                        SplitToolbarSettings(prefs, mixed = true, onChange = ::updateHome)
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Checkbox(prefs.adaptiveSplitToolbars,
+                                onCheckedChange = { updateHome(prefs.copy(adaptiveSplitToolbars = it)) })
+                            Text("Adaptar barras a painéis menores na tela dividida",
+                                style = MaterialTheme.typography.bodySmall)
+                        }
+                    }
                     if (toolbarPropertyTab == ToolbarPropertyTab.DOCUMENT_TABS) {
                         Text("Estas configurações valem para XNotes e XCanvas.",
                             style = MaterialTheme.typography.bodySmall, color = palette.textDim.toComposeColor())
@@ -576,12 +590,6 @@ internal fun ToolbarPreferencesPane(editor: Editor, onBack: () -> Unit) {
                         )
                     }
                     if (toolbarPropertyTab == ToolbarPropertyTab.BARS) {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Checkbox(prefs.adaptiveSplitToolbars,
-                                onCheckedChange = { updateHome(prefs.copy(adaptiveSplitToolbars = it)) })
-                            Text("Adaptar barras a painéis menores na tela dividida",
-                                style = MaterialTheme.typography.bodySmall)
-                        }
                         ToolbarBarSettings(
                             currentBar = currentBar,
                             barIndex = workspace.bars.indexOfFirst { it.id == currentBar.id },

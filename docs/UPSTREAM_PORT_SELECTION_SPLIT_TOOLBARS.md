@@ -1,5 +1,9 @@
 # Portar a correção de seleção e a UX de barras em split para a master
 
+> Atualização de 2026-11-09: o padrão passou a ser workspace compartilhado entre
+> os painéis, com opção por painel. Consulte [o port community](COMMUNITY_SHARED_SPLIT_TOOLBARS.md)
+> para os contratos atuais; as correções anteriores de seleção e navegação continuam válidas.
+
 Registro: 2026-11-07. Este guia registra contratos, causas e validação, não uma
 instrução para fazer merge de toda a community na master. O upstream poderá
 incorporar partes das features por outros commits ou refatorar os mesmos hosts.

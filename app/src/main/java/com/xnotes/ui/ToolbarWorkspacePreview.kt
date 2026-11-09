@@ -108,7 +108,7 @@ internal fun ToolbarWorkspacePreview(
     val previewSelection = rememberDocumentTabsSelection(previewTabs, previewUri)
     val navigation = DocumentTabsState(previewTabs, previewSelection, previewUri, expanded,
         { expanded = it }, { previewUri = it }, {},
-        { from, to -> previewTabs = previewTabs.move(from, to) }, { _, _ -> }, null)
+        { from, to -> previewTabs = previewTabs.move(from, to) }, { _, _ -> }, null, splitControls = source?.splitControls)
     val palette = LocalPalette.current
     val configuration = LocalConfiguration.current
     val screenWidth = configuration.screenWidthDp.dp

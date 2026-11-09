@@ -207,7 +207,7 @@ fun InfiniteToolbar(
                     ) { editor.toggleZoomLock() }
 
                     // Everything else belongs to the paged bar; a canvas layout never holds one.
-                    else -> Unit
+                    else -> UnavailableSharedToolbarItem(item)
                 }
             }
         }

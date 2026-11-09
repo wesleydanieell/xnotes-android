@@ -1,5 +1,6 @@
 package com.xnotes.ui
 
+import androidx.compose.runtime.Composable
 import androidx.compose.runtime.compositionLocalOf
 import com.xnotes.core.workspace.NoteTabs
 import com.xnotes.core.workspace.SplitSide
@@ -17,6 +18,7 @@ internal data class DocumentTabsState(
     val onReorder: (Int, Int) -> Unit,
     val onSplit: (String, SplitSide) -> Unit,
     val dropArea: DocumentDropArea?,
+    val splitControls: (@Composable () -> Unit)? = null,
 )
 
 internal val LocalDocumentTabsBoundsObserver = compositionLocalOf<((androidx.compose.ui.geometry.Rect) -> Unit)?> { null }

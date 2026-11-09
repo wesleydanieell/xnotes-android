@@ -58,7 +58,7 @@ internal fun DocumentTabsHost(
     val toolRects = tools.bounds()
     val observer = LocalDocumentTabsBoundsObserver.current
     val density = LocalDensity.current
-    val state = documents.copy(dropArea = workspace ?: documents.dropArea)
+    val state = documents.copy(dropArea = documents.dropArea ?: workspace)
     val edge = if (config.floating) DocumentTabsBarConfig.edgeOf(config.anchor) else config.position
     val vertical = edge == ToolbarPosition.LEFT || edge == ToolbarPosition.RIGHT
     val screen = androidx.compose.ui.platform.LocalConfiguration.current
@@ -118,6 +118,16 @@ internal fun DocumentTabsHost(
 @Composable
 private fun DocumentTabsSurface(state: DocumentTabsState, floating: Boolean, edge: ToolbarPosition,
     floatingExtent: androidx.compose.ui.unit.Dp) {
+    var controlsSize by remember { mutableStateOf(Size.Zero) }
+    val controlsExtent = if (state.splitControls != null) with(LocalDensity.current) {
+        (if (edge == ToolbarPosition.LEFT || edge == ToolbarPosition.RIGHT) controlsSize.height else controlsSize.width)
+            .toDp().coerceAtLeast(40.dp)
+    } else 0.dp
+    val splitControls: @Composable () -> Unit = {
+        state.splitControls?.let { controls ->
+            Box(Modifier.onGloballyPositioned { controlsSize = it.size.toSize() }) { controls() }
+        }
+    }
     val palette = LocalPalette.current
     val vertical = edge == ToolbarPosition.LEFT || edge == ToolbarPosition.RIGHT
     val shape = if (floating) MaterialTheme.shapes.extraLarge else RectangleShape
@@ -138,16 +148,18 @@ private fun DocumentTabsSurface(state: DocumentTabsState, floating: Boolean, edg
                 else Modifier.width(sideWidth).fillMaxHeight()).padding(4.dp),
                 horizontalAlignment = Alignment.CenterHorizontally) {
                 grip()
+                splitControls()
                 DocumentTabsSwitcher(state, if (floating) Modifier else Modifier.weight(1f), vertical = true,
                     expandedWidth = DOCUMENT_TABS_WIDTH_DP.dp,
-                    expandedHeight = if (floating) (floatingExtent - 32.dp).coerceAtLeast(36.dp) else null)
+                    expandedHeight = if (floating) (floatingExtent - 32.dp - controlsExtent).coerceAtLeast(36.dp) else null)
             }
         } else {
             Row(surface.then(if (floating) Modifier else Modifier.fillMaxWidth()).padding(4.dp),
                 verticalAlignment = Alignment.CenterVertically) {
                 grip()
+                splitControls()
                 DocumentTabsSwitcher(state, if (floating) Modifier else Modifier.weight(1f), vertical = false,
-                    expandedWidth = if (floating) (floatingExtent - 32.dp).coerceAtLeast(36.dp) else
+                    expandedWidth = if (floating) (floatingExtent - 32.dp - controlsExtent).coerceAtLeast(36.dp) else
                         androidx.compose.ui.platform.LocalConfiguration.current.screenWidthDp.dp)
             }
         }
