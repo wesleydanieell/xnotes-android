@@ -29,7 +29,15 @@ internal val LocalToolbarHitAreas = compositionLocalOf<ToolbarHitAreas?> { null 
 internal fun ToolbarHitArea(modifier: Modifier = Modifier, toolObstacle: Boolean = true, content: @Composable () -> Unit) {
     val areas = LocalToolbarHitAreas.current
     val global = if (toolObstacle) LocalGlobalToolHitAreas.current else null
+    val paneTools = if (toolObstacle) LocalPaneToolObstacles.current else null
     val key = remember { Any() }
-    DisposableEffect(areas, global, key) { onDispose { areas?.remove(key); global?.remove(key) } }
-    Box(modifier.onGloballyPositioned { areas?.update(key, it.boundsInWindow()); global?.update(key, it.boundsInWindow()) }) { content() }
+    DisposableEffect(areas, global, paneTools, key) {
+        onDispose { areas?.remove(key); global?.remove(key); paneTools?.remove(key) }
+    }
+    Box(modifier.onGloballyPositioned {
+        val bounds = it.boundsInWindow()
+        areas?.update(key, bounds)
+        global?.update(key, bounds)
+        paneTools?.update(key, bounds)
+    }) { content() }
 }

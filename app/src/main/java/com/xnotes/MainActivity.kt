@@ -2126,6 +2126,7 @@ private fun EditorPane(
     val paneWindowOrigin = remember(editor) { arrayOf(Offset.Zero) }
     val composeHostView = LocalView.current
     val toolbarHitAreas = remember(editor) { com.xnotes.ui.ToolbarHitAreas() }
+    val paneToolObstacles = remember(editor) { com.xnotes.ui.ToolbarHitAreas() }
     val navigationAreas = com.xnotes.ui.LocalDocumentTabsHitAreas.current
     val toolbarBoundsInWindow = toolbarHitAreas.bounds() + sharedToolbars?.hitAreas?.bounds().orEmpty() + navigationAreas?.bounds().orEmpty()
     val focused = app.active === editor
@@ -2199,7 +2200,7 @@ private fun EditorPane(
     }
     androidx.compose.runtime.CompositionLocalProvider(
         com.xnotes.ui.LocalToolbarHitAreas provides toolbarHitAreas,
-        com.xnotes.ui.LocalPaneToolObstacles provides if (isolatedTools) toolbarHitAreas else null,
+        com.xnotes.ui.LocalPaneToolObstacles provides if (isolatedTools) paneToolObstacles else null,
     ) {
     BoxWithConstraints(modifier.clipToBounds().onGloballyPositioned { paneBounds = it.boundsInRoot() }) {
         val presentation = com.xnotes.ui.splitToolbarPresentation(

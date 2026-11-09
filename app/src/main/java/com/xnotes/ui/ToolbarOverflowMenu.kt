@@ -18,7 +18,8 @@ internal val LocalUnavailableDockBars = compositionLocalOf { emptyList<ToolbarBa
 internal fun ToolbarOverflowMenu(bars: List<ToolbarBar>, look: ToolbarLook, maxWidth: Dp,
     modifier: Modifier = Modifier, content: @Composable (ToolbarBar) -> Unit) {
     var open by remember { mutableStateOf(false) }
-    CompositionLocalProvider(LocalGlobalToolHitAreas provides null) {
+    // The trigger must not avoid itself; popup coordinates belong to another window.
+    CompositionLocalProvider(LocalGlobalToolHitAreas provides null, LocalPaneToolObstacles provides null) {
         ToolbarHitArea(modifier) {
             Box {
                 FilledIconButton(onClick = { open = !open }, modifier = Modifier.size(40.dp)) {
