@@ -25,6 +25,8 @@ data class Preferences(
     val materialSurfaceSeed: Rgba = DEFAULT_MATERIAL_SURFACE,
     val cornerStyle: CornerStyle = CornerStyle.ROUNDED,
     val toolbarLook: ToolbarLook = ToolbarLook(),
+    val sharedSplitToolbars: Boolean = true,
+    val mixedSplitToolbar: com.xnotes.core.tools.SplitToolbarInterface = com.xnotes.core.tools.SplitToolbarInterface.NOTE,
     /** Initial document tab layout: auto, compact, or expanded. Users may toggle it afterward. */
     val documentTabsMode: String = "auto",
     val documentTabsBar: DocumentTabsBarConfig = DocumentTabsBarConfig(),
@@ -228,6 +230,8 @@ data class Preferences(
             if (cornerStyle != CornerStyle.ROUNDED) put("corner_style", cornerStyle.id)
             if (toolbarLook.position != ToolbarPosition.TOP) put("toolbar_position", toolbarLook.position.id)
             if (toolbarLook.size != ToolbarSize.REGULAR) put("toolbar_size", toolbarLook.size.id)
+            if (!sharedSplitToolbars) put("shared_split_toolbars", false)
+            if (mixedSplitToolbar != com.xnotes.core.tools.SplitToolbarInterface.NOTE) put("mixed_split_toolbar", mixedSplitToolbar.id)
             if (toolbarLook.floating) put("toolbar_floating", true)
             if (documentTabsMode != "auto") put("document_tabs_mode", documentTabsMode)
             if (!adaptiveSplitToolbars) put("adaptive_split_toolbars", false)
@@ -316,6 +320,8 @@ data class Preferences(
                 materialSurfaceSeed = Rgba.fromHex(o.optString("material_surface_seed"))
                     ?: if (legacyDual && !o.has("material_mode")) Rgba(33, 150, 243, 255) else DEFAULT_MATERIAL_SURFACE,
                 cornerStyle = CornerStyle.fromId(o.optString("corner_style")),
+                sharedSplitToolbars = o.optBoolean("shared_split_toolbars", true),
+                mixedSplitToolbar = com.xnotes.core.tools.SplitToolbarInterface.fromId(o.optString("mixed_split_toolbar", "note")),
                 toolbarLook = ToolbarLook(
                     position = ToolbarPosition.fromId(o.optString("toolbar_position")),
                     size = ToolbarSize.fromId(o.optString("toolbar_size")),

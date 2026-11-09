@@ -300,6 +300,16 @@ internal fun ColumnScope.ToolbarAround(
     }
 }
 
+/** Each workspace bar keeps its frame (scrolling and tool animation) when its document changes. */
+private val LocalToolbarContentsOnly = compositionLocalOf { false }
+
+@Composable
+internal fun SharedToolbarFrame(armed: Any?, layout: ToolbarLayout, geometry: ToolbarGeometry?, content: @Composable () -> Unit) {
+    ToolbarFrame(armed, layout, geometry) {
+        CompositionLocalProvider(LocalToolbarContentsOnly provides true, content = content)
+    }
+}
+
 /**
  * The strip both toolbars are laid out in: a row along the top or bottom, a column down either
  * side. [content] runs along it and scrolls when it runs long, [trailing] stays pinned at the end,
@@ -313,6 +323,10 @@ internal fun ToolbarFrame(
     trailing: (@Composable () -> Unit)? = null,
     content: @Composable () -> Unit,
 ) {
+    if (LocalToolbarContentsOnly.current) {
+        content()
+        return
+    }
     val look = LocalToolbarLook.current
     val bar = resolvedBarMetrics(look.size, geometry).copy(vertical = look.position.vertical)
     val depth = toolbarDepth(bar, layout)

@@ -19,23 +19,29 @@ class SplitCustomToolbarTest : InstrumentationTestCase() {
     private lateinit var previousWorkspaces: ToolbarWorkspaces
 
     override fun tearDown() {
-        if (::editor.isInitialized) instrumentation.runOnMainSync {
-            editor.goHomeAll()
-            editor.applyHomePreferences(previousPreferences)
-            editor.applyToolbarWorkspaces(previousWorkspaces)
+        if (::editor.isInitialized) {
+            closeTestEditors(instrumentation, editor)
+            instrumentation.runOnMainSync {
+                if (::previousWorkspaces.isInitialized) editor.applyToolbarWorkspaces(previousWorkspaces)
+                if (::previousPreferences.isInitialized) editor.applyHomePreferences(previousPreferences)
+            }
         }
         if (::activity.isInitialized) instrumentation.runOnMainSync { activity.finish() }
         super.tearDown()
     }
 
     private fun show(firstCanvas: Boolean, secondCanvas: Boolean, vertical: Boolean = false, extras: Boolean = false) {
-        assertTrue(instrumentation.targetContext.packageName.endsWith(".debug"))
+        assertTrue((instrumentation.targetContext.packageName.endsWith(".debug") || instrumentation.targetContext.packageName.endsWith(".sharedsplitcommunity")))
         activity = instrumentation.startActivitySync(Intent(instrumentation.targetContext, MainActivity::class.java)
             .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)) as MainActivity
         instrumentation.runOnMainSync {
             val field = MainActivity::class.java.getDeclaredField("editor").apply { isAccessible = true }
             editor = field.get(activity) as Editor
             previousPreferences = editor.preferences
+            editor.applyHomePreferences(editor.preferences.copy(checkUpdatesOnStartup = false))
+        }
+        prepareTestEditor(instrumentation, editor)
+        instrumentation.runOnMainSync {
             previousWorkspaces = editor.toolbarWorkspaces
             val layout = ToolbarLayout(listOf(ToolbarSection(listOf(
                 ToolbarEntry(ToolbarItem.PEN, sizeDp = 72), ToolbarEntry(ToolbarItem.SELECT), ToolbarEntry(ToolbarItem.ERASER)))))
@@ -46,7 +52,7 @@ class SplitCustomToolbarTest : InstrumentationTestCase() {
                     geometry = ToolbarGeometry(floating = true, anchor = ToolbarAnchor.TOP_LEFT, widthDp = 300))
             } else emptyList()
             val workspace = ToolbarWorkspace(bars)
-            editor.applyHomePreferences(previousPreferences.copy(adaptiveSplitToolbars = true,
+            editor.applyHomePreferences(previousPreferences.copy(checkUpdatesOnStartup = false, sharedSplitToolbars = false, adaptiveSplitToolbars = true,
                 toolbarLook = ToolbarLook(size = ToolbarSize.COMFORTABLE), documentTabsBar = DocumentTabsBarConfig()))
             editor.applyToolbarWorkspaces(ToolbarWorkspaces(workspace, workspace))
             if (firstCanvas) editor.newCanvas() else editor.newNote()
@@ -84,15 +90,21 @@ class SplitCustomToolbarTest : InstrumentationTestCase() {
                 Thread.sleep(50); pens = nodes { it.contentDescription?.toString() == label }
             }
             val dm = activity.resources.displayMetrics
-            val seam = (if (vertical) dm.heightPixels else dm.widthPixels) * ratio
+            val nativeBounds = listOf(editor, editor.secondary!!).map { pane ->
+                val surface = if (pane.canvasOpen) pane.infinite.surfaces else pane.surfaces
+                android.graphics.Rect().also { rect ->
+                    instrumentation.runOnMainSync { surface.getGlobalVisibleRect(rect) }
+                }
+            }
+            // The split begins below navigation/header/docked chrome; screenHeight*ratio is
+            // not its seam. These fixtures dock their bars at the bottom of each pane.
+            val seam = nativeBounds.maxOf { if (vertical) it.top else it.left }
             assertTrue("Missing tools in first panel at $ratio: $pens", pens.any { (if (vertical) it.exactCenterY() else it.exactCenterX()) < seam })
             assertTrue("Missing tools in second panel at $ratio: $pens", pens.any { (if (vertical) it.exactCenterY() else it.exactCenterX()) > seam })
-            val compactPens = pens.filter {
-                val first = (if (vertical) it.exactCenterY() else it.exactCenterX()) < seam
-                val fraction = if (first) ratio else 1f - ratio
-                val paneWidth = dm.widthPixels / dm.density * if (vertical) 1f else fraction
-                val paneHeight = dm.heightPixels / dm.density * if (vertical) fraction else 1f
-                minOf(paneWidth, paneHeight) < 600f
+            val compactPens = pens.filter { pen ->
+                val slot = nativeBounds.sortedBy { if (vertical) it.top else it.left }[
+                    if ((if (vertical) pen.exactCenterY() else pen.exactCenterX()) < seam) 0 else 1]
+                minOf(slot.width(), slot.height()) / dm.density < 600f
             }
             assertTrue("Saved oversized controls did not adapt in a narrow pane: $compactPens",
                 compactPens.all { it.width() <= 24 * dm.density + 2 })

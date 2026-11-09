@@ -1,5 +1,9 @@
 # Integração de abas e toolbars: contexto para uma futura LLM
 
+> Atualização de 2026-11-09: o padrão passou a ser workspace compartilhado entre
+> os painéis, com opção por painel. Consulte [o port community](COMMUNITY_SHARED_SPLIT_TOOLBARS.md)
+> para os contratos atuais; as correções anteriores de seleção e navegação continuam válidas.
+
 Registro de 2026-11-07. Leia este documento antes de modificar a integração.
 
 ## Decisão vigente do usuário

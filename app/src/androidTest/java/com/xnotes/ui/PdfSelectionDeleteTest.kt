@@ -30,7 +30,7 @@ class PdfSelectionDeleteTest : InstrumentationTestCase() {
     private lateinit var editor: Editor
 
     override fun tearDown() {
-        if (::editor.isInitialized) instrumentation.runOnMainSync { editor.goHomeAll() }
+        if (::editor.isInitialized) closeTestEditors(instrumentation, editor)
         if (::activity.isInitialized) instrumentation.runOnMainSync { activity.finish() }
         super.tearDown()
     }
@@ -46,7 +46,7 @@ class PdfSelectionDeleteTest : InstrumentationTestCase() {
     }
 
     fun testPdfInkCanBeDeletedWithStylusAndRestoredWithoutChangingPdf() {
-        assertTrue(instrumentation.targetContext.packageName.endsWith(".debug"))
+        assertTrue((instrumentation.targetContext.packageName.endsWith(".debug") || instrumentation.targetContext.packageName.endsWith(".sharedsplitcommunity")))
         activity = instrumentation.startActivitySync(Intent(instrumentation.targetContext, MainActivity::class.java)
             .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)) as MainActivity
         val cache = instrumentation.targetContext.cacheDir
@@ -64,6 +64,10 @@ class PdfSelectionDeleteTest : InstrumentationTestCase() {
         instrumentation.runOnMainSync {
             val field = MainActivity::class.java.getDeclaredField("editor").apply { isAccessible = true }
             editor = field.get(activity) as Editor
+            editor.applyHomePreferences(editor.preferences.copy(checkUpdatesOnStartup = false))
+        }
+        prepareTestEditor(instrumentation, editor)
+        instrumentation.runOnMainSync {
             editor.newNote()
             // Autosave remains inside the test package's cache, never in a user's notes folder.
             editor.saveToThen(Uri.fromFile(File(cache, "selection-regression.xnote")).toString()) { saved = it; latch.countDown() }

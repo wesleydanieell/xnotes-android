@@ -114,8 +114,12 @@ class InfiniteEditor(context: Context) : ToolPopupHost, SelectionMenuHost, LongP
      * The two surfaces, in order. They are siblings rather than one view because the canvas needs a
      * multisampled config and the front buffer cannot have one.
      */
+    /** Prepare shared future ink before the native surface receives its first DOWN. */
+    internal var beforeSurfaceDown: (() -> Unit)? = null
+
     val surfaces = object : android.widget.FrameLayout(appContext) {
         override fun dispatchTouchEvent(ev: android.view.MotionEvent): Boolean {
+            if (ev.actionMasked == android.view.MotionEvent.ACTION_DOWN) beforeSurfaceDown?.invoke()
             val handled = super.dispatchTouchEvent(ev)
             com.xnotes.SplitStylusRouter.nativeSawEvent()
             return handled
@@ -1543,6 +1547,15 @@ class InfiniteEditor(context: Context) : ToolPopupHost, SelectionMenuHost, LongP
     }
 
     /** Arm swatch [index], the same way the paged toolbar picks its ink; an open label takes it too. */
+    /** Share future ink between panes without restyling their selected or edited content. */
+    internal fun adoptSharedInk(source: ToolPopupHost, color: Rgba) {
+        toolbarColors = source.hostToolbarColors
+        toolbarColorCount = source.hostToolbarColorCount
+        activeColorIndex = source.hostActiveColorIndex.coerceIn(0, toolbarColors.lastIndex)
+        inkColor = color
+    }
+
+
     fun pickColor(index: Int) {
         if (index !in toolbarColors.indices) return
         activeColorIndex = index
