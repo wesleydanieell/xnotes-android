@@ -1,5 +1,7 @@
 package com.xnotes.ui
 
+import com.xnotes.sync.OpenNotes
+import com.xnotes.sync.SyncManager
 import com.xnotes.ui.theme.audioLook
 import com.xnotes.core.model.forExport
 import android.content.Context
@@ -330,7 +332,7 @@ private val searchWorker: java.util.concurrent.Executor by lazy {
 }
 
 
-/** Recent, shared by both panes of a split so a note opened in either shows up; null until first read from settings. */
+/** Recent as last set here, read only so both panes of a split recompose on a change; the list itself lives in settings. */
 private val sharedRecents = androidx.compose.runtime.mutableStateOf<List<com.xnotes.settings.RecentDoc>?>(null)
 
 /**
@@ -609,7 +611,7 @@ class Editor(context: Context, val pane: Pane = Pane.PRIMARY) : ToolPopupHost, S
 
     /** When non-null, the current note lives in the granted folder and autosaves to this URI. */
     var autosaveUri: String? = null
-        private set(value) { field = value; com.xnotes.sync.OpenNotes.set(this, value) }
+        private set(value) { field = value; OpenNotes.set(this, value) }
     private val autosaveScope = kotlinx.coroutines.MainScope()
 
     /** The note autosave's debounce timer. Cancelled freely: nothing has been written yet. */
@@ -807,6 +809,7 @@ class Editor(context: Context, val pane: Pane = Pane.PRIMARY) : ToolPopupHost, S
     /** Has the explorer list again after files changed on disk behind it (a sync, say). */
     fun relistTree() {
         treeVersion++
+        sharedRecents.value = settings.recentDocs // a sync may have merged in another device's recents
     }
 
     override var toastText by mutableStateOf<String?>(null)
@@ -863,16 +866,16 @@ class Editor(context: Context, val pane: Pane = Pane.PRIMARY) : ToolPopupHost, S
     override fun convertSelectionToText() {
         val sel = controller.inkSelection() ?: return
         val lang = settings.prefs.ocrLanguage
-        android.widget.Toast.makeText(appContext, "Recognizing handwriting...", android.widget.Toast.LENGTH_SHORT).show()
+        android.widget.Toast.makeText(appContext, appContext.getString(R.string.ocr_recognizing_handwriting), android.widget.Toast.LENGTH_SHORT).show()
         autosaveScope.launch {
             val text = try {
                 withContext(Dispatchers.IO) { com.xnotes.platform.HandwritingOcr.recognize(sel.strokes, lang) }
             } catch (e: Exception) {
-                android.widget.Toast.makeText(appContext, "Handwriting recognition failed: ${e.message}", android.widget.Toast.LENGTH_LONG).show()
+                android.widget.Toast.makeText(appContext, appContext.getString(R.string.ocr_handwriting_failed, e.message), android.widget.Toast.LENGTH_LONG).show()
                 return@launch
             }
             if (text.isBlank()) {
-                android.widget.Toast.makeText(appContext, "No text recognized", android.widget.Toast.LENGTH_SHORT).show()
+                android.widget.Toast.makeText(appContext, appContext.getString(R.string.ocr_no_text), android.widget.Toast.LENGTH_SHORT).show()
                 return@launch
             }
             controller.replaceInkWithText(sel, text)
@@ -883,16 +886,16 @@ class Editor(context: Context, val pane: Pane = Pane.PRIMARY) : ToolPopupHost, S
 
     override fun convertSelectionToMath() {
         val sel = controller.inkSelection() ?: return
-        android.widget.Toast.makeText(appContext, "Recognizing math...", android.widget.Toast.LENGTH_SHORT).show()
+        android.widget.Toast.makeText(appContext, appContext.getString(R.string.ocr_recognizing_math), android.widget.Toast.LENGTH_SHORT).show()
         autosaveScope.launch {
             val latex = try {
                 withContext(Dispatchers.Default) { com.xnotes.platform.MathOcr.recognize(appContext, sel.strokes, sel.bounds) }
             } catch (e: Throwable) {
-                android.widget.Toast.makeText(appContext, "Math recognition failed: ${e.message}", android.widget.Toast.LENGTH_LONG).show()
+                android.widget.Toast.makeText(appContext, appContext.getString(R.string.ocr_math_failed, e.message), android.widget.Toast.LENGTH_LONG).show()
                 return@launch
             }
             if (latex.isBlank()) {
-                android.widget.Toast.makeText(appContext, "No math recognized", android.widget.Toast.LENGTH_SHORT).show()
+                android.widget.Toast.makeText(appContext, appContext.getString(R.string.ocr_no_math), android.widget.Toast.LENGTH_SHORT).show()
                 return@launch
             }
             controller.replaceInkWithMath(sel, latex)
@@ -2199,11 +2202,11 @@ class Editor(context: Context, val pane: Pane = Pane.PRIMARY) : ToolPopupHost, S
     override val clipboardHasImage: Boolean get() = clipboardImageUri() != null
 
     override fun copySelection() {
-        if (hasSelection) showToast("Copied")
+        if (hasSelection) showToast(appContext.getString(R.string.copied))
         controller.copySelection()
     }
     override fun cutSelection() {
-        if (hasSelection) showToast("Cut")
+        if (hasSelection) showToast(appContext.getString(R.string.toast_cut))
         controller.cutSelection()
     }
     override fun duplicateSelection() = controller.duplicateSelection()
@@ -2355,19 +2358,19 @@ class Editor(context: Context, val pane: Pane = Pane.PRIMARY) : ToolPopupHost, S
     }
 
     override fun pasteItemsAt(content: com.xnotes.core.geometry.Pt) {
-        if (hasClipboardItems) showToast("Inserted")
+        if (hasClipboardItems) showToast(appContext.getString(R.string.toast_inserted))
         controller.pasteItemsAt(content)
     }
 
     override fun pasteClipboardImageAt(content: com.xnotes.core.geometry.Pt) {
         val uri = clipboardImageUri() ?: run {
-            clipboardSvgBytes()?.let { insertImageAt(it, content); showToast("Inserted") }
+            clipboardSvgBytes()?.let { insertImageAt(it, content); showToast(appContext.getString(R.string.toast_inserted)) }
                 ?: run { message = appContext.getString(R.string.err_clipboard_no_image) }
             return
         }
         runCatching { appContext.contentResolver.openInputStream(uri)?.use { it.readBytes() } }
             .getOrNull()
-            ?.let { insertImageAt(it, content); showToast("Inserted") }
+            ?.let { insertImageAt(it, content); showToast(appContext.getString(R.string.toast_inserted)) }
             ?: run { message = appContext.getString(R.string.err_clipboard_no_image) }
     }
 
@@ -4789,9 +4792,9 @@ class Editor(context: Context, val pane: Pane = Pane.PRIMARY) : ToolPopupHost, S
         settingsSaveJob = autosaveScope.launch { delay(SETTINGS_SAVE_DELAY_MS); settingsRepo.save(settings) }
     }
 
-    /** Notes and canvases opened on this device, newest first. */
+    /** Notes and canvases opened, newest first; read from the live settings, which cloud sync may merge into. */
     val recentDocs: List<com.xnotes.settings.RecentDoc>
-        get() = sharedRecents.value ?: settings.recentDocs.also { sharedRecents.value = it }
+        get() { sharedRecents.value; return settings.recentDocs }
 
     private fun setRecents(list: List<com.xnotes.settings.RecentDoc>) {
         if (list == recentDocs) return
@@ -6571,6 +6574,19 @@ class Editor(context: Context, val pane: Pane = Pane.PRIMARY) : ToolPopupHost, S
     }.getOrNull()
 
     fun isNotePinned(uri: String): Boolean = browseRoot?.let { pinPath(it, uri) }?.let { it in notePins } == true
+
+    /** What sync recorded about the conflict copy at [uri]; null when it recorded nothing (an older copy). IO. */
+    fun syncConflictRecord(uri: String): com.xnotes.sync.SyncConflict.Record? = runCatching {
+        val root = browseRoot ?: return null
+        val path = pinPath(root, uri) ?: return null
+        val tree = android.net.Uri.parse(root)
+        val sidecarId = sidecarDir(tree, browseRootDocId(root), create = false) ?: return null
+        val name = com.xnotes.sync.SyncConflict.RECORDS_PATH.substringAfterLast('/')
+        val fileId = findChildDocId(tree, sidecarId, name, dir = false) ?: return null
+        val text = appContext.contentResolver.openInputStream(android.provider.DocumentsContract.buildDocumentUriUsingTree(tree, fileId))
+            ?.use { it.readBytes().toString(Charsets.UTF_8) } ?: return null
+        com.xnotes.sync.SyncConflict.recordOf(text, path)
+    }.getOrNull()
 
     /** Pin the note at [uri] to the top of the top folder, or unpin it. IO. */
     fun setNotePinned(uri: String, pin: Boolean): Boolean {
@@ -8426,7 +8442,7 @@ class Editor(context: Context, val pane: Pane = Pane.PRIMARY) : ToolPopupHost, S
     // --- selection edits ---
 
     override fun deleteSelection() {
-        if (hasSelection) showToast("Deleted")
+        if (hasSelection) showToast(appContext.getString(R.string.toast_deleted))
         controller.deleteSelection()
     }
     fun selectAll() = controller.selectAll()
@@ -10386,10 +10402,11 @@ class Editor(context: Context, val pane: Pane = Pane.PRIMARY) : ToolPopupHost, S
         if (canvasOpen) {
             infinite.commitText() // an open label goes down with what was typed
             flushCanvasThen(showOverlay = true) {
+                val closed = canvasAutosaveUri
                 canvasAutosaveUri = null
                 canvasOpen = false
                 noteOpen = false
-                com.xnotes.sync.SyncManager.syncOnNoteExit(appContext)
+                SyncManager.syncOnNoteExit(appContext, closed)
             }
             return
         }
@@ -10401,9 +10418,10 @@ class Editor(context: Context, val pane: Pane = Pane.PRIMARY) : ToolPopupHost, S
             // Regenerate this folder note's grid tile now that editing is done (off-thread, low priority);
             // a non-folder note (no autosave binding) isn't in the explorer, so there's nothing to do.
             autosaveUri?.let { uri -> autosaveScope.launch { regenerateClosedNoteThumb(uri) } }
+            val closed = autosaveUri
             autosaveUri = null
             noteOpen = false
-            com.xnotes.sync.SyncManager.syncOnNoteExit(appContext)
+            SyncManager.syncOnNoteExit(appContext, closed)
         }
     }
 }

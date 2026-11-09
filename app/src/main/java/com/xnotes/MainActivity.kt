@@ -51,6 +51,7 @@ import androidx.compose.foundation.layout.systemBars
 import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.statusBars
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
@@ -116,6 +117,7 @@ import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.WindowInsetsControllerCompat
 import com.xnotes.R
 import com.xnotes.platform.PdfOpenError
+import com.xnotes.sync.SyncManager
 import com.xnotes.ui.CanvasToastPill
 import com.xnotes.canvas.StylusButtonLatch
 import com.xnotes.ui.externalDropTarget
@@ -209,7 +211,7 @@ class MainActivity : ComponentActivity() {
             LaunchedEffect(ed.fullscreen) { applyFullscreen(ed.fullscreen) }
             KeepScreenOn(ed)
             // Re-arm the periodic cloud sync to match the saved preferences.
-            LaunchedEffect(Unit) { com.xnotes.sync.SyncManager.reschedule(context) }
+            LaunchedEffect(Unit) { SyncManager.reschedule(context) }
             var ready by remember { mutableStateOf(false) }
             LaunchedEffect(Unit) {
                 val start = android.os.SystemClock.uptimeMillis()
@@ -243,25 +245,26 @@ class MainActivity : ComponentActivity() {
                             com.xnotes.ui.XnotesLoader()
                         }
                         com.xnotes.ui.EyedropperOverlay()
+                        SyncStrip(ed)
                     }
                     update?.let { u ->
                         com.xnotes.ui.AlertDialog(
                             onDismissRequest = { update = null },
-                            title = { androidx.compose.material3.Text("Update available") },
-                            text = { androidx.compose.material3.Text("n-notes ${u.version} is out.") },
+                            title = { androidx.compose.material3.Text(stringResource(R.string.update_available)) },
+                            text = { androidx.compose.material3.Text(stringResource(R.string.update_is_out, u.version)) },
                             confirmButton = {
                                 androidx.compose.material3.TextButton(onClick = {
                                     update = null
                                     runCatching { startActivity(Intent(Intent.ACTION_VIEW, android.net.Uri.parse(u.apkUrl ?: u.releaseUrl))) }
-                                }) { androidx.compose.material3.Text("Download") }
+                                }) { androidx.compose.material3.Text(stringResource(R.string.download)) }
                             },
                             dismissButton = {
                                 androidx.compose.foundation.layout.Row {
-                                    androidx.compose.material3.TextButton(onClick = { update = null }) { androidx.compose.material3.Text("Later") }
+                                    androidx.compose.material3.TextButton(onClick = { update = null }) { androidx.compose.material3.Text(stringResource(R.string.update_later)) }
                                     androidx.compose.material3.TextButton(onClick = {
                                         update = null
                                         ed.applyHomePreferences(ed.preferences.copy(checkUpdatesOnStartup = false))
-                                    }) { androidx.compose.material3.Text("Turn off") }
+                                    }) { androidx.compose.material3.Text(stringResource(R.string.update_turn_off)) }
                                 }
                             },
                         )
@@ -338,7 +341,7 @@ class MainActivity : ComponentActivity() {
 
     override fun onStart() {
         super.onStart()
-        com.xnotes.sync.SyncManager.syncOnAppOpen(this)
+        SyncManager.syncOnAppOpen(this)
     }
 
     override fun onPause() {
@@ -2362,6 +2365,7 @@ private fun EditorPane(
     val paneWindowOrigin = remember(editor) { arrayOf(Offset.Zero) }
     val composeHostView = LocalView.current
     val toolbarHitAreas = remember(editor) { com.xnotes.ui.ToolbarHitAreas() }
+    val paneToolObstacles = remember(editor) { com.xnotes.ui.ToolbarHitAreas() }
     val navigationAreas = com.xnotes.ui.LocalDocumentTabsHitAreas.current
     val toolbarBoundsInWindow = toolbarHitAreas.bounds() + sharedToolbars?.hitAreas?.bounds().orEmpty() + navigationAreas?.bounds().orEmpty()
     val focused = app.active === editor
@@ -2435,7 +2439,7 @@ private fun EditorPane(
     }
     androidx.compose.runtime.CompositionLocalProvider(
         com.xnotes.ui.LocalToolbarHitAreas provides toolbarHitAreas,
-        com.xnotes.ui.LocalPaneToolObstacles provides if (isolatedTools) toolbarHitAreas else null,
+        com.xnotes.ui.LocalPaneToolObstacles provides if (isolatedTools) paneToolObstacles else null,
     ) {
     BoxWithConstraints(modifier.clipToBounds().onGloballyPositioned { paneBounds = it.boundsInRoot() }) {
         val presentation = com.xnotes.ui.splitToolbarPresentation(
@@ -3067,11 +3071,29 @@ private fun PdfBatchExportDialog(p: com.xnotes.platform.PdfBatch.Progress, onCan
 /** Holds the screen awake while the app is open, or only while a sync runs, as Preferences say. */
 @Composable
 private fun KeepScreenOn(editor: Editor) {
-    val syncing = com.xnotes.sync.SyncManager.status.collectAsState().value.running
+    val syncing = SyncManager.status.collectAsState().value.running
     editor.prefsVersion // re-read the preferences below whenever they change
     val keepOn = editor.preferences.let { it.keepScreenOn || (it.syncKeepScreenOn && syncing) }
     val view = androidx.compose.ui.platform.LocalView.current
     SideEffect { view.keepScreenOn = keepOn }
+}
+
+/** A thin bar along the top of an open note or canvas while a cloud sync runs; fills as files are done. */
+@Composable
+private fun BoxScope.SyncStrip(editor: Editor) {
+    val status = SyncManager.status.collectAsState().value
+    // Home shows its progress at the foot of the sidebar instead.
+    if (!status.running || !editor.noteOpen) return
+    val accent = com.xnotes.ui.theme.LocalPalette.current.accent.toComposeColor()
+    val modifier = Modifier.align(Alignment.TopCenter).fillMaxWidth().windowInsetsPadding(WindowInsets.statusBars).height(2.dp)
+    if (status.total > 0) {
+        androidx.compose.material3.LinearProgressIndicator(
+            progress = { status.done.toFloat() / status.total }, modifier = modifier, color = accent,
+            trackColor = androidx.compose.ui.graphics.Color.Transparent, drawStopIndicator = {},
+        )
+    } else {
+        androidx.compose.material3.LinearProgressIndicator(modifier = modifier, color = accent, trackColor = androidx.compose.ui.graphics.Color.Transparent)
+    }
 }
 
 /** After following a document link: a back arrow and the previous note's title, tapping it goes back. */

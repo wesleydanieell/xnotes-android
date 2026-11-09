@@ -267,3 +267,24 @@ sem falhas. Builds `assembleCommunity`, R8 e lint vital concluídos nos dois for
 Atualização instalada nos dois community por `adb install -r`, mantendo os dados
 e o certificado. Abertura dos dois apps concluída e APKs instalados conferidos por
 SHA-256. Restaurado o ajuste temporário de tela acesa por USB para `0`.
+
+## Atualização posterior do upstream n-notes
+
+O merge de `NeDDy3z/n-notes/master` em `293d4aec` (0.9.7-1.1) preserva estes
+adaptadores. As resoluções de conflito e a validação estão registradas em
+[UPSTREAM_SYNC_2026-11-09.md](UPSTREAM_SYNC_2026-11-09.md).
+
+## Regressão de overflow detectada na validação do merge upstream
+
+O teste legado `testRejectedBarsRemainReachableFromOverflow` identificou um ciclo
+no isolamento por painel: usar a mesma coleção para hit exclusions e obstáculos
+de posicionamento incluía o próprio botão de overflow. O botão se reposicionava
+para evitar seu retângulo anterior; o popup e as capturas não estabilizavam.
+
+Agora o painel tem dois registros: `toolbarHitAreas` inclui todas as áreas que
+bloqueiam o roteamento nativo; `paneToolObstacles` só recebe elementos que devem
+reservar espaço para posicionamento. `ToolbarHitArea` publica nesse segundo
+registro quando `toolObstacle` é verdadeiro. O puxador não entra nele, e
+`ToolbarOverflowMenu` desativa o registro para o próprio botão e para o conteúdo
+do popup. O menu continua excluído do roteamento de caneta. Não voltar a usar a
+mesma instância para esses dois papéis.

@@ -134,17 +134,17 @@ private val tapGestureOptions = listOf(
 )
 
 /** The Preferences pages, in the order the category list shows them. */
-private enum class PrefCategory(val title: String, val summary: String) {
-    GENERAL("General", "Screen, Language, Updates"),
-    APPEARANCE("Appearance", "Theme, Code highlighting, Fonts"),
-    INPUT("Input", "Touch, Stylus, Gestures"),
-    OCR("OCR", "Handwriting, Math"),
-    NEW_NOTES("New notes", "File names, Page size, Page colour"),
-    HOME("Home & explorer", "Layouts, Sidebar, Files"),
-    EXPORT_IMPORT("Export & import", "PDF export, Backup"),
-    PERFORMANCE("Performance", "Cache, Rendering"),
-    TOOLBAR("Toolbar", "Style, Position, Colours, Shapes"),
-    CLOUD_SYNC("Cloud sync", "Service, Automatic sync"),
+private enum class PrefCategory(val title: Int, val summary: Int) {
+    GENERAL(R.string.pref_general, R.string.pref_general_summary),
+    APPEARANCE(R.string.pref_appearance, R.string.pref_appearance_summary),
+    INPUT(R.string.pref_input, R.string.pref_input_summary),
+    OCR(R.string.pref_ocr, R.string.pref_ocr_summary),
+    NEW_NOTES(R.string.pref_new_notes, R.string.pref_new_notes_summary),
+    HOME(R.string.pref_home_explorer, R.string.pref_home_summary),
+    EXPORT_IMPORT(R.string.pref_export_import, R.string.pref_export_import_summary),
+    PERFORMANCE(R.string.pref_performance, R.string.pref_performance_summary),
+    TOOLBAR(R.string.pref_toolbar, R.string.pref_toolbar_summary),
+    CLOUD_SYNC(R.string.pref_cloud_sync, R.string.pref_cloud_sync_summary),
 }
 
 /**
@@ -165,6 +165,8 @@ fun PreferencesPane(
     focusSync: Boolean = false,
     onSyncFocused: () -> Unit = {},
     onBackup: (export: Boolean) -> Unit = {},
+    syncLogOpen: Boolean = false,
+    onSyncLog: (Boolean) -> Unit = {},
     openToolbarEditor: Boolean = false,
 ) {
     var dedicatedToolbarOpen by rememberSaveable { mutableStateOf(openToolbarEditor) }
@@ -226,6 +228,11 @@ fun PreferencesPane(
     }
     LaunchedEffect(activeCategory) { scrollState.scrollTo(0) }
     BackHandler(enabled = categorized && compact && category != null) { category = null }
+    BackHandler(enabled = syncLogOpen) { onSyncLog(false) }
+    if (syncLogOpen) {
+        SyncLogPage(onBack = { onSyncLog(false) })
+        return
+    }
     val reorder = remember { KeyReorder() }
     var paneTopLeft by remember { mutableStateOf(Offset.Zero) }
     var viewport by remember { mutableStateOf(Rect.Zero) }
@@ -265,7 +272,7 @@ fun PreferencesPane(
                 }
             }
             Spacer(Modifier.width(4.dp))
-            Text(open?.title ?: stringResource(R.string.preferences), color = palette.text.toComposeColor(), fontWeight = FontWeight.Bold, fontSize = 20.sp)
+            Text(open?.let { stringResource(it.title) } ?: stringResource(R.string.preferences), color = palette.text.toComposeColor(), fontWeight = FontWeight.Bold, fontSize = 20.sp)
             Spacer(Modifier.weight(1f))
             IconButton(onClick = { search.open = !search.open; if (!search.open) search.query = "" }) {
                 Icon(XnotesIcons.search, stringResource(R.string.search_settings), tint = palette.text.toComposeColor(), modifier = Modifier.size(22.dp))
@@ -293,8 +300,9 @@ fun PreferencesPane(
         }
         val sectionsPanel = @Composable {
             if (categorized) {
-                PrefSectionsPanel(PrefCategory.entries.map { it.title }, activeCategory?.title) { title ->
-                    category = PrefCategory.entries.first { it.title == title }
+                val titles = PrefCategory.entries.map { stringResource(it.title) }
+                PrefSectionsPanel(titles, activeCategory?.let { titles[it.ordinal] }) { title ->
+                    category = PrefCategory.entries[titles.indexOf(title)]
                     if (compact) sectionsOpen = false
                 }
             } else {
@@ -325,21 +333,21 @@ fun PreferencesPane(
             if (categorized && compact && category == null && !searching) {
                 for (c in PrefCategory.entries) {
                     Column(Modifier.fillMaxWidth().clip(MaterialTheme.shapes.small).clickable { category = c }.padding(horizontal = 8.dp, vertical = 4.dp)) {
-                        Text(c.title, color = palette.text.toComposeColor(), fontSize = 16.sp)
-                        Text(c.summary, color = palette.textDim.toComposeColor(), fontSize = 12.sp)
+                        Text(stringResource(c.title), color = palette.text.toComposeColor(), fontSize = 16.sp)
+                        Text(stringResource(c.summary), color = palette.textDim.toComposeColor(), fontSize = 12.sp)
                     }
                 }
             }
             if (shown(PrefCategory.GENERAL)) {
                 SectionTitle(stringResource(R.string.pref_general))
                 CheckRow(stringResource(R.string.pref_start_fullscreen), editor.fullscreen) { editor.setFullscreenPref(it) }
-                CheckRow("Keep screen on while the app is open", prefs.keepScreenOn) { updateHome(prefs.copy(keepScreenOn = it)) }
+                CheckRow(stringResource(R.string.pref_keep_screen_on), prefs.keepScreenOn) { updateHome(prefs.copy(keepScreenOn = it)) }
                 if (all) HorizontalDivider(color = palette.border.toComposeColor())
                 LanguageSection()
                 if (all) HorizontalDivider(color = palette.border.toComposeColor())
                 Box(Modifier.searchAnchor(stringResource(R.string.search_keywords_port))) { PortSection(editor) }
                 if (all) HorizontalDivider(color = palette.border.toComposeColor())
-                Box(Modifier.searchAnchor(stringResource(R.string.search_keywords_update)).sectionAnchor("Updates")) {
+                Box(Modifier.searchAnchor(stringResource(R.string.search_keywords_update)).sectionAnchor(stringResource(R.string.pref_updates))) {
                     UpdateSection(prefs.checkUpdatesOnStartup) { updateHome(prefs.copy(checkUpdatesOnStartup = it)) }
                 }
             }
@@ -378,7 +386,7 @@ fun PreferencesPane(
                         Chip(stringResource(label), prefs.cornerStyle == style) { updateHome(prefs.copy(cornerStyle = style)) }
                     }
                 }
-                CheckRow("Split settings into categories", prefs.prefsCategories) { updateHome(prefs.copy(prefsCategories = it)) }
+                CheckRow(stringResource(R.string.pref_split_categories), prefs.prefsCategories) { updateHome(prefs.copy(prefsCategories = it)) }
                 TextButton(onClick = { update(Preferences()) }) { Text(stringResource(R.string.reset_to_defaults), fontSize = 13.sp) }
             }
             if (shown(PrefCategory.INPUT)) {
@@ -395,13 +403,13 @@ fun PreferencesPane(
                     Chip(stringResource(R.string.pan_none), prefs.zoomLockPan == "none") { update(prefs.copy(zoomLockPan = "none")) }
                 }
                 CheckRow(stringResource(R.string.pref_detect_shapes), prefs.detectShapes) { update(prefs.copy(detectShapes = it)) }
-                FieldLabel("Snap rotation to 90 degrees")
+                FieldLabel(stringResource(R.string.pref_snap_rotation_90))
                 FlowRow(
                     horizontalArrangement = Arrangement.spacedBy(8.dp),
                     verticalArrangement = Arrangement.spacedBy(8.dp),
                 ) {
-                    Chip("On", prefs.snapRotation90) { update(prefs.copy(snapRotation90 = true)) }
-                    Chip("Off", !prefs.snapRotation90) { update(prefs.copy(snapRotation90 = false)) }
+                    Chip(stringResource(R.string.on), prefs.snapRotation90) { update(prefs.copy(snapRotation90 = true)) }
+                    Chip(stringResource(R.string.off), !prefs.snapRotation90) { update(prefs.copy(snapRotation90 = false)) }
                 }
                 FieldLabel(stringResource(R.string.pref_pen_button_hold))
                 FlowRow(
@@ -430,10 +438,10 @@ fun PreferencesPane(
             }
             if (shown(PrefCategory.OCR)) {
                 if (all) HorizontalDivider(color = palette.border.toComposeColor())
-                if (all) SectionTitle("OCR")
-                FieldLabel("Handwriting recognition language (Convert to text)")
+                if (all) SectionTitle(stringResource(R.string.pref_ocr))
+                FieldLabel(stringResource(R.string.pref_ocr_handwriting_language))
                 HandwritingLanguageControls(prefs.ocrLanguage) { update(prefs.copy(ocrLanguage = it)) }
-                FieldLabel("Handwritten math (Convert to math)")
+                FieldLabel(stringResource(R.string.pref_ocr_math))
                 MathAddonControls()
             }
             if (shown(PrefCategory.NEW_NOTES)) {
@@ -541,7 +549,7 @@ fun PreferencesPane(
                     section(stringResource(R.string.toolbar_colours), prefs.sidebarColours) { prefs.copy(sidebarColours = !prefs.sidebarColours) }
                     if (prefs.trashDays != 0) section(stringResource(R.string.trash), prefs.sidebarTrash) { prefs.copy(sidebarTrash = !prefs.sidebarTrash) }
                     section(stringResource(R.string.sidebar_files), prefs.sidebarFiles) { prefs.copy(sidebarFiles = !prefs.sidebarFiles) }
-                    section("Sync now", prefs.sidebarSync) { prefs.copy(sidebarSync = !prefs.sidebarSync) }
+                    section(stringResource(R.string.sync_now), prefs.sidebarSync) { prefs.copy(sidebarSync = !prefs.sidebarSync) }
                     section(stringResource(R.string.about), prefs.sidebarAbout) { prefs.copy(sidebarAbout = !prefs.sidebarAbout) }
                 }
                 FieldLabel(stringResource(R.string.pref_home_opens_to))
@@ -775,7 +783,7 @@ fun PreferencesPane(
             }
             if (shown(PrefCategory.CLOUD_SYNC)) {
                 if (all) HorizontalDivider(color = palette.border.toComposeColor())
-                Box(Modifier.onPlaced { syncTop = it.positionInParent().y.roundToInt() }.searchAnchor(stringResource(R.string.search_keywords_sync)).sectionAnchor("Cloud sync")) { CloudSyncSection(editor) }
+                Box(Modifier.onPlaced { syncTop = it.positionInParent().y.roundToInt() }.searchAnchor(stringResource(R.string.search_keywords_sync)).sectionAnchor(stringResource(R.string.pref_cloud_sync))) { CloudSyncSection(editor, onOpenLog = { onSyncLog(true) }) }
             }
             Spacer(Modifier.size(8.dp))
         }
@@ -821,40 +829,40 @@ private fun MathAddonControls() {
     var confirmDelete by remember { mutableStateOf(false) }
     val sizeMb = MathOcr.DOWNLOAD_BYTES / 1_000_000
     Text(
-        "An on-device model that turns selected handwritten formulas into LaTeX. Download it once; it works offline after.",
+        stringResource(R.string.math_model_description),
         color = palette.textDim.toComposeColor(),
         fontSize = 12.sp,
     )
     if (!MathOcr.supported) {
-        Text("Not available for this device's processor.", color = palette.text.toComposeColor(), fontSize = 12.sp)
+        Text(stringResource(R.string.math_model_unsupported), color = palette.text.toComposeColor(), fontSize = 12.sp)
         return
     }
     when (val s = state) {
         MathOcr.State.Missing ->
-            TextButton(onClick = { MathOcr.startDownload(context) }) { Text("Download ($sizeMb MB)", fontSize = 13.sp) }
+            TextButton(onClick = { MathOcr.startDownload(context) }) { Text(stringResource(R.string.math_model_download, sizeMb), fontSize = 13.sp) }
         is MathOcr.State.Downloading -> {
             LinearProgressIndicator(progress = { s.done.toFloat() / s.total }, modifier = Modifier.width(280.dp))
             Row(verticalAlignment = Alignment.CenterVertically) {
-                Text("${s.done / 1_000_000} of ${s.total / 1_000_000} MB", color = palette.text.toComposeColor(), fontSize = 12.sp)
+                Text(stringResource(R.string.math_model_progress, s.done / 1_000_000, s.total / 1_000_000), color = palette.text.toComposeColor(), fontSize = 12.sp)
                 TextButton(onClick = { MathOcr.cancelDownload(context) }) { Text(stringResource(R.string.cancel), fontSize = 13.sp) }
             }
         }
         MathOcr.State.Installed ->
             Row(verticalAlignment = Alignment.CenterVertically) {
-                Text("Downloaded", color = palette.text.toComposeColor(), fontSize = 12.sp)
-                TextButton(onClick = { confirmDelete = true }) { Text("Delete", fontSize = 13.sp) }
+                Text(stringResource(R.string.math_model_downloaded), color = palette.text.toComposeColor(), fontSize = 12.sp)
+                TextButton(onClick = { confirmDelete = true }) { Text(stringResource(R.string.delete), fontSize = 13.sp) }
             }
         is MathOcr.State.Failed -> {
-            Text("Download failed: ${s.message}", color = palette.danger.toComposeColor(), fontSize = 12.sp)
-            TextButton(onClick = { MathOcr.startDownload(context) }) { Text("Retry", fontSize = 13.sp) }
+            Text(stringResource(R.string.math_model_download_failed, s.message), color = palette.danger.toComposeColor(), fontSize = 12.sp)
+            TextButton(onClick = { MathOcr.startDownload(context) }) { Text(stringResource(R.string.retry), fontSize = 13.sp) }
         }
     }
     if (confirmDelete) {
         AlertDialog(
             onDismissRequest = { confirmDelete = false },
-            title = { Text("Delete the math model?") },
-            text = { Text("Convert to math goes away until you download it again ($sizeMb MB).") },
-            confirmButton = { TextButton(onClick = { MathOcr.delete(context); confirmDelete = false }) { Text("Delete") } },
+            title = { Text(stringResource(R.string.math_model_delete_title)) },
+            text = { Text(stringResource(R.string.math_model_delete_message, sizeMb)) },
+            confirmButton = { TextButton(onClick = { MathOcr.delete(context); confirmDelete = false }) { Text(stringResource(R.string.delete)) } },
             dismissButton = { TextButton(onClick = { confirmDelete = false }) { Text(stringResource(R.string.cancel)) } },
         )
     }
@@ -887,13 +895,13 @@ private fun HandwritingLanguageControls(selected: String, onSelect: (String) -> 
     Row(verticalAlignment = Alignment.CenterVertically) {
         OptionDropdown(options, selected, downloaded, onSelect)
         TextButton(enabled = !busy && !isDownloaded, onClick = { act { HandwritingOcr.ensureModelDownloaded(selected) } }) {
-            Text(if (busy) "Working..." else "Download", fontSize = 13.sp)
+            Text(stringResource(if (busy) R.string.working else R.string.download), fontSize = 13.sp)
         }
         TextButton(enabled = !busy && isDownloaded, onClick = { act { HandwritingOcr.deleteModel(selected) } }) {
-            Text("Delete", fontSize = 13.sp)
+            Text(stringResource(R.string.delete), fontSize = 13.sp)
         }
     }
-    error?.let { Text("Failed: $it", color = palette.danger.toComposeColor(), fontSize = 12.sp) }
+    error?.let { Text(stringResource(R.string.failed_reason, it), color = palette.danger.toComposeColor(), fontSize = 12.sp) }
 }
 
 /** Find and rewrite the notes that still hold shapes from earlier n-notes versions. */

@@ -1,6 +1,7 @@
 package com.xnotes.sync
 
 import android.content.Context
+import com.xnotes.sync.SyncConflict.Reason
 import com.xnotes.sync.merge.XnoteBundle
 import java.io.File
 
@@ -8,10 +9,10 @@ import java.io.File
  * Two-way reconciliation between the local note tree and a folder on a [CloudService].
  *
  * Change detection compares each side to the recorded baseline (see [SyncState]).
- * Conflicts (both sides changed) are resolved losslessly: the remote copy is always saved
- * beside the local one under a "(Sync Conflict ...)" name. A note (.xnote) is then merged page
- * by page when it can be (see [XnoteBundle]); otherwise the local file becomes the canonical
- * remote version.
+ * Conflicts (both sides changed) are resolved losslessly. A note (.xnote) is merged page by page
+ * when it can be (see [XnoteBundle]); changes on different pages merge cleanly with no copy. Where
+ * both changed the same page, or nothing could be merged, the local version stays and the remote
+ * one is saved beside it under a "(Sync Conflict ...)" name, with a [SyncConflict.Record] saying why.
  *
  * Deletions DO propagate: a note that was synced before and is now gone on one side is
  * removed on the other, unless that other side changed since the baseline (an edit always
@@ -35,6 +36,12 @@ class SyncEngine(
     private val down: Boolean = true,
     /** Called after each file is reconciled with how many are done out of the total. */
     private val onProgress: (done: Int, total: Int) -> Unit = { _, _ -> },
+    /** One line per change made or problem met, for the sync log. */
+    private val log: (String) -> Unit = {},
+    /** The next just-closed note to sync ahead of everything else, as a path under the notes folder; null when none waits. */
+    private val takePriority: () -> String? = { null },
+    /** Called after a priority note is synced, to save the baseline at once. */
+    private val checkpoint: () -> Unit = {},
 ) {
     /** A note whose two sides diverged: the edit was kept and the user should know. */
     data class ConflictNote(val path: String, val message: String)
@@ -61,36 +68,88 @@ class SyncEngine(
 
     private val tmpDir = File(context.cacheDir, "sync").apply { mkdirs() }
 
+    /** Paths a priority sync already settled; the full pass leaves them, since its listing may predate that. */
+    private val handled = HashSet<String>()
+
+    /** Every local file's document uri by relative path, kept current through the run (for settings sync's recents). */
+    val localUris = HashMap<String, String>()
+
+    /** The conflict copies this run kept, by copy path, written to [SyncConflict.RECORDS_PATH] once the files are done. */
+    private val records = LinkedHashMap<String, SyncConflict.Record>()
+
+    /** How the conflict records name this device, e.g. "Erik's Galaxy S23"; the model when the user gave it no name. */
+    private val deviceName: String by lazy {
+        runCatching { android.provider.Settings.Global.getString(context.contentResolver, android.provider.Settings.Global.DEVICE_NAME) }
+            .getOrNull()?.takeIf { it.isNotBlank() } ?: android.os.Build.MODEL
+    }
+
     fun sync(state: SyncState): Summary {
         val summary = Summary()
         tmpDir.listFiles()?.forEach { it.delete() } // left behind if a run was killed mid-transfer
-        val localTree = LocalNoteStore.listTree(context, treeUri)
+        syncPriority(state, summary)
+        var phase = System.currentTimeMillis()
+        val localTree = LocalNoteStore.listTree(context, treeUri, recover = true)
         val local = localTree.files.associateBy { it.relativePath }
+        localTree.files.associateTo(localUris) { it.relativePath to it.documentUri }
+        log("Listed ${local.size} files here in ${secondsSince(phase)}")
+        phase = System.currentTimeMillis()
         val remoteTree = RemoteTree()
         walkRemote(remoteRootId, "", remoteTree, HashSet())
         val remote = remoteTree.files
+        log("Listed ${remote.size} files in ${remoteTree.folders.size + 1} cloud folders in ${secondsSince(phase)}")
+        phase = System.currentTimeMillis()
 
         // Guard: if one whole side comes back empty while the baseline is not, the enumeration
         // almost certainly failed transiently (root permission lost, folder unmounted, offline).
         // Propagating deletes then would wipe everything, so suppress them for this run.
-        val hadBaseline = state.filePaths().any { !it.startsWith(".") || LocalNoteStore.isTrashPath(it) }
+        val hadBaseline = state.filePaths().any { LocalNoteStore.syncsFile(it) }
         val suppressDeletes = hadBaseline && (local.isEmpty() || remote.isEmpty())
 
         val allPaths = LinkedHashSet<String>().apply { addAll(local.keys); addAll(remote.keys); addAll(state.filePaths()) }
-        // Counted like the sidebar's file count: hidden paths (settings) are synced but not shown.
-        val total = allPaths.count { !it.startsWith(".") }
+        // Counted like the sidebar's file count: hidden paths (settings, sidecars, Trash) are synced but not shown.
+        val total = allPaths.count { !LocalNoteStore.isHiddenPath(it) }
         var done = 0
         for (path in allPaths) {
-            try {
+            syncPriority(state, summary) // a note closed while this runs goes next, not after the whole pass
+            if (path !in handled) try {
                 reconcile(path, local[path], remote[path], state, summary, suppressDeletes)
             } catch (e: Exception) {
                 summary.errors.add("$path: ${e.message}")
+                log("Error $path: ${e.message}")
             }
-            if (!path.startsWith(".")) onProgress(++done, total)
+            if (!LocalNoteStore.isHiddenPath(path)) onProgress(++done, total)
         }
+        log("Compared and transferred files in ${secondsSince(phase)}")
+        saveRecords()
+        phase = System.currentTimeMillis()
         reconcileFolders(localTree.folders, remoteTree, state, summary, suppressDeletes)
+        log("Matched folders in ${secondsSince(phase)}")
         return summary
     }
+
+    /** Syncs each just-closed note waiting, from a fresh look at it here and at its one cloud folder. */
+    private fun syncPriority(state: SyncState, summary: Summary) {
+        while (true) {
+            val path = takePriority() ?: return
+            val started = System.currentTimeMillis()
+            try {
+                val loc = LocalNoteStore.entryAt(context, treeUri, path) ?: continue
+                val name = path.substringAfterLast('/')
+                val rem = storage.list(remoteParent(path)).files.firstOrNull { it.name == name }
+                // Deletes are never applied from a single folder's view; the full pass judges those.
+                reconcile(path, loc, rem, state, summary, suppressDeletes = true)
+                handled.add(path)
+                localUris[path] = loc.documentUri
+                log("Synced $path first in ${secondsSince(started)}")
+                checkpoint()
+            } catch (e: Exception) {
+                summary.errors.add("$path: ${e.message}")
+                log("Error $path: ${e.message}")
+            }
+        }
+    }
+
+    private fun secondsSince(ms: Long) = "%.1f s".format(java.util.Locale.US, (System.currentTimeMillis() - ms) / 1000.0)
 
     /**
      * Mirrors folders both ways, matched case-insensitively. Deepest first, so a parent is judged only after
@@ -134,6 +193,7 @@ class SyncEngine(
                 }
             } catch (e: Exception) {
                 summary.errors.add("${loc ?: rem ?: key}/: ${e.message}")
+                log("Error ${loc ?: rem ?: key}/: ${e.message}")
             }
         }
     }
@@ -142,23 +202,21 @@ class SyncEngine(
         path: String, loc: LocalNoteStore.LocalEntry?, rem: CloudStorage.RemoteFile?,
         state: SyncState, summary: Summary, suppressDeletes: Boolean,
     ) {
-        // Dot-prefixed paths that are not notes (the .xnote-config settings baseline, colour
-        // sidecars) are left alone; the .trash recycle bin, however, is a normal synced folder.
-        if (path.startsWith(".") && !LocalNoteStore.isTrashPath(path)) return
+        // Only baselines can bring other paths here, such as the .xnote-config settings one, which SettingsSync owns.
+        if (!LocalNoteStore.syncsFile(path)) return
         val st = state.get(path)
+        // An open note is never rewritten or deleted under its editor; it is picked up once it closes.
+        val writesHere = loc != null && if (rem == null) st != null && loc.modified == st.localModified
+            else st == null || rem.lastModified != st.remoteLastModified
+        if (writesHere && OpenNotes.isOpen(loc!!.documentUri)) {
+            log("Skipped $path: open in the editor")
+            summary.skipped++
+            return
+        }
         when {
             loc != null && rem != null -> {
                 if (st == null) {
-                    val identical = Temps(tmpDir).use { t ->
-                        val file = t.file()
-                        if (!LocalNoteStore.copyTo(context, loc.documentUri, file)) return
-                        // Prefer the remote hash; when it's absent (older uploads / other clients), compare
-                        // the actual bytes so byte-identical files don't spawn a spurious conflict copy.
-                        val same = if (rem.hash != null) rem.hash == storage.hash(file)
-                            else t.file().also { storage.download(rem, it) }.let { sameContent(file, it) }
-                        if (same) state.put(path, withFingerprints(path, file, SyncState.Entry(rem.id, rem.lastModified, loc.modified, loc.size)))
-                        same
-                    }
+                    val identical = matchesRemote(path, loc, rem, state) ?: return
                     if (identical) summary.skipped++ else resolveConflict(path, loc, rem, state, summary)
                 } else {
                     val localChanged = loc.modified != st.localModified
@@ -166,7 +224,11 @@ class SyncEngine(
                     when {
                         localChanged && !remoteChanged -> if (up) doUpload(path, loc, rem.id, state, summary) else summary.skipped++
                         remoteChanged && !localChanged -> if (down) doDownload(path, rem, state, summary) else summary.skipped++
-                        localChanged && remoteChanged -> resolveConflict(path, loc, rem, state, summary)
+                        // Both sides holding the same bytes is no conflict, e.g. a run killed after its upload but before its baseline was saved.
+                        localChanged && remoteChanged -> {
+                            val identical = matchesRemote(path, loc, rem, state) ?: return
+                            if (identical) summary.skipped++ else resolveConflict(path, loc, rem, state, summary)
+                        }
                         // A baseline from before fingerprints: the file still is what was synced, so fill them in now.
                         isNote(path) && st.pages == null -> backfillFingerprints(path, loc, st, state)
                         else -> Unit
@@ -185,7 +247,7 @@ class SyncEngine(
                 suppressDeletes -> summary.skipped++
                 // Unchanged here and gone from the other device: applying that deletion locally is a
                 // download-side change, so only when down is allowed.
-                down -> if (LocalNoteStore.deleteLocal(context, treeUri, path)) { state.remove(path); summary.deleted++ } else summary.skipped++
+                down -> if (LocalNoteStore.deleteLocal(context, treeUri, path)) { state.remove(path); localUris.remove(path); summary.deleted++; log("Deleted here $path") } else summary.skipped++
                 else -> summary.skipped++
             }
             rem != null && loc == null -> when {
@@ -200,10 +262,12 @@ class SyncEngine(
                 suppressDeletes -> summary.skipped++
                 // Unchanged remotely and deleted here: trashing it remotely is an upload-side change.
                 up -> {
-                    runCatching { storage.trashFile(rem.id) }
+                    // Not caught: a failed trash (connection lost) keeps the baseline, so the next run trashes it again instead of downloading it back.
+                    storage.trashFile(rem.id)
                     trashedRemote.add(path)
                     state.remove(path)
                     summary.deleted++
+                    log("Deleted in cloud $path")
                 }
                 else -> summary.skipped++
             }
@@ -211,9 +275,24 @@ class SyncEngine(
         }
     }
 
+    /**
+     * Whether the local file already holds the remote bytes; if so the baseline is set to both. Null when the
+     * local file can't be read. Prefers the remote hash; when it's absent (older uploads, other clients) the bytes are compared.
+     */
+    private fun matchesRemote(path: String, loc: LocalNoteStore.LocalEntry, rem: CloudStorage.RemoteFile, state: SyncState): Boolean? = Temps(tmpDir).use { t ->
+        val file = t.file()
+        if (!LocalNoteStore.copyTo(context, loc.documentUri, file)) return null
+        val same = if (rem.hash != null) rem.hash == storage.hash(file)
+            else t.file().also { storage.download(rem, it) }.let { sameContent(file, it) }
+        if (same) state.put(path, withFingerprints(path, file, SyncState.Entry(rem.id, rem.lastModified, loc.modified, loc.size)))
+        same
+    }
+
     /** Resolve a two-sided change toward the allowed direction; keep the lossless copy only when both are on. */
     private fun resolveConflict(path: String, loc: LocalNoteStore.LocalEntry, rem: CloudStorage.RemoteFile, state: SyncState, summary: Summary) {
         when {
+            // Sidecar colours and pins are small JSON files: both versions are merged, no conflict copy.
+            up && down && !LocalNoteStore.isSynced(path.substringAfterLast('/')) -> doSidecarMerge(path, loc, rem, state, summary)
             up && down -> doConflict(path, loc, rem, state, summary)
             up -> doUpload(path, loc, rem.id, state, summary)
             down -> doDownload(path, rem, state, summary)
@@ -224,6 +303,7 @@ class SyncEngine(
     private fun note(summary: Summary, path: String, message: String) {
         summary.conflicts++
         summary.conflictNotes.add(ConflictNote(path, message))
+        log("Conflict $path: $message")
     }
 
     private fun doUpload(path: String, loc: LocalNoteStore.LocalEntry, oldRemoteUuid: String?, state: SyncState, summary: Summary) = Temps(tmpDir).use { t ->
@@ -232,15 +312,18 @@ class SyncEngine(
         oldRemoteUuid?.let { runCatching { storage.trashFile(it) } }
         state.put(path, withFingerprints(path, file, SyncState.Entry(sent.id, sent.lastModified, loc.modified, loc.size)))
         summary.uploaded++
+        log("Uploaded $path")
     }
 
     private fun doDownload(path: String, rem: CloudStorage.RemoteFile, state: SyncState, summary: Summary) = Temps(tmpDir).use { t ->
         val file = t.file()
         storage.download(rem, file)
         val uri = LocalNoteStore.writeNote(context, treeUri, path, file) ?: throw IllegalStateException("cannot write local file")
+        localUris[path] = uri
         val localMod = LocalNoteStore.modifiedOf(context, uri)
         state.put(path, withFingerprints(path, file, SyncState.Entry(rem.id, rem.lastModified, localMod, file.length())))
         summary.downloaded++
+        log("Downloaded $path")
     }
 
     private fun doConflict(path: String, loc: LocalNoteStore.LocalEntry, rem: CloudStorage.RemoteFile, state: SyncState, summary: Summary) = Temps(tmpDir).use { t ->
@@ -252,33 +335,87 @@ class SyncEngine(
         val localFile = localCopy(loc, t)
         val mergedFile = t.file()
         val base = state.get(path)
-        val merged = if (isNote(path) && base?.pages != null && base.doc != null && !OpenNotes.isOpen(loc.documentUri)) {
-            runCatching { XnoteBundle.merge(base.pages, base.doc, localFile, remoteFile, mergedFile) }.getOrNull()
-        } else null
+        val outcome = when {
+            base == null -> XnoteBundle.Refused(Reason.BOTH_NEW)
+            !isNote(path) -> XnoteBundle.Refused(Reason.NOT_A_NOTE)
+            base.pages == null || base.doc == null -> XnoteBundle.Refused(Reason.NO_BASELINE)
+            OpenNotes.isOpen(loc.documentUri) -> XnoteBundle.Refused(Reason.OPEN)
+            else -> runCatching { XnoteBundle.merge(base.pages, base.doc, localFile, remoteFile, mergedFile) }
+                .getOrElse { XnoteBundle.Refused(Reason.UNREADABLE) }
+        }
         // Checked again right before writing: an edit saved since the listing, or a note opened meanwhile, must not be overwritten.
-        if (merged == null || OpenNotes.isOpen(loc.documentUri) || LocalNoteStore.modifiedOf(context, loc.documentUri) != loc.modified) {
+        val refused = when {
+            outcome is XnoteBundle.Refused -> outcome.reason
+            OpenNotes.isOpen(loc.documentUri) -> Reason.OPEN
+            LocalNoteStore.modifiedOf(context, loc.documentUri) != loc.modified -> Reason.SAVED_DURING
+            else -> null
+        }
+        if (refused != null) {
             LocalNoteStore.writeNote(context, treeUri, copyPath, remoteFile)
             val sent = storage.upload(remoteParent(path), name, localFile, loc.modified)
             runCatching { storage.trashFile(rem.id) }
             state.put(path, withFingerprints(path, localFile, SyncState.Entry(sent.id, sent.lastModified, loc.modified, loc.size)))
-            note(summary, path, "was also changed on another device; that version is saved as \"$copyName\"")
+            records[copyPath] = SyncConflict.Record(path, System.currentTimeMillis(), deviceName, refused)
+            val what = when (refused) {
+                Reason.BOTH_NEW -> "was also created on another device, with different content"
+                Reason.NOT_A_NOTE -> "was also changed on another device"
+                else -> "was also changed on another device and could not be merged because ${refused.why.format("this device")}"
+            }
+            note(summary, path, "$what; that version is saved as \"$copyName\"")
             return@use
         }
+        val merged = outcome as XnoteBundle.Merged
         // Uploaded before anything is written here, so a failed upload leaves no trace and the next run starts over.
         val sent = storage.upload(remoteParent(path), name, mergedFile, System.currentTimeMillis())
         runCatching { storage.trashFile(rem.id) }
         val uri = LocalNoteStore.writeNote(context, treeUri, path, mergedFile) ?: throw IllegalStateException("cannot write local file")
+        localUris[path] = uri
         val localMod = LocalNoteStore.modifiedOf(context, uri)
-        LocalNoteStore.writeNote(context, treeUri, copyPath, remoteFile)
         val f = merged.fingerprints
         state.put(path, SyncState.Entry(sent.id, sent.lastModified, localMod, mergedFile.length(), f.pages, f.doc))
-        val both = merged.keptBothPages
-        val bothText = when {
-            both.isEmpty() -> ""
-            both.size == 1 -> " Page ${both[0]} holds both devices' versions of the same part."
-            else -> " Pages ${both.joinToString(", ")} hold both devices' versions of the same part."
+        val clashed = merged.clashedPages
+        if (clashed.isEmpty()) {
+            summary.uploaded++
+            summary.downloaded++
+            log("Merged $path: changed here and on another device, on different pages")
+            return@use
         }
-        note(summary, path, "was also changed on another device and the changes were merged.$bothText The other version is also saved as \"$copyName\"")
+        LocalNoteStore.writeNote(context, treeUri, copyPath, remoteFile)
+        records[copyPath] = SyncConflict.Record(path, System.currentTimeMillis(), deviceName, Reason.SAME_PAGES, clashed)
+        val pages = if (clashed.size == 1) "page ${clashed[0]}" else "pages ${clashed.joinToString(", ")}"
+        note(summary, path, "was also changed on another device, on $pages too; the rest was merged and the other version of $pages is in \"$copyName\"")
+    }
+
+    /** Adds this run's conflict records to the sidecar file, read as it is now, so the next run sends them up. */
+    private fun saveRecords() {
+        if (records.isEmpty()) return
+        try {
+            Temps(tmpDir).use { t ->
+                val existing = localUris[SyncConflict.RECORDS_PATH]?.let { uri ->
+                    t.file().takeIf { LocalNoteStore.copyTo(context, uri, it) }?.readText()
+                }
+                val out = t.file().apply { writeText(SyncConflict.withRecords(existing, records)) }
+                val uri = LocalNoteStore.writeNote(context, treeUri, SyncConflict.RECORDS_PATH, out) ?: error("cannot write it")
+                localUris[SyncConflict.RECORDS_PATH] = uri
+            }
+        } catch (e: Exception) {
+            log("Error ${SyncConflict.RECORDS_PATH}: ${e.message}")
+        }
+        records.clear()
+    }
+
+    private fun doSidecarMerge(path: String, loc: LocalNoteStore.LocalEntry, rem: CloudStorage.RemoteFile, state: SyncState, summary: Summary) = Temps(tmpDir).use { t ->
+        val remoteFile = t.file().also { storage.download(rem, it) }
+        val localFile = localCopy(loc, t)
+        val merged = t.file().apply { writeText(SidecarMerge.merge(localFile.readText(), remoteFile.readText())) }
+        // Uploaded first, as with a merged note, so a failed upload leaves this device as it was.
+        val sent = storage.upload(remoteParent(path), path.substringAfterLast('/'), merged, System.currentTimeMillis())
+        runCatching { storage.trashFile(rem.id) }
+        val uri = LocalNoteStore.writeNote(context, treeUri, path, merged) ?: throw IllegalStateException("cannot write local file")
+        state.put(path, SyncState.Entry(sent.id, sent.lastModified, LocalNoteStore.modifiedOf(context, uri), merged.length()))
+        summary.uploaded++
+        summary.downloaded++
+        log("Merged $path")
     }
 
     /** Sync works on a private copy of the local file, so a save landing meanwhile cannot change what is sent. */
@@ -328,13 +465,13 @@ class SyncEngine(
         if (!visited.add(uuid)) return
         val content = storage.list(uuid)
         for (file in content.files) {
-            if (LocalNoteStore.isSynced(file.name)) out.files[join(prefix, file.name)] = file else out.foreign.add(prefix)
+            val path = join(prefix, file.name)
+            if (LocalNoteStore.syncsFile(path)) out.files[path] = file else out.foreign.add(prefix)
         }
         for (folder in content.folders) {
-            val name = folder.name
-            // Descend into .trash (the synced recycle bin), skip other hidden folders (config, sidecars, .obsidian).
-            if (name.startsWith(".") && name != LocalNoteStore.TRASH_DIR) { out.foreign.add(prefix); continue }
-            val path = join(prefix, name)
+            val path = join(prefix, folder.name)
+            // Sidecars and their Trash are descended into; other hidden folders (config, templates, .obsidian) are left alone.
+            if (!LocalNoteStore.syncsDir(path)) { out.foreign.add(prefix); continue }
             out.folders[path] = folder.id
             walkRemote(folder.id, path, out, visited)
         }
