@@ -1,0 +1,8 @@
+> Task :app:compileDebugUnitTestJavaWithJavac NO-SOURCE
+> Task :app:processDebugUnitTestJavaRes
+> Task :app:testDebugUnitTest
+
+[Incubating] Problems report is available at: file:///home/wesley/Projetos/xnotes-upstream/worktrees/native-canvas-text/build/reports/problems/problems-report.html
+
+BUILD SUCCESSFUL in 2m 10s
+25 actionable tasks: 11 executed, 14 from cache

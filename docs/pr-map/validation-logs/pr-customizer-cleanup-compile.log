@@ -1,0 +1,8 @@
+w: file:///home/wesley/Projetos/xnotes-upstream/worktrees/toolbar-stack/app/src/main/java/com/xnotes/platform/PdfTags.kt:333:16 'fun appendRawCommands(p0: String!): Unit' is deprecated. Deprecated in Java.
+w: file:///home/wesley/Projetos/xnotes-upstream/worktrees/toolbar-stack/app/src/main/java/com/xnotes/platform/PdfTags.kt:347:12 'fun appendRawCommands(p0: String!): Unit' is deprecated. Deprecated in Java.
+w: file:///home/wesley/Projetos/xnotes-upstream/worktrees/toolbar-stack/app/src/main/java/com/xnotes/ui/AboutPane.kt:86:103 'field versionCode: Int' is deprecated. Deprecated in Java.
+w: file:///home/wesley/Projetos/xnotes-upstream/worktrees/toolbar-stack/app/src/main/java/com/xnotes/ui/TextFormatBar.kt:152:36 'val Icons.Filled.FormatAlignLeft: ImageVector' is deprecated. Use the AutoMirrored version at Icons.AutoMirrored.Filled.FormatAlignLeft.
+w: file:///home/wesley/Projetos/xnotes-upstream/worktrees/toolbar-stack/app/src/main/java/com/xnotes/ui/TextFormatBar.kt:154:37 'val Icons.Filled.FormatAlignRight: ImageVector' is deprecated. Use the AutoMirrored version at Icons.AutoMirrored.Filled.FormatAlignRight.
+
+BUILD SUCCESSFUL in 1m 6s
+16 actionable tasks: 1 executed, 15 up-to-date

@@ -1,0 +1,8 @@
+> Task :app:compileDebugUnitTestJavaWithJavac NO-SOURCE
+> Task :app:processDebugUnitTestJavaRes
+> Task :app:testDebugUnitTest
+
+[Incubating] Problems report is available at: file:///home/wesley/Projetos/xnotes-upstream/worktrees/split-document-view/build/reports/problems/problems-report.html
+
+BUILD SUCCESSFUL in 3m 42s
+25 actionable tasks: 17 executed, 8 from cache

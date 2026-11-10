@@ -1,0 +1,8 @@
+> Task :app:processDebugJavaRes
+> Task :app:compileDebugUnitTestKotlin FROM-CACHE
+> Task :app:compileDebugUnitTestJavaWithJavac NO-SOURCE
+> Task :app:processDebugUnitTestJavaRes
+> Task :app:testDebugUnitTest FROM-CACHE
+
+BUILD SUCCESSFUL in 14s
+25 actionable tasks: 8 executed, 17 from cache
