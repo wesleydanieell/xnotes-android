@@ -1,18 +1,15 @@
-Preserve native `TextItem` data when reading and writing an XCanvas file, and mesh its glyph contours through the existing rendering pipeline. This extracts the format/render support independently of the experimental canvas text editor.
+Native text is a document item, but the XCanvas codec currently skips it and the canvas mesher has no text path. A text item therefore cannot survive a canvas save/load cycle or reach the native canvas renderer.
 
-- Serialize and parse text content, style and geometry; preserve lock/group metadata.
-- Reject non-finite geometry when loading text items.
-- Route native text contours through `ItemMesher`.
-- Add codec round-trip and mesh regression tests.
+**Change.**
+- Read and write text content, position, dimensions, font, size and color in the canvas manifest.
+- Preserve item locking and grouping through the existing metadata handling.
+- Expose glyph contours from `TextItem` and pass them through the existing text tessellator in `ItemMesher`.
+- Validate text geometry when loading and add round-trip/meshing regression tests.
 
-### Validation
+**Testing.** Debug Kotlin compilation and `testDebugUnitTest` passed: 2,423 tests, zero failures. Added tests cover text round trips, lock/group metadata and mesh creation.
 
-Debug Kotlin compilation and **2,423 JVM tests passed**, including the added canvas text round-trip and meshing tests.
+**Compatibility.** Older XCanvas readers skip this item kind. Opening and saving a canvas containing native text in an older version can therefore discard that text. This remains a draft pending a format-compatibility decision.
 
-### Compatibility review
+This adds persistence and rendering support. Editing and resizing performance has not been benchmarked, and no performance improvement is claimed.
 
-Draft because this introduces another canvas item kind: older readers skip native text items, which means reopening and saving such a file with an older version can lose that content. This needs an explicit format compatibility decision before merging.
-
-This PR does not expose a new text editing UI, add external text drops, alter resize gestures, or claim the performance fix from the withdrawn #333. Screenshots would not demonstrate this codec-only workflow; the regression tests are the evidence for this change.
-
-AI tools assisted with extraction, documentation and validation.
+AI tools assisted with implementation, documentation and validation.

@@ -1,40 +1,22 @@
-Users can configure multiple toolbars for paged notes and infinite canvases, then place each bar on a docked edge or a floating anchor. A dedicated editor keeps bar, appearance and element settings alongside a workspace preview.
+Toolbar configuration currently edits one layout per document type. Drawing tools, navigation and colors cannot be placed in separate, independently configured bars. This adds toolbar workspaces and a dedicated configuration screen with a live preview.
 
-- Add, duplicate, rename, move and remove bars; arrange sections, lanes and spacers.
-- Configure geometry and retain independent note/canvas profiles, with optional profile sharing.
-- Migrate existing single-toolbar settings and import/export named workspace presets.
-- Move the former inline toolbar configuration out of general preferences into smaller UI components.
+**Demo.** Workspace preview, element settings and docked/floating placement, recorded on a Redmi Pad 2 (Android 16).
 
-### Review structure
+[![Screen recording: Workspace preview, element settings and docked/floating placement](https://raw.githubusercontent.com/wesleydanieell/xnotes-android/4aebe055b225a7d03f704526d1465ce4e97d26c5/docs/pr-media/videos/toolbar-workspaces.gif)](https://github.com/wesleydanieell/xnotes-android/blob/4aebe055b225a7d03f704526d1465ce4e97d26c5/docs/pr-media/videos/toolbar-workspaces.mp4)
 
-The implementation is split into reviewable commits: immutable workspace/dock model → persistence/migration → runtime → dedicated editor → import cleanup. These layers form one usable feature, so this PR includes the complete stack. Pen Group is proposed independently in #429. Document tabs and shared split-toolbars are separate contributions.
+[Watch the full MP4 recording](https://github.com/wesleydanieell/xnotes-android/blob/4aebe055b225a7d03f704526d1465ce4e97d26c5/docs/pr-media/videos/toolbar-workspaces.mp4). The animated image is an 8 fps preview.
 
-Review commits: [model](https://github.com/wesleydanieell/xnotes-android/commit/9ae8d7e2), [persistence](https://github.com/wesleydanieell/xnotes-android/commit/5eeb6fa3), [runtime](https://github.com/wesleydanieell/xnotes-android/commit/93c780bb), [editor](https://github.com/wesleydanieell/xnotes-android/commit/9c7f4dfb), [cleanup](https://github.com/wesleydanieell/xnotes-android/commit/c0e43cfd).
+**Change.**
+- Add, duplicate, rename, move and remove bars, with docked and floating placement.
+- Arrange elements into sections and lanes; configure spacing, size and spacers.
+- Keep note/canvas profiles, optionally share a profile, and import/export named presets.
+- Migrate existing single-bar settings to a primary bar.
+- Move toolbar editing out of general Preferences into separate bar, appearance, element and preview components.
 
-### Validation
+The commits separate the workspace model, persistence, runtime, editor and cleanup for review.
 
-- Debug Kotlin compilation and JVM tests passed; the extracted editor suite has **2,516 tests, zero failures**. The final import-only cleanup was separately compiled.
-- ARM64 debug and instrumentation APKs built successfully. The Redmi Pad 2 (Android 16) capture scenario passed, opening the workspace, configurator and elements inspector.
-- Existing layout migration, geometry, preset transfer, placement, reset and editor interaction tests are included.
+**Testing.** The JVM suite passed with 2,516 tests; the final import-only cleanup was separately compiled. Debug and instrumentation APKs built successfully. On a Redmi Pad 2 (Android 16), the device scenario opened the workspace, configurator and elements inspector. The recording also changes the primary bar from docked to floating through the configurator.
 
-### Screenshots
+Still a draft: some UI text needs localization, preview paper styling needs theme-parity review, and the complete drag/edge/rotation matrix remains pending.
 
-**Docked main toolbar with floating quick tools and an ink palette**
-
-![Docked main toolbar with floating quick tools and an ink palette](https://raw.githubusercontent.com/wesleydanieell/xnotes-android/14f9168132f4c8ecf4a31c658fc61d6def3df2e6/docs/pr-media/toolbar-workspace.png)
-
-**Dedicated toolbar editor and workspace preview**
-
-![Dedicated toolbar editor and workspace preview](https://raw.githubusercontent.com/wesleydanieell/xnotes-android/14f9168132f4c8ecf4a31c658fc61d6def3df2e6/docs/pr-media/toolbar-configurator.png)
-
-**Section and element editor**
-
-![Section and element editor](https://raw.githubusercontent.com/wesleydanieell/xnotes-android/14f9168132f4c8ecf4a31c658fc61d6def3df2e6/docs/pr-media/toolbar-elements.png)
-
-Unedited Redmi Pad 2 screenshots from this feature branch using blank documents in an isolated package. [Capture sources and results](https://github.com/wesleydanieell/xnotes-android/tree/14f9168132f4c8ecf4a31c658fc61d6def3df2e6/docs/pr-media).
-
-### Remaining review
-
-Draft for review of the extracted implementation. Some configurator text still needs localization. The preview uses sample paper styling; theme parity with the actual note still needs review. Captures demonstrate the displayed configurations; they do not replace the complete device matrix for dragging, rotations, all edges and animation behavior.
-
-AI tools assisted with implementation, extraction, documentation and validation.
+AI tools assisted with implementation, documentation and validation.

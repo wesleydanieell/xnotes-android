@@ -1,31 +1,19 @@
-Two open documents can share one toolbar instead of duplicating tools in each pane. Commands follow the active editor. For a mixed note/canvas pair, users choose which interface both viewers use; format-specific controls are disabled when unavailable to the target document.
+Split view currently repeats the toolbar in each document pane. This adds a shared-tools mode: one toolbar controls the active document, leaving more room for both pages.
 
-Preferences and the in-note controls let users switch between shared tools and tools per pane. This PR uses the existing native toolbar and split host, so it can be reviewed independently of document tabs and multi-toolbar customization.
+**Demo.** Shared tools, mixed-interface selection and tools per pane, recorded on a Redmi Pad 2 (Android 16).
 
-### Validation
+[![Screen recording: Shared tools, mixed-interface selection and tools per pane](https://raw.githubusercontent.com/wesleydanieell/xnotes-android/4aebe055b225a7d03f704526d1465ce4e97d26c5/docs/pr-media/videos/shared-split-tools.gif)](https://github.com/wesleydanieell/xnotes-android/blob/4aebe055b225a7d03f704526d1465ce4e97d26c5/docs/pr-media/videos/shared-split-tools.mp4)
 
-- Debug compilation and **2,428 JVM tests passed**, covering placement geometry and preference round trips/fallbacks.
-- An isolated Android device suite is included for active-editor commands, first-stroke focus, selection retention, geometry, mixed interfaces and pane closing.
-- ARM64 debug and instrumentation APKs built successfully. On Redmi Pad 2 (Android 16), the capture scenario and three existing device tests passed: note Undo routing, mixed note/canvas Undo routing, and in-note shared/per-pane switching. The exhaustive edge/rotation matrix has not been rerun.
+[Watch the full MP4 recording](https://github.com/wesleydanieell/xnotes-android/blob/4aebe055b225a7d03f704526d1465ce4e97d26c5/docs/pr-media/videos/shared-split-tools.mp4). The animated image is an 8 fps preview.
 
-### Screenshots
+**Change.**
+- Let users choose shared tools or tools per pane in Preferences and inside an open split.
+- Share the matching interface for two notes or two canvases. For a mixed pair, let the user choose the note or canvas interface.
+- Route commands to the active editor and disable format-specific controls when they are unavailable to that document.
+- Preserve each document's selection and drawing surface when focus changes.
 
-**One shared toolbar for a note and a canvas**
+**Testing.** Debug and instrumentation APKs built successfully; `testDebugUnitTest` passed with 2,428 tests. On a Redmi Pad 2 (Android 16), three existing device tests passed: Undo targets the active note, Undo targets the active document in a mixed split, and shared/per-pane mode can be changed inside the note. The recording also exercises mixed-interface selection and per-pane tools.
 
-![One shared toolbar for a note and a canvas](https://raw.githubusercontent.com/wesleydanieell/xnotes-android/14f9168132f4c8ecf4a31c658fc61d6def3df2e6/docs/pr-media/split-shared-tools.png)
+Still a draft: the full docked/floating, edge, resize and rotation matrix has not been rerun.
 
-**In-note shared/per-pane and interface settings**
-
-![In-note shared/per-pane and interface settings](https://raw.githubusercontent.com/wesleydanieell/xnotes-android/14f9168132f4c8ecf4a31c658fc61d6def3df2e6/docs/pr-media/split-interface-settings.png)
-
-**Separate tools for each pane**
-
-![Separate tools for each pane](https://raw.githubusercontent.com/wesleydanieell/xnotes-android/14f9168132f4c8ecf4a31c658fc61d6def3df2e6/docs/pr-media/split-per-pane-tools.png)
-
-Unedited Redmi Pad 2 screenshots from this feature branch using blank documents in an isolated package. [Capture sources and results](https://github.com/wesleydanieell/xnotes-android/tree/14f9168132f4c8ecf4a31c658fc61d6def3df2e6/docs/pr-media).
-
-### Scope
-
-The newer community integration exposes the mixed-interface choice through document tabs. That adapter depends on other pending work and is deliberately excluded here. This independent implementation retains its own in-note settings entry.
-
-Draft pending completion of the device test matrix. AI tools assisted with implementation, extraction, documentation and validation.
+AI tools assisted with implementation, documentation and validation.

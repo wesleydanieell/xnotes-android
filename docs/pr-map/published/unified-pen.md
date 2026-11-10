@@ -1,22 +1,19 @@
-Add an optional Pen Group launcher to the existing note and canvas toolbars. A tap selects the remembered pen or opens its details; holding the launcher exposes a fan of pen choices.
+The toolbar gives each pen family its own button. An optional Pen Group puts those choices behind one launcher while keeping the selected pen's settings close at hand.
 
-The entry is hidden by default, preserving the existing visible layout. It uses the current tool configuration and ink callbacks and does not depend on multi-toolbar workspaces or the new configurator.
+**Demo.** Pen details, family selection and the hold fan, recorded on a Redmi Pad 2 (Android 16).
 
-### Validation
+[![Screen recording: Pen details, family selection and the hold fan](https://raw.githubusercontent.com/wesleydanieell/xnotes-android/4aebe055b225a7d03f704526d1465ce4e97d26c5/docs/pr-media/videos/pen-group.gif)](https://github.com/wesleydanieell/xnotes-android/blob/4aebe055b225a7d03f704526d1465ce4e97d26c5/docs/pr-media/videos/pen-group.mp4)
 
-- Debug compilation and **2,429 JVM tests passed**, including grouping and pen-fan gesture tests.
-- ARM64 debug and instrumentation APKs built successfully. The Redmi Pad 2 (Android 16) capture scenario passed for opening details and the hold fan.
+[Watch the full MP4 recording](https://github.com/wesleydanieell/xnotes-android/blob/4aebe055b225a7d03f704526d1465ce4e97d26c5/docs/pr-media/videos/pen-group.mp4). The animated image is an 8 fps preview.
 
-### Screenshots
+**Change.**
+- A tap selects the remembered pen; tapping an already selected pen opens its details.
+- Holding the launcher opens a fan for choosing another pen family.
+- Reuse the existing pen configuration and ink controls in note and canvas toolbars.
+- Keep the new entry hidden by default, so existing visible layouts are preserved.
 
-**Optional Pen Group details**
+**Testing.** Debug and instrumentation APKs built successfully. `testDebugUnitTest` passed with 2,429 tests, including group and fan-gesture tests. On a Redmi Pad 2 (Android 16), the device scenario opened the details and hold fan. The recording shows selecting a pen family and opening the fan.
 
-![Optional Pen Group details](https://raw.githubusercontent.com/wesleydanieell/xnotes-android/14f9168132f4c8ecf4a31c658fc61d6def3df2e6/docs/pr-media/pen-group-details.png)
+Still a draft: fan placement/cancellation across every toolbar edge and long family-label wrapping/localization need further review.
 
-**Pen fan opened by holding the launcher**
-
-![Pen fan opened by holding the launcher](https://raw.githubusercontent.com/wesleydanieell/xnotes-android/14f9168132f4c8ecf4a31c658fc61d6def3df2e6/docs/pr-media/pen-group-fan.png)
-
-Unedited Redmi Pad 2 screenshots from this feature branch using blank documents in an isolated package. [Capture sources and results](https://github.com/wesleydanieell/xnotes-android/tree/14f9168132f4c8ecf4a31c658fc61d6def3df2e6/docs/pr-media).
-
-Draft pending broader gesture/device review, particularly fan placement and cancellation on each toolbar edge. Long family labels also need wrapping/localization review. AI tools assisted with implementation, extraction, documentation and validation.
+AI tools assisted with implementation, documentation and validation.
