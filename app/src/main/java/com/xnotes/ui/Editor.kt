@@ -80,6 +80,8 @@ import com.xnotes.core.search.TypedTexts
 import com.xnotes.core.model.deepCopy
 import com.xnotes.core.model.snapshot
 import com.xnotes.core.model.insets
+import com.xnotes.core.model.sourceHeight
+import com.xnotes.core.model.sourceWidth
 import com.xnotes.core.model.resolvedPageColor
 import com.xnotes.core.text.CellIndex
 import com.xnotes.core.text.CharStyle
@@ -143,6 +145,8 @@ import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
+import com.xnotes.core.model.sourcePoint
+import com.xnotes.core.model.displayRects
 
 /**
  * The app-side glue between the imperative canvas (CanvasView + CanvasState +
@@ -898,6 +902,73 @@ class Editor(context: Context, val pane: Pane = Pane.PRIMARY) : ToolPopupHost, S
             }.getOrDefault(false)
         }
 
+    /** Save an explicitly requested canvas before leaving it, and continue only on success. */
+    fun saveCanvasToThen(uri: String, name: String?, onDone: (Boolean) -> Unit) {
+        val canvas = infinite
+        canvas.commitText()
+        val doc = canvas.document
+        val snapshot = doc.snapshotForWrite()
+        val wasDirty = doc.dirty
+        doc.dirty = false
+        canvasDebounceJob?.cancel()
+        val pending = canvasWriteJob
+        savingNote = true
+        canvasWriteJob = autosaveScope.launch {
+            pending?.join()
+            val ok = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+                writeCanvasSafely(uri, snapshot)
+            }
+            savingNote = false
+            if (ok && canvas.document === doc) {
+                doc.path = uri
+                if (name != null) doc.displayName = name
+                canvasAutosaveUri = if (browseRoot?.let { isUnderTree(uri, it) } == true) uri else null
+                invalidateThumb(uri)
+            } else if (!ok) {
+                if (wasDirty && canvas.document === doc) doc.dirty = true
+                message = appContext.getString(R.string.err_save_note)
+            }
+            onDone(ok && canvas.document === doc && !doc.dirty)
+        }
+    }
+
+    /** Create a durable file for a new canvas before switching away from it. */
+    fun saveNewCanvasToThen(onDone: (Boolean) -> Unit) {
+        val canvas = infinite
+        canvas.commitText()
+        val doc = canvas.document
+        val snapshot = doc.snapshotForWrite()
+        val wasDirty = doc.dirty
+        doc.dirty = false
+        val root = browseRoot ?: com.xnotes.platform.AppStorageDocumentsProvider.treeUri(appContext).toString()
+        canvasDebounceJob?.cancel()
+        val pending = canvasWriteJob
+        savingNote = true
+        canvasWriteJob = autosaveScope.launch {
+            pending?.join()
+            val result = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+                runCatching {
+                    val parent = android.provider.DocumentsContract.getTreeDocumentId(android.net.Uri.parse(root))
+                    val name = uniqueDocumentName(root, parent, "", com.xnotes.core.util.DocumentKind.CANVAS)
+                    val uri = createNoteFile(root, parent, name) { canvasCodec.write(snapshot, it) }
+                    uri?.let { it to name }
+                }.getOrNull()
+            }
+            savingNote = false
+            if (result != null && canvas.document === doc) {
+                doc.path = result.first
+                doc.displayName = result.second
+                canvasAutosaveUri = if (browseRoot == root) result.first else null
+                rememberStamp(result.first)
+                invalidateThumb(result.first)
+            } else if (result == null) {
+                if (wasDirty && canvas.document === doc) doc.dirty = true
+                message = appContext.getString(R.string.err_save_note)
+            }
+            onDone(result != null && canvas.document === doc && !doc.dirty)
+        }
+    }
+
     private fun scheduleCanvasAutosave() {
         val uri = canvasAutosaveUri ?: return
         canvasDebounceJob?.cancel()
@@ -1199,9 +1270,11 @@ class Editor(context: Context, val pane: Pane = Pane.PRIMARY) : ToolPopupHost, S
         val page = state.document.pages.getOrNull(pageIndex) ?: return null
         if (page.markups.isEmpty()) return null
         val local = state.toPageSpace(pageIndex, content)
+        // Markups lie on the page as it was before room was inserted, and room holds none.
+        val at = page.sourcePoint(local) ?: return null
         val ptPerPx = 72.0 / state.document.dpi
-        val m = MarkupPainter.markupAt(page.markups, local.x * ptPerPx, local.y * ptPerPx, markupSlopPt()) ?: return null
-        return MarkupHit(pageIndex, m, local)
+        val m = MarkupPainter.markupAt(page.markups, at.x * ptPerPx, at.y * ptPerPx, markupSlopPt()) ?: return null
+        return MarkupHit(pageIndex, m, at)
     }
 
     /** How far off a markup or a written address a tap may land, in points at the current zoom. */
@@ -1248,7 +1321,9 @@ class Editor(context: Context, val pane: Pane = Pane.PRIMARY) : ToolPopupHost, S
         val b = MarkupPainter.bounds(m) ?: return null
         if (pageIndex !in state.pageRects.indices) return null
         val s = state.document.dpi / 72.0
-        val c = state.fromPageSpaceRect(pageIndex, Rect(b.x * s, b.y * s, b.w * s, b.h * s))
+        val shown = state.document.pages[pageIndex].displayRects(Rect(b.x * s, b.y * s, b.w * s, b.h * s))
+        if (shown.isEmpty()) return null
+        val c = state.fromPageSpaceRect(pageIndex, shown.reduce { acc, r -> acc.union(r) })
         val tl = state.contentToViewport(Pt(c.left, c.top))
         val br = state.contentToViewport(Pt(c.right, c.bottom))
         val marks = Rect(tl.x, tl.y, br.x - tl.x, br.y - tl.y)
@@ -1714,10 +1789,12 @@ class Editor(context: Context, val pane: Pane = Pane.PRIMARY) : ToolPopupHost, S
             val page = state.document.pages.getOrNull(pageIndex) ?: return@onLinkTap false
             val pdfIdx = page.pdfKey ?: return@onLinkTap false
             if (page.width <= 0.0 || page.height <= 0.0) return@onLinkTap false
+            // Links lie on the page as it was before room was inserted, and room holds none.
+            val at = page.sourcePoint(pageLocal) ?: return@onLinkTap false
             // Into PDF points, at the same dpi/72 the page renders with.
             val ptPerPx = 72.0 / state.document.dpi
-            val x = (pageLocal.x * ptPerPx).toFloat()
-            val y = (pageLocal.y * ptPerPx).toFloat()
+            val x = (at.x * ptPerPx).toFloat()
+            val y = (at.y * ptPerPx).toFloat()
             val slop = (AUTO_LINK_SLOP_DP * state.devicePxPerDp / state.zoom * ptPerPx).toFloat()
             if (src.hasLinks(pdfIdx)) {
                 val link = src.linkAt(pdfIdx, x, y) ?: return@onLinkTap openAutoLink(src, pdfIdx, x, y, slop)
@@ -2179,6 +2256,33 @@ class Editor(context: Context, val pane: Pane = Pane.PRIMARY) : ToolPopupHost, S
      */
     private fun installPageBackground() {
         state.paintPageBackground = { page, renderer, res, region -> paintBackground(page, renderer, res, region) }
+        state.paintRoomPaper = { view, renderer -> paintRoomPaper(view, renderer) }
+    }
+
+    /**
+     * The paper [view]'s old layers leave bare on its page, ruled as the page will be: the room
+     * opening on a PDF page, ruled as its margins are, or the page a plain page grew by. Closing
+     * room leaves nothing bare.
+     */
+    private fun paintRoomPaper(view: com.xnotes.canvas.RoomView, r: Renderer) {
+        if (view.shift <= 0.0 || view.sideways) return
+        val page = view.page
+        // While the pen drags the page has not grown yet, so it is ruled as it will be.
+        val shown = if (!view.live) page else Page(
+            page.width, page.height + view.shift, pdfPage = page.pdfPage, style = page.style, margins = page.margins,
+            pdfTurn = page.pdfTurn, rooms = com.xnotes.core.model.Rooms.opened(page.rooms, view.split, view.shift),
+        )
+        val cover = state.footprint(shown)
+        val region = if (page.pdfPage != null) {
+            Rect(cover.left, view.split, cover.w, view.shift)
+        } else {
+            Rect(cover.left, view.cover.bottom, cover.w, cover.bottom - view.cover.bottom)
+        }
+        if (region.h <= 0.0) return
+        r.withSave {
+            r.clipRect(region)
+            TemplateLibrary.paint(r, state.document, shown, cover, region)
+        }
     }
 
     /** The open note's page background over [region] at [res]; [minLine] is the template's thinnest line in content px. */
@@ -2187,8 +2291,13 @@ class Editor(context: Context, val pane: Pane = Pane.PRIMARY) : ToolPopupHost, S
         val pi = page.pdfKey
         val markups = page.markups
         if (src != null && pi != null) {
-            // The raster covers the page's content box only; a margin is paper beside it.
-            val slice = clampToContent(region, page)
+            // The raster covers the page's content box only; a margin is paper beside it. With room
+            // in it, the content box is the page as it was, rendered once and drawn in bands.
+            val banded = page.rooms.isNotEmpty()
+            val sw = page.sourceWidth
+            val sh = page.sourceHeight
+            val need = if (banded) com.xnotes.core.model.Rooms.sourceOf(region, page.rooms, sw, sh) else region
+            val slice = need?.let { clampToContent(it, sw, sh) }
             if (slice != null) {
                 val rx = (slice.left * res).toInt()
                 val ry = (slice.top * res).toInt()
@@ -2198,7 +2307,11 @@ class Editor(context: Context, val pane: Pane = Pane.PRIMARY) : ToolPopupHost, S
                 // points, so their PDF runs past the paper by under a point, cropped as before.
                 val pxPerPt = res * state.document.dpi / 72.0
                 src.renderRegion(pi, pxPerPt, rx, ry, rw, rh, pdfPageFilter(), markups)?.let { bg ->
-                    renderer.drawRaster(bg, slice)
+                    if (banded) {
+                        com.xnotes.core.model.Rooms.drawBanded(renderer, bg, Rect(rx / res, ry / res, rw / res, rh / res), page.rooms, sw, sh)
+                    } else {
+                        renderer.drawRaster(bg, slice)
+                    }
                     bg.recycle()
                 }
             }
@@ -2209,12 +2322,12 @@ class Editor(context: Context, val pane: Pane = Pane.PRIMARY) : ToolPopupHost, S
         if (pi == null) MarkupPainter.paint(renderer, markups, state.document.dpi / 72.0)
     }
 
-    /** [region] cropped to [page]'s content box (its stored size), or null when it misses it. */
-    private fun clampToContent(region: com.xnotes.core.geometry.Rect, page: Page): com.xnotes.core.geometry.Rect? {
+    /** [region] cropped to a [w] by [h] content box, a page's own size before any room, or null when it misses it. */
+    private fun clampToContent(region: com.xnotes.core.geometry.Rect, w: Double, h: Double): com.xnotes.core.geometry.Rect? {
         val l = region.left.coerceAtLeast(0.0)
         val t = region.top.coerceAtLeast(0.0)
-        val r = region.right.coerceAtMost(page.width)
-        val b = region.bottom.coerceAtMost(page.height)
+        val r = region.right.coerceAtMost(w)
+        val b = region.bottom.coerceAtMost(h)
         return if (r > l && b > t) com.xnotes.core.geometry.Rect(l, t, r - l, b - t) else null
     }
 
@@ -2376,7 +2489,7 @@ class Editor(context: Context, val pane: Pane = Pane.PRIMARY) : ToolPopupHost, S
         val oldPages = publishedPageList
         val (addedW, addedH) = doc.blankPageSize(doc.pages.lastOrNull())
         val frame = flowLayout.layout(
-            doc.flow, doc.pages.map { PageBox(it.width, it.height) }, doc.dpi,
+            doc.flow, doc.pages.map { PageBox(it.sourceWidth, it.sourceHeight) }, doc.dpi,
             firstPage = flowStart(doc), addedPage = PageBox(addedW, addedH),
         )
         // What this frame actually shows, not what the caller meant it to: an edit
@@ -2671,7 +2784,7 @@ class Editor(context: Context, val pane: Pane = Pane.PRIMARY) : ToolPopupHost, S
     private fun flowExportHooks(doc: Document): com.xnotes.platform.PdfExporter.FlowExport {
         if (doc.flow.isEmpty) return com.xnotes.platform.PdfExporter.FlowExport.NONE
         val frame = themedFlowLayout(doc.flow)
-            .layout(doc.flow, doc.pages.map { PageBox(it.width, it.height) }, doc.dpi, firstPage = flowStart(doc))
+            .layout(doc.flow, doc.pages.map { PageBox(it.sourceWidth, it.sourceHeight) }, doc.dpi, firstPage = flowStart(doc))
         val index = HashMap<Page, Int>(doc.pages.size * 2)
         doc.pages.forEachIndexed { i, p -> index[p] = i }
         return com.xnotes.platform.PdfExporter.FlowExport(doc.flow, frame) { index[it] }
@@ -3842,12 +3955,15 @@ class Editor(context: Context, val pane: Pane = Pane.PRIMARY) : ToolPopupHost, S
             runCatching {
                 com.xnotes.platform.PdfSource.create(file)?.let { src ->
                     page.pdfKey?.let { pi ->
-                        val pw = (page.width * scale).toInt().coerceAtLeast(1)
-                        val ph = (page.height * scale).toInt().coerceAtLeast(1)
+                        // The page as it was, before any room: drawn in bands through the room inserted since.
+                        val sw = page.sourceWidth
+                        val sh = page.sourceHeight
+                        val pw = (sw * scale).toInt().coerceAtLeast(1)
+                        val ph = (sh * scale).toInt().coerceAtLeast(1)
                         com.xnotes.platform.PdfSource.withPriority(com.xnotes.platform.PdfPriority.THUMBNAIL) {
                             src.renderPage(pi, pw, ph, filter, page.markups)
                         }?.let { bg ->
-                            r.drawRaster(bg, Rect(0.0, 0.0, page.width, page.height))
+                            com.xnotes.core.model.Rooms.drawBanded(r, bg, Rect(0.0, 0.0, sw, sh), page.rooms, sw, sh)
                             bg.recycle()
                         }
                     }
@@ -3861,7 +3977,7 @@ class Editor(context: Context, val pane: Pane = Pane.PRIMARY) : ToolPopupHost, S
         PageLayers.paint(itemsSnapshot(page), {
             if (!doc.flow.isEmpty) {
                 val frame = themedFlowLayout(doc.flow)
-                    .layout(doc.flow, doc.pages.map { PageBox(it.width, it.height) }, doc.dpi, throughPage = index, firstPage = flowStart(doc))
+                    .layout(doc.flow, doc.pages.map { PageBox(it.sourceWidth, it.sourceHeight) }, doc.dpi, throughPage = index, firstPage = flowStart(doc))
                 FlowPainter.paintPage(r, frame, index, Rect(0.0, 0.0, page.width, page.height))
             }
         }) { it.paint(r) }
@@ -4391,7 +4507,9 @@ class Editor(context: Context, val pane: Pane = Pane.PRIMARY) : ToolPopupHost, S
             android.provider.DocumentsContract.createDocument(appContext.contentResolver, parent, "application/octet-stream", name)
         }.getOrNull() ?: return null
         return runCatching {
-            appContext.contentResolver.openOutputStream(uri, "wt")?.use { write(it) }
+            val output = appContext.contentResolver.openOutputStream(uri, "wt")
+                ?: throw java.io.IOException("Could not open created document")
+            output.use { write(it) }
             uri.toString()
         }.getOrElse {
             runCatching { android.provider.DocumentsContract.deleteDocument(appContext.contentResolver, uri) }
@@ -4465,7 +4583,7 @@ class Editor(context: Context, val pane: Pane = Pane.PRIMARY) : ToolPopupHost, S
             com.xnotes.core.text.MarkdownParser.parse(markdown, newTableDefaults.style, toolbarInk()),
         )
         val layout = themedFlowLayout(doc.flow)
-        fun frame() = layout.layout(doc.flow, doc.pages.map { PageBox(it.width, it.height) }, doc.dpi, firstPage = flowStart(doc))
+        fun frame() = layout.layout(doc.flow, doc.pages.map { PageBox(it.sourceWidth, it.sourceHeight) }, doc.dpi, firstPage = flowStart(doc))
         frame().pages.firstOrNull()?.contentRect?.w?.let { width ->
             for (b in CellIndex(doc.flow.paragraphs).tables) b.table.widths = layout.fitColumns(doc.flow, b.table, width)
         }
@@ -7210,19 +7328,20 @@ class Editor(context: Context, val pane: Pane = Pane.PRIMARY) : ToolPopupHost, S
     /**
      * Give the plain pages at [indices] the size [choice] makes, as one undo step. Nothing on them is
      * scaled or moved: what a smaller page leaves off stays there out of sight, and comes back if the
-     * page grows again. PDF pages keep theirs.
+     * page grows again. The room inserted into them becomes plain page. PDF pages keep theirs.
      */
     fun resizePages(indices: List<Int>, choice: PageSizeChoice) {
         val all = indices.distinct().sorted().mapNotNull { pageAt(it) }
         val plain = all.filter { it.pdfPage == null }
         if (plain.size < all.size) message = appContext.getString(R.string.pdf_pages_keep_size)
         val (w, h) = choice.pixels(state.document.dpi)
-        val pages = plain.filter { it.width != w || it.height != h }
+        val pages = plain.filter { it.width != w || it.height != h || it.rooms.isNotEmpty() }
         if (pages.isEmpty()) return
         val before = pages.map { PageShape.of(it) }
         for (page in pages) {
             page.width = w
             page.height = h
+            page.rooms = emptyList()
         }
         history.push(ReshapePages(pages, before, pages.map { PageShape.of(it) }))
         afterReshape(pages)
