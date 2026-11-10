@@ -751,13 +751,13 @@ internal fun itemIcon(item: ToolbarItem): ImageVector = when (item) {
     ToolbarItem.CALLIGRAPHY -> ImageVector.vectorResource(R.drawable.ic_stroke_calligraphy)
     ToolbarItem.SPEED -> ImageVector.vectorResource(R.drawable.ic_stroke_speed)
     ToolbarItem.TAPER -> ImageVector.vectorResource(R.drawable.ic_stroke_taper)
+    ToolbarItem.LASSO -> XnotesIcons.lasso
     ToolbarItem.HIGHLIGHTER -> ImageVector.vectorResource(R.drawable.ic_stroke_highlighter)
     ToolbarItem.UNIFIED_PEN -> ImageVector.vectorResource(R.drawable.ic_stroke_regular)
     ToolbarItem.ERASER -> XnotesIcons.eraser
     ToolbarItem.PAN -> XnotesIcons.pan
     ToolbarItem.READER -> Icons.Outlined.AutoStories
     ToolbarItem.SELECT -> XnotesIcons.select
-    ToolbarItem.LASSO -> XnotesIcons.lasso
     ToolbarItem.INSERT_SPACE -> XnotesIcons.insertSpace
     ToolbarItem.SCREENSHOT -> XnotesIcons.scissors
     ToolbarItem.WAND -> XnotesIcons.magicWand

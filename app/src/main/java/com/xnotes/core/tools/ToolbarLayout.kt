@@ -13,7 +13,9 @@ enum class ToolbarItem(val id: String) {
     HOME("home"),
     TITLE("title"),
     SIDEBAR("sidebar"),
+    /** Every pen kind ([Tool.PENS]) behind one button that shows the one in use. */
     PEN("pen"),
+    // Legacy standalone entries remain readable in saved community layouts.
     DASHED("dashed"),
     CALLIGRAPHY("calligraphy"),
     SPEED("speed"),
@@ -26,6 +28,7 @@ enum class ToolbarItem(val id: String) {
 
     /** Switches a paged note to reading: the bar shrinks to reading controls and nothing edits. */
     READER("reader"),
+    /** Rectangle select and lasso ([Tool.SELECTIONS]) behind one button. */
     SELECT("select"),
     LASSO("lasso"),
     SCREENSHOT("screenshot"),
@@ -61,7 +64,7 @@ enum class ToolbarItem(val id: String) {
     /** Canvas only: the overview map in the corner. */
     MINIMAP("minimap"),
 
-    /** Notes only: opens and closes room on a page. Last, so a stored bar missing older items too still gets it right after the lasso. */
+    /** Notes only: opens and closes room on a page. Last, so a stored bar missing older items too still gets it right after select. */
     INSERT_SPACE("insert_space");
 
     companion object {
@@ -392,7 +395,7 @@ data class ToolbarLayout(
     private fun insertMissing(item: ToolbarItem): ToolbarLayout {
         val anchor = if (item == ToolbarItem.TEXT_BOX && sections.none { s -> s.entries.any { it.item == ToolbarItem.TEXT } })
             ToolbarItem.SHAPE else INSERT_AFTER[item]
-        val entry = ToolbarEntry(item, visible = item != ToolbarItem.UNIFIED_PEN)
+        val entry = ToolbarEntry(item, visible = item != ToolbarItem.UNIFIED_PEN && item !in LEGACY_STANDALONE)
         if (anchor != null) {
             sections.forEachIndexed { si, sec ->
                 val i = sec.entries.indexOfFirst { it.item == anchor }
@@ -407,17 +410,19 @@ data class ToolbarLayout(
     }
 
     companion object {
+        private val LEGACY_STANDALONE = setOf(ToolbarItem.DASHED, ToolbarItem.CALLIGRAPHY,
+            ToolbarItem.SPEED, ToolbarItem.TAPER, ToolbarItem.LASSO)
         /** Later-added items that belong beside an existing one in stored layouts. */
         private val INSERT_AFTER = mapOf(
             ToolbarItem.UNIFIED_PEN to ToolbarItem.HIGHLIGHTER,
             ToolbarItem.TEXT_BOX to ToolbarItem.TEXT,
             ToolbarItem.VIEW to ToolbarItem.STYLES,
             ToolbarItem.MARGINS to ToolbarItem.STYLES,
-            ToolbarItem.WAND to ToolbarItem.LASSO,
+            ToolbarItem.WAND to ToolbarItem.SELECT,
             ToolbarItem.TABLE to ToolbarItem.IMAGE,
             ToolbarItem.SEARCH to ToolbarItem.PAGE_NAV,
             ToolbarItem.TAPE to ToolbarItem.WAND,
-            ToolbarItem.INSERT_SPACE to ToolbarItem.LASSO,
+            ToolbarItem.INSERT_SPACE to ToolbarItem.SELECT,
             ToolbarItem.MARKUP to ToolbarItem.TEXT_BOX,
             ToolbarItem.READER to ToolbarItem.PAN,
         )
@@ -479,7 +484,7 @@ data class ToolbarLayout(
         )
 
         private fun of(vararg groups: List<ToolbarItem>): ToolbarLayout =
-            ToolbarLayout(groups.map { g -> ToolbarSection(g.map { ToolbarEntry(it, visible = it != ToolbarItem.UNIFIED_PEN) }) })
+            ToolbarLayout(groups.map { g -> ToolbarSection(g.map { ToolbarEntry(it, visible = it != ToolbarItem.UNIFIED_PEN && it !in LEGACY_STANDALONE) }) })
 
         /**
          * Build from raw (id, visible) pairs per section as read from storage: ids outside [among]
