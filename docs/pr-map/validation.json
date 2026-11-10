@@ -1,0 +1,78 @@
+{
+  "date": "2026-11-10",
+  "upstream_url": "https://github.com/NeDDy3z/n-notes.git",
+  "upstream_sha": "199918c5dd6ef57764c557acec28646873a7ac9c",
+  "remote": "wesleydanieell/xnotes-android",
+  "test_environment": {
+    "java": "17",
+    "android_sdk": "/home/wesley/Android/Sdk",
+    "init_script": "external, only restricts ABI to arm64-v8a and sets debug suffix .praudit; no repository source edits"
+  },
+  "scope": "Maintained branches only. Historical archives may conflict and are intentionally not merged. No APK installation or personal data modification performed.",
+  "branches": [
+    {
+      "branch": "nnotes/pr/legacy-toolbar-compatibility",
+      "base": "upstream/master",
+      "sha": "90305af6cbf6141d9000d76e8f7a1638fc96d8f8",
+      "base_sha": "199918c5dd6ef57764c557acec28646873a7ac9c",
+      "merge_clean": true,
+      "contains_upstream": true,
+      "apk_packaging": "not validated during this audit",
+      "device_qa": "not rerun during this audit",
+      "jvm_tests": "passed",
+      "test_log_sha256": "0bb3188170e3fbf7497f3c993e6dee51377f23691d93d619ff144ea36e8c1741",
+      "test_command": "./gradlew --max-workers=2 -Pkotlin.incremental=false -Pkotlin.compiler.execution.strategy=in-process -I /tmp/pr-validation.gradle :app:testDebugUnitTest",
+      "log": "validation-logs/pr-nnotes-legacy-unit.log",
+      "junit_totals": {
+        "tests": 2545,
+        "failures": 0,
+        "errors": 0,
+        "skipped": 0
+      }
+    },
+    {
+      "branch": "community/n-notes",
+      "base": "upstream/master",
+      "sha": "716af31268c4dcc97342d30bd5f234041eb4638a",
+      "base_sha": "199918c5dd6ef57764c557acec28646873a7ac9c",
+      "merge_clean": true,
+      "contains_upstream": true,
+      "apk_packaging": "not validated during this audit",
+      "device_qa": "not rerun during this audit",
+      "jvm_tests": "passed",
+      "test_log_sha256": "6fd9dd7b9a421955ec7399b1ccf2e3421da90a26e7fccc3943a55d88e4bf9a6c",
+      "test_command": "./gradlew --max-workers=2 -Pkotlin.incremental=false -Pkotlin.compiler.execution.strategy=in-process -I /tmp/pr-validation.gradle :app:testDebugUnitTest",
+      "log": "validation-logs/nnotes-community-final-unit.log",
+      "junit_totals": {
+        "tests": 2777,
+        "failures": 0,
+        "errors": 0,
+        "skipped": 0
+      }
+    },
+    {
+      "branch": "nnotes/community",
+      "base": "upstream/master",
+      "sha": "716af31268c4dcc97342d30bd5f234041eb4638a",
+      "base_sha": "199918c5dd6ef57764c557acec28646873a7ac9c",
+      "merge_clean": true,
+      "contains_upstream": true,
+      "apk_packaging": "not validated during this audit",
+      "device_qa": "not rerun during this audit",
+      "jvm_tests": "not rerun; branch source unchanged during audit",
+      "notes": "Exact alias of community/n-notes; use its test result."
+    },
+    {
+      "branch": "nnotes/integration/toolbars-tabs",
+      "base": "upstream/master",
+      "sha": "716af31268c4dcc97342d30bd5f234041eb4638a",
+      "base_sha": "199918c5dd6ef57764c557acec28646873a7ac9c",
+      "merge_clean": true,
+      "contains_upstream": true,
+      "apk_packaging": "not validated during this audit",
+      "device_qa": "not rerun during this audit",
+      "jvm_tests": "not rerun; branch source unchanged during audit",
+      "notes": "Exact alias of community/n-notes; use its test result."
+    }
+  ]
+}

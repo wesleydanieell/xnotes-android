@@ -1,0 +1,9 @@
+allprojects { p ->
+    p.plugins.withId('com.android.application') {
+        p.afterEvaluate {
+            p.android.defaultConfig.ndk.abiFilters.clear()
+            p.android.defaultConfig.ndk.abiFilters.add('arm64-v8a')
+            p.android.buildTypes.debug.applicationIdSuffix = '.praudit'
+        }
+    }
+}
