@@ -1,5 +1,7 @@
 # Add an immutable model for configurable toolbar workspaces
 
+Published as a review phase within [upstream PR #431](https://github.com/shardulvs/xnotes-android/pull/431). Intermediate branch/base names below remain useful for phase-specific diffs; no separate upstream PR was opened for each internal layer.
+
 Branch: `xnotes/pr/toolbar-workspace-model`
 
 Proposed base: `master` in shardulvs/xnotes-android (use a stacked PR while prerequisites remain unmerged).

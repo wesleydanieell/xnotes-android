@@ -1,5 +1,7 @@
 # Add a dedicated toolbar editor with a live workspace preview
 
+Published as a review phase within [upstream PR #431](https://github.com/shardulvs/xnotes-android/pull/431). Intermediate branch/base names below remain useful for phase-specific diffs; no separate upstream PR was opened for each internal layer.
+
 Branch: `xnotes/pr/toolbar-customizer`
 
 Proposed base: `xnotes/pr/toolbar-runtime` in shardulvs/xnotes-android (use a stacked PR while prerequisites remain unmerged).

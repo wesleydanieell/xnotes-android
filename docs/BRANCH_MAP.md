@@ -7,7 +7,7 @@ Auditoria: 2026-11-10. Upstream: `shardulvs/xnotes-android/master` (`3926304a`, 
 - Pasta canônica: `~/Projetos/xnotes-upstream/`, com `.git` próprio.
 - n-notes: `~/Projetos/n-notes-upstream/`, outro `.git`, outro upstream.
 - Publicação compartilhada: `wesleydanieell/xnotes-android`; novas branches usam `xnotes/...` ou `nnotes/...`.
-- Nomes das branches de PRs abertos são preservados. PRs serão abertos/retargetados manualmente pelo usuário.
+- Nomes das branches de PRs abertos são preservados. Os PRs necessários foram abertos após solicitação explícita do usuário; veja o registro de publicação abaixo.
 - Históricos antigos, backups e worktrees com mudanças locais não foram apagados.
 
 ## PRs existentes
@@ -112,3 +112,16 @@ As branches antigas fechadas/experimentais são arquivos históricos, não branc
 O configurador foi modularizado e removido da tela geral. A pilha de extração exclui o Pen Group e a integração de tabs/split; a integração community completa continua disponível. A branch de texto nativo é um candidato de formato/render, com revisão de compatibilidade pendente. Localização das strings e QA visual do configurador extraído ainda precisam de revisão antes da submissão.
 
 Validação final: [matriz de resultados](pr-map/VALIDATION.md). Comando reproduzível dos testes: `./gradlew --max-workers=2 -Pkotlin.incremental=false -Pkotlin.compiler.execution.strategy=in-process -I tools/pr-validation.gradle :app:testDebugUnitTest` (o script está na branch de documentação; pode ser passado por caminho absoluto ao testar outra worktree).
+
+## PRs publicados no XNotes original
+
+- [#431 — Toolbar workspaces](https://github.com/shardulvs/xnotes-android/pull/431): modelo, persistência, runtime e configurador em commits separados de um único PR funcional. As branches intermediárias continuam disponíveis para revisar cada fase.
+- [#429 — Pen Group opcional](https://github.com/shardulvs/xnotes-android/pull/429): contribuição independente.
+- [#430 — Ferramentas compartilhadas na tela dividida](https://github.com/shardulvs/xnotes-android/pull/430): toolbar nativa, sem dependência da customização ou tabs.
+- [#428 — Texto nativo no canvas](https://github.com/shardulvs/xnotes-android/pull/428): codec/mesh, com decisão de compatibilidade pendente.
+
+Todos foram abertos como draft e estavam mergeable contra master na publicação. As descrições detalham testes, limites e revisão restante. Não foram duplicados PRs já abertos. O split por arraste continua no PR #2 do fork, dependente do PR upstream #359, como anunciado anteriormente.
+
+Oito capturas reais das três branches com interface estão na branch `xnotes/pr-media-20261110`; as descrições dos PRs usam URLs com SHA imutável. Os APKs ARM64 e fixtures de captura foram compilados, três cenários de captura passaram, e três testes adicionais de Undo/modo compartilhado passaram no Redmi Pad 2 (Android 16). Os documentos de validação anteriores registram o estado da auditoria; estes resultados posteriores não significam conclusão da matriz visual completa.
+
+Registro: [published-prs.json](pr-map/published-prs.json). Descrições publicadas: `docs/pr-map/published/`. [Imagens e reprodução](https://github.com/wesleydanieell/xnotes-android/tree/14f9168132f4c8ecf4a31c658fc61d6def3df2e6/docs/pr-media).

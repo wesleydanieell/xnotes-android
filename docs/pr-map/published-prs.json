@@ -1,0 +1,55 @@
+{
+  "checked_date": "2026-11-10",
+  "repository": "shardulvs/xnotes-android",
+  "media_commit": "14f9168132f4c8ecf4a31c658fc61d6def3df2e6",
+  "pull_requests": [
+    {
+      "number": 428,
+      "url": "https://github.com/shardulvs/xnotes-android/pull/428",
+      "title": "feat(canvas): preserve and mesh native text items",
+      "draft": true,
+      "state": "open",
+      "head": "xnotes/pr/native-canvas-text",
+      "head_sha": "4f57310543303a10b61a83987ed9390d625dce24",
+      "base": "master",
+      "base_sha": "3926304a0a2ca20b0ac259317b5e60f77d4668b1",
+      "mergeable": true
+    },
+    {
+      "number": 429,
+      "url": "https://github.com/shardulvs/xnotes-android/pull/429",
+      "title": "feat(toolbar): add an optional Pen Group launcher",
+      "draft": true,
+      "state": "open",
+      "head": "xnotes/pr/unified-pen",
+      "head_sha": "26d187731fb060f674c69620a313882eec22f227",
+      "base": "master",
+      "base_sha": "3926304a0a2ca20b0ac259317b5e60f77d4668b1",
+      "mergeable": true
+    },
+    {
+      "number": 430,
+      "url": "https://github.com/shardulvs/xnotes-android/pull/430",
+      "title": "feat(split): share toolbars across split documents",
+      "draft": true,
+      "state": "open",
+      "head": "xnotes/pr/shared-split-toolbars",
+      "head_sha": "115571bb2f5f76c70927c2ed740097f24883afb9",
+      "base": "master",
+      "base_sha": "3926304a0a2ca20b0ac259317b5e60f77d4668b1",
+      "mergeable": true
+    },
+    {
+      "number": 431,
+      "url": "https://github.com/shardulvs/xnotes-android/pull/431",
+      "title": "feat(toolbar): configure docked and floating toolbar workspaces",
+      "draft": true,
+      "state": "open",
+      "head": "xnotes/pr/toolbar-customizer",
+      "head_sha": "c0e43cfd28c401ac0f9e6283040987ee48c25e3b",
+      "base": "master",
+      "base_sha": "3926304a0a2ca20b0ac259317b5e60f77d4668b1",
+      "mergeable": true
+    }
+  ]
+}
