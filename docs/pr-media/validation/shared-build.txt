@@ -1,0 +1,5 @@
+> Task :app:createDebugAndroidTestApkListingFileRedirect
+> Task :app:assembleDebugAndroidTest
+
+BUILD SUCCESSFUL in 1m 4s
+67 actionable tasks: 37 executed, 15 from cache, 15 up-to-date

@@ -1,0 +1,37 @@
+{
+  "date": "2026-11-10",
+  "device": "Redmi Pad 2",
+  "android": "16",
+  "screenshots": "Unedited full-screen captures of the exact feature branches, using blank test documents in isolated packages.",
+  "features": {
+    "toolbar": {
+      "branch": "xnotes/pr/toolbar-customizer",
+      "commit": "c0e43cfd",
+      "package": "com.xnotes.prtoolbar",
+      "capture_tests_passed": 1
+    },
+    "pen": {
+      "branch": "xnotes/pr/unified-pen",
+      "commit": "26d18773",
+      "package": "com.xnotes.prpen",
+      "capture_tests_passed": 1
+    },
+    "shared": {
+      "branch": "xnotes/pr/shared-split-toolbars",
+      "commit": "115571bb",
+      "package": "com.xnotes.sharedsplit",
+      "capture_tests_passed": 1,
+      "additional_device_regressions_passed": 3
+    }
+  },
+  "images": {
+    "toolbar-workspace.png": "d9af35426a927f0d4355bfde5c8e50e0c3d9a0cd79008ace86adb5272a67b769",
+    "toolbar-configurator.png": "bf8bc518db9e01ec17eba76bf0c172d54e4c3d8c3875e7f67c02dec9607d55ae",
+    "toolbar-elements.png": "7998009d8d273e1b6d803f8fbdf9335ef65d5f7e51f29f31ceaa763d9e777753",
+    "pen-group-details.png": "b8459c69b20a6e5c145c2a97aa99f491ced439a9a9c3527efe143278add516c8",
+    "pen-group-fan.png": "1bd80ab8c5b580451fc32303d041f9c7fd973bd943bee45897b967c492883f3e",
+    "split-shared-tools.png": "5777a49eb049ccb83574c7530cf231fcaa406e248a14a4b3acbdb2ed511fa8b5",
+    "split-interface-settings.png": "8245f62b50c98d35b9b475190e5fd7ec91b201fa32c5a3e981906f52499ea89a",
+    "split-per-pane-tools.png": "a754b4b42ed50f6a4ac5983d773100f1de03915c3ff8dc4064da4d14284c4143"
+  }
+}
