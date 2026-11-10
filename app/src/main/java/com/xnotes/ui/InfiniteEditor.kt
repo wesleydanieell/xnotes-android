@@ -101,7 +101,13 @@ class InfiniteEditor(context: Context) : ToolPopupHost, SelectionMenuHost, LongP
      * The two surfaces, in order. They are siblings rather than one view because the canvas needs a
      * multisampled config and the front buffer cannot have one.
      */
-    val surfaces = android.widget.FrameLayout(appContext).apply {
+    val surfaces = object : android.widget.FrameLayout(appContext) {
+        override fun dispatchTouchEvent(ev: android.view.MotionEvent): Boolean {
+            val handled = super.dispatchTouchEvent(ev)
+            com.xnotes.SplitStylusRouter.nativeSawEvent()
+            return handled
+        }
+    }.apply {
         addView(view, android.widget.FrameLayout.LayoutParams(-1, -1))
         addView(pad, android.widget.FrameLayout.LayoutParams(-1, -1))
     }
