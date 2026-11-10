@@ -4,5 +4,3 @@ Test results for InstrumentationTestRunner=.
 Time: 11.525
 
 OK (1 test)
-
-
