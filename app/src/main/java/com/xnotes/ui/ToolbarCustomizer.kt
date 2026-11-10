@@ -14,12 +14,17 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -53,12 +58,15 @@ import com.xnotes.core.tools.ToolbarItem
 import com.xnotes.core.tools.ToolbarLayout
 import com.xnotes.core.tools.ToolbarSection
 import com.xnotes.core.tools.ToolbarNode
+import com.xnotes.core.tools.addNodeInstance
+import com.xnotes.core.tools.duplicateNodeInstance
 import com.xnotes.core.tools.moveNode
 import com.xnotes.core.tools.moveNodeBefore
 import com.xnotes.core.tools.removeNode
 import com.xnotes.ui.icons.XnotesIcons
 import com.xnotes.ui.theme.LocalPalette
 import com.xnotes.ui.theme.toComposeColor
+import java.util.UUID
 
 /**
  * The toolbar customizer, rendered inline inside Preferences. Each section is a bordered card whose

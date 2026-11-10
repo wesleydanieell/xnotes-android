@@ -79,7 +79,9 @@ data class ToolbarBar(
     /** Safe renderer projection; legacy flat layout remains the source when no v3 tree is present. */
     fun effectiveLayout(): ToolbarLayout {
         val tree = nodes ?: return layout
-        val items = tree.flatMap { it.flattenItems() }.distinct()
+        // A v3 tool node is an *instance*, not a unique tool type. Multiple nodes may
+        // intentionally invoke the same command (for example, two pens in a 3×2 grid).
+        val items = tree.flatMap { it.flattenItems() }
         return ToolbarLayout(listOf(ToolbarSection(items.map { ToolbarEntry(it) })))
     }
 

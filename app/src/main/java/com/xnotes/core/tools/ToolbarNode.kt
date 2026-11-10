@@ -335,3 +335,85 @@ fun toolbarNodesFromLayout(layout: ToolbarLayout): List<ToolbarNode> = layout.se
         },
     )
 }
+
+/** Append an independent element instance at the root or inside a selected group/grid. */
+fun List<ToolbarNode>.addNodeInstance(node: ToolbarNode, parentId: String? = null): List<ToolbarNode> {
+    if (node.id.isBlank() || node.id.length > 64) return this
+    fun containsId(items: List<ToolbarNode>): Boolean = items.any { candidate ->
+        candidate.id == node.id || when (candidate) {
+            is ToolbarNode.Group -> containsId(candidate.children)
+            is ToolbarNode.Grid -> containsId(candidate.children)
+            else -> false
+        }
+    }
+    if (containsId(this)) return this
+    if (parentId == null) return this + node
+    var inserted = false
+    fun insert(items: List<ToolbarNode>, depth: Int): List<ToolbarNode> = items.map { existing ->
+        if (existing.id == parentId && depth < 3) {
+            when (existing) {
+                is ToolbarNode.Group -> { inserted = true; existing.copy(children = existing.children + node) }
+                is ToolbarNode.Grid -> { inserted = true; existing.copy(children = existing.children + node) }
+                else -> existing
+            }
+        } else when (existing) {
+            is ToolbarNode.Group -> existing.copy(children = insert(existing.children, depth + 1))
+            is ToolbarNode.Grid -> existing.copy(children = insert(existing.children, depth + 1))
+            else -> existing
+        }
+    }
+    val result = insert(this, 0)
+    return if (inserted) result else this
+}
+
+/**
+ * Duplicate an element instance in the same parent, including entire group/grid subtrees.
+ * IDs identify *instances*; duplicating a Tool with the same ToolbarItem is intentional.
+ */
+fun List<ToolbarNode>.duplicateNodeInstance(nodeId: String, freshId: () -> String): List<ToolbarNode> {
+    if (nodeId.isBlank()) return this
+    val existingIds = HashSet<String>()
+    fun collect(items: List<ToolbarNode>) {
+        items.forEach { node ->
+            existingIds += node.id
+            when (node) {
+                is ToolbarNode.Group -> collect(node.children)
+                is ToolbarNode.Grid -> collect(node.children)
+                else -> Unit
+            }
+        }
+    }
+    collect(this)
+    val newIds = HashSet<String>()
+    fun nextId(): String {
+        val id = freshId()
+        require(id.isNotBlank() && id.length <= 64 && id !in existingIds && newIds.add(id)) {
+            "Duplicate node IDs must be unique, non-empty and at most 64 characters"
+        }
+        return id
+    }
+    fun clone(node: ToolbarNode): ToolbarNode = when (node) {
+        is ToolbarNode.Tool -> node.copy(id = nextId())
+        is ToolbarNode.ColorPalette -> node.copy(id = nextId())
+        is ToolbarNode.UnifiedPen -> node.copy(id = nextId())
+        is ToolbarNode.Group -> node.copy(id = nextId(), children = node.children.map(::clone))
+        is ToolbarNode.Grid -> node.copy(id = nextId(), children = node.children.map(::clone))
+        is ToolbarNode.Spacer -> node.copy(id = nextId())
+        is ToolbarNode.Separator -> node.copy(id = nextId())
+    }
+    var duplicated = false
+    fun duplicate(items: List<ToolbarNode>): List<ToolbarNode> = buildList {
+        for (node in items) {
+            add(when (node) {
+                is ToolbarNode.Group -> node.copy(children = duplicate(node.children))
+                is ToolbarNode.Grid -> node.copy(children = duplicate(node.children))
+                else -> node
+            })
+            if (!duplicated && node.id == nodeId) {
+                add(clone(node))
+                duplicated = true
+            }
+        }
+    }
+    return duplicate(this)
+}
