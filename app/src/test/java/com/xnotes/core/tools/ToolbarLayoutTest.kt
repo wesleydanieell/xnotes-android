@@ -20,11 +20,11 @@ class ToolbarLayoutTest {
             listOf(
                 ToolbarItem.PEN, ToolbarItem.HIGHLIGHTER, ToolbarItem.ERASER,
             ),
-            d.sections[2].entries.map { it.item },
+            d.sections[2].visibleEntries.map { it.item },
         )
         assertEquals(
             listOf(ToolbarItem.PAN, ToolbarItem.READER, ToolbarItem.SELECT, ToolbarItem.INSERT_SPACE, ToolbarItem.SCREENSHOT),
-            d.sections[3].entries.map { it.item },
+            d.sections[3].visibleEntries.map { it.item },
         )
         assertEquals(
             listOf(ToolbarItem.WAND, ToolbarItem.TAPE, ToolbarItem.SHAPE, ToolbarItem.RULER, ToolbarItem.TEXT, ToolbarItem.TEXT_BOX, ToolbarItem.MARKUP),

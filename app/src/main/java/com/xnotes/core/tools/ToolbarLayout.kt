@@ -15,6 +15,8 @@ enum class ToolbarItem(val id: String) {
     SIDEBAR("sidebar"),
     /** Every pen kind ([Tool.PENS]) behind one button that shows the one in use. */
     PEN("pen"),
+    /** Legacy standalone entries remain readable; new defaults keep them hidden. */
+    DASHED("dashed"), CALLIGRAPHY("calligraphy"), SPEED("speed"), TAPER("taper"),
     HIGHLIGHTER("highlighter"),
     ERASER("eraser"),
     PAN("pan"),
@@ -23,6 +25,7 @@ enum class ToolbarItem(val id: String) {
     READER("reader"),
     /** Rectangle select and lasso ([Tool.SELECTIONS]) behind one button. */
     SELECT("select"),
+    LASSO("lasso"),
     SCREENSHOT("screenshot"),
     WAND("wand"),
     TAPE("tape"),
@@ -152,6 +155,8 @@ data class ToolbarLayout(val sections: List<ToolbarSection>) {
     }
 
     companion object {
+        private val LEGACY_STANDALONE = setOf(ToolbarItem.DASHED, ToolbarItem.CALLIGRAPHY,
+            ToolbarItem.SPEED, ToolbarItem.TAPER, ToolbarItem.LASSO)
         /** Later-added items that belong beside an existing one in stored layouts. */
         private val INSERT_AFTER = mapOf(
             ToolbarItem.TEXT_BOX to ToolbarItem.TEXT,
@@ -174,8 +179,9 @@ data class ToolbarLayout(val sections: List<ToolbarSection>) {
          */
         val CANVAS_ITEMS: Set<ToolbarItem> = setOf(
             ToolbarItem.HOME, ToolbarItem.TITLE,
-            ToolbarItem.PEN, ToolbarItem.HIGHLIGHTER, ToolbarItem.ERASER,
-            ToolbarItem.PAN, ToolbarItem.SELECT, ToolbarItem.WAND,
+            ToolbarItem.PEN, ToolbarItem.DASHED, ToolbarItem.CALLIGRAPHY, ToolbarItem.SPEED,
+                ToolbarItem.TAPER, ToolbarItem.HIGHLIGHTER, ToolbarItem.ERASER,
+            ToolbarItem.PAN, ToolbarItem.SELECT, ToolbarItem.LASSO, ToolbarItem.WAND,
             ToolbarItem.TAPE, ToolbarItem.SHAPE,
             ToolbarItem.IMAGE, ToolbarItem.COLORS, ToolbarItem.UNDO, ToolbarItem.REDO,
             ToolbarItem.STYLES, ToolbarItem.WAYPOINTS, ToolbarItem.MINIMAP,
@@ -190,8 +196,9 @@ data class ToolbarLayout(val sections: List<ToolbarSection>) {
         val DEFAULT: ToolbarLayout = of(
             listOf(ToolbarItem.HOME, ToolbarItem.TITLE),
             listOf(ToolbarItem.SIDEBAR),
-            listOf(ToolbarItem.PEN, ToolbarItem.HIGHLIGHTER, ToolbarItem.ERASER),
-            listOf(ToolbarItem.PAN, ToolbarItem.READER, ToolbarItem.SELECT, ToolbarItem.INSERT_SPACE, ToolbarItem.SCREENSHOT),
+            listOf(ToolbarItem.PEN, ToolbarItem.DASHED, ToolbarItem.CALLIGRAPHY, ToolbarItem.SPEED,
+                ToolbarItem.TAPER, ToolbarItem.HIGHLIGHTER, ToolbarItem.ERASER),
+            listOf(ToolbarItem.PAN, ToolbarItem.READER, ToolbarItem.SELECT, ToolbarItem.LASSO, ToolbarItem.INSERT_SPACE, ToolbarItem.SCREENSHOT),
             listOf(ToolbarItem.WAND, ToolbarItem.TAPE, ToolbarItem.SHAPE, ToolbarItem.RULER, ToolbarItem.TEXT, ToolbarItem.TEXT_BOX, ToolbarItem.MARKUP),
             listOf(ToolbarItem.IMAGE, ToolbarItem.TABLE),
             listOf(ToolbarItem.COLORS),
@@ -204,8 +211,9 @@ data class ToolbarLayout(val sections: List<ToolbarSection>) {
         /** Mirrors the hardcoded canvas bar (see InfiniteToolbar.kt). */
         val CANVAS_DEFAULT: ToolbarLayout = of(
             listOf(ToolbarItem.HOME, ToolbarItem.TITLE),
-            listOf(ToolbarItem.PEN, ToolbarItem.HIGHLIGHTER, ToolbarItem.ERASER),
-            listOf(ToolbarItem.PAN, ToolbarItem.SELECT),
+            listOf(ToolbarItem.PEN, ToolbarItem.DASHED, ToolbarItem.CALLIGRAPHY, ToolbarItem.SPEED,
+                ToolbarItem.TAPER, ToolbarItem.HIGHLIGHTER, ToolbarItem.ERASER),
+            listOf(ToolbarItem.PAN, ToolbarItem.SELECT, ToolbarItem.LASSO),
             listOf(ToolbarItem.WAND, ToolbarItem.TAPE, ToolbarItem.SHAPE),
             listOf(ToolbarItem.IMAGE),
             listOf(ToolbarItem.COLORS),
@@ -215,7 +223,7 @@ data class ToolbarLayout(val sections: List<ToolbarSection>) {
         )
 
         private fun of(vararg groups: List<ToolbarItem>): ToolbarLayout =
-            ToolbarLayout(groups.map { g -> ToolbarSection(g.map { ToolbarEntry(it) }) })
+            ToolbarLayout(groups.map { g -> ToolbarSection(g.map { ToolbarEntry(it, visible = it !in LEGACY_STANDALONE) }) })
 
         /**
          * Build from raw (id, visible) pairs per section as read from storage: ids outside [among]

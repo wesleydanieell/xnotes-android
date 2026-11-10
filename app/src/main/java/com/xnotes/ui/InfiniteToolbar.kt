@@ -22,6 +22,11 @@ import com.xnotes.ui.theme.toComposeColor
 /** Which tool a toolbar item arms, for the items that are simply a tool button. */
 private val CANVAS_TOOL_OF: Map<ToolbarItem, Tool> = mapOf(
     ToolbarItem.PEN to Tool.PEN,
+    ToolbarItem.DASHED to Tool.DASHED,
+    ToolbarItem.CALLIGRAPHY to Tool.CALLIGRAPHY,
+    ToolbarItem.SPEED to Tool.SPEED,
+    ToolbarItem.TAPER to Tool.TAPER,
+    ToolbarItem.LASSO to Tool.LASSO,
     ToolbarItem.HIGHLIGHTER to Tool.HIGHLIGHTER,
     ToolbarItem.ERASER to Tool.ERASER,
     ToolbarItem.PAN to Tool.PAN,

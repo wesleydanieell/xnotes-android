@@ -240,6 +240,7 @@ private fun ToolbarItemView(
 
         ToolbarItem.PEN -> shownOf(Tool.PENS, editor.tool).let { ToolButton(editor, it, toolIcons[it], configForTool, setConfigForTool) }
         ToolbarItem.SELECT -> shownOf(Tool.SELECTIONS, editor.tool).let { ToolButton(editor, it, toolIcons[it], configForTool, setConfigForTool) }
+        ToolbarItem.DASHED, ToolbarItem.CALLIGRAPHY, ToolbarItem.SPEED, ToolbarItem.TAPER, ToolbarItem.LASSO,
         ToolbarItem.HIGHLIGHTER, ToolbarItem.ERASER, ToolbarItem.PAN, ToolbarItem.SCREENSHOT, ToolbarItem.SHAPE,
         ToolbarItem.TEXT, ToolbarItem.TEXT_BOX, ToolbarItem.TABLE, ToolbarItem.TAPE, ToolbarItem.INSERT_SPACE -> {
             val tool = Tool.fromId(item.id)

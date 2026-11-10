@@ -439,6 +439,11 @@ private fun itemIcon(item: ToolbarItem): ImageVector = when (item) {
     ToolbarItem.TITLE -> XnotesIcons.edit
     ToolbarItem.SIDEBAR -> XnotesIcons.sidebar
     ToolbarItem.PEN -> ImageVector.vectorResource(R.drawable.ic_stroke_regular)
+    ToolbarItem.DASHED -> ImageVector.vectorResource(R.drawable.ic_stroke_dashed)
+    ToolbarItem.CALLIGRAPHY -> ImageVector.vectorResource(R.drawable.ic_stroke_calligraphy)
+    ToolbarItem.SPEED -> ImageVector.vectorResource(R.drawable.ic_stroke_speed)
+    ToolbarItem.TAPER -> ImageVector.vectorResource(R.drawable.ic_stroke_taper)
+    ToolbarItem.LASSO -> XnotesIcons.lasso
     ToolbarItem.HIGHLIGHTER -> ImageVector.vectorResource(R.drawable.ic_stroke_highlighter)
     ToolbarItem.ERASER -> XnotesIcons.eraser
     ToolbarItem.PAN -> XnotesIcons.pan

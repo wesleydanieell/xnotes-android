@@ -98,6 +98,11 @@ val ToolbarItem.labelRes: Int
         ToolbarItem.TITLE -> R.string.toolbar_title
         ToolbarItem.SIDEBAR -> R.string.toolbar_sidebar
         ToolbarItem.PEN -> R.string.tool_pen
+        ToolbarItem.DASHED -> R.string.tool_dashed
+        ToolbarItem.CALLIGRAPHY -> R.string.tool_calligraphy
+        ToolbarItem.SPEED -> R.string.tool_speed
+        ToolbarItem.TAPER -> R.string.tool_taper
+        ToolbarItem.LASSO -> R.string.tool_lasso
         ToolbarItem.HIGHLIGHTER -> R.string.tool_highlighter
         ToolbarItem.ERASER -> R.string.tool_eraser
         ToolbarItem.PAN -> R.string.tool_pan
