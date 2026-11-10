@@ -1,0 +1,267 @@
+{
+  "date": "2026-11-10",
+  "upstream_url": "https://github.com/shardulvs/xnotes-android.git",
+  "upstream_sha": "3926304a0a2ca20b0ac259317b5e60f77d4668b1",
+  "remote": "wesleydanieell/xnotes-android",
+  "test_environment": {
+    "java": "17",
+    "android_sdk": "/home/wesley/Android/Sdk",
+    "init_script": "external, only restricts ABI to arm64-v8a and sets debug suffix .praudit; no repository source edits"
+  },
+  "scope": "Maintained branches only. Historical archives may conflict and are intentionally not merged. No APK installation or personal data modification performed.",
+  "branches": [
+    {
+      "branch": "xnotes/pr/toolbar-workspace-model",
+      "base": "upstream/master",
+      "sha": "9ae8d7e2940202980232bd2349b644758ac1047e",
+      "base_sha": "3926304a0a2ca20b0ac259317b5e60f77d4668b1",
+      "merge_clean": true,
+      "contains_upstream": true,
+      "apk_packaging": "not validated during this audit",
+      "device_qa": "not rerun during this audit",
+      "jvm_tests": "passed",
+      "test_log_sha256": "e821cce6e5613db60faa7577b3bf2ec8c46d2c9f63482e4b9e14ee0070b7e3df",
+      "test_command": "./gradlew --max-workers=2 -Pkotlin.incremental=false -Pkotlin.compiler.execution.strategy=in-process -I /tmp/pr-validation.gradle :app:testDebugUnitTest",
+      "log": "validation-logs/pr-model-unit.log",
+      "junit_totals": {
+        "tests": 2437,
+        "failures": 0,
+        "errors": 0,
+        "skipped": 0
+      }
+    },
+    {
+      "branch": "xnotes/pr/toolbar-persistence",
+      "base": "xnotes/pr/toolbar-workspace-model",
+      "sha": "5eeb6fa38d36c436d4605fb539b909b03e04db75",
+      "base_sha": "9ae8d7e2940202980232bd2349b644758ac1047e",
+      "merge_clean": true,
+      "contains_upstream": true,
+      "apk_packaging": "not validated during this audit",
+      "device_qa": "not rerun during this audit",
+      "jvm_tests": "passed",
+      "test_log_sha256": "347eb8a6fee7d9d37a620169d27293f7478a92bdc87e33c34199531a3c5f6378",
+      "test_command": "./gradlew --max-workers=2 -Pkotlin.incremental=false -Pkotlin.compiler.execution.strategy=in-process -I /tmp/pr-validation.gradle :app:testDebugUnitTest",
+      "log": "validation-logs/pr-persistence-unit.log"
+    },
+    {
+      "branch": "xnotes/pr/toolbar-runtime",
+      "base": "xnotes/pr/toolbar-persistence",
+      "sha": "93c780bbb4ea636a4856b618c86f429153c7944c",
+      "base_sha": "5eeb6fa38d36c436d4605fb539b909b03e04db75",
+      "merge_clean": true,
+      "contains_upstream": true,
+      "apk_packaging": "not validated during this audit",
+      "device_qa": "not rerun during this audit",
+      "jvm_tests": "passed",
+      "test_log_sha256": "788cb3acacf5876501283300db78b0393e0e21700094ad3ad82b47260de1c03b",
+      "test_command": "./gradlew --max-workers=2 -Pkotlin.incremental=false -Pkotlin.compiler.execution.strategy=in-process -I /tmp/pr-validation.gradle :app:testDebugUnitTest",
+      "log": "validation-logs/pr-runtime-unit.log"
+    },
+    {
+      "branch": "xnotes/pr/toolbar-customizer",
+      "base": "xnotes/pr/toolbar-runtime",
+      "sha": "c0e43cfd28c401ac0f9e6283040987ee48c25e3b",
+      "base_sha": "93c780bbb4ea636a4856b618c86f429153c7944c",
+      "merge_clean": true,
+      "contains_upstream": true,
+      "apk_packaging": "not validated during this audit",
+      "device_qa": "not rerun during this audit",
+      "jvm_tests": "passed",
+      "test_log_sha256": "d48c42c935343a8d677938aedf8b47879b90cd3536b152cabbd1b4e1292649a5",
+      "test_command": "./gradlew --max-workers=2 -Pkotlin.incremental=false -Pkotlin.compiler.execution.strategy=in-process -I /tmp/pr-validation.gradle :app:testDebugUnitTest",
+      "log": "validation-logs/pr-customizer-unit.log",
+      "junit_totals": {
+        "tests": 2516,
+        "failures": 0,
+        "errors": 0,
+        "skipped": 0
+      },
+      "notes": "JVM suite passed before import-only cleanup; final debug compilation separately verified in pr-customizer-cleanup-compile.log."
+    },
+    {
+      "branch": "xnotes/pr/unified-pen",
+      "base": "upstream/master",
+      "sha": "26d187731fb060f674c69620a313882eec22f227",
+      "base_sha": "3926304a0a2ca20b0ac259317b5e60f77d4668b1",
+      "merge_clean": true,
+      "contains_upstream": true,
+      "apk_packaging": "not validated during this audit",
+      "device_qa": "not rerun during this audit",
+      "jvm_tests": "passed",
+      "test_log_sha256": "df1afa5f5286145f08db4728622b3b9edeff14e4610272d7a944452c98261754",
+      "test_command": "./gradlew --max-workers=2 -Pkotlin.incremental=false -Pkotlin.compiler.execution.strategy=in-process -I /tmp/pr-validation.gradle :app:testDebugUnitTest",
+      "log": "validation-logs/pr-unified-pen-unit.log",
+      "junit_totals": {
+        "tests": 2429,
+        "failures": 0,
+        "errors": 0,
+        "skipped": 0
+      }
+    },
+    {
+      "branch": "xnotes/pr/native-canvas-text",
+      "base": "upstream/master",
+      "sha": "4f57310543303a10b61a83987ed9390d625dce24",
+      "base_sha": "3926304a0a2ca20b0ac259317b5e60f77d4668b1",
+      "merge_clean": true,
+      "contains_upstream": true,
+      "apk_packaging": "not validated during this audit",
+      "device_qa": "not rerun during this audit",
+      "jvm_tests": "passed",
+      "test_log_sha256": "20e966921e99eff8b01698bffa27688e59b65ce58275bc1d1a68531909684c9f",
+      "test_command": "./gradlew --max-workers=2 -Pkotlin.incremental=false -Pkotlin.compiler.execution.strategy=in-process -I /tmp/pr-validation.gradle :app:testDebugUnitTest",
+      "log": "validation-logs/pr-canvas-text-unit.log",
+      "junit_totals": {
+        "tests": 2423,
+        "failures": 0,
+        "errors": 0,
+        "skipped": 0
+      }
+    },
+    {
+      "branch": "xnotes/pr/shared-split-toolbars",
+      "base": "upstream/master",
+      "sha": "115571bb2f5f76c70927c2ed740097f24883afb9",
+      "base_sha": "3926304a0a2ca20b0ac259317b5e60f77d4668b1",
+      "merge_clean": true,
+      "contains_upstream": true,
+      "apk_packaging": "not validated during this audit",
+      "device_qa": "not rerun during this audit",
+      "jvm_tests": "passed",
+      "test_log_sha256": "5342028fdd41431ffb4ce2bbace233bd0b4553de5e9b193747182c6f9f0cfb28",
+      "test_command": "./gradlew --max-workers=2 -Pkotlin.incremental=false -Pkotlin.compiler.execution.strategy=in-process -I /tmp/pr-validation.gradle :app:testDebugUnitTest",
+      "log": "validation-logs/pr-shared-split-unit.log",
+      "junit_totals": {
+        "tests": 2428,
+        "failures": 0,
+        "errors": 0,
+        "skipped": 0
+      }
+    },
+    {
+      "branch": "feat/split-document-view",
+      "base": "feat/document-tabs",
+      "sha": "246774750d3ecc5fe3ae8c698028dcaf0730e4e3",
+      "base_sha": "6382e18d703a20d4b1f7472dc5f71af3c77daba5",
+      "merge_clean": true,
+      "contains_upstream": true,
+      "apk_packaging": "not validated during this audit",
+      "device_qa": "not rerun during this audit",
+      "jvm_tests": "passed",
+      "test_log_sha256": "dcbbe3a59f71b8ef3345b787161fd26c96758d0dabfa0d0fa004ae538714cb33",
+      "test_command": "./gradlew --max-workers=2 -Pkotlin.incremental=false -Pkotlin.compiler.execution.strategy=in-process -I /tmp/pr-validation.gradle :app:testDebugUnitTest",
+      "log": "validation-logs/pr-split-unit.log",
+      "junit_totals": {
+        "tests": 2460,
+        "failures": 0,
+        "errors": 0,
+        "skipped": 0
+      }
+    },
+    {
+      "branch": "xnotes/community",
+      "base": "upstream/master",
+      "sha": "4266dfe4a54f392941f644e7405e94edda889dad",
+      "base_sha": "3926304a0a2ca20b0ac259317b5e60f77d4668b1",
+      "merge_clean": true,
+      "contains_upstream": true,
+      "apk_packaging": "not validated during this audit",
+      "device_qa": "not rerun during this audit",
+      "jvm_tests": "passed",
+      "test_log_sha256": "d4f446a00e1d0dcbe7b371a827d87c9569fb3b88d6c0a7ec571be91c367b710e",
+      "test_command": "./gradlew --max-workers=2 -Pkotlin.incremental=false -Pkotlin.compiler.execution.strategy=in-process -I /tmp/pr-validation.gradle :app:testDebugUnitTest",
+      "log": "validation-logs/xnotes-community-final-unit.log",
+      "junit_totals": {
+        "tests": 2653,
+        "failures": 0,
+        "errors": 0,
+        "skipped": 0
+      }
+    },
+    {
+      "branch": "xnotes/integration/toolbars-tabs",
+      "base": "upstream/master",
+      "sha": "4266dfe4a54f392941f644e7405e94edda889dad",
+      "base_sha": "3926304a0a2ca20b0ac259317b5e60f77d4668b1",
+      "merge_clean": true,
+      "contains_upstream": true,
+      "apk_packaging": "not validated during this audit",
+      "device_qa": "not rerun during this audit",
+      "jvm_tests": "not rerun; branch source unchanged during audit",
+      "notes": "Exact alias of xnotes/community; use its test result."
+    },
+    {
+      "branch": "community/xnotes",
+      "base": "upstream/master",
+      "sha": "4266dfe4a54f392941f644e7405e94edda889dad",
+      "base_sha": "3926304a0a2ca20b0ac259317b5e60f77d4668b1",
+      "merge_clean": true,
+      "contains_upstream": true,
+      "apk_packaging": "not validated during this audit",
+      "device_qa": "not rerun during this audit",
+      "jvm_tests": "not rerun; branch source unchanged during audit",
+      "notes": "Legacy alias of xnotes/community."
+    },
+    {
+      "branch": "feat/document-tabs",
+      "base": "upstream/master",
+      "sha": "6382e18d703a20d4b1f7472dc5f71af3c77daba5",
+      "base_sha": "3926304a0a2ca20b0ac259317b5e60f77d4668b1",
+      "merge_clean": true,
+      "contains_upstream": true,
+      "apk_packaging": "not validated during this audit",
+      "device_qa": "not rerun during this audit",
+      "jvm_tests": "not rerun; branch source unchanged during audit",
+      "notes": "Existing open upstream PR, unchanged source; merge compatibility checked."
+    },
+    {
+      "branch": "perf/incremental-canvas-loading",
+      "base": "upstream/master",
+      "sha": "0ace99510af1d9ef9f525411cd8a351e9d320833",
+      "base_sha": "3926304a0a2ca20b0ac259317b5e60f77d4668b1",
+      "merge_clean": true,
+      "contains_upstream": true,
+      "apk_packaging": "not validated during this audit",
+      "device_qa": "not rerun during this audit",
+      "jvm_tests": "not rerun; branch source unchanged during audit",
+      "notes": "Existing open upstream PR, unchanged source; merge compatibility checked."
+    },
+    {
+      "branch": "feat/external-drag-and-drop",
+      "base": "upstream/master",
+      "sha": "235ec1caa031e5c61ae2a774be7343183b6e8d06",
+      "base_sha": "3926304a0a2ca20b0ac259317b5e60f77d4668b1",
+      "merge_clean": true,
+      "contains_upstream": true,
+      "apk_packaging": "not validated during this audit",
+      "device_qa": "not rerun during this audit",
+      "jvm_tests": "not rerun; branch source unchanged during audit",
+      "notes": "Existing open upstream PR, unchanged source; merge compatibility checked."
+    },
+    {
+      "branch": "feat/hold-line-endpoint",
+      "base": "upstream/master",
+      "sha": "7b45505b475ef0c92b9712688bb683a2c9841e38",
+      "base_sha": "3926304a0a2ca20b0ac259317b5e60f77d4668b1",
+      "merge_clean": true,
+      "contains_upstream": true,
+      "apk_packaging": "not validated during this audit",
+      "device_qa": "not rerun during this audit",
+      "jvm_tests": "not rerun; branch source unchanged during audit",
+      "notes": "Existing open upstream PR, unchanged source; merge compatibility checked."
+    },
+    {
+      "branch": "pr/note-file-tree-sidebar",
+      "base": "upstream/master",
+      "sha": "ae1154821e5cdd8cc98a319a39d716ca2d4d3388",
+      "base_sha": "3926304a0a2ca20b0ac259317b5e60f77d4668b1",
+      "merge_clean": true,
+      "contains_upstream": true,
+      "apk_packaging": "not validated during this audit",
+      "device_qa": "not rerun during this audit",
+      "jvm_tests": "not rerun; branch source unchanged during audit",
+      "notes": "Existing open upstream PR, unchanged source; merge compatibility checked."
+    }
+  ]
+}

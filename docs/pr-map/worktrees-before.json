@@ -1,0 +1,114 @@
+[
+  {
+    "path": "/home/wesley/Projetos/xnotes-android",
+    "status": ""
+  },
+  {
+    "path": "/home/wesley/Projetos/xnotes-adaptive-tabs",
+    "status": ""
+  },
+  {
+    "path": "/home/wesley/Projetos/xnotes-community",
+    "status": ""
+  },
+  {
+    "path": "/home/wesley/Projetos/xnotes-community-096",
+    "status": ""
+  },
+  {
+    "path": "/home/wesley/Projetos/xnotes-customizable-toolbars",
+    "status": ""
+  },
+  {
+    "path": "/home/wesley/Projetos/xnotes-document-tabs-toolbar-element",
+    "status": ""
+  },
+  {
+    "path": "/home/wesley/Projetos/xnotes-pr-canvas-performance",
+    "status": ""
+  },
+  {
+    "path": "/home/wesley/Projetos/xnotes-pr-demo-apks/build-pr-285",
+    "status": " M app/build.gradle.kts\n M app/src/main/res/values/strings.xml\n"
+  },
+  {
+    "path": "/home/wesley/Projetos/xnotes-pr-demo-apks/build-pr-326",
+    "status": " M app/build.gradle.kts\n M app/src/main/res/values/strings.xml\n"
+  },
+  {
+    "path": "/home/wesley/Projetos/xnotes-pr-demo-apks/build-pr-332",
+    "status": " M app/build.gradle.kts\n M app/src/main/res/values/strings.xml\n"
+  },
+  {
+    "path": "/home/wesley/Projetos/xnotes-pr-demo-apks/build-pr-333",
+    "status": " M app/build.gradle.kts\n M app/src/main/res/values/strings.xml\n"
+  },
+  {
+    "path": "/home/wesley/Projetos/xnotes-pr-demo-apks/build-pr-358",
+    "status": " M app/build.gradle.kts\n M app/src/main/res/values/strings.xml\n"
+  },
+  {
+    "path": "/home/wesley/Projetos/xnotes-pr-demo-apks/build-pr-359",
+    "status": " M app/build.gradle.kts\n M app/src/main/res/values/strings.xml\n"
+  },
+  {
+    "path": "/home/wesley/Projetos/xnotes-pr-document-tabs",
+    "status": ""
+  },
+  {
+    "path": "/home/wesley/Projetos/xnotes-pr-only",
+    "status": ""
+  },
+  {
+    "path": "/home/wesley/Projetos/xnotes-pr-organization",
+    "status": "?? docs/pr-map/\n"
+  },
+  {
+    "path": "/home/wesley/Projetos/xnotes-pr-shared-clipboard",
+    "status": ""
+  },
+  {
+    "path": "/home/wesley/Projetos/xnotes-pr-split-view",
+    "status": ""
+  },
+  {
+    "path": "/home/wesley/Projetos/xnotes-pr332-fix",
+    "status": " M app/build.gradle.kts\n M app/src/main/res/values/strings.xml\n"
+  },
+  {
+    "path": "/home/wesley/Projetos/xnotes-pr332-no-canvas-textbox",
+    "status": " M app/build.gradle.kts\n M app/src/main/res/values/strings.xml\n"
+  },
+  {
+    "path": "/home/wesley/Projetos/xnotes-pr332-no-compose-drop",
+    "status": " M app/build.gradle.kts\n M app/src/main/res/values/strings.xml\n"
+  },
+  {
+    "path": "/home/wesley/Projetos/xnotes-pr332-perf-test",
+    "status": " M app/build.gradle.kts\n M app/src/main/res/values/strings.xml\n"
+  },
+  {
+    "path": "/home/wesley/Projetos/xnotes-shared-split-toolbars",
+    "status": ""
+  },
+  {
+    "path": "/home/wesley/Projetos/xnotes-tabs-toolbar-item",
+    "status": ""
+  },
+  {
+    "path": "/home/wesley/Projetos/xnotes-tabs-upstream",
+    "status": ""
+  },
+  {
+    "path": "/home/wesley/Projetos/xnotes-test-096-integrated",
+    "status": ""
+  },
+  {
+    "path": "/home/wesley/Projetos/xnotes-textitem-redmi-build",
+    "status": " M app/build.gradle.kts\n M app/src/main/res/values/strings.xml\n"
+  },
+  {
+    "path": "/home/wesley/Projetos/xnotes-xcanvas-textitem",
+    "status": ""
+  }
+]
