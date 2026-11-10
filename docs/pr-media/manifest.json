@@ -33,5 +33,92 @@
     "split-shared-tools.png": "5777a49eb049ccb83574c7530cf231fcaa406e248a14a4b3acbdb2ed511fa8b5",
     "split-interface-settings.png": "8245f62b50c98d35b9b475190e5fd7ec91b201fa32c5a3e981906f52499ea89a",
     "split-per-pane-tools.png": "a754b4b42ed50f6a4ac5983d773100f1de03915c3ff8dc4064da4d14284c4143"
+  },
+  "recordings": {
+    "pen-group": {
+      "pull_request": 429,
+      "feature": {
+        "branch": "xnotes/pr/unified-pen",
+        "commit": "26d18773",
+        "package": "com.xnotes.prpen",
+        "capture_tests_passed": 1
+      },
+      "video": {
+        "programs": [],
+        "stream_groups": [],
+        "streams": [
+          {
+            "codec_name": "h264",
+            "width": 1280,
+            "height": 800,
+            "nb_frames": "133"
+          }
+        ],
+        "format": {
+          "duration": "13.939489",
+          "size": "202739"
+        }
+      },
+      "video_sha256": "18259ee44801eca401fd83e689279f106c3ea7382dee834b451aef78efb9f63e",
+      "gif_sha256": "eb11cbcb89edd19c6af166dbdb6c3efa358314f2f42fde394f1107ded7bcfc01",
+      "video_device_tests_passed": 1
+    },
+    "shared-split-tools": {
+      "pull_request": 430,
+      "feature": {
+        "branch": "xnotes/pr/shared-split-toolbars",
+        "commit": "115571bb",
+        "package": "com.xnotes.sharedsplit",
+        "capture_tests_passed": 1,
+        "additional_device_regressions_passed": 3
+      },
+      "video": {
+        "programs": [],
+        "stream_groups": [],
+        "streams": [
+          {
+            "codec_name": "h264",
+            "width": 1280,
+            "height": 800,
+            "nb_frames": "384"
+          }
+        ],
+        "format": {
+          "duration": "17.121567",
+          "size": "694365"
+        }
+      },
+      "video_sha256": "1a24d055ef59941bcff66a823960b046a206f99ecc7b5430c0836e6457caa7ec",
+      "gif_sha256": "8ae58b9e83e209effbe2fb2b480b634d3e89466d10f60f6ab90940e7bb03cf11",
+      "video_device_tests_passed": 1
+    },
+    "toolbar-workspaces": {
+      "pull_request": 431,
+      "feature": {
+        "branch": "xnotes/pr/toolbar-customizer",
+        "commit": "c0e43cfd",
+        "package": "com.xnotes.prtoolbar",
+        "capture_tests_passed": 1
+      },
+      "video": {
+        "programs": [],
+        "stream_groups": [],
+        "streams": [
+          {
+            "codec_name": "h264",
+            "width": 1280,
+            "height": 800,
+            "nb_frames": "189"
+          }
+        ],
+        "format": {
+          "duration": "15.438600",
+          "size": "249439"
+        }
+      },
+      "video_sha256": "8074538a242524d094b5a7edcff1ac3ae6723e19b345e50cc99702f16e8def73",
+      "gif_sha256": "5aab98e344bdadcdf81c1023eb9faddd84b681900c0b6a223e2c2ab200e06f66",
+      "video_device_tests_passed": 1
+    }
   }
 }

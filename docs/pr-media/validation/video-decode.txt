@@ -1,0 +1,6 @@
+pen-group.gif: full decode passed
+pen-group.mp4: full decode passed
+shared-split-tools.gif: full decode passed
+shared-split-tools.mp4: full decode passed
+toolbar-workspaces.gif: full decode passed
+toolbar-workspaces.mp4: full decode passed

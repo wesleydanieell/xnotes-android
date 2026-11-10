@@ -1,0 +1,5 @@
+com.xnotes.ui.ReviewVideoTest:.
+Test results for InstrumentationTestRunner=.
+Time: 26.267
+
+OK (1 test)

@@ -1,45 +1,47 @@
-# XNotes PR screenshots — 2026-11-10
+# XNotes screen recordings
 
-Real, unedited Redmi Pad 2 (Android 16) screenshots captured from the isolated feature builds listed in [manifest.json](manifest.json). Blank test documents contain no personal notes. The community packages were not used or changed.
+Recorded on a Redmi Pad 2 running Android 16, using isolated builds of the exact feature branches in [manifest.json](manifest.json). The demonstrations use blank test documents. Community packages and personal notes were not used.
 
-This media-only branch hosts immutable image links for upstream PR descriptions, keeping screenshots and capture tooling out of the code PR diffs.
+Each animated preview links to its MP4 recording. The GIF previews run at 8 fps; the H.264 MP4 files retain the device recording and are remuxed for streaming, with metadata-only tracks removed. There are no cuts, generated scenes or playback-speed changes.
 
 ## Toolbar workspaces
 
-`xnotes/pr/toolbar-customizer` at `c0e43cfd`.
+The recording opens the dedicated configurator, switches to the element inspector and changes the primary toolbar from docked to floating.
 
-![Docked main bar with floating quick tools and ink palette](toolbar-workspace.png)
-![Dedicated toolbar configurator and preview](toolbar-configurator.png)
-![Section and element editor](toolbar-elements.png)
+[![Toolbar workspaces recording](videos/toolbar-workspaces.gif)](videos/toolbar-workspaces.mp4)
+
+[Watch the MP4](videos/toolbar-workspaces.mp4)
 
 ## Optional Pen Group
 
-`xnotes/pr/unified-pen` at `26d18773`.
+The recording opens pen details, selects a different family and opens the hold fan.
 
-![Pen Group details](pen-group-details.png)
-![Pen fan opened by holding the launcher](pen-group-fan.png)
+[![Pen Group recording](videos/pen-group.gif)](videos/pen-group.mp4)
+
+[Watch the MP4](videos/pen-group.mp4)
 
 ## Shared split tools
 
-`xnotes/pr/shared-split-toolbars` at `115571bb`. This native-toolbar contribution is independent of the newer tabs selector/community adapter.
+The recording switches the mixed note/canvas interface and changes shared tools to tools per pane.
 
-![One shared toolbar for a note and a canvas](split-shared-tools.png)
-![In-note interface and shared/per-pane choice](split-interface-settings.png)
-![Separate tools for each pane](split-per-pane-tools.png)
+[![Shared split tools recording](videos/shared-split-tools.gif)](videos/shared-split-tools.mp4)
 
-## Validation and reproduction
+[Watch the MP4](videos/shared-split-tools.mp4)
 
-The three ARM64 debug APKs and their capture instrumentation APKs built successfully. One capture scenario per feature passed. Three additional existing shared-toolbar device tests passed: note Undo targeting, mixed note/canvas Undo targeting, and switching shared/per-pane tools in the note. See `validation/` for result summaries.
+## Reproduction
 
-The build configuration and source files are under `capture/`. From the corresponding feature worktree, with JDK 17 and the Android SDK configured, set `media` to this directory and run (example: toolbar):
+Video fixtures are under `video-capture/`. The three recording scenarios passed on the tablet; summaries are under `validation/`. Feature code was unchanged. Source commits and video metadata/hashes are recorded in `manifest.json`.
+
+With JDK 17 and the Android SDK configured, from the feature worktree set `media` to this directory. The matching isolated main APK must be installed. For the toolbar example:
 
 ```sh
-./gradlew --max-workers=2 -Pandroid.injected.build.abi=arm64-v8a   -Pkotlin.incremental=false -Pkotlin.compiler.execution.strategy=in-process   -I "$media/capture/capture.gradle" -PreviewSuffix=.prtoolbar   -PreviewSources="$media/capture/toolbar"   :app:assembleDebug :app:assembleDebugAndroidTest
-adb install -r -t app/build/intermediates/apk/debug/app-debug.apk
+adb push "$media/video-capture/start-recording.sh" /data/local/tmp/xnotes-pr-start-recording.sh
+./gradlew --max-workers=2 -Pandroid.injected.build.abi=arm64-v8a -Pkotlin.incremental=false -Pkotlin.compiler.execution.strategy=in-process -I "$media/video-capture/capture.gradle" -PreviewSuffix=.prtoolbar -PreviewSources="$media/video-capture/toolbar" :app:assembleDebugAndroidTest
 adb install -r -t app/build/intermediates/apk/androidTest/debug/app-debug-androidTest.apk
-adb shell am instrument -w -e class com.xnotes.ui.ReviewCaptureTest   com.xnotes.prtoolbar.test/android.test.InstrumentationTestRunner
+adb shell am instrument -w -e class com.xnotes.ui.ReviewVideoTest com.xnotes.prtoolbar.test/android.test.InstrumentationTestRunner
+adb pull /data/local/tmp/xnotes-pr-video-431.mp4
 ```
 
-For Pen Group use source directory `pen`, suffix `.prpen` and package `com.xnotes.prpen`. For shared tools use `shared`, `.sharedsplit` and `com.xnotes.sharedsplit`. Screenshot files are written to the isolated app's external files directory. Do not substitute a community or personal app package when running fixtures.
+For Pen Group use `pen`, suffix `.prpen`, package `com.xnotes.prpen` and recording ID `429`. For shared tools use `shared`, `.sharedsplit`, `com.xnotes.sharedsplit` and `430`. The recorder starts after the test document is visible and stops before the activity finishes. Only the recorder PID started by the fixture receives its stop signal.
 
-These screenshots demonstrate selected configurations. The full rotation/edge/dragging matrix is still pending. Some extracted UI strings and long pen-family labels need localization/layout review. No generated mockups or images from the broader community integration are presented as screenshots of these PRs.
+Earlier static captures and fixtures remain in the branch history and original paths for provenance. Active PR descriptions now use the recordings. The comprehensive edge/rotation/gesture matrix remains pending; the recordings demonstrate specific configurations and do not constitute performance benchmarks.

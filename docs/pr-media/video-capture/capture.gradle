@@ -1,0 +1,14 @@
+allprojects { p ->
+    p.plugins.withId('com.android.application') {
+        p.android.defaultConfig.testInstrumentationRunner = 'android.test.InstrumentationTestRunner'
+        p.afterEvaluate {
+            p.android.defaultConfig.ndk.abiFilters.clear()
+            p.android.defaultConfig.ndk.abiFilters.add('arm64-v8a')
+            p.android.buildTypes.debug.applicationIdSuffix = p.findProperty('reviewSuffix') ?: '.prreview'
+            p.android.sourceSets.androidTest.java.srcDir(p.findProperty('reviewSources'))
+            p.dependencies.add('androidTestCompileOnly', p.files(
+                p.android.sdkDirectory.toPath().resolve('platforms/android-36/optional/android.test.runner.jar').toFile(),
+                p.android.sdkDirectory.toPath().resolve('platforms/android-36/optional/android.test.base.jar').toFile()))
+        }
+    }
+}
