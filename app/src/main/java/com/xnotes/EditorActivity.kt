@@ -1507,6 +1507,9 @@ private fun EditorPane(
                         onInsertAudio = { actions.onInsertAudio(editor) },
                         onRecordAudio = { actions.onRecordAudio(editor) },
                         onTakePhoto = { actions.onTakePhoto(editor) },
+                        // The live XCanvas must use the workspace layout, not the cached
+                        // InfiniteEditor layout (which can differ in split panes).
+                        layout = primary?.layout ?: app.canvasToolbarLayout,
                         geometry = primary?.geometry,
                     )
                 }
@@ -1577,6 +1580,10 @@ private fun EditorPane(
                         onInsertAudio = { actions.onInsertAudio(editor) },
                         onRecordAudio = { actions.onRecordAudio(editor) },
                         onTakePhoto = { actions.onTakePhoto(editor) },
+                        // Match the preview and all secondary bars: read both layout and
+                        // geometry from the active workspace, including pinned regions.
+                        layout = primary?.layout ?: app.toolbarLayout,
+                        geometry = primary?.geometry,
                     ) }
                 }
                 val bar: @Composable () -> Unit = {

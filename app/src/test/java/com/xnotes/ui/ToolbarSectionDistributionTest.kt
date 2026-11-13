@@ -31,6 +31,57 @@ class ToolbarSectionDistributionTest {
         assertEquals(ToolbarRegion.END, layout.sections.first().region)
     }
 
+    @Test fun pinningStartAndEndLeavesOnlyCenterOnTheScrollingTrack() {
+        val base = ToolbarLayout(listOf(
+            ToolbarSection(listOf(ToolbarEntry(ToolbarItem.PEN)), region = ToolbarRegion.END),
+            ToolbarSection(listOf(ToolbarEntry(ToolbarItem.HOME)), region = ToolbarRegion.START),
+            ToolbarSection(listOf(ToolbarEntry(ToolbarItem.COLORS)), region = ToolbarRegion.CENTER),
+            ToolbarSection(listOf(ToolbarEntry(ToolbarItem.ERASER)), region = ToolbarRegion.START),
+            ToolbarSection(listOf(ToolbarEntry(ToolbarItem.TITLE, visible = false)), region = ToolbarRegion.END),
+        ), distribution = ToolbarDistribution.REGIONS)
+        val both = base.copy(pinStart = true, pinEnd = true)
+        assertEquals(listOf(1, 3), toolbarPinnedRegionGroups(both).start.map { it.index })
+        assertEquals(listOf(2), toolbarPinnedRegionGroups(both).scrolling.map { it.index })
+        assertEquals(listOf(0), toolbarPinnedRegionGroups(both).end.map { it.index })
+        assertTrue(both.hasPinnedRegions)
+        assertFalse(toolbarCompactRegions(both, floating = true, explicitLengthDp = null))
+
+        val startOnly = base.copy(pinStart = true)
+        assertEquals(listOf(2, 0), toolbarPinnedRegionGroups(startOnly).scrolling.map { it.index })
+        assertTrue(toolbarPinnedRegionGroups(startOnly).end.isEmpty())
+        val endOnly = base.copy(pinEnd = true)
+        assertEquals(listOf(1, 3, 2), toolbarPinnedRegionGroups(endOnly).scrolling.map { it.index })
+        assertTrue(toolbarPinnedRegionGroups(endOnly).start.isEmpty())
+        assertFalse(base.hasPinnedRegions)
+        assertTrue(toolbarCompactRegions(base, floating = true, explicitLengthDp = null))
+    }
+
+    @Test fun pinnedEdgesPreserveNaturalWidthUntilTheBarRunsOutOfRoom() {
+        // Unconstrained: all tools can fit, no clipped or overlapping edge allocation.
+        assertEquals(440, toolbarPinnedScrollBudget(600, 80, 80, true, 20))
+        assertEquals(100, toolbarPinnedScrollBudget(400, 150, 150, true, 20))
+        // Constrained: keep a small track behind the fixed controls; the fade marks the seam.
+        assertEquals(20, toolbarPinnedScrollBudget(200, 120, 100, true, 20))
+        assertEquals(0, toolbarPinnedScrollBudget(200, 120, 100, false, 20))
+        assertEquals(10, toolbarPinnedScrollBudget(10, 8, 7, true, 20))
+    }
+
+    @Test fun constrainedMiddleUnderlapsOnlyWhenNecessary() {
+        assertEquals(200, toolbarPinnedMiddleOffset(600, 100, 200, 50))
+        assertEquals(260, toolbarPinnedMiddleOffset(400, 260, 80, 30))
+        assertEquals(110, toolbarPinnedMiddleOffset(300, 120, 80, 130))
+    }
+
+    @Test fun pinnedFlagsWithHiddenOrMissingRegionDoNotForceFullLengthFloatingBar() {
+        val regions = ToolbarLayout(listOf(
+            ToolbarSection(listOf(ToolbarEntry(ToolbarItem.PEN, visible = false)), region = ToolbarRegion.START),
+            ToolbarSection(listOf(ToolbarEntry(ToolbarItem.COLORS)), region = ToolbarRegion.CENTER),
+        ), distribution = ToolbarDistribution.REGIONS, pinStart = true, pinEnd = true)
+        assertFalse(regions.hasPinnedRegions)
+        assertTrue(toolbarCompactRegions(regions, floating = true, explicitLengthDp = null))
+        assertFalse(regions.setDistribution(ToolbarDistribution.CONTINUOUS).hasPinnedRegions)
+    }
+
     @Test fun onlyFloatingAutoLengthUsesCompactRegions() {
         val regions = ToolbarLayout(listOf(ToolbarSection(listOf(ToolbarEntry(ToolbarItem.PEN)))),
             distribution = ToolbarDistribution.REGIONS)

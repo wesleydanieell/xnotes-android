@@ -16,6 +16,9 @@
     <string name="toolbar_config_collapse">Reduzir</string>
     <string name="toolbar_config_expand">Ampliar</string>
     <string name="toolbar_config_size_and_spacing">Tamanho e espaçamento</string>
+    <string name="toolbar_config_length">Comprimento</string>
+    <string name="toolbar_config_thickness">Espessura</string>
+    <string name="toolbar_config_current_screen_limit">Limitado a %1$d dp nesta tela</string>
     <string name="toolbar_config_width">Largura</string>
     <string name="toolbar_config_height">Altura</string>
     <string name="toolbar_config_padding">Padding</string>
@@ -125,4 +128,8 @@
     <string name="toolbar_template_name_16">Ferramentas</string>
     <string name="toolbar_template_name_17">Original</string>
     <string name="toolbar_template_name_18">Main toolbar</string>
+
+    <string name="toolbar_pin_start">Fixar início</string>
+    <string name="toolbar_pin_end">Fixar fim</string>
+    <string name="toolbar_pin_regions_hint">As regiões fixas permanecem visíveis nas extremidades enquanto as outras ferramentas rolam no centro. Evite colocar ferramentas demais nas regiões fixas.</string>
 </resources>
