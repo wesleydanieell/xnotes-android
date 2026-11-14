@@ -111,6 +111,8 @@ internal fun ToolbarWorkspacePreview(
     onMoveBar: (String, ToolbarAnchor, ToolbarDockAlignment) -> Unit,
     /** Optional only in the editor, never in read-only workspace thumbnails. */
     onReorderBar: ((String, String) -> Unit)? = null,
+    documentTabsConfig: com.xnotes.settings.DocumentTabsBarConfig? = null,
+    onMoveDocumentTabs: (com.xnotes.settings.DocumentTabsBarConfig) -> Unit = {},
 ) {
     val palette = LocalPalette.current
     val configuration = LocalConfiguration.current
@@ -388,7 +390,39 @@ internal fun ToolbarWorkspacePreview(
                 }
                 }
             }
-
+            // A separate navigation surface in the preview, using the same
+            // positioning/size host as the real editor. It isn't a ToolbarEntry.
+            if (documentTabsConfig != null) {
+                var demoTabs by remember { mutableStateOf(
+                    com.xnotes.core.workspace.NoteTabs()
+                        .open("preview-note", "XNote")
+                        .open("preview-canvas", "XCanvas.xcanvas")
+                ) }
+                var demoSelected by remember { mutableStateOf("preview-note") }
+                var demoExpanded by remember { mutableStateOf(false) }
+                DocumentTabsHost(
+                    tabs = demoTabs,
+                    activeUri = demoSelected,
+                    expanded = demoExpanded,
+                    onExpandedChange = { demoExpanded = it },
+                    onSelect = { demoSelected = it },
+                    onClose = { id ->
+                        if (demoTabs.tabs.size > 1) {
+                            demoTabs = demoTabs.close(id)
+                            if (demoSelected == id) demoSelected = demoTabs.tabs.first().uri
+                        }
+                    },
+                    onReorder = { from, to -> demoTabs = demoTabs.move(from, to) },
+                    onSplit = { /* navigation sample; no note is opened here */ },
+                    config = documentTabsConfig,
+                    onConfigChange = onMoveDocumentTabs,
+                    workspace = workspace,
+                    look = look,
+                    colorCount = colors.size,
+                    modifier = Modifier.fillMaxSize().zIndex(5f),
+                    content = {},
+                )
+            }
         }
     }
 }

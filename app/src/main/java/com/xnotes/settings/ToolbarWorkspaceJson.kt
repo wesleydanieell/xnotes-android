@@ -129,6 +129,10 @@ internal object ToolbarWorkspaceJson {
                     ?: ToolbarRegion.START
                 sections.add(ToolbarSection(entries, lanes, region).normalized())
             }
+            // An unknown-only toolbar is not a valid tool surface. Discard it
+            // rather than reviving an empty experimental tabs-as-tool bar.
+            // If all saved bars are invalid, Settings falls back to original defaults.
+            if (sections.none { it.entries.isNotEmpty() }) continue
             bars.add(ToolbarBar(
                 id = id,
                 name = raw.optString("name", "Toolbar").take(64),

@@ -14,6 +14,9 @@ val hasReleaseSigning = keystorePropertiesFile.exists()
 // opt-in build for reviewers: separate package, same sources, never overwrites XNotes.
 // ./gradlew :app:assembleRelease -PtoolbarReviewBuild=true
 val toolbarReviewBuild = providers.gradleProperty("toolbarReviewBuild").orNull == "true"
+// Opt-in compatible tabbar + advanced toolbars build, isolated from the #431
+// reviewer package and from official XNotes, so testers can compare both.
+val toolbarTabsReviewBuild = providers.gradleProperty("toolbarTabsReviewBuild").orNull == "true"
 val keystoreProperties = Properties().apply {
     if (hasReleaseSigning) keystorePropertiesFile.inputStream().use { load(it) }
 }
@@ -79,7 +82,10 @@ android {
             versionNameSuffix = "-debug"
         }
         release {
-            if (toolbarReviewBuild) {
+            if (toolbarTabsReviewBuild) {
+                applicationIdSuffix = ".pr431tabsreview"
+                versionNameSuffix = "-pr431-tabs-review"
+            } else if (toolbarReviewBuild) {
                 applicationIdSuffix = ".pr431review"
                 versionNameSuffix = "-pr431-review"
             }
@@ -145,6 +151,12 @@ dependencies {
     implementation(libs.latex.renderer)
     implementation(libs.bundles.commonmark)
     debugImplementation(libs.androidx.ui.tooling)
+
+    // The platform instrumentation runner provides these libraries on the device.
+    androidTestCompileOnly(files(
+        android.sdkDirectory.resolve("platforms/android-36/optional/android.test.runner.jar"),
+        android.sdkDirectory.resolve("platforms/android-36/optional/android.test.base.jar"),
+    ))
 
     testImplementation(libs.junit)
     testImplementation(libs.json)
