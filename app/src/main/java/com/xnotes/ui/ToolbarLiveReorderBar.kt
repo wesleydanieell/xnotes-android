@@ -2,7 +2,6 @@ package com.xnotes.ui
 
 import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.animation.core.snap
-import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.foundation.layout.Box
@@ -20,6 +19,7 @@ import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.layout.boundsInRoot
 import androidx.compose.ui.layout.onGloballyPositioned
@@ -33,6 +33,10 @@ import com.xnotes.core.tools.ToolbarDockAlignment
 import com.xnotes.core.tools.ToolbarDockPlacement
 import com.xnotes.core.tools.ToolbarDropPosition
 import com.xnotes.core.tools.ToolbarWorkspace
+
+/** One easing curve for both peer translation and resizing. The dragged bar
+ * uses its own matching 220-ms pointer-to-slot settle transition. */
+internal val toolbarPeerSlotAnimationSpec = tween<Dp>(220, easing = FastOutSlowInEasing)
 
 /** Mirrors the preview's optimistic gesture/reorder transaction on a real toolbar.
  * The source remains under the pointer, while peers animate to their proposed slots.
@@ -56,9 +60,9 @@ internal fun ToolbarLiveReorderBar(
 ) {
     val isSource = reorder.sourceId == bar.id || reorder.lastReleasedId == bar.id
     val animatedX by animateDpAsState(x.dp,
-        animationSpec = if (isSource) snap() else spring(), label = "liveBarX-${bar.id}")
+        animationSpec = if (isSource) snap() else toolbarPeerSlotAnimationSpec, label = "liveBarX-${bar.id}")
     val animatedY by animateDpAsState(y.dp,
-        animationSpec = if (isSource) snap() else spring(), label = "liveBarY-${bar.id}")
+        animationSpec = if (isSource) snap() else toolbarPeerSlotAnimationSpec, label = "liveBarY-${bar.id}")
     // Capture the target dimensions on release, not after the move callback.
     // Translation and resize now start together and finish in the same 220 ms.
     // Icons stay upright; no scaling/rotation or transparency of their contents.
@@ -74,13 +78,31 @@ internal fun ToolbarLiveReorderBar(
             morph = null
         }
     }
-    val sizeSpec = tween<Dp>(220, easing = FastOutSlowInEasing)
+    val sizeSpec = toolbarPeerSlotAnimationSpec
     val animatedWidth by animateDpAsState(settlingSize?.first ?: placement.width.dp,
         animationSpec = sizeSpec, label = "liveBarWidth-${bar.id}")
     val animatedHeight by animateDpAsState(settlingSize?.second ?: placement.height.dp,
         animationSpec = sizeSpec, label = "liveBarHeight-${bar.id}")
     val currentCommit by rememberUpdatedState(onReorderBar)
     val density = LocalDensity.current
+    val look = LocalToolbarLook.current
+    val index = workspace.bars.indexOfFirst { it.id == bar.id }
+    val physical = if (index >= 0) toolbarDropSlot(placement, bar, index, look) else null
+    // The source can occupy a narrower intrinsic thickness inside an animated
+    // RIGHT/BOTTOM lane. As that lane expands after commit, the child moves right
+    // (or down) without any pointer translation. Compensate that displacement on
+    // each frame so the visible toolbar stays at its projected destination.
+    val alignedDp = toolbarAlignedContentTopLeft(
+        parentX = x, parentY = y,
+        animatedWidth = animatedWidth.value, animatedHeight = animatedHeight.value,
+        contentWidth = physical?.width ?: animatedWidth.value,
+        contentHeight = physical?.height ?: animatedHeight.value,
+        edge = placement.edge,
+    )
+    val alignedContentSlot = Offset(
+        paneBounds.left + with(density) { alignedDp.x.dp.toPx() },
+        paneBounds.top + with(density) { alignedDp.y.dp.toPx() },
+    )
     Box(
         Modifier.offset(x = if (isSource) x.dp else animatedX,
                         y = if (isSource) y.dp else animatedY)
@@ -100,6 +122,11 @@ internal fun ToolbarLiveReorderBar(
                 anchor = anchor,
                 movable = bar.geometry.movable,
                 paneBounds = paneBounds,
+                parentSlotInRoot = Offset(
+                    paneBounds.left + with(density) { x.dp.toPx() },
+                    paneBounds.top + with(density) { y.dp.toPx() },
+                ),
+                alignedContentSlotInRoot = alignedContentSlot,
                 currentAlignment = alignment,
                 onMoveBar = { id, target, targetAlignment ->
                     reorder.markAnchorMoveReleased(id)

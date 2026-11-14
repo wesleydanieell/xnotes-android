@@ -108,9 +108,10 @@ internal object ToolbarWorkspaceJson {
                 val rawEntries = section.optJSONArray("entries") ?: continue
                 for (j in 0 until minOf(rawEntries.length(), MAX_ENTRIES)) {
                     val entry = rawEntries.optJSONObject(j) ?: continue
-                    // Only canonical IDs belong to this first published schema.
-                    val id = entry.optString("id")
-                    val item = ToolbarItem.entries.firstOrNull { it.id == id } ?: continue
+                    // The workspace schema accepts canonical tool IDs only.
+                    // Historic experimental aliases belong to no released schema.
+                    val itemId = entry.optString("id")
+                    val item = ToolbarItem.entries.firstOrNull { it.id == itemId } ?: continue
                     if (item !in available || (item != ToolbarItem.COLORS && item != ToolbarItem.SPACER && !seen.add(item))) continue
                     entries.add(ToolbarEntry(
                         item = item,

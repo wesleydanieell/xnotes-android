@@ -237,10 +237,10 @@ internal fun ToolbarWorkspacePreview(
                 // Keep animations attached to the stable bar ID across workspace updates.
                 key(bar.id) {
                 val animatedX by animateDpAsState(x.dp,
-                    animationSpec = if (sourceIsControlled) snap() else androidx.compose.animation.core.spring(),
+                    animationSpec = if (sourceIsControlled) snap() else toolbarPeerSlotAnimationSpec,
                     label = "barReorderX-${bar.id}")
                 val animatedY by animateDpAsState(y.dp,
-                    animationSpec = if (sourceIsControlled) snap() else androidx.compose.animation.core.spring(),
+                    animationSpec = if (sourceIsControlled) snap() else toolbarPeerSlotAnimationSpec,
                     label = "barReorderY-${bar.id}")
                 val visibleX = if (sourceIsControlled) x.dp else animatedX
                 val visibleY = if (sourceIsControlled) y.dp else animatedY
@@ -282,8 +282,18 @@ internal fun ToolbarWorkspacePreview(
                 val slotHeight = if (containerMorph != null && projectedPlacement != null)
                     (placement.height + (projectedPlacement.height - placement.height) * fraction).dp
                     else placement.height.dp
+                // Peers share the drag settle's 220-ms curve for position AND size.
+                // A spring on XY paired with an immediate size jump previously made
+                // occupied-edge insertions appear to pause during lane repacking.
+                // The controlled source still follows its explicit morph fraction.
+                val animatedSlotWidth by animateDpAsState(slotWidth,
+                    animationSpec = if (sourceIsControlled) snap() else toolbarPeerSlotAnimationSpec,
+                    label = "previewSlotWidth-${bar.id}")
+                val animatedSlotHeight by animateDpAsState(slotHeight,
+                    animationSpec = if (sourceIsControlled) snap() else toolbarPeerSlotAnimationSpec,
+                    label = "previewSlotHeight-${bar.id}")
                 val positionModifier = Modifier.offset(x = visibleX, y = visibleY)
-                    .width(slotWidth).height(slotHeight)
+                    .width(animatedSlotWidth).height(animatedSlotHeight)
                     .testTag("preview-bar-${bar.id}")
                     .zIndex(if (reorder.sourceId == bar.id) 2f else if (reorder.targetId == bar.id) 1f else 0f)
                     .onGloballyPositioned { coordinates ->
@@ -297,6 +307,10 @@ internal fun ToolbarWorkspacePreview(
                         anchor = anchor,
                         movable = bar.geometry.movable,
                         paneBounds = stageBounds,
+                        parentSlotInRoot = Offset(
+                            stageBounds.left + with(previewDensity) { visibleX.toPx() },
+                            stageBounds.top + with(previewDensity) { visibleY.toPx() },
+                        ),
                         currentAlignment = toolbarFloatingAlignment(bar),
                         onMoveBar = { movedId, destination, alignment ->
                             // Parent placement and drag offset must change atomically;
@@ -376,210 +390,5 @@ internal fun ToolbarWorkspacePreview(
             }
 
         }
-    }
-}
-
-@Composable
-private fun PreviewBar(
-    bar: ToolbarBar,
-    selected: Boolean,
-    effectiveSize: ToolbarSize,
-    vertical: Boolean,
-    floating: Boolean,
-    availableWidth: Dp,
-    availableHeight: Dp,
-    colors: List<Rgba>,
-    activeColorIndex: Int,
-    pageNumber: Int,
-    pageCount: Int,
-    zoomLabel: String,
-    titleLabel: String,
-    onSelect: () -> Unit,
-    onSelectEntry: (Int, Int) -> Unit,
-    selectedEntry: Pair<Int, Int>?,
-) {
-    val palette = LocalPalette.current
-    val metrics = resolvedBarMetrics(effectiveSize, bar.geometry).copy(vertical = vertical)
-    val compactRegions = toolbarCompactRegions(bar.layout, floating,
-        if (vertical) bar.geometry.heightDp else bar.geometry.widthDp)
-    val autoLengthPinned = floating && bar.layout.hasPinnedRegions &&
-        (if (vertical) bar.geometry.heightDp == null else bar.geometry.widthDp == null)
-    val morph = LocalToolbarContainerMorph.current
-    // Match the live ToolbarFrame shape, including the user's corner-style setting.
-    val shape = if (floating) androidx.compose.material3.MaterialTheme.shapes.extraLarge
-        else RoundedCornerShape(0.dp)
-    // Animate only the toolbar body's dimensions; the surrounding drag slot
-    // remains at its target coordinates so cross-edge releases cannot flicker.
-    val surface = Modifier
-        // The morph already controls size on every gesture frame. A second
-        // animateContentSize tween lags behind it, then overshoots at commit.
-        .then(if (morph == null) Modifier.animateContentSize(
-            animationSpec = androidx.compose.animation.core.tween(220)) else Modifier)
-        .then(if (floating) Modifier.shadow(6.dp, shape) else Modifier)
-        .clip(shape)
-        .background(palette.panel.toComposeColor())
-        .border(
-            if (selected) 2.dp else if (floating) 1.dp else 0.dp,
-            (if (selected) palette.accent else palette.border).toComposeColor(),
-            shape,
-        )
-        .clickable(onClick = onSelect)
-        .testTag("preview-content-${bar.id}")
-
-    if (morph != null) {
-        // Both orientations share one animated container and stable item instances.
-        // Morph progress comes from the same 220-ms tween moving the dragged bar.
-        CompositionLocalProvider(LocalBar provides metrics.copy(vertical = morph.toVertical)) {
-            Box(
-                surface.width(availableWidth).height(availableHeight)
-                    .padding(metrics.padding),
-                contentAlignment = Alignment.Center,
-            ) {
-                PreviewSections(bar.layout, metrics, colors, activeColorIndex, pageNumber,
-                    pageCount, zoomLabel, titleLabel, onSelectEntry, selectedEntry,
-                    vertical = morph.toVertical, compactRegions = compactRegions)
-            }
-        }
-    } else if (vertical) {
-        Column(
-            surface
-                .then(if (bar.geometry.heightDp != null) Modifier.height(bar.geometry.heightDp.dp)
-                    else if (bar.layout.distribution == ToolbarDistribution.REGIONS && !autoLengthPinned) Modifier.height(availableHeight)
-                    else if (floating) Modifier.heightIn(max = availableHeight) else Modifier.fillMaxHeight())
-                .width(toolbarWidth(metrics, bar.layout, bar.geometry))
-                .then(if (bar.layout.distribution == ToolbarDistribution.CONTINUOUS || compactRegions)
-                    Modifier.verticalScroll(rememberScrollState()) else Modifier)
-                .padding(vertical = metrics.padding),
-            horizontalAlignment = Alignment.CenterHorizontally,
-        ) {
-            if (bar.layout.distribution == ToolbarDistribution.REGIONS && !compactRegions && !autoLengthPinned) {
-                Box(Modifier.weight(1f).fillMaxWidth()) {
-                    PreviewSections(bar.layout, metrics, colors, activeColorIndex, pageNumber, pageCount, zoomLabel, titleLabel, onSelectEntry, selectedEntry, vertical = true, compactRegions = compactRegions)
-                }
-            } else {
-                PreviewSections(bar.layout, metrics, colors, activeColorIndex, pageNumber, pageCount, zoomLabel, titleLabel, onSelectEntry, selectedEntry, vertical = true, compactRegions = compactRegions)
-            }
-        }
-    } else {
-        Row(
-            surface
-                .then(if (bar.geometry.widthDp != null) Modifier.width(bar.geometry.widthDp.dp)
-                    else if (bar.layout.distribution == ToolbarDistribution.REGIONS && !autoLengthPinned) Modifier.width(availableWidth)
-                    else if (floating) Modifier.widthIn(max = availableWidth) else Modifier.fillMaxWidth())
-                .height(toolbarHeight(metrics, bar.layout, bar.geometry))
-                .then(if (bar.layout.distribution == ToolbarDistribution.CONTINUOUS || compactRegions)
-                    Modifier.horizontalScroll(rememberScrollState()) else Modifier)
-                .padding(horizontal = metrics.padding),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            if (bar.layout.distribution == ToolbarDistribution.REGIONS && !compactRegions && !autoLengthPinned) {
-                Box(Modifier.weight(1f).fillMaxHeight()) {
-                    PreviewSections(bar.layout, metrics, colors, activeColorIndex, pageNumber, pageCount, zoomLabel, titleLabel, onSelectEntry, selectedEntry, vertical = false, compactRegions = compactRegions)
-                }
-            } else {
-                PreviewSections(bar.layout, metrics, colors, activeColorIndex, pageNumber, pageCount, zoomLabel, titleLabel, onSelectEntry, selectedEntry, vertical = false, compactRegions = compactRegions)
-            }
-        }
-    }
-}
-
-@Composable
-private fun PreviewSections(
-    layout: ToolbarLayout,
-    metrics: BarMetrics,
-    colors: List<Rgba>,
-    activeColorIndex: Int,
-    pageNumber: Int,
-    pageCount: Int,
-    zoomLabel: String,
-    titleLabel: String,
-    onSelectEntry: (Int, Int) -> Unit,
-    selectedEntry: Pair<Int, Int>?,
-    vertical: Boolean,
-    compactRegions: Boolean,
-) {
-    val palette = LocalPalette.current
-    // Use the same controls, swatches, labels and separators as a live toolbar.
-    // Preview clicks select the edited bar; they never edit the open document.
-    CompositionLocalProvider(LocalBar provides metrics, LocalCompactToolbarRegions provides compactRegions) {
-        ToolbarSections(layout) { sectionIndex, section ->
-            ToolbarSectionGrid(section) { entry ->
-                // Reference identity distinguishes repeated Colors occurrences with equal values.
-                val entryIndex = section.entries.indexOfFirst { it === entry }
-                val selected = selectedEntry == (sectionIndex to entryIndex)
-                if (LocalToolbarContainerMorph.current != null) {
-                    // During a container transform the shared reflow engine must
-                    // receive each color/page/zoom control as a separate measurable.
-                    // Wrapping PreviewTool in a Box would turn the entire group into
-                    // one child and cause its inner Row/Column to snap on release.
-                    PreviewTool(entry, colors, activeColorIndex, pageNumber, pageCount,
-                        zoomLabel, titleLabel,
-                        { onSelectEntry(sectionIndex, entryIndex) }, vertical)
-                } else {
-                    Box(
-                        Modifier
-                            .then(if (selected) Modifier.border(
-                                1.dp, palette.accent.toComposeColor(), RoundedCornerShape(5.dp),
-                            ) else Modifier)
-                            .clickable { onSelectEntry(sectionIndex, entryIndex) },
-                    ) {
-                        PreviewTool(entry, colors, activeColorIndex, pageNumber, pageCount,
-                            zoomLabel, titleLabel,
-                            { onSelectEntry(sectionIndex, entryIndex) }, vertical)
-                    }
-                }
-            }
-        }
-    }
-}
-
-@Composable
-private fun PreviewTool(
-    entry: com.xnotes.core.tools.ToolbarEntry,
-    colors: List<Rgba>,
-    activeColorIndex: Int,
-    pageNumber: Int,
-    pageCount: Int,
-    zoomLabel: String,
-    titleLabel: String,
-    onSelect: () -> Unit,
-    vertical: Boolean,
-) {
-    val item = entry.item
-    val controls: @Composable () -> Unit = {
-        when (item) {
-            ToolbarItem.SPACER -> ToolbarSpacer(entry)
-            ToolbarItem.COLORS -> entry.colorIndices(colors.size).forEach { index ->
-                Swatch(colors[index].toComposeColor(), active = index == activeColorIndex, onClick = onSelect)
-            }
-            ToolbarItem.PAGE_NAV -> {
-                ToolbarIcon(XnotesIcons.prev, stringResource(R.string.previous_page), onClick = onSelect)
-                PageCounter(pageNumber, pageCount, Modifier)
-                ToolbarIcon(XnotesIcons.next, stringResource(R.string.next_page), onClick = onSelect)
-            }
-            ToolbarItem.ZOOM -> {
-                ToolbarIcon(XnotesIcons.zoomOut, stringResource(R.string.zoom_out), onClick = onSelect)
-                Label(zoomLabel)
-                ToolbarIcon(XnotesIcons.zoomIn, stringResource(R.string.zoom_in), onClick = onSelect)
-            }
-            ToolbarItem.TITLE -> {
-                if (vertical) VerticalToolbarTitle(titleLabel, onClick = onSelect)
-                else HorizontalToolbarTitle(titleLabel, onClick = onSelect)
-            }
-            else -> {
-                // The real document/canvas toolbar uses the back arrow, not the Home house icon.
-                val icon = if (item == ToolbarItem.HOME) XnotesIcons.prev else itemIcon(item)
-                ToolbarIcon(icon, stringResource(item.labelRes), onClick = onSelect)
-            }
-        }
-    }
-    if (item == ToolbarItem.COLORS || item == ToolbarItem.PAGE_NAV || item == ToolbarItem.ZOOM) {
-        if (LocalToolbarContainerMorph.current != null) {
-            // ToolbarMorphEntry arranges the emitted controls continuously.
-            controls()
-        } else if (vertical) Column(horizontalAlignment = Alignment.CenterHorizontally) { controls() }
-        else Row(verticalAlignment = Alignment.CenterVertically) { controls() }
-    } else {
-        controls()
     }
 }
