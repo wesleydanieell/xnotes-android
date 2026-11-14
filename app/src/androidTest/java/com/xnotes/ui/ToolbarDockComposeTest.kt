@@ -20,6 +20,7 @@ import androidx.compose.ui.test.onAllNodesWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.unit.dp
+import com.xnotes.R
 import com.xnotes.core.tools.ToolbarAnchor
 import com.xnotes.core.tools.ToolbarBar
 import com.xnotes.core.tools.ToolbarDockEdge
@@ -31,6 +32,7 @@ import com.xnotes.settings.ToolbarPosition
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Rule
+import androidx.test.platform.app.InstrumentationRegistry
 import org.junit.Test
 
 /** Device-level tests: exercise actual Compose controls, not only the model's edge mapping. */
@@ -49,15 +51,22 @@ class ToolbarDockComposeTest {
                     onChange = { geometry = it })
             }
         }
-        rule.onNodeWithText("Length: 430 dp").assertExists()
-        rule.onNodeWithText("Thickness: 70 dp").assertExists()
+        // The Redmi Pad 2 reports pt-BR labels; never assert hard-coded English.
+        val resources = InstrumentationRegistry.getInstrumentation().targetContext.resources
+        rule.onNodeWithText(resources.getString(R.string.toolbar_config_length)).assertExists()
+        rule.onNodeWithText("430 dp").assertExists()
+        rule.onNodeWithText(resources.getString(R.string.toolbar_config_thickness)).assertExists()
+        rule.onNodeWithText("70 dp").assertExists()
         rule.runOnIdle {
             geometry = geometry.movedTo(ToolbarAnchor.TOP_CENTER, floating = false)
             vertical = false
         }
         rule.waitForIdle()
-        rule.onNodeWithText("Length: 430 dp").assertExists()
-        rule.onNodeWithText("Thickness: 70 dp").assertExists()
+        // The localized labels must remain stable after rotation.
+        rule.onNodeWithText(resources.getString(R.string.toolbar_config_length)).assertExists()
+        rule.onNodeWithText("430 dp").assertExists()
+        rule.onNodeWithText(resources.getString(R.string.toolbar_config_thickness)).assertExists()
+        rule.onNodeWithText("70 dp").assertExists()
     }
 
     @Test fun oversizedRightToTopDockRendersInsideStageInsteadOfDisappearing() {
@@ -114,18 +123,18 @@ class ToolbarDockComposeTest {
                     barIndex = 0, barCount = 1, look = look,
                     onUpdateBar = { geometry = it(ToolbarBar("main", "Main", ToolbarLayout.DEFAULT, geometry = geometry)).geometry },
                     onConfigureDock = { next, nextLook -> geometry = next; look = nextLook },
-                    onReorder = {},
+
                 )
             }
         }
-        rule.onNodeWithContentDescription("center left").performClick()
+        rule.onNodeWithTag("toolbar-position-LEFT-CENTER", useUnmergedTree = true).performClick()
         rule.runOnIdle {
             assertEquals(ToolbarDockEdge.LEFT, geometry.dockEdge)
             assertEquals(70, geometry.widthDp)
             assertEquals(430, geometry.heightDp)
             assertEquals(ToolbarPosition.LEFT, look.position)
         }
-        rule.onNodeWithContentDescription("bottom center").performClick()
+        rule.onNodeWithTag("toolbar-position-BOTTOM-CENTER", useUnmergedTree = true).performClick()
         rule.runOnIdle {
             assertEquals(ToolbarDockEdge.BOTTOM, geometry.dockEdge)
             assertEquals(430, geometry.widthDp)
@@ -134,7 +143,7 @@ class ToolbarDockComposeTest {
         }
     }
 
-    @Test fun secondaryDockEdgeChipsDoNotCreateLegacy200DpGaps() {
+    @Test fun secondaryDockGridDoesNotCreateLegacy200DpGaps() {
         var geometry by mutableStateOf(ToolbarGeometry(
             anchor = ToolbarAnchor.TOP_CENTER, dockEdge = ToolbarDockEdge.TOP,
             widthDp = 330, heightDp = 62,
@@ -146,11 +155,11 @@ class ToolbarDockComposeTest {
                     barIndex = 1, barCount = 2, look = ToolbarLook(),
                     onUpdateBar = { geometry = it(ToolbarBar("nav", "Navigation", ToolbarLayout.DEFAULT, geometry = geometry)).geometry },
                     onConfigureDock = { next, _ -> geometry = next },
-                    onReorder = {},
+
                 )
             }
         }
-        rule.onNodeWithText("Left", useUnmergedTree = true).performClick()
+        rule.onNodeWithTag("toolbar-position-LEFT-CENTER", useUnmergedTree = true).performClick()
         rule.runOnIdle {
             assertEquals(ToolbarDockEdge.LEFT, geometry.dockEdge)
             assertEquals(62, geometry.widthDp)

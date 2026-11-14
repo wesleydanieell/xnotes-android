@@ -23,6 +23,16 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.key
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.geometry.Rect
+import androidx.compose.ui.layout.boundsInRoot
+import androidx.compose.ui.layout.onGloballyPositioned
+import com.xnotes.core.tools.ToolbarAnchor
+import com.xnotes.core.tools.ToolbarDockAlignment
 import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.compositionLocalOf
 import androidx.compose.runtime.remember
@@ -153,6 +163,8 @@ internal fun ColumnScope.ToolbarAround(
     barGeometry: ToolbarGeometry? = null,
     workspace: ToolbarWorkspace? = null,
     dockedContent: (@Composable (ToolbarBar) -> Unit)? = null,
+    onMoveBar: ((String, ToolbarAnchor, ToolbarDockAlignment) -> Unit)? = null,
+    onReorderBar: ((String, String) -> Unit)? = null,
     content: @Composable (floatingBar: @Composable BoxScope.() -> Unit) -> Unit,
 ) {
     val look = LocalToolbarLook.current
@@ -161,23 +173,73 @@ internal fun ColumnScope.ToolbarAround(
     // the miniature preview; floating bars remain in the content's overlay layer.
     if (workspace != null && dockedContent != null && workspace.hasMultiDock(look)) {
         SideEffect { onCover(0.0, 0.0, 0.0, 0.0) }
-        BoxWithConstraints(rest) {
-            val plan = toolbarDockPlan(workspace, look, maxWidth, maxHeight)
+        val reorder = remember { ToolbarWorkspaceReorderController() }
+        ToolbarReorderRecoveryEffect(reorder)
+        LaunchedEffect(workspace) { reorder.acknowledge(workspace) }
+        var paneBounds by remember { mutableStateOf(Rect.Zero) }
+        BoxWithConstraints(rest.onGloballyPositioned { paneBounds = it.boundsInRoot() }) {
+            val basePlan = toolbarDockPlan(workspace, look, maxWidth, maxHeight)
+            val reordered = reorder.displayedWorkspace(workspace)
+            val hoveredId = reorder.sourceId
+            val hoveredTarget = reorder.hoverPlacement
+            // Predict ALL peers' slots while dragging, not only the destination outline.
+            // The held source stays at its original slot and follows the pointer.
+            val previewMove = if (hoveredId != null && hoveredTarget != null &&
+                reorder.targetId == null) toolbarProjectedMove(workspace, look, hoveredId,
+                    hoveredTarget) else null
+            val proposedWorkspace = previewMove?.first ?: reordered
+            val proposedLook = previewMove?.second ?: look
+            val proposedPlan = if (proposedWorkspace == workspace && proposedLook == look) basePlan
+                else toolbarDockPlan(proposedWorkspace, proposedLook, maxWidth, maxHeight)
+            val peers = remember(workspace, basePlan, onReorderBar != null) {
+                if (onReorderBar == null) emptyMap() else workspace.bars.associate { dockBar ->
+                    dockBar.id to toolbarReorderPeersInPlan(workspace, dockBar.id, basePlan,
+                        floating = false)
+                }
+            }
             Box(Modifier.fillMaxSize().padding(
-                start = plan.leftInset.dp, top = plan.topInset.dp,
-                end = plan.rightInset.dp, bottom = plan.bottomInset.dp,
+                start = basePlan.leftInset.dp, top = basePlan.topInset.dp,
+                end = basePlan.rightInset.dp, bottom = basePlan.bottomInset.dp,
             )) { content({}) }
+            if (hoveredId != null) {
+                val slot = when {
+                    reorder.targetId != null ->
+                        toolbarReorderDockSlot(workspace, look, hoveredId, proposedPlan)
+                    hoveredTarget != null ->
+                        toolbarDockDropSlot(workspace, look, hoveredId, hoveredTarget,
+                            maxWidth, maxHeight)
+                    else -> null
+                }
+                slot?.let { ToolbarDropIndicator(it, hoveredId) }
+            }
             for ((index, dockBar) in workspace.bars.withIndex()) {
-                val placement = plan.placement(dockBar.id) ?: continue
+                val placement = (if (reorder.sourceId == dockBar.id) basePlan else proposedPlan)
+                    .placement(dockBar.id) ?: continue
                 val barLook = look.copy(
                     position = placement.edge.toolbarPosition(),
                     size = toolbarBarSize(dockBar, index, look),
                     floating = false,
                 )
-                Box(Modifier.offset(x = placement.x.dp, y = placement.y.dp)
-                    .width(placement.width.dp).height(placement.height.dp)) {
-                    CompositionLocalProvider(LocalToolbarLook provides barLook) {
-                        if (index == 0) bar() else dockedContent(dockBar)
+                key(dockBar.id) {
+                    ToolbarLiveReorderBar(
+                        bar = dockBar, placement = placement,
+                        x = placement.x, y = placement.y,
+                        anchor = toolbarAnchorForAlignment(placement.edge, dockBar.geometry.dockAlignment),
+                        alignment = dockBar.geometry.dockAlignment,
+                        paneBounds = paneBounds,
+                        workspace = workspace,
+                        peers = peers[dockBar.id].orEmpty(),
+                        reorder = reorder,
+                        onMoveBar = onMoveBar,
+                        onReorderBar = onReorderBar,
+                        projectedSlot = { target ->
+                            toolbarDockDropSlot(workspace, look, dockBar.id, target,
+                                maxWidth, maxHeight)
+                        },
+                    ) {
+                        CompositionLocalProvider(LocalToolbarLook provides barLook) {
+                            if (index == 0) bar() else dockedContent(dockBar)
+                        }
                     }
                 }
             }
@@ -185,7 +247,10 @@ internal fun ColumnScope.ToolbarAround(
         return
     }
     // A moved primary is rendered in the shared floating workspace, not twice here.
-    if (suppressBar) {
+    if (suppressBar || workspace?.usesSharedFloatingPrimary(look) == true) {
+        // With multiple visible floating bars, render the legacy primary in the
+        // shared workspace too. Otherwise it sits outside the packed lane and
+        // cannot line up or reorder with its secondary peers.
         SideEffect { onCover(0.0, 0.0, 0.0, 0.0) }
         Box(rest) { content({}) }
         return
@@ -298,7 +363,21 @@ internal fun ToolbarFrame(
     CompositionLocalProvider(LocalToolGlide provides glide, LocalBar provides bar,
         LocalCompactToolbarRegions provides compactRegions, LocalMenuOffset provides menuOffset,
         LocalTipSide provides tipSide) {
-        if (bar.vertical) {
+        val morph = LocalToolbarContainerMorph.current
+        if (morph != null) {
+            // Container Transform: keep one surface while the child groups and
+            // every tool interpolate between row and column coordinates. The
+            // outer slot changes size on the exact same gesture fraction.
+            Box(
+                Modifier.fillMaxSize().then(surface).testTag("toolbar-frame"),
+                contentAlignment = Alignment.Center,
+            ) {
+                CompositionLocalProvider(LocalBar provides bar.copy(vertical = morph.toVertical)) {
+                    Box(Modifier.toolGlide(glide, armed)) { content() }
+                }
+                trailing?.invoke()
+            }
+        } else if (bar.vertical) {
             Column(
                 stretch.width(toolbarWidth(bar, layout, geometry)).then(surface).testTag("toolbar-frame"),
                 horizontalAlignment = Alignment.CenterHorizontally,
