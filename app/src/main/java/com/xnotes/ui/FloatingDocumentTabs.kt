@@ -15,13 +15,13 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.outlined.Article
 import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.filled.KeyboardArrowUp
 import androidx.compose.material.icons.outlined.Gesture
 import androidx.compose.material3.Icon
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
@@ -60,9 +60,12 @@ fun FloatingDocumentTabs(
     val canvas = active?.uri?.substringBefore('?')?.endsWith(".xcanvas", true) == true
     val screenWidth = LocalConfiguration.current.screenWidthDp.dp
     val width = expandedWidth ?: (screenWidth - 16.dp).coerceAtLeast(160.dp)
-    val surface = if (floatingSurface) modifier.shadow(5.dp, RoundedCornerShape(18.dp))
-        .clip(RoundedCornerShape(18.dp)).background(palette.panel.toComposeColor())
-        .border(1.dp, palette.border.toComposeColor(), RoundedCornerShape(18.dp))
+    // Exactly the same Material shape role as the floating ToolbarFrame.
+    // XnotesTheme regenerates it from Preferences.cornerStyle (sharp/rounded/soft).
+    val shape = MaterialTheme.shapes.extraLarge
+    val surface = if (floatingSurface) modifier.shadow(5.dp, shape)
+        .clip(shape).background(palette.panel.toComposeColor())
+        .border(1.dp, palette.border.toComposeColor(), shape)
         else modifier.background(palette.panel.toComposeColor())
     Column(surface.animateContentSize(spring(stiffness = Spring.StiffnessMediumLow))) {
         if (expanded) {

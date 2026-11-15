@@ -47,6 +47,7 @@ import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.geometry.CornerRadius
+import androidx.compose.ui.graphics.Outline
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.platform.LocalDensity
@@ -105,6 +106,9 @@ fun NoteTabBar(
         val highlightOffset by animateFloatAsState(target, highlightMotion, label = "tabHighlightOffset")
         val highlightExtent by animateFloatAsState((axisPixels - with(density) { 4.dp.toPx() }).coerceAtLeast(0f),
             highlightMotion, label = "tabHighlightExtent")
+        // Selected-tab highlight uses the active Corners setting too, rather
+        // than the previous fixed 20-dp radius.
+        val highlightShape = MaterialTheme.shapes.small
         val base = Modifier
             .background((if (floatingSurface) palette.panel else palette.bg).toComposeColor())
             .then(if (vertical) Modifier.verticalScroll(scrollState)
@@ -112,13 +116,17 @@ fun NoteTabBar(
             .drawBehind {
                 if (activeIndex >= 0 && highlightExtent > 0f) {
                     val inset = 2.dp.toPx()
+                    val highlightSize = if (vertical)
+                        Size((size.width - inset * 2).coerceAtLeast(0f), highlightExtent)
+                    else Size(highlightExtent, (size.height - inset * 2).coerceAtLeast(0f))
+                    val radius = (highlightShape.createOutline(highlightSize, layoutDirection, this)
+                        as? Outline.Rounded)?.roundRect?.topLeftCornerRadius ?: CornerRadius.Zero
                     drawRoundRect(
                         highlight,
                         topLeft = if (vertical) Offset(inset, highlightOffset)
                             else Offset(highlightOffset, inset),
-                        size = if (vertical) Size((size.width - inset * 2).coerceAtLeast(0f), highlightExtent)
-                            else Size(highlightExtent, (size.height - inset * 2).coerceAtLeast(0f)),
-                        cornerRadius = CornerRadius(20.dp.toPx()),
+                        size = highlightSize,
+                        cornerRadius = radius,
                     )
                 }
             }

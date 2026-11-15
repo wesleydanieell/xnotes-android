@@ -11,13 +11,11 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.wrapContentSize
-import androidx.compose.material3.Icon
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Rect
@@ -37,9 +35,6 @@ import com.xnotes.core.workspace.NoteTabs
 import com.xnotes.settings.DocumentTabsBarConfig
 import com.xnotes.settings.ToolbarLook
 import com.xnotes.settings.ToolbarPosition
-import com.xnotes.ui.icons.XnotesIcons
-import com.xnotes.ui.theme.LocalPalette
-import com.xnotes.ui.theme.toComposeColor
 import kotlin.math.roundToInt
 
 /** Navigation is not a tool or a ToolbarEntry. It occupies an independent overlay/dock,
@@ -155,30 +150,17 @@ internal fun DocumentTabsHost(
                     onPlacementPreview = { hoverTarget = it },
                     onSettleTarget = { if (it == null) hoverTarget = null },
                 ) {
-                    val foreground = LocalPalette.current.textDim.toComposeColor()
-                    val handle: @Composable () -> Unit = {
-                        Box(Modifier.width(if (vertical) 42.dp else 24.dp)
-                            .height(if (vertical) 26.dp else 42.dp), contentAlignment = Alignment.Center) {
-                            Icon(XnotesIcons.grip, "Hold to move document tabs",
-                                tint = foreground, modifier = Modifier.width(20.dp).height(20.dp))
-                        }
-                    }
-                    val tabsContent: @Composable () -> Unit = {
-                        FloatingDocumentTabs(
-                            tabs = tabs, activeUri = activeUri, expanded = expanded,
-                            onExpandedChange = onExpandedChange, onSelect = onSelect,
-                            onClose = onClose, vertical = vertical,
-                            expandedWidth = contentExtent,
-                            expandedHeight = contentExtent,
-                            floatingSurface = config.floating,
-                            onReorder = onReorder, onSplit = onSplit,
-                        )
-                    }
-                    if (vertical) Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                        handle(); tabsContent()
-                    } else Row(verticalAlignment = Alignment.CenterVertically) {
-                        handle(); tabsContent()
-                    }
+                    // Drag by holding the navigation surface itself. A separate
+                    // grip takes room from tabs, unlike the other toolbars.
+                    FloatingDocumentTabs(
+                        tabs = tabs, activeUri = activeUri, expanded = expanded,
+                        onExpandedChange = onExpandedChange, onSelect = onSelect,
+                        onClose = onClose, vertical = vertical,
+                        expandedWidth = contentExtent,
+                        expandedHeight = contentExtent,
+                        floatingSurface = config.floating,
+                        onReorder = onReorder, onSplit = onSplit,
+                    )
                 }
             }
         }

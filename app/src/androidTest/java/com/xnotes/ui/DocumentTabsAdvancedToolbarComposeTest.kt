@@ -1,6 +1,14 @@
 package com.xnotes.ui
 
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.background
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.toPixelMap
+import androidx.compose.ui.test.captureToImage
+import androidx.compose.ui.test.onNodeWithContentDescription
+import com.xnotes.settings.CornerStyle
+import com.xnotes.ui.theme.Palette
+import com.xnotes.ui.theme.XnotesTheme
 import androidx.compose.foundation.layout.size
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.getValue
@@ -57,6 +65,8 @@ class DocumentTabsAdvancedToolbarComposeTest {
         }
         rule.waitForIdle()
         rule.onNodeWithTag("document-tabs-bar", useUnmergedTree = true).assertExists()
+        rule.onNodeWithContentDescription("Hold to move document tabs", useUnmergedTree = true)
+            .assertDoesNotExist()
         rule.onNodeWithTag("document-editor-content", useUnmergedTree = true).assertExists()
         for (edge in ToolbarPosition.entries) {
             rule.runOnIdle {
@@ -110,6 +120,42 @@ class DocumentTabsAdvancedToolbarComposeTest {
             assertEquals(ToolbarAnchor.CENTER_RIGHT, config.anchor)
             assertEquals("primary", workspace.bars.single().id)
         }
+    }
+
+    @Test fun floatingNavigationOutlineFollowsGlobalCornersForAllThreeModes() {
+        var corners by mutableStateOf(CornerStyle.SHARP)
+        rule.setContent {
+            XnotesTheme(Palette.DEFAULT, corners) {
+                Box(Modifier.size(560.dp, 420.dp).background(Color.Magenta)) {
+                    FloatingDocumentTabs(
+                        tabs = tabs, activeUri = "n1.xnote", expanded = true,
+                        onExpandedChange = {}, onSelect = {}, onClose = {},
+                        onReorder = { _, _ -> }, onSplit = {}, vertical = true,
+                        expandedHeight = 300.dp, modifier = Modifier.testTag("corner-surface"),
+                    )
+                }
+            }
+        }
+        fun sample(xDp: Int, yDp: Int): Color {
+            val bitmap = rule.onNodeWithTag("corner-surface", useUnmergedTree = true)
+                .captureToImage()
+            val x = (bitmap.width * xDp / 196).coerceIn(0, bitmap.width - 1)
+            val y = (bitmap.height * yDp / 300).coerceIn(0, bitmap.height - 1)
+            return bitmap.toPixelMap()[x, y]
+        }
+        rule.waitForIdle()
+        val sharp5 = sample(5, 5)
+        rule.runOnIdle { corners = CornerStyle.ROUNDED }
+        rule.waitForIdle()
+        val rounded5 = sample(5, 5)
+        val rounded11 = sample(11, 11)
+        rule.runOnIdle { corners = CornerStyle.SOFT }
+        rule.waitForIdle()
+        val soft11 = sample(11, 11)
+        assertTrue("Rounded corners must change the floating tabbar outline",
+            sharp5 != rounded5)
+        assertTrue("Soft corners must have a larger tabbar radius than Rounded",
+            rounded11 != soft11)
     }
 
     @Test fun previewWithIndependentNavigationDoesNotReplaceToolbarControls() {

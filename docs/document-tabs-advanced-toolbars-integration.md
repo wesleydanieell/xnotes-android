@@ -26,3 +26,9 @@ This is the optional **stage 8** after [toolbar stabilization (#11)](https://git
 - A signed opt-in review APK uses **`com.xnotes.pr431tabsreview`**, not the official XNotes package or the toolbar-only `com.xnotes.pr431review`. This lets testers compare without overwriting either.
 - The proposed integration is not a claim that #359 or #431 has been upstream-merged. Do not alter either upstream PR's source tree to include this optional stage.
 - Emulator/JVM tests are not a substitute for physical stylus verification; attach a real tablet video only when the contributor supplies and approves one.
+
+## Navigation appearance and drag interaction
+
+- The tabbar has no dedicated grip or reserved grip spacing. Hold and drag the navigation surface itself to reposition it; a held tab still supports document reordering.
+- Floating navigation uses the same Material extraLarge shape role as floating drawing toolbars. The selected-tab highlight uses the Material small shape. Both follow the global Settings > Corners preference (Sharp, Rounded, Soft), including when it changes while the editor is open.
+- Docked navigation stays flush with its dock edge. Verify all four edges and the floating editor preview, plus collapsed and expanded modes, when reviewing this optional integration.
