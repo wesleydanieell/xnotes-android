@@ -36,6 +36,7 @@ import com.xnotes.core.tools.ToolbarDropPosition
 import com.xnotes.core.tools.ToolbarWorkspace
 import com.xnotes.core.workspace.NoteTabs
 import com.xnotes.settings.DocumentTabsBarConfig
+import com.xnotes.settings.DocumentTabsSizing
 import com.xnotes.settings.ToolbarLook
 import com.xnotes.settings.ToolbarPosition
 import kotlin.math.roundToInt
@@ -115,7 +116,10 @@ internal fun DocumentTabsHost(
         val maximumExpandedLength = if (config.floating) {
             (if (vertical) usableStrip.height else usableStrip.width) / px
         } else if (vertical) heightDp else widthDp
-        val contentExtent = config.expandedExtent((maximumExpandedLength - 32f).coerceAtLeast(0f)).dp
+        val configuredExtent = config.expandedExtent((maximumExpandedLength - 32f).coerceAtLeast(0f)).dp
+        val contentExtent = if (vertical && config.sizing == DocumentTabsSizing.DYNAMIC) {
+            configuredExtent.coerceAtMost(240.dp)
+        } else configuredExtent
         val defaultSize = Size((if (vertical) if (expanded) 200 else 48 else if (expanded) 360 else 210) * px,
             (if (vertical) if (expanded) 260 else 48 else 48) * px)
         val measured = if (child == Size.Zero) defaultSize else child

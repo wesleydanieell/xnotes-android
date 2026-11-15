@@ -5,6 +5,7 @@ import androidx.compose.foundation.background
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.toPixelMap
 import androidx.compose.ui.test.captureToImage
+import androidx.compose.ui.test.assertHeightIsEqualTo
 import androidx.compose.ui.test.onNodeWithContentDescription
 import com.xnotes.settings.CornerStyle
 import com.xnotes.ui.theme.Palette
@@ -85,6 +86,37 @@ class DocumentTabsAdvancedToolbarComposeTest {
                     bar.right <= host.right + 3f && bar.bottom <= host.bottom + 3f)
             rule.onNodeWithTag("document-editor-content", useUnmergedTree = true).assertExists()
             assertEquals(edge, config.position)
+        }
+    }
+
+    @Test fun automaticVerticalBarUsesSmallerHeightLimit() {
+        var config by mutableStateOf(DocumentTabsBarConfig().movedTo(ToolbarAnchor.CENTER_LEFT))
+        rule.setContent {
+            MaterialTheme {
+                Box(Modifier.size(640.dp, 420.dp)) {
+                    DocumentTabsHost(tabs = tabs, activeUri = "n1.xnote", expanded = true,
+                        onExpandedChange = {}, onSelect = {}, onClose = {},
+                        onReorder = { _, _ -> }, onSplit = {}, config = config,
+                        onConfigChange = {}, workspace = ToolbarWorkspace(emptyList()),
+                        look = ToolbarLook(), colorCount = 5) {}
+                }
+            }
+        }
+        val bar = rule.onNodeWithTag("document-tabs-bar", useUnmergedTree = true)
+        for (floating in listOf(true, false)) {
+            rule.runOnIdle {
+                config = config.withFloating(floating).copy(sizing = DocumentTabsSizing.DYNAMIC, maxExtentDp = 0)
+            }
+            bar.assertHeightIsEqualTo(240.dp)
+            rule.runOnIdle {
+                config = config.copy(minExtentDp = 80, maxExtentDp = 140)
+            }
+            bar.assertHeightIsEqualTo(140.dp)
+            rule.runOnIdle {
+                config = config.copy(sizing = DocumentTabsSizing.MANUAL,
+                    manualExtentDp = 300, maxExtentDp = 0)
+            }
+            bar.assertHeightIsEqualTo(300.dp)
         }
     }
 
