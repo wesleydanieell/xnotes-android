@@ -56,8 +56,10 @@ internal fun ToolbarLiveReorderBar(
     onMoveBar: ((String, ToolbarAnchor, ToolbarDockAlignment) -> Unit)?,
     onReorderBar: ((String, String) -> Unit)?,
     projectedSlot: (ToolbarDropPosition) -> ToolbarDropSlot?,
+    floating: Boolean = false,
     content: @Composable () -> Unit,
 ) {
+    val reorderWithTabs = LocalReorderToolbarWithTabs.current
     val isSource = reorder.sourceId == bar.id || reorder.lastReleasedId == bar.id
     val animatedX by animateDpAsState(x.dp,
         animationSpec = if (isSource) snap() else toolbarPeerSlotAnimationSpec, label = "liveBarX-${bar.id}")
@@ -141,8 +143,11 @@ internal fun ToolbarLiveReorderBar(
                 onDragPosition = if (onReorderBar == null) null else { finger ->
                     reorder.hover(bar.id, finger)
                 },
-                onDrop = if (onReorderBar == null) null else { finger ->
-                    reorder.drop(bar.id, finger) { source, target ->
+                onDrop = if (onReorderBar == null && reorderWithTabs == null) null else { finger ->
+                    if (reorderWithTabs?.invoke(bar, placement, floating, finger) == true) {
+                        reorder.cancel(bar.id)
+                        true
+                    } else reorder.drop(bar.id, finger) { source, target ->
                         currentCommit?.invoke(source, target)
                     }
                 },

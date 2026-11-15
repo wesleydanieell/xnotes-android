@@ -395,6 +395,43 @@ class DocumentTabsAdvancedToolbarComposeTest {
             .assertDoesNotExist()
     }
 
+    @Test fun dockedTabToolbarAndToolBarCanExchangeLanesByDraggingEitherOne() {
+        var config by mutableStateOf(DocumentTabsBarConfig(floating = false))
+        rule.setContent {
+            MaterialTheme {
+                ToolbarWorkspacePreview(
+                    workspace = workspace, look = ToolbarLook(), selectedId = "primary",
+                    colors = emptyList(), activeColorIndex = 0, pageNumber = 1,
+                    pageCount = 1, zoomLabel = "100%", titleLabel = "Preview",
+                    selectedEntry = null, onSelectBar = {}, onSelectEntry = { _, _, _ -> },
+                    onMoveBar = { _, _, _ -> }, documentTabsConfig = config,
+                    onMoveDocumentTabs = { config = it },
+                )
+            }
+        }
+        val stage = rule.onNodeWithTag("toolbar-preview-stage")
+        val navigation = rule.onNodeWithTag("document-tabs-bar", useUnmergedTree = true)
+        val primary = rule.onNodeWithTag("preview-bar-primary", useUnmergedTree = true)
+        fun drag(from: Offset, to: Offset) {
+            val origin = stage.fetchSemanticsNode().boundsInRoot.topLeft
+            stage.performTouchInput {
+                down(from - origin)
+                advanceEventTime(850)
+                moveBy(to - from)
+                advanceEventTime(48)
+                up()
+            }
+            rule.waitForIdle()
+        }
+        fun tabsCenter() = navigation.fetchSemanticsNode().boundsInRoot.center
+        fun toolCenter() = primary.fetchSemanticsNode().boundsInRoot.center
+        assertTrue(tabsCenter().y < toolCenter().y)
+        drag(tabsCenter(), toolCenter())
+        assertTrue(toolCenter().y < tabsCenter().y)
+        drag(toolCenter(), tabsCenter())
+        assertTrue(tabsCenter().y < toolCenter().y)
+    }
+
     @Test fun collapsedNavigationExpandsWithoutDuplicatingToolbars() {
         var expanded by mutableStateOf(false)
         rule.setContent {

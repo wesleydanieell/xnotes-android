@@ -261,7 +261,8 @@ internal fun ColumnScope.ToolbarAround(
         return
     }
     // A moved primary is rendered in the shared floating workspace, not twice here.
-    if (suppressBar || workspace?.usesSharedFloatingPrimary(look) == true) {
+    if (suppressBar || workspace?.usesSharedFloatingPrimary(look) == true ||
+        (look.floating && LocalFloatingDocumentTabs.current != null)) {
         // With multiple visible floating bars, render the legacy primary in the
         // shared workspace too. Otherwise it sits outside the packed lane and
         // cannot line up or reorder with its secondary peers.

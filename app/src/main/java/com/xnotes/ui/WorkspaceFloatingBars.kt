@@ -41,11 +41,12 @@ fun BoxScope.WorkspaceFloatingBars(
     LaunchedEffect(workspace) { reorder.acknowledge(workspace) }
     var paneBounds by remember { mutableStateOf(Rect.Zero) }
     val baseLook = LocalToolbarLook.current
+    val documentTabs = LocalFloatingDocumentTabs.current
     val showPrimary = workspace.hasMultiDock(baseLook) ||
-        workspace.usesSharedFloatingPrimary(baseLook)
+        workspace.usesSharedFloatingPrimary(baseLook) || documentTabs != null
     BoxWithConstraints(Modifier.fillMaxSize().zIndex(10f).onGloballyPositioned { paneBounds = it.boundsInRoot() }) {
-        val basePlan = remember(workspace, baseLook, maxWidth, maxHeight, colorCount) {
-            toolbarFloatingPlan(workspace, baseLook, maxWidth, maxHeight, colorCount)
+        val basePlan = remember(workspace, baseLook, maxWidth, maxHeight, colorCount, documentTabs) {
+            toolbarFloatingPlan(workspace, baseLook, maxWidth, maxHeight, colorCount, documentTabs)
         }
         val reordered = reorder.displayedWorkspace(workspace)
         val hoveredId = reorder.sourceId
@@ -56,8 +57,8 @@ fun BoxScope.WorkspaceFloatingBars(
         val proposedWorkspace = previewMove?.first ?: reordered
         val proposedLook = previewMove?.second ?: baseLook
         val proposedPlan = if (proposedWorkspace == workspace && proposedLook == baseLook) basePlan
-            else remember(proposedWorkspace, proposedLook, maxWidth, maxHeight, colorCount) {
-                toolbarFloatingPlan(proposedWorkspace, proposedLook, maxWidth, maxHeight, colorCount)
+            else remember(proposedWorkspace, proposedLook, maxWidth, maxHeight, colorCount, documentTabs) {
+                toolbarFloatingPlan(proposedWorkspace, proposedLook, maxWidth, maxHeight, colorCount, documentTabs)
             }
         val peers = remember(workspace, basePlan, onReorderBar != null) {
             if (onReorderBar == null) emptyMap() else workspace.bars.associate { bar ->
@@ -70,7 +71,7 @@ fun BoxScope.WorkspaceFloatingBars(
                     toolbarReorderDockSlot(workspace, baseLook, hoveredId, proposedPlan)
                 hoveredTarget != null ->
                     toolbarFloatingDropSlot(workspace, baseLook, hoveredId, hoveredTarget,
-                        maxWidth, maxHeight, colorCount)
+                        maxWidth, maxHeight, colorCount, documentTabs)
                 else -> null
             }
             slot?.let { ToolbarDropIndicator(it, hoveredId) }
@@ -103,9 +104,10 @@ fun BoxScope.WorkspaceFloatingBars(
                     reorder = reorder,
                     onMoveBar = onMoveBar,
                     onReorderBar = onReorderBar,
+                    floating = true,
                     projectedSlot = { target ->
                         toolbarFloatingDropSlot(workspace, baseLook, bar.id, target,
-                            maxWidth, maxHeight, colorCount)
+                            maxWidth, maxHeight, colorCount, documentTabs)
                     },
                 ) {
                     CompositionLocalProvider(LocalToolbarLook provides look) {

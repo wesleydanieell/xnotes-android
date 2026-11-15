@@ -77,7 +77,7 @@ internal fun toolbarDropSlot(
 internal fun toolbarDockDropSlot(
     workspace: ToolbarWorkspace, look: ToolbarLook, id: String, target: ToolbarDropPosition,
     screenWidth: Dp, screenHeight: Dp,
-    documentTabs: com.xnotes.core.tools.ToolbarDockRequest? = null,
+    documentTabs: com.xnotes.core.tools.ToolbarBar? = null,
 ): ToolbarDropSlot? {
     val (projected, nextLook) = toolbarProjectedMove(workspace, look, id, target) ?: return null
     val placement = toolbarDockPlan(projected, nextLook, screenWidth, screenHeight, documentTabs).placement(id)
@@ -89,9 +89,10 @@ internal fun toolbarDockDropSlot(
 internal fun toolbarFloatingDropSlot(
     workspace: ToolbarWorkspace, look: ToolbarLook, id: String, target: ToolbarDropPosition,
     stageWidth: Dp, stageHeight: Dp, colorCount: Int,
+    floatingDocumentTabs: com.xnotes.core.tools.ToolbarBar? = null,
 ): ToolbarDropSlot? {
     val (projected, nextLook) = toolbarProjectedMove(workspace, look, id, target) ?: return null
-    val placement = toolbarFloatingPlan(projected, nextLook, stageWidth, stageHeight, colorCount)
+    val placement = toolbarFloatingPlan(projected, nextLook, stageWidth, stageHeight, colorCount, floatingDocumentTabs)
         .placement(id) ?: return null
     val index = projected.bars.indexOfFirst { it.id == id }
     return toolbarDropSlot(placement, projected.bars[index], index, nextLook)
@@ -100,10 +101,11 @@ internal fun toolbarFloatingDropSlot(
 internal fun toolbarPreviewDropSlot(
     workspace: ToolbarWorkspace, look: ToolbarLook, id: String, target: ToolbarDropPosition,
     stageWidth: Dp, stageHeight: Dp, colorCount: Int,
-    documentTabs: com.xnotes.core.tools.ToolbarDockRequest? = null,
+    documentTabs: com.xnotes.core.tools.ToolbarBar? = null,
+    floatingDocumentTabs: com.xnotes.core.tools.ToolbarBar? = null,
 ): ToolbarDropSlot? {
     val (projected, nextLook) = toolbarProjectedMove(workspace, look, id, target) ?: return null
-    val preview = toolbarPreviewLayoutPlan(projected, nextLook, stageWidth, stageHeight, colorCount, documentTabs)
+    val preview = toolbarPreviewLayoutPlan(projected, nextLook, stageWidth, stageHeight, colorCount, documentTabs, floatingDocumentTabs)
         .position(id) ?: return null
     val index = projected.bars.indexOfFirst { it.id == id }
     val slot = toolbarDropSlot(preview.placement, projected.bars[index], index, nextLook)

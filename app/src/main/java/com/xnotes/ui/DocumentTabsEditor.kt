@@ -102,14 +102,13 @@ internal fun DocumentTabsEditor(
                                 onValueChange = { onConfigChange(config.copy(manualExtentDp = it.toInt())) },
                                 valueRange = 160f..800f)
                         }
-                    } else {
-                        ToolbarSettingsLabel(stringResource(R.string.toolbar_config_preferred_lane))
-                        FlowRow(horizontalArrangement = Arrangement.spacedBy(5.dp)) {
-                            for (lane in 0 until ToolbarDockLayout.MAX_LANES) {
-                                PreferenceChoiceChip(stringResource(R.string.toolbar_config_lane_number, lane + 1),
-                                    config.dockLane == lane) {
-                                    onConfigChange(config.copy(dockLane = lane))
-                                }
+                    }
+                    ToolbarSettingsLabel(stringResource(R.string.toolbar_config_preferred_lane))
+                    FlowRow(horizontalArrangement = Arrangement.spacedBy(5.dp)) {
+                        for (lane in 0 until ToolbarDockLayout.MAX_LANES) {
+                            PreferenceChoiceChip(stringResource(R.string.toolbar_config_lane_number, lane + 1),
+                                config.dockLane == lane) {
+                                onConfigChange(config.copy(dockLane = lane))
                             }
                         }
                     }

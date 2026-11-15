@@ -17,6 +17,7 @@ data class DocumentTabsBarConfig(
     val minExtentDp: Int = 160,
     val maxExtentDp: Int = 0, // Zero means the available window extent.
     val dockLane: Int = 0,
+    val afterToolbarId: String? = null,
 
 ) {
     fun movedTo(target: ToolbarAnchor): DocumentTabsBarConfig {
@@ -78,6 +79,7 @@ data class DocumentTabsBarConfig(
         .put("position", position.id).put("anchor", anchor.name)
         .put("sizing", sizing.name).put("manual_extent_dp", manualExtentDp)
         .put("min_extent_dp", minExtentDp).put("max_extent_dp", maxExtentDp).put("dock_lane", dockLane)
+        .put("after_toolbar_id", afterToolbarId)
 
     companion object {
         fun fromJson(raw: JSONObject?): DocumentTabsBarConfig {
@@ -90,7 +92,8 @@ data class DocumentTabsBarConfig(
                 raw.optInt("manual_extent_dp", 360).coerceIn(80, 4000),
                 raw.optInt("min_extent_dp", 160).coerceIn(80, 2000),
                 raw.optInt("max_extent_dp", 0).coerceIn(0, 4000),
-                raw.optInt("dock_lane", 0).coerceIn(0, ToolbarDockLayout.MAX_LANES - 1))
+                raw.optInt("dock_lane", 0).coerceIn(0, ToolbarDockLayout.MAX_LANES - 1),
+                raw.optString("after_toolbar_id").takeUnless { it.isBlank() || it == "null" })
         }
         fun anchorOf(position: ToolbarPosition): ToolbarAnchor = when (position) {
             ToolbarPosition.TOP -> ToolbarAnchor.TOP_CENTER

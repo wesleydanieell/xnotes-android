@@ -94,12 +94,18 @@ data class ToolbarGeometry(
     )
 }
 
+sealed interface ToolbarBarContent {
+    data object Tools : ToolbarBarContent
+    data class DocumentTabs(val afterToolbarId: String?) : ToolbarBarContent
+}
+
 data class ToolbarBar(
     val id: String,
     val name: String,
     val layout: ToolbarLayout,
     val visible: Boolean = true,
     val geometry: ToolbarGeometry = ToolbarGeometry(),
+    val content: ToolbarBarContent = ToolbarBarContent.Tools,
 )
 
 /**

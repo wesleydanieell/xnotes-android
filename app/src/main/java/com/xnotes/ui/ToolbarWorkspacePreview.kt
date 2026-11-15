@@ -155,6 +155,8 @@ internal fun ToolbarWorkspacePreview(
             previewDensity, documentTabsConfig, onMoveDocumentTabs, workspace, look, colors.size,
         ) {
             val sharedDock = LocalDocumentTabsDock.current
+            val floatingTabs = LocalFloatingDocumentTabs.current
+            val reorderWithTabs = LocalReorderToolbarWithTabs.current
             val documentDock = documentTabsConfig?.takeUnless { it.floating || sharedDock != null }?.position
             val screenWidth = if (documentDock?.vertical == true) {
                 (windowWidth - DocumentTabsDockExtent).coerceAtLeast(0.dp)
@@ -163,8 +165,8 @@ internal fun ToolbarWorkspacePreview(
                 (windowHeight - DocumentTabsDockExtent).coerceAtLeast(0.dp)
             } else windowHeight
             // Pure layout resolver remains independent from Compose state and gesture lifecycle.
-            val basePlan = remember(workspace, look, screenWidth, screenHeight, colors.size, sharedDock) {
-                toolbarPreviewLayoutPlan(workspace, look, screenWidth, screenHeight, colors.size, sharedDock)
+            val basePlan = remember(workspace, look, screenWidth, screenHeight, colors.size, sharedDock, floatingTabs) {
+                toolbarPreviewLayoutPlan(workspace, look, screenWidth, screenHeight, colors.size, sharedDock, floatingTabs)
             }
             val peersByBar = remember(workspace, basePlan, onReorderBar != null) {
                 if (onReorderBar == null) emptyMap() else toolbarPreviewPeers(workspace, basePlan)
@@ -177,9 +179,9 @@ internal fun ToolbarWorkspacePreview(
             val displayedWorkspace = previewMove?.first ?: reorder.displayedWorkspace(workspace)
             val previewLook = previewMove?.second ?: look
             val previewPlan = if (displayedWorkspace == workspace && previewLook == look) basePlan
-                else remember(displayedWorkspace, previewLook, screenWidth, screenHeight, colors.size, sharedDock) {
+                else remember(displayedWorkspace, previewLook, screenWidth, screenHeight, colors.size, sharedDock, floatingTabs) {
                     toolbarPreviewLayoutPlan(displayedWorkspace, previewLook,
-                        screenWidth, screenHeight, colors.size, sharedDock)
+                        screenWidth, screenHeight, colors.size, sharedDock, floatingTabs)
                 }
             val dockPlan = previewPlan.docked
             Canvas(Modifier.fillMaxSize().onGloballyPositioned { stageBounds = it.boundsInRoot() }) {
@@ -214,7 +216,7 @@ internal fun ToolbarWorkspacePreview(
                         toolbarReorderPreviewSlot(workspace, look, hoveredId, previewPlan)
                     hoveredTarget != null ->
                         toolbarPreviewDropSlot(workspace, look, hoveredId, hoveredTarget,
-                            screenWidth, screenHeight, colors.size, sharedDock)
+                            screenWidth, screenHeight, colors.size, sharedDock, floatingTabs)
                     else -> null
                 }
                 slot?.let { ToolbarDropIndicator(it, hoveredId) }
@@ -263,12 +265,12 @@ internal fun ToolbarWorkspacePreview(
                 // Project the exact same workspace once per destination, not
                 // once PER animation frame (or independently for content/size).
                 val projectedMorph = remember(workspace, look, bar.id, previewOrientation,
-                    screenWidth, screenHeight, colors.size, sharedDock) {
+                    screenWidth, screenHeight, colors.size, sharedDock, floatingTabs) {
                     previewOrientation?.let { target ->
                         toolbarProjectedMove(workspace, look, bar.id, target)?.let { (next, nextLook) ->
                             next.bars.firstOrNull { it.id == bar.id } to
                                 toolbarPreviewLayoutPlan(next, nextLook, screenWidth,
-                                    screenHeight, colors.size, sharedDock).position(bar.id)?.placement
+                                    screenHeight, colors.size, sharedDock, floatingTabs).position(bar.id)?.placement
                         }
                     }
                 }
@@ -352,8 +354,11 @@ internal fun ToolbarWorkspacePreview(
                         onDragPosition = if (onReorderBar == null) null else { finger ->
                             reorder.hover(bar.id, finger)
                         },
-                        onDrop = if (onReorderBar == null) null else { finger ->
-                            reorder.drop(bar.id, finger) { source, destination ->
+                        onDrop = if (onReorderBar == null && reorderWithTabs == null) null else { finger ->
+                            if (reorderWithTabs?.invoke(bar, placement, floating, finger) == true) {
+                                reorder.cancel(bar.id)
+                                true
+                            } else reorder.drop(bar.id, finger) { source, destination ->
                                 commitReorder?.invoke(source, destination)
                             }
                         },
@@ -362,7 +367,7 @@ internal fun ToolbarWorkspacePreview(
                         }),
                         snapTargetInRoot = { target ->
                             toolbarPreviewDropSlot(workspace, look, bar.id, target,
-                                screenWidth, screenHeight, colors.size, sharedDock)
+                                screenWidth, screenHeight, colors.size, sharedDock, floatingTabs)
                                 ?.topLeftInRoot(stageBounds, previewDensity)
                         },
                         onPlacementPreview = { target ->
