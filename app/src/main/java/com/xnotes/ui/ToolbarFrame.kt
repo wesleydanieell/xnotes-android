@@ -338,9 +338,10 @@ internal fun ToolbarFrame(
         (if (bar.vertical) geometry?.heightDp == null else geometry?.widthDp == null)
     val glide = remember { ToolGlide() }
     val palette = LocalPalette.current
-    val shape = MaterialTheme.shapes.extraLarge
+    val shape = toolbarSurfaceShape(geometry, layout, look.size, bar.vertical, look.floating)
+    // Docked auto bars stay square; an individual corner override applies to both modes.
     val surface = if (!look.floating) {
-        Modifier.background(palette.panel.toComposeColor())
+        Modifier.clip(shape).background(palette.panel.toComposeColor())
     } else {
         Modifier
             .shadow(6.dp, shape)
@@ -375,7 +376,7 @@ internal fun ToolbarFrame(
     }
     CompositionLocalProvider(LocalToolGlide provides glide, LocalBar provides bar,
         LocalCompactToolbarRegions provides compactRegions, LocalMenuOffset provides menuOffset,
-        LocalTipSide provides tipSide) {
+        LocalTipSide provides tipSide, LocalToolbarSurfaceShape provides shape) {
         val morph = LocalToolbarContainerMorph.current
         if (morph != null) {
             // Container Transform: keep one surface while the child groups and
