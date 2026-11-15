@@ -82,26 +82,27 @@ internal fun DocumentTabsEditor(
                     }
                 }
                 Column(Modifier.width(sizeWidth), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                    ToolbarSettingsLabel(stringResource(R.string.document_tabs_expanded_size))
-                    FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp),
-                        verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                        PreferenceChoiceChip(stringResource(R.string.document_tabs_automatic_size),
-                            config.sizing == DocumentTabsSizing.DYNAMIC) {
-                            onConfigChange(config.copy(sizing = DocumentTabsSizing.DYNAMIC))
+                    if (config.floating) {
+                        ToolbarSettingsLabel(stringResource(R.string.document_tabs_expanded_size))
+                        FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp),
+                            verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                            PreferenceChoiceChip(stringResource(R.string.document_tabs_automatic_size),
+                                config.sizing == DocumentTabsSizing.DYNAMIC) {
+                                onConfigChange(config.copy(sizing = DocumentTabsSizing.DYNAMIC))
+                            }
+                            PreferenceChoiceChip(stringResource(R.string.document_tabs_manual_size),
+                                config.sizing == DocumentTabsSizing.MANUAL) {
+                                onConfigChange(config.copy(sizing = DocumentTabsSizing.MANUAL))
+                            }
                         }
-                        PreferenceChoiceChip(stringResource(R.string.document_tabs_manual_size),
-                            config.sizing == DocumentTabsSizing.MANUAL) {
-                            onConfigChange(config.copy(sizing = DocumentTabsSizing.MANUAL))
+                        if (config.sizing == DocumentTabsSizing.MANUAL) {
+                            Text(stringResource(R.string.document_tabs_extent_dp, config.manualExtentDp),
+                                style = MaterialTheme.typography.bodySmall)
+                            Slider(config.manualExtentDp.coerceIn(160, 800).toFloat(),
+                                onValueChange = { onConfigChange(config.copy(manualExtentDp = it.toInt())) },
+                                valueRange = 160f..800f)
                         }
-                    }
-                    if (config.sizing == DocumentTabsSizing.MANUAL) {
-                        Text(stringResource(R.string.document_tabs_extent_dp, config.manualExtentDp),
-                            style = MaterialTheme.typography.bodySmall)
-                        Slider(config.manualExtentDp.coerceIn(160, 800).toFloat(),
-                            onValueChange = { onConfigChange(config.copy(manualExtentDp = it.toInt())) },
-                            valueRange = 160f..800f)
-                    }
-                    if (!config.floating) {
+                    } else {
                         ToolbarSettingsLabel(stringResource(R.string.toolbar_config_preferred_lane))
                         FlowRow(horizontalArrangement = Arrangement.spacedBy(5.dp)) {
                             for (lane in 0 until ToolbarDockLayout.MAX_LANES) {

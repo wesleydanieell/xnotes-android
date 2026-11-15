@@ -1235,6 +1235,9 @@ private fun EditorScreen(
                     else editor.toolbarWorkspaces.note,
                 look = editor.toolbarLook,
                 colorCount = editor.toolbarColorCount,
+                modifier = if (editor.openPanes.isNotEmpty()) {
+                    Modifier.background(LocalPalette.current.bg.toComposeColor())
+                } else Modifier,
                 shareDockLanes = !(editor.noteOpen && editor.secondary?.noteOpen == true),
                 enabled = noteTabs.tabs.isNotEmpty() && editor.openPanes.isNotEmpty(),
             ) {
@@ -1649,7 +1652,8 @@ private fun EditorPane(
                 val bar: @Composable () -> Unit = {
                     if (primary != null && !primary.geometry.floating &&
                         !activeWorkspace.hasMultiDock(app.toolbarLook) &&
-                        com.xnotes.ui.LocalDocumentTabsDock.current == null &&
+                        !(com.xnotes.ui.LocalDocumentTabsDockLayout.current &&
+                            com.xnotes.ui.toolbarDockEdge(primary, 0, app.toolbarLook) != null) &&
                         !activeWorkspace.usesSharedFloatingPrimary(app.toolbarLook)) {
                         ToolbarDragSurface(
                             primary.id, primary.geometry.anchor, primary.geometry.movable,
@@ -1729,7 +1733,8 @@ private fun EditorPane(
                 val bar: @Composable () -> Unit = {
                     if (primary != null && !primary.geometry.floating &&
                         !activeWorkspace.hasMultiDock(app.toolbarLook) &&
-                        com.xnotes.ui.LocalDocumentTabsDock.current == null &&
+                        !(com.xnotes.ui.LocalDocumentTabsDockLayout.current &&
+                            com.xnotes.ui.toolbarDockEdge(primary, 0, app.toolbarLook) != null) &&
                         !activeWorkspace.usesSharedFloatingPrimary(app.toolbarLook)) {
                         ToolbarDragSurface(
                             primary.id, primary.geometry.anchor, primary.geometry.movable,

@@ -21,6 +21,7 @@ import com.xnotes.ui.theme.XnotesTheme
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
@@ -153,7 +154,8 @@ class DocumentTabsAdvancedToolbarComposeTest {
             rule.runOnIdle {
                 config = config.withFloating(floating).copy(sizing = DocumentTabsSizing.DYNAMIC, maxExtentDp = 0)
             }
-            bar.assertHeightIsEqualTo(if (floating) 372.dp else 388.dp).assertWidthIsEqualTo(44.dp)
+            bar.assertHeightIsEqualTo(if (floating) 372.dp else 420.dp)
+                .assertWidthIsEqualTo(if (floating) 44.dp else 48.dp)
             val host = rule.onNodeWithTag("tab-sizing-host").fetchSemanticsNode().boundsInRoot
             val editor = rule.onNodeWithTag("tab-sizing-editor").fetchSemanticsNode().boundsInRoot
             val reserved = (if (floating) 0f else 48f) * rule.density.density
@@ -166,12 +168,12 @@ class DocumentTabsAdvancedToolbarComposeTest {
             rule.runOnIdle {
                 config = config.copy(minExtentDp = 80, maxExtentDp = 140)
             }
-            bar.assertHeightIsEqualTo(140.dp)
+            bar.assertHeightIsEqualTo(if (floating) 140.dp else 420.dp)
             rule.runOnIdle {
                 config = config.copy(sizing = DocumentTabsSizing.MANUAL,
                     manualExtentDp = 300, maxExtentDp = 0)
             }
-            bar.assertHeightIsEqualTo(300.dp)
+            bar.assertHeightIsEqualTo(if (floating) 300.dp else 420.dp)
         }
     }
 
@@ -212,11 +214,20 @@ class DocumentTabsAdvancedToolbarComposeTest {
                 val thickness = if (edge.vertical) bar.width else bar.height
                 val length = if (edge.vertical) bar.height else bar.width
                 assertTrue("$label: expected a narrow strip, got $bar", length > 3 * thickness)
+                if (!floating) {
+                    val edgeLength = if (edge.vertical) host.height else host.width
+                    assertEquals("$label: docked tabs must span the whole edge", edgeLength, length, 1f)
+                }
                 if (edge.vertical) bar.center.y else bar.center.x
             }
-            assertTrue("floating=$floating edge=$edge: $centers",
-                centers.getValue(ToolbarDockAlignment.START) < centers.getValue(ToolbarDockAlignment.CENTER) &&
-                    centers.getValue(ToolbarDockAlignment.CENTER) < centers.getValue(ToolbarDockAlignment.END))
+            if (floating) {
+                assertTrue("Floating $edge must follow alignment: $centers",
+                    centers.getValue(ToolbarDockAlignment.START) < centers.getValue(ToolbarDockAlignment.CENTER) &&
+                        centers.getValue(ToolbarDockAlignment.CENTER) < centers.getValue(ToolbarDockAlignment.END))
+            } else {
+                val center = if (edge.vertical) host.center.y else host.center.x
+                centers.values.forEach { assertEquals(center, it, 1f) }
+            }
         }
     }
 
@@ -306,6 +317,8 @@ class DocumentTabsAdvancedToolbarComposeTest {
     }
 
     @Test fun dockedTabLaneReflowsLiveToolbarAndEditor() {
+        var shareDockLanes by mutableStateOf(true)
+        var canvasDisposals = 0
         var config by mutableStateOf(DocumentTabsBarConfig(floating = false))
         rule.setContent {
             MaterialTheme {
@@ -314,13 +327,14 @@ class DocumentTabsAdvancedToolbarComposeTest {
                         onExpandedChange = {}, onSelect = {}, onClose = {},
                         onReorder = { _, _ -> }, onSplit = {}, config = config,
                         onConfigChange = {}, workspace = workspace, look = ToolbarLook(),
-                        colorCount = 5, shareDockLanes = true) {
+                        colorCount = 5, shareDockLanes = shareDockLanes) {
                         Column(Modifier.fillMaxSize()) {
                             ToolbarAround(
                                 bar = { Box(Modifier.fillMaxSize().testTag("live-primary")) },
                                 onCover = { _, _, _, _ -> }, workspace = workspace,
                                 dockedContent = {},
                             ) {
+                                DisposableEffect(Unit) { onDispose { canvasDisposals++ } }
                                 Box(Modifier.fillMaxSize().testTag("live-canvas"))
                             }
                         }
@@ -336,6 +350,9 @@ class DocumentTabsAdvancedToolbarComposeTest {
         val tabsBounds = nav.fetchSemanticsNode().boundsInRoot
         assertTrue(primary.fetchSemanticsNode().boundsInRoot.bottom <= tabsBounds.top)
         assertTrue(canvas.fetchSemanticsNode().boundsInRoot.top >= tabsBounds.bottom)
+        rule.runOnIdle { shareDockLanes = false }
+        canvas.assertExists()
+        rule.runOnIdle { assertEquals(0, canvasDisposals) }
     }
 
     @Test fun previewWithIndependentNavigationDoesNotReplaceToolbarControls() {

@@ -175,10 +175,13 @@ internal fun ColumnScope.ToolbarAround(
 ) {
     val look = LocalToolbarLook.current
     val documentTabsDock = LocalDocumentTabsDock.current
+    val useDockLayout = LocalDocumentTabsDockLayout.current && workspace?.bars?.withIndex()?.any {
+        (index, bar) -> bar.visible && toolbarDockEdge(bar, index, look) != null
+    } == true
     val rest = Modifier.weight(1f).fillMaxWidth()
     // Multi-dock occupies genuine document space on all four edges. The same plan drives
     // the miniature preview; floating bars remain in the content's overlay layer.
-    if (workspace != null && dockedContent != null && (workspace.hasMultiDock(look) || documentTabsDock != null)) {
+    if (workspace != null && dockedContent != null && (workspace.hasMultiDock(look) || useDockLayout)) {
         SideEffect { onCover(0.0, 0.0, 0.0, 0.0) }
         val reorder = remember { ToolbarWorkspaceReorderController() }
         ToolbarReorderRecoveryEffect(reorder)
