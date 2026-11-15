@@ -98,7 +98,7 @@ internal fun toolbarPreviewAspectRatio(screenWidth: Dp, screenHeight: Dp): Float
 internal fun ToolbarWorkspacePreview(
     workspace: ToolbarWorkspace,
     look: ToolbarLook,
-    selectedId: String?,
+    selectedId: String,
     colors: List<Rgba>,
     activeColorIndex: Int,
     pageNumber: Int,

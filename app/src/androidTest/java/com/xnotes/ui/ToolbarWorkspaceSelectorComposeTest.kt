@@ -51,23 +51,17 @@ class ToolbarWorkspaceSelectorComposeTest {
         val workspace = ToolbarWorkspace(listOf(primary, secondary))
         var selected by mutableStateOf("main")
         var action by mutableStateOf("")
-        var documentTabsSelected by mutableStateOf(false)
         rule.setContent {
             MaterialTheme {
                 ToolbarWorkspaceSelector(
                     canvasTab = false, workspace = workspace, selectedBarId = selected,
-                    onContextSelected = {}, onBarSelected = {
-                        selected = it
-                        documentTabsSelected = false
-                    },
+                    onContextSelected = {}, onBarSelected = { selected = it },
                     onResetSelectedBar = { action = "reset" },
                     onOpenLibrary = { action = "library" },
                     onCreate = { action = "create" },
                     onDuplicate = { action = "duplicate" },
                     onRemove = { action = "remove" },
                     onCopy = { action = "copy" },
-                    documentTabsSelected = documentTabsSelected,
-                    onSelectDocumentTabs = { documentTabsSelected = true },
                 )
             }
         }
@@ -82,13 +76,5 @@ class ToolbarWorkspaceSelectorComposeTest {
         rule.onNodeWithContentDescription(actionIcon).performClick()
         rule.onNodeWithText(resources.getString(R.string.remove)).assertExists().performClick()
         rule.runOnIdle { assertEquals("remove", action) }
-
-        val tabsLabel = resources.getString(R.string.document_tabs_tab)
-        rule.onNodeWithText("Colors ▾").performClick()
-        rule.onNodeWithText(tabsLabel).performClick()
-        rule.onNodeWithText("$tabsLabel ▾").assertExists()
-        rule.onNodeWithContentDescription(actionIcon).performClick()
-        rule.onNodeWithText(resources.getString(R.string.duplicate)).assertDoesNotExist()
-        rule.onNodeWithText(resources.getString(R.string.remove)).assertDoesNotExist()
     }
 }

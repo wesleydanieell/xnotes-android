@@ -965,8 +965,6 @@
     <string name="pref_dates">日期</string>
 
     <string name="document_tabs_tab">文档标签页</string>
-    <string name="document_tabs_title">文档导航</string>
-    <string name="document_tabs_description">常驻标签页使用独立栏，与 XNote 和 XCanvas 的工具栏兼容。</string>
     <string name="document_tabs_expanded_size">展开尺寸</string>
     <string name="document_tabs_automatic_size">自动</string>
     <string name="document_tabs_manual_size">自定义</string>

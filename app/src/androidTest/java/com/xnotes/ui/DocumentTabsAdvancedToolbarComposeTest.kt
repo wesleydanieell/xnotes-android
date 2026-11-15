@@ -12,10 +12,13 @@ import androidx.compose.ui.test.assertHeightIsEqualTo
 import androidx.compose.ui.test.assertWidthIsEqualTo
 import androidx.compose.ui.test.assertIsSelected
 import androidx.compose.ui.test.onNodeWithContentDescription
+import androidx.test.platform.app.InstrumentationRegistry
+import com.xnotes.R
 import com.xnotes.settings.CornerStyle
 import com.xnotes.ui.theme.Palette
 import com.xnotes.ui.theme.XnotesTheme
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -95,12 +98,24 @@ class DocumentTabsAdvancedToolbarComposeTest {
     }
 
     @Test fun documentTabsEditorUsesPositionMapForBothPlacementModes() {
+        var paneWidth by mutableStateOf(520.dp)
         var config by mutableStateOf(DocumentTabsBarConfig())
         rule.setContent {
             MaterialTheme {
-                DocumentTabsEditor(config, "auto", { config = it }, {})
+                Box(Modifier.width(paneWidth)) {
+                    DocumentTabsEditor(config, "auto", { config = it }, {})
+                }
             }
         }
+        val resources = InstrumentationRegistry.getInstrumentation().targetContext.resources
+        val positionLabel = rule.onNodeWithText(resources.getString(R.string.toolbar_config_position_and_alignment))
+        val sizeLabel = rule.onNodeWithText(resources.getString(R.string.document_tabs_expanded_size))
+        assertEquals(positionLabel.fetchSemanticsNode().boundsInRoot.top,
+            sizeLabel.fetchSemanticsNode().boundsInRoot.top, 1f)
+        rule.runOnIdle { paneWidth = 320.dp }
+        assertTrue(sizeLabel.fetchSemanticsNode().boundsInRoot.top >
+            positionLabel.fetchSemanticsNode().boundsInRoot.bottom)
+
         for (floating in listOf(true, false)) {
             rule.runOnIdle { config = config.withFloating(floating) }
             for (edge in ToolbarPosition.entries) for (alignment in ToolbarDockAlignment.entries) {

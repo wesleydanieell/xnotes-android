@@ -1357,8 +1357,6 @@
     <string name="toolbar_config_roundness_auto_help">Automatic follows Settings &gt; Corners. Two- and three-row bars use gentler corners.</string>
 
     <string name="document_tabs_tab">Document tabs</string>
-    <string name="document_tabs_title">Document navigation</string>
-    <string name="document_tabs_description">Persistent tabs are a separate bar, compatible with XNote and XCanvas toolbars.</string>
     <string name="document_tabs_expanded_size">Expanded size</string>
     <string name="document_tabs_automatic_size">Automatic</string>
     <string name="document_tabs_manual_size">Custom</string>

@@ -48,14 +48,11 @@ internal fun ToolbarWorkspaceSelector(
     onDuplicate: () -> Unit,
     onRemove: () -> Unit,
     onCopy: () -> Unit,
-    documentTabsSelected: Boolean = false,
-    onSelectDocumentTabs: (() -> Unit)? = null,
 ) {
     val strings = LocalContext.current
     var barMenuExpanded by remember { mutableStateOf(false) }
     var actionsExpanded by remember { mutableStateOf(false) }
     val selectedBar = workspace.bars.firstOrNull { it.id == selectedBarId } ?: workspace.bars.first()
-    val selectedName = if (documentTabsSelected) stringResource(R.string.document_tabs_tab) else selectedBar.name
     Row(verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(6.dp)) {
         ToolbarEditorChip("xnote", selected = !canvasTab) { onContextSelected(false) }
@@ -63,7 +60,7 @@ internal fun ToolbarWorkspaceSelector(
         Spacer(Modifier.weight(1f))
         Box {
             TextButton(onClick = { barMenuExpanded = true }, modifier = Modifier.widthIn(max = 120.dp)) {
-                Text("${selectedName} ▾", maxLines = 1, overflow = TextOverflow.Ellipsis)
+                Text("${selectedBar.name} ▾", maxLines = 1, overflow = TextOverflow.Ellipsis)
             }
             DropdownMenu(expanded = barMenuExpanded,
                 onDismissRequest = { barMenuExpanded = false }) {
@@ -72,15 +69,6 @@ internal fun ToolbarWorkspaceSelector(
                         text = { Text("${index + 1}. ${bar.name}") },
                         onClick = {
                             onBarSelected(bar.id)
-                            barMenuExpanded = false
-                        },
-                    )
-                }
-                if (onSelectDocumentTabs != null) {
-                    DropdownMenuItem(
-                        text = { Text(stringResource(R.string.document_tabs_tab)) },
-                        onClick = {
-                            onSelectDocumentTabs()
                             barMenuExpanded = false
                         },
                     )
@@ -106,22 +94,18 @@ internal fun ToolbarWorkspaceSelector(
                     TextButton(onClick = { actionsExpanded = false; onCreate() }) {
                         Text(stringResource(R.string.add) + " " + stringResource(R.string.pref_toolbar))
                     }
-                    if (!documentTabsSelected) {
-                        TextButton(onClick = { actionsExpanded = false; onDuplicate() }) {
-                            Text(stringResource(R.string.duplicate))
-                        }
-                        if (workspace.bars.size > 1 && selectedBar.id != workspace.bars.first().id) {
-                            TextButton(onClick = { actionsExpanded = false; onRemove() }) {
-                                Text(stringResource(R.string.remove))
-                            }
+                    TextButton(onClick = { actionsExpanded = false; onDuplicate() }) {
+                        Text(stringResource(R.string.duplicate))
+                    }
+                    if (workspace.bars.size > 1 && selectedBar.id != workspace.bars.first().id) {
+                        TextButton(onClick = { actionsExpanded = false; onRemove() }) {
+                            Text(stringResource(R.string.remove))
                         }
                     }
                 }
-                if (!documentTabsSelected) {
-                    TextButton(onClick = { actionsExpanded = false; onCopy() }) {
-                        Text(strings.getString(R.string.toolbar_config_copy_to,
-                            if (canvasTab) "XNotes" else "XCanvas"))
-                    }
+                TextButton(onClick = { actionsExpanded = false; onCopy() }) {
+                    Text(strings.getString(R.string.toolbar_config_copy_to,
+                        if (canvasTab) "XNotes" else "XCanvas"))
                 }
             }
         }
