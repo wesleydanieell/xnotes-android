@@ -997,4 +997,6 @@
     <string name="toolbar_config_auto">自动</string>
     <string name="pref_document_tabs_mode">打开时的文档标签页</string>
     <string name="document_tabs_auto">自动</string>
+    <string name="toolbar_config_preferred_lane">首选停靠排</string>
+    <string name="toolbar_config_lane_number">第 %1$d 排</string>
 </resources>

@@ -13,6 +13,8 @@ import androidx.compose.foundation.layout.sizeIn
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.wrapContentSize
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.compositionLocalOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -32,14 +34,44 @@ import androidx.compose.ui.zIndex
 import com.xnotes.core.tools.ToolbarAnchor
 import com.xnotes.core.tools.ToolbarDockAlignment
 import com.xnotes.core.tools.ToolbarDockPlan
+import com.xnotes.core.tools.ToolbarDockRequest
 import com.xnotes.core.tools.ToolbarDropPosition
 import com.xnotes.core.tools.ToolbarWorkspace
 import com.xnotes.core.workspace.NoteTabs
 import com.xnotes.settings.DocumentTabsBarConfig
-import com.xnotes.settings.DocumentTabsSizing
 import com.xnotes.settings.ToolbarLook
 import com.xnotes.settings.ToolbarPosition
 import kotlin.math.roundToInt
+
+private const val DocumentTabsDockId = "document-tabs-navigation"
+internal val LocalDocumentTabsDock = compositionLocalOf<ToolbarDockRequest?> { null }
+
+internal fun documentTabsDockRequest(config: DocumentTabsBarConfig, width: Float, height: Float) =
+    ToolbarDockRequest(
+        id = DocumentTabsDockId,
+        edge = config.position.dockEdge(),
+        lane = config.dockLane,
+        alignment = config.alignment(),
+        length = config.expandedExtent(((if (config.position.vertical) height else width) - 32f).coerceAtLeast(0f)),
+        depth = DocumentTabsDockExtent.value,
+    )
+
+internal fun sharedDocumentTabsDock(
+    config: DocumentTabsBarConfig?, workspace: ToolbarWorkspace, look: ToolbarLook,
+    width: androidx.compose.ui.unit.Dp, height: androidx.compose.ui.unit.Dp,
+): ToolbarDockRequest? {
+    if (config == null || config.floating) return null
+    val existing = toolbarDockPlan(workspace, look, width, height)
+    if (existing.placements.isEmpty()) return null
+    val request = documentTabsDockRequest(config, width.value, height.value)
+    val shared = toolbarDockPlan(workspace, look, width, height, request)
+    return request.takeIf {
+        shared.placement(request.id) != null &&
+            existing.placements.all { shared.placement(it.id) != null }
+    }
+}
+
+internal val DocumentTabsDockExtent = 48.dp
 
 /** Navigation is not a tool or a ToolbarEntry. It occupies an independent overlay/dock,
  * and the existing tool layout planner is its source of collision obstacles. */
@@ -79,11 +111,13 @@ internal fun DocumentTabsHost(
     colorCount: Int,
     modifier: Modifier = Modifier,
     enabled: Boolean = true,
+    shareDockLanes: Boolean = false,
     content: @Composable () -> Unit,
 ) {
     if (!enabled || tabs.tabs.isEmpty()) { Box(modifier) { content() }; return }
     val density = LocalDensity.current
     val vertical = config.position.vertical
+    val showExpanded = expanded || !config.floating
     var root by remember { mutableStateOf(Rect.Zero) }
     var child by remember { mutableStateOf(Size.Zero) }
     var dockedPosition by remember { mutableStateOf<Offset?>(null) }
@@ -95,6 +129,12 @@ internal fun DocumentTabsHost(
         val heightDp = maxHeight.value
         val px = with(density) { 1.dp.toPx() }
         val host = Size(widthDp * px, heightDp * px)
+        val sharedDock = remember(shareDockLanes, config, workspace, look, maxWidth, maxHeight) {
+            if (shareDockLanes) sharedDocumentTabsDock(config, workspace, look, maxWidth, maxHeight) else null
+        }
+        val dockSlot = sharedDock?.let {
+            toolbarDockPlan(workspace, look, maxWidth, maxHeight, it).placement(it.id)
+        }
         val obstacles = remember(workspace, look, widthDp, heightDp, colorCount, px) {
             documentTabsToolObstacles(workspace, look, widthDp, heightDp, colorCount, px)
         }
@@ -108,16 +148,14 @@ internal fun DocumentTabsHost(
             val available = if (config.floating) {
                 (if (edge.vertical) strip.height else strip.width) / px
             } else if (edge.vertical) heightDp else widthDp
-            val configured = config.expandedExtent((available - 32f).coerceAtLeast(0f))
-            return if (edge.vertical && config.sizing == DocumentTabsSizing.DYNAMIC) {
-                configured.coerceAtMost(240f)
-            } else configured
+            return config.expandedExtent((available - 32f).coerceAtLeast(0f))
         }
         val usableStrip = remember(config.anchor, config.position, obstacles, host, px) {
             freeStrip(config.anchor, config.position)
         }
-        val contentExtent = expandedExtent(config.position, usableStrip).dp
-        val stripLength = if (expanded) contentExtent.value else 210f
+        val contentExtent = (dockSlot?.let { if (vertical) it.height else it.width }
+            ?: expandedExtent(config.position, usableStrip)).dp
+        val stripLength = if (showExpanded) contentExtent.value else 210f
         val defaultSize = if (vertical) Size(44f * px, stripLength * px)
             else Size(stripLength * px, 44f * px)
         val measured = if (child == Size.Zero) defaultSize else child
@@ -126,7 +164,7 @@ internal fun DocumentTabsHost(
         fun configAt(target: ToolbarDropPosition): DocumentTabsBarConfig =
             config.movedTo(DocumentTabsBarConfig.edgeOf(target.anchor), target.alignment)
         fun projectedSize(edge: ToolbarPosition, strip: Rect): Size {
-            val length = if (expanded) expandedExtent(edge, strip) * px
+            val length = if (showExpanded) expandedExtent(edge, strip) * px
                 else if (vertical) measured.height else measured.width
             val thickness = if (vertical) measured.width else measured.height
             return if (edge.vertical) Size(thickness, length) else Size(length, thickness)
@@ -153,7 +191,7 @@ internal fun DocumentTabsHost(
                     }
                 }) {
                 ToolbarDragSurface(
-                    id = "document-tabs-navigation", anchor = dragAnchor, movable = true,
+                    id = DocumentTabsDockId, anchor = dragAnchor, movable = true,
                     paneBounds = root,
                     onMoveBar = { _, anchor, alignment ->
                         onConfigChange(configAt(ToolbarDropPosition(anchor, alignment)))
@@ -171,7 +209,7 @@ internal fun DocumentTabsHost(
                     // Drag by holding the navigation surface itself. A separate
                     // grip takes room from tabs, unlike the other toolbars.
                     FloatingDocumentTabs(
-                        tabs = tabs, activeUri = activeUri, expanded = expanded,
+                        tabs = tabs, activeUri = activeUri, expanded = showExpanded,
                         onExpandedChange = onExpandedChange, onSelect = onSelect,
                         onClose = onClose, vertical = vertical,
                         expandedWidth = contentExtent,
@@ -194,17 +232,21 @@ internal fun DocumentTabsHost(
                     maxHeight = (usableStrip.height / px).dp,
                 ))
             }
+        } else if (dockSlot != null) {
+            CompositionLocalProvider(LocalDocumentTabsDock provides sharedDock) { content() }
+            navigation(Modifier.offset(x = dockSlot.x.dp, y = dockSlot.y.dp).zIndex(20f)
+                .width(dockSlot.width.dp).height(dockSlot.height.dp))
         } else {
             Column(Modifier.fillMaxSize()) {
-                if (config.position == ToolbarPosition.TOP) navigation(Modifier.fillMaxWidth().height(48.dp))
+                if (config.position == ToolbarPosition.TOP) navigation(Modifier.fillMaxWidth().height(DocumentTabsDockExtent))
                 Row(Modifier.weight(1f).fillMaxWidth()) {
                     if (config.position == ToolbarPosition.LEFT)
-                        navigation(Modifier.width(48.dp).fillMaxHeight())
+                        navigation(Modifier.width(DocumentTabsDockExtent).fillMaxHeight())
                     Box(Modifier.weight(1f).fillMaxHeight()) { content() }
                     if (config.position == ToolbarPosition.RIGHT)
-                        navigation(Modifier.width(48.dp).fillMaxHeight())
+                        navigation(Modifier.width(DocumentTabsDockExtent).fillMaxHeight())
                 }
-                if (config.position == ToolbarPosition.BOTTOM) navigation(Modifier.fillMaxWidth().height(48.dp))
+                if (config.position == ToolbarPosition.BOTTOM) navigation(Modifier.fillMaxWidth().height(DocumentTabsDockExtent))
             }
         }
         if (hover != null) {
@@ -212,11 +254,17 @@ internal fun DocumentTabsHost(
             if (targetConfig != config) {
                 val strip = freeStrip(targetConfig.anchor, targetConfig.position)
                 val targetSize = projectedSize(targetConfig.position, strip)
-                val origin = if (config.floating) {
+                val sharedTarget = if (dockSlot == null) null else {
+                    val request = documentTabsDockRequest(targetConfig, widthDp, heightDp)
+                    toolbarDockPlan(workspace, look, maxWidth, maxHeight, request).placement(request.id)
+                }
+                val origin = if (sharedTarget != null) {
+                    Offset(sharedTarget.x * px, sharedTarget.y * px)
+                } else if (config.floating) {
                     destination(strip, targetConfig.anchor, targetSize)
                 } else {
                     val edgeOffset = documentTabsOffset(host, targetSize, targetConfig.anchor, emptyList(), 0f)
-                    val inset = (48f * px - if (targetConfig.position.vertical) targetSize.width else targetSize.height) / 2f
+                    val inset = (DocumentTabsDockExtent.value * px - if (targetConfig.position.vertical) targetSize.width else targetSize.height) / 2f
                     edgeOffset + when (targetConfig.position) {
                         ToolbarPosition.TOP -> Offset(0f, inset)
                         ToolbarPosition.BOTTOM -> Offset(0f, -inset)
@@ -225,7 +273,7 @@ internal fun DocumentTabsHost(
                     }
                 }
                 ToolbarDropIndicator(ToolbarDropSlot(origin.x / px, origin.y / px,
-                    targetSize.width / px, targetSize.height / px), "document-tabs-navigation")
+                    sharedTarget?.width ?: targetSize.width / px, sharedTarget?.height ?: targetSize.height / px), DocumentTabsDockId)
             }
         }
     }

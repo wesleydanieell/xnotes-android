@@ -117,6 +117,7 @@ internal fun toolbarDockPlan(
     look: ToolbarLook,
     windowWidth: Dp,
     windowHeight: Dp,
+    documentTabs: ToolbarDockRequest? = null,
 ): ToolbarDockPlan {
     val requests = workspace.bars.mapIndexedNotNull { index, bar ->
         val edge = toolbarDockEdge(bar, index, look)?.takeIf { bar.visible } ?: return@mapIndexedNotNull null
@@ -140,7 +141,7 @@ internal fun toolbarDockPlan(
     // the original length. The real renderer is constrained by the same placement box.
     // Cap both axes before the reservation pass: an oversized top bar must not be
     // rejected here and then incorrectly leave its space available to a side bar.
-    val orderedRequests = toolbarRequestsInVisualOrder(workspace, requests)
+    val orderedRequests = listOfNotNull(documentTabs) + toolbarRequestsInVisualOrder(workspace, requests)
     val safeDepthRequests = orderedRequests.map { request ->
         val vertical = request.edge == ToolbarDockEdge.LEFT || request.edge == ToolbarDockEdge.RIGHT
         request.copy(depth = request.depth.coerceAtMost(toolbarSafeDockDepth(

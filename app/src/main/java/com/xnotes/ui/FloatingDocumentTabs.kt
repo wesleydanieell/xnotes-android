@@ -72,13 +72,13 @@ fun FloatingDocumentTabs(
         .border(1.dp, palette.border.toComposeColor(), shape)
         else oriented.background(palette.panel.toComposeColor())
     Column(surface.animateContentSize(spring(stiffness = Spring.StiffnessMediumLow))) {
-        if (expanded) {
+        if (expanded || !floatingSurface) {
             Box(Modifier.width(width).height(44.dp)) {
                 NoteTabBar(tabs, activeUri, onSelect, onClose,
-                    modifier = Modifier.padding(end = 36.dp),
+                    modifier = Modifier.padding(end = if (floatingSurface) 36.dp else 0.dp),
                     floatingSurface = floatingSurface, rotated = vertical,
                     onReorder = onReorder, onSplit = onSplit)
-                Box(Modifier.align(Alignment.CenterEnd)
+                if (floatingSurface) Box(Modifier.align(Alignment.CenterEnd)
                     .size(36.dp).clickable { onExpandedChange(false) }, contentAlignment = Alignment.Center) {
                     Icon(Icons.Filled.KeyboardArrowUp, stringResource(R.string.document_tabs_collapse), Modifier.size(20.dp),
                         tint = palette.textDim.toComposeColor())

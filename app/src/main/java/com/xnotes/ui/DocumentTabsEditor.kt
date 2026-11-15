@@ -16,6 +16,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import com.xnotes.R
+import com.xnotes.core.tools.ToolbarDockLayout
 import com.xnotes.settings.DocumentTabsBarConfig
 import com.xnotes.settings.DocumentTabsSizing
 import com.xnotes.ui.theme.LocalPalette
@@ -31,7 +32,7 @@ internal fun DocumentTabsEditor(
 ) {
     BoxWithConstraints(Modifier.fillMaxWidth()) {
         val twoColumns = maxWidth >= 460.dp
-        val groupWidth = if (twoColumns) (maxWidth - 13.dp) / 2 else maxWidth
+        val groupWidth = if (twoColumns && config.floating) (maxWidth - 13.dp) / 2 else maxWidth
         val mapWidth = if (twoColumns) 240.dp else maxWidth
         val sizeWidth = if (twoColumns) maxWidth - mapWidth - 13.dp else maxWidth
         Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
@@ -51,18 +52,20 @@ internal fun DocumentTabsEditor(
                         }
                     }
                 }
-                Column(Modifier.width(groupWidth), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                    ToolbarSettingsLabel(stringResource(R.string.document_tabs_startup))
-                    FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp),
-                        verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                        PreferenceChoiceChip(stringResource(R.string.document_tabs_auto), startupMode == "auto") {
-                            onModeChange("auto")
-                        }
-                        PreferenceChoiceChip(stringResource(R.string.document_tabs_compact), startupMode == "compact") {
-                            onModeChange("compact")
-                        }
-                        PreferenceChoiceChip(stringResource(R.string.document_tabs_expanded), startupMode == "expanded") {
-                            onModeChange("expanded")
+                if (config.floating) {
+                    Column(Modifier.width(groupWidth), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                        ToolbarSettingsLabel(stringResource(R.string.document_tabs_startup))
+                        FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp),
+                            verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                            PreferenceChoiceChip(stringResource(R.string.document_tabs_auto), startupMode == "auto") {
+                                onModeChange("auto")
+                            }
+                            PreferenceChoiceChip(stringResource(R.string.document_tabs_compact), startupMode == "compact") {
+                                onModeChange("compact")
+                            }
+                            PreferenceChoiceChip(stringResource(R.string.document_tabs_expanded), startupMode == "expanded") {
+                                onModeChange("expanded")
+                            }
                         }
                     }
                 }
@@ -97,6 +100,17 @@ internal fun DocumentTabsEditor(
                         Slider(config.manualExtentDp.coerceIn(160, 800).toFloat(),
                             onValueChange = { onConfigChange(config.copy(manualExtentDp = it.toInt())) },
                             valueRange = 160f..800f)
+                    }
+                    if (!config.floating) {
+                        ToolbarSettingsLabel(stringResource(R.string.toolbar_config_preferred_lane))
+                        FlowRow(horizontalArrangement = Arrangement.spacedBy(5.dp)) {
+                            for (lane in 0 until ToolbarDockLayout.MAX_LANES) {
+                                PreferenceChoiceChip(stringResource(R.string.toolbar_config_lane_number, lane + 1),
+                                    config.dockLane == lane) {
+                                    onConfigChange(config.copy(dockLane = lane))
+                                }
+                            }
+                        }
                     }
                 }
             }

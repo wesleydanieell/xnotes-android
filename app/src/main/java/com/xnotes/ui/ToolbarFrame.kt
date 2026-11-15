@@ -174,18 +174,19 @@ internal fun ColumnScope.ToolbarAround(
     content: @Composable (floatingBar: @Composable BoxScope.() -> Unit) -> Unit,
 ) {
     val look = LocalToolbarLook.current
+    val documentTabsDock = LocalDocumentTabsDock.current
     val rest = Modifier.weight(1f).fillMaxWidth()
     // Multi-dock occupies genuine document space on all four edges. The same plan drives
     // the miniature preview; floating bars remain in the content's overlay layer.
-    if (workspace != null && dockedContent != null && workspace.hasMultiDock(look)) {
+    if (workspace != null && dockedContent != null && (workspace.hasMultiDock(look) || documentTabsDock != null)) {
         SideEffect { onCover(0.0, 0.0, 0.0, 0.0) }
         val reorder = remember { ToolbarWorkspaceReorderController() }
         ToolbarReorderRecoveryEffect(reorder)
         LaunchedEffect(workspace) { reorder.acknowledge(workspace) }
         var paneBounds by remember { mutableStateOf(Rect.Zero) }
         BoxWithConstraints(rest.onGloballyPositioned { paneBounds = it.boundsInRoot() }) {
-            val basePlan = remember(workspace, look, maxWidth, maxHeight) {
-                toolbarDockPlan(workspace, look, maxWidth, maxHeight)
+            val basePlan = remember(workspace, look, maxWidth, maxHeight, documentTabsDock) {
+                toolbarDockPlan(workspace, look, maxWidth, maxHeight, documentTabsDock)
             }
             val reordered = reorder.displayedWorkspace(workspace)
             val hoveredId = reorder.sourceId
@@ -198,8 +199,8 @@ internal fun ColumnScope.ToolbarAround(
             val proposedWorkspace = previewMove?.first ?: reordered
             val proposedLook = previewMove?.second ?: look
             val proposedPlan = if (proposedWorkspace == workspace && proposedLook == look) basePlan
-                else remember(proposedWorkspace, proposedLook, maxWidth, maxHeight) {
-                    toolbarDockPlan(proposedWorkspace, proposedLook, maxWidth, maxHeight)
+                else remember(proposedWorkspace, proposedLook, maxWidth, maxHeight, documentTabsDock) {
+                    toolbarDockPlan(proposedWorkspace, proposedLook, maxWidth, maxHeight, documentTabsDock)
                 }
             val peers = remember(workspace, basePlan, onReorderBar != null) {
                 if (onReorderBar == null) emptyMap() else workspace.bars.associate { dockBar ->
@@ -217,7 +218,7 @@ internal fun ColumnScope.ToolbarAround(
                         toolbarReorderDockSlot(workspace, look, hoveredId, proposedPlan)
                     hoveredTarget != null ->
                         toolbarDockDropSlot(workspace, look, hoveredId, hoveredTarget,
-                            maxWidth, maxHeight)
+                            maxWidth, maxHeight, documentTabsDock)
                     else -> null
                 }
                 slot?.let { ToolbarDropIndicator(it, hoveredId) }
@@ -244,7 +245,7 @@ internal fun ColumnScope.ToolbarAround(
                         onReorderBar = onReorderBar,
                         projectedSlot = { target ->
                             toolbarDockDropSlot(workspace, look, dockBar.id, target,
-                                maxWidth, maxHeight)
+                                maxWidth, maxHeight, documentTabsDock)
                         },
                     ) {
                         CompositionLocalProvider(LocalToolbarLook provides barLook) {

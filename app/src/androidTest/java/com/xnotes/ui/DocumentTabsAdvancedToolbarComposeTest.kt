@@ -1,6 +1,7 @@
 package com.xnotes.ui
 
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.background
 import androidx.compose.ui.graphics.Color
@@ -131,7 +132,7 @@ class DocumentTabsAdvancedToolbarComposeTest {
         }
     }
 
-    @Test fun automaticVerticalBarUsesSmallerHeightLimit() {
+    @Test fun automaticVerticalBarUsesAvailableHeight() {
         var selectedUri: String? = null
         var config by mutableStateOf(DocumentTabsBarConfig().movedTo(ToolbarAnchor.CENTER_LEFT))
         rule.setContent {
@@ -152,7 +153,7 @@ class DocumentTabsAdvancedToolbarComposeTest {
             rule.runOnIdle {
                 config = config.withFloating(floating).copy(sizing = DocumentTabsSizing.DYNAMIC, maxExtentDp = 0)
             }
-            bar.assertHeightIsEqualTo(240.dp).assertWidthIsEqualTo(44.dp)
+            bar.assertHeightIsEqualTo(if (floating) 372.dp else 388.dp).assertWidthIsEqualTo(44.dp)
             val host = rule.onNodeWithTag("tab-sizing-host").fetchSemanticsNode().boundsInRoot
             val editor = rule.onNodeWithTag("tab-sizing-editor").fetchSemanticsNode().boundsInRoot
             val reserved = (if (floating) 0f else 48f) * rule.density.density
@@ -304,9 +305,42 @@ class DocumentTabsAdvancedToolbarComposeTest {
             roundedFartherIn != softFartherIn)
     }
 
+    @Test fun dockedTabLaneReflowsLiveToolbarAndEditor() {
+        var config by mutableStateOf(DocumentTabsBarConfig(floating = false))
+        rule.setContent {
+            MaterialTheme {
+                Box(Modifier.size(640.dp, 420.dp)) {
+                    DocumentTabsHost(tabs = tabs, activeUri = "n1.xnote", expanded = false,
+                        onExpandedChange = {}, onSelect = {}, onClose = {},
+                        onReorder = { _, _ -> }, onSplit = {}, config = config,
+                        onConfigChange = {}, workspace = workspace, look = ToolbarLook(),
+                        colorCount = 5, shareDockLanes = true) {
+                        Column(Modifier.fillMaxSize()) {
+                            ToolbarAround(
+                                bar = { Box(Modifier.fillMaxSize().testTag("live-primary")) },
+                                onCover = { _, _, _, _ -> }, workspace = workspace,
+                                dockedContent = {},
+                            ) {
+                                Box(Modifier.fillMaxSize().testTag("live-canvas"))
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        val nav = rule.onNodeWithTag("document-tabs-bar", useUnmergedTree = true)
+        val primary = rule.onNodeWithTag("live-primary", useUnmergedTree = true)
+        val canvas = rule.onNodeWithTag("live-canvas", useUnmergedTree = true)
+        assertTrue(nav.fetchSemanticsNode().boundsInRoot.bottom <= primary.fetchSemanticsNode().boundsInRoot.top)
+        rule.runOnIdle { config = config.copy(dockLane = 2) }
+        val tabsBounds = nav.fetchSemanticsNode().boundsInRoot
+        assertTrue(primary.fetchSemanticsNode().boundsInRoot.bottom <= tabsBounds.top)
+        assertTrue(canvas.fetchSemanticsNode().boundsInRoot.top >= tabsBounds.bottom)
+    }
+
     @Test fun previewWithIndependentNavigationDoesNotReplaceToolbarControls() {
-        val config = DocumentTabsBarConfig(floating = true, anchor = ToolbarAnchor.TOP_RIGHT,
-            position = ToolbarPosition.TOP)
+        var config by mutableStateOf( DocumentTabsBarConfig(floating = true, anchor = ToolbarAnchor.TOP_RIGHT,
+            position = ToolbarPosition.TOP))
         rule.setContent {
             MaterialTheme {
                 ToolbarWorkspacePreview(
@@ -319,8 +353,29 @@ class DocumentTabsAdvancedToolbarComposeTest {
             }
         }
         rule.waitForIdle()
-        rule.onNodeWithTag("preview-bar-primary", useUnmergedTree = true).assertExists()
-        rule.onNodeWithTag("document-tabs-bar", useUnmergedTree = true).assertExists()
+        val primary = rule.onNodeWithTag("preview-bar-primary", useUnmergedTree = true)
+        val navigation = rule.onNodeWithTag("document-tabs-bar", useUnmergedTree = true)
+        val floatingPrimary = primary.fetchSemanticsNode().boundsInRoot
+        navigation.assertExists()
+
+        rule.runOnIdle { config = config.withFloating(false) }
+        val dockedPrimary = primary.fetchSemanticsNode().boundsInRoot
+        val dockedTabs = navigation.fetchSemanticsNode().boundsInRoot
+        assertTrue("The workspace toolbar must move below docked tabs",
+            dockedPrimary.top > floatingPrimary.top && dockedPrimary.top >= dockedTabs.bottom)
+        for (lane in 1..2) {
+            rule.runOnIdle { config = config.copy(dockLane = lane) }
+            val firstLane = primary.fetchSemanticsNode().boundsInRoot
+            val selectedLane = navigation.fetchSemanticsNode().boundsInRoot
+            assertTrue("Tabs in lane ${lane + 1} must sit inside the primary toolbar",
+                selectedLane.top >= firstLane.bottom)
+        }
+        rule.onNodeWithText("XNote").assertExists()
+        val resources = InstrumentationRegistry.getInstrumentation().targetContext.resources
+        rule.onNodeWithContentDescription(resources.getString(R.string.document_tabs_collapse), useUnmergedTree = true)
+            .assertDoesNotExist()
+        rule.onNodeWithContentDescription(resources.getString(R.string.document_tabs_expand), useUnmergedTree = true)
+            .assertDoesNotExist()
     }
 
     @Test fun collapsedNavigationExpandsWithoutDuplicatingToolbars() {
