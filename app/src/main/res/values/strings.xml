@@ -1355,4 +1355,24 @@
     <string name="toolbar_config_preferred_lane">Preferred lane</string>
     <string name="toolbar_config_roundness">Roundness</string>
     <string name="toolbar_config_roundness_auto_help">Automatic follows Settings &gt; Corners. Two- and three-row bars use gentler corners.</string>
+
+    <string name="document_tabs_tab">Document tabs</string>
+    <string name="document_tabs_title">Document navigation</string>
+    <string name="document_tabs_description">Persistent tabs are a separate bar, compatible with XNote and XCanvas toolbars.</string>
+    <string name="document_tabs_expanded_size">Expanded size</string>
+    <string name="document_tabs_automatic_size">Automatic</string>
+    <string name="document_tabs_manual_size">Custom</string>
+    <string name="document_tabs_extent_dp">%1$d dp</string>
+    <string name="document_tabs_startup">Startup</string>
+    <string name="document_tabs_gesture_hint">Hold the navigation bar to move it. Hold a tab to reorder it. The tab menu also offers split view.</string>
+    <string name="document_tabs_documents">Documents</string>
+    <string name="document_tabs_expand">Expand document tabs</string>
+    <string name="document_tabs_collapse">Collapse document tabs</string>
+    <string name="document_tabs_note">Note</string>
+    <string name="document_tabs_canvas">Canvas</string>
+    <string name="document_tabs_open_split">Open in split view</string>
+    <string name="document_tabs_move_left">Move left</string>
+    <string name="document_tabs_move_right">Move right</string>
+    <string name="document_tabs_move_up">Move up</string>
+    <string name="document_tabs_move_down">Move down</string>
 </resources>

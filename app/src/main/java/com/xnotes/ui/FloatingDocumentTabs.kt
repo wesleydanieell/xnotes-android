@@ -28,11 +28,15 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
+import androidx.compose.ui.layout.layout
 import androidx.compose.ui.platform.LocalConfiguration
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.Constraints
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.xnotes.R
 import com.xnotes.core.workspace.NoteTabs
 import com.xnotes.ui.theme.LocalPalette
 import com.xnotes.ui.theme.toComposeColor
@@ -49,42 +53,36 @@ fun FloatingDocumentTabs(
     modifier: Modifier = Modifier,
     vertical: Boolean = false,
     expandedWidth: Dp? = null,
-    expandedHeight: Dp? = null,
     floatingSurface: Boolean = true,
     onReorder: ((Int, Int) -> Unit)? = null,
     onSplit: ((String) -> Unit)? = null,
 ) {
     val palette = LocalPalette.current
     val active = tabs.tabs.firstOrNull { it.uri == activeUri } ?: tabs.tabs.firstOrNull()
-    val title = active?.title?.replace(Regex("(?i)\\.(xnote|xcanvas)$"), "") ?: "Documents"
+    val title = active?.title?.replace(Regex("(?i)\\.(xnote|xcanvas)$"), "") ?: stringResource(R.string.document_tabs_documents)
     val canvas = active?.uri?.substringBefore('?')?.endsWith(".xcanvas", true) == true
     val screenWidth = LocalConfiguration.current.screenWidthDp.dp
     val width = expandedWidth ?: (screenWidth - 16.dp).coerceAtLeast(160.dp)
-    // Exactly the same Material shape role as the floating ToolbarFrame.
-    // XnotesTheme regenerates it from Preferences.cornerStyle (sharp/rounded/soft).
-    val shape = MaterialTheme.shapes.extraLarge
-    val surface = if (floatingSurface) modifier.shadow(5.dp, shape)
+    // The thin strip needs a radius below half its thickness to keep
+    // Rounded and Soft visually distinct.
+    val shape = MaterialTheme.shapes.large
+    val oriented = if (vertical) modifier.rotateTabStrip() else modifier
+    val surface = if (floatingSurface) oriented.shadow(5.dp, shape)
         .clip(shape).background(palette.panel.toComposeColor())
         .border(1.dp, palette.border.toComposeColor(), shape)
-        else modifier.background(palette.panel.toComposeColor())
+        else oriented.background(palette.panel.toComposeColor())
     Column(surface.animateContentSize(spring(stiffness = Spring.StiffnessMediumLow))) {
         if (expanded) {
-            val height = if (vertical) expandedHeight ?: (tabs.tabs.size * 42 + 38).coerceAtMost(430).dp else 44.dp
-            Box(Modifier.width(if (vertical) 196.dp else width).height(height)) {
+            Box(Modifier.width(width).height(44.dp)) {
                 NoteTabBar(tabs, activeUri, onSelect, onClose,
-                    modifier = if (vertical) Modifier.height((height - 36.dp).coerceAtLeast(42.dp))
-                        else Modifier.padding(end = 36.dp),
-                    floatingSurface = true, vertical = vertical, onReorder = onReorder, onSplit = onSplit)
-                Box(Modifier.align(if (vertical) Alignment.BottomCenter else Alignment.CenterEnd)
+                    modifier = Modifier.padding(end = 36.dp),
+                    floatingSurface = floatingSurface, rotated = vertical,
+                    onReorder = onReorder, onSplit = onSplit)
+                Box(Modifier.align(Alignment.CenterEnd)
                     .size(36.dp).clickable { onExpandedChange(false) }, contentAlignment = Alignment.Center) {
-                    Icon(Icons.Filled.KeyboardArrowUp, "Collapse document tabs", Modifier.size(20.dp),
+                    Icon(Icons.Filled.KeyboardArrowUp, stringResource(R.string.document_tabs_collapse), Modifier.size(20.dp),
                         tint = palette.textDim.toComposeColor())
                 }
-            }
-        } else if (vertical) {
-            Box(Modifier.size(44.dp).clickable { onExpandedChange(true) }, contentAlignment = Alignment.Center) {
-                Icon(if (canvas) Icons.Outlined.Gesture else Icons.AutoMirrored.Outlined.Article,
-                    "Expand document tabs", Modifier.size(19.dp), tint = palette.text.toComposeColor())
             }
         } else {
             Row(Modifier.clickable { onExpandedChange(true) }.height(42.dp).padding(horizontal = 12.dp),
@@ -96,9 +94,26 @@ fun FloatingDocumentTabs(
                     color = palette.text.toComposeColor())
                 if (tabs.tabs.size > 1) Text("${tabs.tabs.size}", fontSize = 11.sp,
                     color = palette.textDim.toComposeColor())
-                Icon(Icons.Filled.KeyboardArrowDown, "Expand document tabs", Modifier.size(18.dp),
+                Icon(Icons.Filled.KeyboardArrowDown, stringResource(R.string.document_tabs_expand), Modifier.size(18.dp),
                     tint = palette.textDim.toComposeColor())
             }
+        }
+    }
+}
+
+
+// Swap layout axes as well as rotating the layer so the host and pointer input
+// share the same narrow bounds on either side of the editor.
+private fun Modifier.rotateTabStrip() = layout { measurable, constraints ->
+    val strip = measurable.measure(Constraints(
+        minWidth = constraints.minHeight,
+        maxWidth = constraints.maxHeight,
+        minHeight = constraints.minWidth,
+        maxHeight = constraints.maxWidth,
+    ))
+    layout(strip.height, strip.width) {
+        strip.placeWithLayer((strip.height - strip.width) / 2, (strip.width - strip.height) / 2) {
+            rotationZ = 90f
         }
     }
 }

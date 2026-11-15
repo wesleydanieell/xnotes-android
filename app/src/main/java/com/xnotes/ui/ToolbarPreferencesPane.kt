@@ -61,7 +61,7 @@ import com.xnotes.ui.theme.LocalPalette
 import com.xnotes.ui.theme.toComposeColor
 import kotlinx.coroutines.delay
 
-private enum class ToolbarPropertyTab { SETTINGS, ELEMENTS, NAVIGATION }
+private enum class ToolbarPropertyTab { SETTINGS, ELEMENTS }
 
 /** Dedicated toolbar editor, independent of the fork's general preferences. */
 @OptIn(ExperimentalLayoutApi::class)
@@ -97,6 +97,7 @@ internal fun ToolbarPreferencesPane(editor: Editor, onBack: () -> Unit) {
     // below always belongs to whichever is on screen.
     var canvasTab by remember { mutableStateOf(false) }
     var selectedBarId by remember { mutableStateOf<String?>(null) }
+    var documentTabsSelected by remember { mutableStateOf(false) }
     var transferDraft by remember { mutableStateOf<com.xnotes.core.tools.ToolbarTransferDraft?>(null) }
     val workspaceLibrary = remember { ToolbarWorkspaceLibraryState(editor.toolbarWorkspacePresets) }
     fun activeWorkspacePreset() = com.xnotes.settings.ToolbarWorkspacePreset(
@@ -202,7 +203,8 @@ internal fun ToolbarPreferencesPane(editor: Editor, onBack: () -> Unit) {
         toolbarInteraction.resetForSelectionChange()
     }
     fun showBar(id: String) {
-        if (selectedBarId == id) return
+        if (selectedBarId == id && !documentTabsSelected) return
+        documentTabsSelected = false
         selectedBarId = id
         toolbarInteraction.resetForSelectionChange()
     }
@@ -285,7 +287,21 @@ internal fun ToolbarPreferencesPane(editor: Editor, onBack: () -> Unit) {
                 selectedBarId = currentBar.id,
                 onContextSelected = ::showTab,
                 onBarSelected = ::showBar,
-                onResetSelectedBar = {
+                documentTabsSelected = documentTabsSelected,
+                onSelectDocumentTabs = {
+                    documentTabsSelected = true
+                    toolbarPropertyTab = ToolbarPropertyTab.SETTINGS
+                    toolbarInteraction.resetForSelectionChange()
+                    dockError = null
+                },
+                onResetSelectedBar = resetBar@{
+                    if (documentTabsSelected) {
+                        updateHome(prefs.copy(
+                            documentTabsBar = com.xnotes.settings.DocumentTabsBarConfig(),
+                            documentTabsMode = "auto",
+                        ))
+                        return@resetBar
+                    }
                     val candidate = planToolbarReset(editedWorkspace(), selectedBar().id,
                         editedContext(), prefs.toolbarLook,
                         screenConfiguration.screenWidthDp.dp, screenConfiguration.screenHeightDp.dp,
@@ -357,7 +373,7 @@ internal fun ToolbarPreferencesPane(editor: Editor, onBack: () -> Unit) {
                 ToolbarWorkspacePreview(
                     workspace = workspace.onlyItems(if (canvasTab) ToolbarLayout.CANVAS_ITEMS else ToolbarLayout.NOTE_ITEMS),
                     look = prefs.toolbarLook,
-                    selectedId = currentBar.id,
+                    selectedId = currentBar.id.takeUnless { documentTabsSelected },
                     selectedEntry = selectedEntry,
                     colors = editor.toolbarColors.take(editor.toolbarColorCount),
                     activeColorIndex = editor.activeColorIndex,
@@ -390,7 +406,7 @@ internal fun ToolbarPreferencesPane(editor: Editor, onBack: () -> Unit) {
                         val updated = old.reorderVisualBar(id, target)
                         if (updated != old) {
                             editor.applyToolbarWorkspaces(editor.toolbarWorkspaces.updateWorkspace(editedContext()) { updated })
-                            selectedBarId = id
+                            showBar(id)
                         }
                     },
                 )
@@ -405,15 +421,12 @@ internal fun ToolbarPreferencesPane(editor: Editor, onBack: () -> Unit) {
                         selectedEntry = null
                         toolbarPropertyTab = ToolbarPropertyTab.SETTINGS
                     }
-                    ToolbarEditorChip(toolbarStrings.getString(R.string.toolbar_config_elements), toolbarPropertyTab == ToolbarPropertyTab.ELEMENTS) {
-                        toolbarPropertyTab = ToolbarPropertyTab.ELEMENTS
+                    if (!documentTabsSelected) {
+                        ToolbarEditorChip(toolbarStrings.getString(R.string.toolbar_config_elements), toolbarPropertyTab == ToolbarPropertyTab.ELEMENTS) {
+                            toolbarPropertyTab = ToolbarPropertyTab.ELEMENTS
+                        }
                     }
-                    ToolbarEditorChip("Document tabs", toolbarPropertyTab == ToolbarPropertyTab.NAVIGATION) {
-                        toolbarPropertyTab = ToolbarPropertyTab.NAVIGATION
-                        selectedEntry = null
-                    }
-
-                 }
+                }
             }
             val inspector: @Composable () -> Unit = {
                 Column(
@@ -438,13 +451,13 @@ internal fun ToolbarPreferencesPane(editor: Editor, onBack: () -> Unit) {
                             onApplyLayout = { applyEdited(it) },
                         )
                     }
-                    if (toolbarPropertyTab == ToolbarPropertyTab.NAVIGATION) {
+                    if (documentTabsSelected) {
                         DocumentTabsEditor(config = prefs.documentTabsBar,
                             startupMode = prefs.documentTabsMode,
                             onConfigChange = { updateHome(prefs.copy(documentTabsBar = it)) },
                             onModeChange = { updateHome(prefs.copy(documentTabsMode = it)) })
                     }
-                    if (toolbarPropertyTab == ToolbarPropertyTab.SETTINGS) {
+                    if (!documentTabsSelected && toolbarPropertyTab == ToolbarPropertyTab.SETTINGS) {
                         ToolbarBarsInspector(
                             workspace = workspace,
                             selectedBar = currentBar,

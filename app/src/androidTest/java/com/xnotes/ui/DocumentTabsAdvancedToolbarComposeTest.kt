@@ -1,11 +1,16 @@
 package com.xnotes.ui
 
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.background
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.toPixelMap
 import androidx.compose.ui.test.captureToImage
+import androidx.compose.ui.test.click
+import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.assertHeightIsEqualTo
+import androidx.compose.ui.test.assertWidthIsEqualTo
+import androidx.compose.ui.test.assertIsSelected
 import androidx.compose.ui.test.onNodeWithContentDescription
 import com.xnotes.settings.CornerStyle
 import com.xnotes.ui.theme.Palette
@@ -89,16 +94,41 @@ class DocumentTabsAdvancedToolbarComposeTest {
         }
     }
 
+    @Test fun documentTabsEditorUsesPositionMapForBothPlacementModes() {
+        var config by mutableStateOf(DocumentTabsBarConfig())
+        rule.setContent {
+            MaterialTheme {
+                DocumentTabsEditor(config, "auto", { config = it }, {})
+            }
+        }
+        for (floating in listOf(true, false)) {
+            rule.runOnIdle { config = config.withFloating(floating) }
+            for (edge in ToolbarPosition.entries) for (alignment in ToolbarDockAlignment.entries) {
+                val stop = rule.onNodeWithTag("toolbar-position-${edge.name}-${alignment.name}")
+                stop.performClick()
+                stop.assertIsSelected()
+                rule.runOnIdle {
+                    assertEquals(edge, config.position)
+                    assertEquals(alignment, config.alignment())
+                    assertEquals(floating, config.floating)
+                }
+            }
+        }
+    }
+
     @Test fun automaticVerticalBarUsesSmallerHeightLimit() {
+        var selectedUri: String? = null
         var config by mutableStateOf(DocumentTabsBarConfig().movedTo(ToolbarAnchor.CENTER_LEFT))
         rule.setContent {
             MaterialTheme {
-                Box(Modifier.size(640.dp, 420.dp)) {
+                Box(Modifier.size(640.dp, 420.dp).testTag("tab-sizing-host")) {
                     DocumentTabsHost(tabs = tabs, activeUri = "n1.xnote", expanded = true,
-                        onExpandedChange = {}, onSelect = {}, onClose = {},
+                        onExpandedChange = {}, onSelect = { selectedUri = it }, onClose = {},
                         onReorder = { _, _ -> }, onSplit = {}, config = config,
                         onConfigChange = {}, workspace = ToolbarWorkspace(emptyList()),
-                        look = ToolbarLook(), colorCount = 5) {}
+                        look = ToolbarLook(), colorCount = 5) {
+                        Box(Modifier.fillMaxSize().testTag("tab-sizing-editor"))
+                    }
                 }
             }
         }
@@ -107,7 +137,16 @@ class DocumentTabsAdvancedToolbarComposeTest {
             rule.runOnIdle {
                 config = config.withFloating(floating).copy(sizing = DocumentTabsSizing.DYNAMIC, maxExtentDp = 0)
             }
-            bar.assertHeightIsEqualTo(240.dp)
+            bar.assertHeightIsEqualTo(240.dp).assertWidthIsEqualTo(44.dp)
+            val host = rule.onNodeWithTag("tab-sizing-host").fetchSemanticsNode().boundsInRoot
+            val editor = rule.onNodeWithTag("tab-sizing-editor").fetchSemanticsNode().boundsInRoot
+            val reserved = (if (floating) 0f else 48f) * rule.density.density
+            assertEquals(reserved, editor.left - host.left, 1f)
+            rule.onNodeWithText("Note One").performTouchInput { click(center) }
+            rule.runOnIdle {
+                assertEquals("n1.xnote", selectedUri)
+                selectedUri = null
+            }
             rule.runOnIdle {
                 config = config.copy(minExtentDp = 80, maxExtentDp = 140)
             }
@@ -154,6 +193,9 @@ class DocumentTabsAdvancedToolbarComposeTest {
                 }
                 val crossSpan = if (edge.vertical) host.width else host.height
                 assertTrue("$label: $bar is on the wrong edge of $host", edgeGap < crossSpan / 4)
+                val thickness = if (edge.vertical) bar.width else bar.height
+                val length = if (edge.vertical) bar.height else bar.width
+                assertTrue("$label: expected a narrow strip, got $bar", length > 3 * thickness)
                 if (edge.vertical) bar.center.y else bar.center.x
             }
             assertTrue("floating=$floating edge=$edge: $centers",
@@ -220,7 +262,7 @@ class DocumentTabsAdvancedToolbarComposeTest {
                         tabs = tabs, activeUri = "n1.xnote", expanded = true,
                         onExpandedChange = {}, onSelect = {}, onClose = {},
                         onReorder = { _, _ -> }, onSplit = {}, vertical = true,
-                        expandedHeight = 300.dp, modifier = Modifier.testTag("corner-surface"),
+                        expandedWidth = 300.dp, modifier = Modifier.testTag("corner-surface"),
                     )
                 }
             }
@@ -228,23 +270,23 @@ class DocumentTabsAdvancedToolbarComposeTest {
         fun sample(xDp: Int, yDp: Int): Color {
             val bitmap = rule.onNodeWithTag("corner-surface", useUnmergedTree = true)
                 .captureToImage()
-            val x = (bitmap.width * xDp / 196).coerceIn(0, bitmap.width - 1)
+            val x = (bitmap.width * xDp / 44).coerceIn(0, bitmap.width - 1)
             val y = (bitmap.height * yDp / 300).coerceIn(0, bitmap.height - 1)
             return bitmap.toPixelMap()[x, y]
         }
         rule.waitForIdle()
-        val sharp5 = sample(5, 5)
+        val sharpNearCorner = sample(3, 3)
         rule.runOnIdle { corners = CornerStyle.ROUNDED }
         rule.waitForIdle()
-        val rounded5 = sample(5, 5)
-        val rounded11 = sample(11, 11)
+        val roundedNearCorner = sample(3, 3)
+        val roundedFartherIn = sample(6, 6)
         rule.runOnIdle { corners = CornerStyle.SOFT }
         rule.waitForIdle()
-        val soft11 = sample(11, 11)
+        val softFartherIn = sample(6, 6)
         assertTrue("Rounded corners must change the floating tabbar outline",
-            sharp5 != rounded5)
+            sharpNearCorner != roundedNearCorner)
         assertTrue("Soft corners must have a larger tabbar radius than Rounded",
-            rounded11 != soft11)
+            roundedFartherIn != softFartherIn)
     }
 
     @Test fun previewWithIndependentNavigationDoesNotReplaceToolbarControls() {

@@ -98,35 +98,39 @@ internal fun DocumentTabsHost(
         val obstacles = remember(workspace, look, widthDp, heightDp, colorCount, px) {
             documentTabsToolObstacles(workspace, look, widthDp, heightDp, colorCount, px)
         }
-        fun destination(anchor: ToolbarAnchor, measured: Size,
-            edge: ToolbarPosition = config.position): Offset {
-            val portrait = edge.vertical
-            val strip = documentTabsFreeStrip(host, anchor, portrait,
-                if (portrait) 232f * px else 60f * px, obstacles, 8f * px, 84f * px,
-                explicitEdge = edge)
-            return strip.topLeft + documentTabsOffset(strip.size, measured, anchor, emptyList(), 0f)
+        fun freeStrip(anchor: ToolbarAnchor, edge: ToolbarPosition): Rect =
+            documentTabsFreeStrip(host, anchor, edge.vertical, 60f * px,
+                obstacles, 8f * px, 84f * px, explicitEdge = edge)
+        fun destination(strip: Rect, anchor: ToolbarAnchor, measured: Size): Offset =
+            strip.topLeft + documentTabsOffset(strip.size, measured, anchor, emptyList(), 0f)
+
+        fun expandedExtent(edge: ToolbarPosition, strip: Rect): Float {
+            val available = if (config.floating) {
+                (if (edge.vertical) strip.height else strip.width) / px
+            } else if (edge.vertical) heightDp else widthDp
+            val configured = config.expandedExtent((available - 32f).coerceAtLeast(0f))
+            return if (edge.vertical && config.sizing == DocumentTabsSizing.DYNAMIC) {
+                configured.coerceAtMost(240f)
+            } else configured
         }
         val usableStrip = remember(config.anchor, config.position, obstacles, host, px) {
-            documentTabsFreeStrip(host, config.anchor, vertical,
-                if (vertical) 232f * px else 60f * px,
-                obstacles, 8f * px, 84f * px, explicitEdge = config.position)
+            freeStrip(config.anchor, config.position)
         }
-        // Expanded navigation must fit the free strip *beside* the toolbars,
-        // not the full screen width. Docked bars reserve their own edge separately.
-        val maximumExpandedLength = if (config.floating) {
-            (if (vertical) usableStrip.height else usableStrip.width) / px
-        } else if (vertical) heightDp else widthDp
-        val configuredExtent = config.expandedExtent((maximumExpandedLength - 32f).coerceAtLeast(0f)).dp
-        val contentExtent = if (vertical && config.sizing == DocumentTabsSizing.DYNAMIC) {
-            configuredExtent.coerceAtMost(240.dp)
-        } else configuredExtent
-        val defaultSize = Size((if (vertical) if (expanded) 200 else 48 else if (expanded) 360 else 210) * px,
-            (if (vertical) if (expanded) 260 else 48 else 48) * px)
+        val contentExtent = expandedExtent(config.position, usableStrip).dp
+        val stripLength = if (expanded) contentExtent.value else 210f
+        val defaultSize = if (vertical) Size(44f * px, stripLength * px)
+            else Size(stripLength * px, 44f * px)
         val measured = if (child == Size.Zero) defaultSize else child
-        val currentOffset = if (config.floating) destination(config.anchor, measured) else Offset.Zero
+        val currentOffset = if (config.floating) destination(usableStrip, config.anchor, measured) else Offset.Zero
         val parentPosition = if (config.floating) root.topLeft + currentOffset else dockedPosition
         fun configAt(target: ToolbarDropPosition): DocumentTabsBarConfig =
             config.movedTo(DocumentTabsBarConfig.edgeOf(target.anchor), target.alignment)
+        fun projectedSize(edge: ToolbarPosition, strip: Rect): Size {
+            val length = if (expanded) expandedExtent(edge, strip) * px
+                else if (vertical) measured.height else measured.width
+            val thickness = if (vertical) measured.width else measured.height
+            return if (edge.vertical) Size(thickness, length) else Size(length, thickness)
+        }
         // The shared gesture resolver encodes side edges with center anchors and
         // carries their alignment separately. Use its encoding for acknowledgement.
         val dragAnchor = if (vertical) DocumentTabsBarConfig.anchorOf(config.position) else config.anchor
@@ -158,7 +162,8 @@ internal fun DocumentTabsHost(
                     currentAlignment = config.alignment(),
                     snapTargetInRoot = if (!config.floating) null else { target ->
                         val targetConfig = configAt(target)
-                        root.topLeft + destination(targetConfig.anchor, measured, targetConfig.position)
+                        val strip = freeStrip(targetConfig.anchor, targetConfig.position)
+                        root.topLeft + destination(strip, targetConfig.anchor, projectedSize(targetConfig.position, strip))
                     },
                     onPlacementPreview = { hoverTarget = it },
                     onSettleTarget = { if (it == null) hoverTarget = null },
@@ -170,7 +175,6 @@ internal fun DocumentTabsHost(
                         onExpandedChange = onExpandedChange, onSelect = onSelect,
                         onClose = onClose, vertical = vertical,
                         expandedWidth = contentExtent,
-                        expandedHeight = contentExtent,
                         floatingSurface = config.floating,
                         onReorder = onReorder, onSplit = onSplit,
                     )
@@ -192,23 +196,36 @@ internal fun DocumentTabsHost(
             }
         } else {
             Column(Modifier.fillMaxSize()) {
-                if (config.position == ToolbarPosition.TOP) navigation(Modifier.fillMaxWidth().height(54.dp))
+                if (config.position == ToolbarPosition.TOP) navigation(Modifier.fillMaxWidth().height(48.dp))
                 Row(Modifier.weight(1f).fillMaxWidth()) {
                     if (config.position == ToolbarPosition.LEFT)
-                        navigation(Modifier.width(if (expanded) 220.dp else 48.dp).fillMaxHeight())
+                        navigation(Modifier.width(48.dp).fillMaxHeight())
                     Box(Modifier.weight(1f).fillMaxHeight()) { content() }
                     if (config.position == ToolbarPosition.RIGHT)
-                        navigation(Modifier.width(if (expanded) 220.dp else 48.dp).fillMaxHeight())
+                        navigation(Modifier.width(48.dp).fillMaxHeight())
                 }
-                if (config.position == ToolbarPosition.BOTTOM) navigation(Modifier.fillMaxWidth().height(54.dp))
+                if (config.position == ToolbarPosition.BOTTOM) navigation(Modifier.fillMaxWidth().height(48.dp))
             }
         }
         if (hover != null) {
             val targetConfig = configAt(hover)
             if (targetConfig != config) {
-                val origin = destination(targetConfig.anchor, measured, targetConfig.position)
+                val strip = freeStrip(targetConfig.anchor, targetConfig.position)
+                val targetSize = projectedSize(targetConfig.position, strip)
+                val origin = if (config.floating) {
+                    destination(strip, targetConfig.anchor, targetSize)
+                } else {
+                    val edgeOffset = documentTabsOffset(host, targetSize, targetConfig.anchor, emptyList(), 0f)
+                    val inset = (48f * px - if (targetConfig.position.vertical) targetSize.width else targetSize.height) / 2f
+                    edgeOffset + when (targetConfig.position) {
+                        ToolbarPosition.TOP -> Offset(0f, inset)
+                        ToolbarPosition.BOTTOM -> Offset(0f, -inset)
+                        ToolbarPosition.LEFT -> Offset(inset, 0f)
+                        ToolbarPosition.RIGHT -> Offset(-inset, 0f)
+                    }
+                }
                 ToolbarDropIndicator(ToolbarDropSlot(origin.x / px, origin.y / px,
-                    measured.width / px, measured.height / px), "document-tabs-navigation")
+                    targetSize.width / px, targetSize.height / px), "document-tabs-navigation")
             }
         }
     }

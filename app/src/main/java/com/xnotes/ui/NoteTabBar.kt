@@ -10,11 +10,9 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.horizontalScroll
-import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.gestures.detectDragGesturesAfterLongPress
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -51,8 +49,10 @@ import androidx.compose.ui.graphics.Outline
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.xnotes.R
 import kotlin.math.roundToInt
 import androidx.compose.ui.text.style.TextOverflow
 import com.xnotes.core.workspace.NoteTabs
@@ -71,22 +71,21 @@ fun NoteTabBar(
     onClose: (String) -> Unit,
     modifier: Modifier = Modifier,
     floatingSurface: Boolean = false,
-    vertical: Boolean = false,
+    rotated: Boolean = false,
     onReorder: ((Int, Int) -> Unit)? = null,
     onSplit: ((String) -> Unit)? = null,
 ) {
     val palette = LocalPalette.current
     val highlight = palette.selectionBackground.toComposeColor()
     val density = LocalDensity.current
-    BoxWithConstraints(modifier.then(if (vertical) Modifier.width(196.dp) else Modifier.fillMaxWidth())) {
+    BoxWithConstraints(modifier.fillMaxWidth()) {
         val visibleSlots = visibleTabSlots(maxWidth.value, tabs.tabs.size)
         val slotWidth = maxWidth / visibleSlots
         val animatedWidth by animateDpAsState(slotWidth, tween(240), label = "tabWidth")
-        val axisExtent = if (vertical) 42.dp else animatedWidth
-        val axisPixels = with(density) { axisExtent.toPx() }
+        val axisPixels = with(density) { animatedWidth.toPx() }
         val activeIndex = tabs.tabs.indexOfFirst { it.uri == activeUri }
         val scrollState = rememberScrollState()
-        val viewportPixels = with(density) { (if (vertical) maxHeight else maxWidth).toPx() }
+        val viewportPixels = with(density) { maxWidth.toPx() }
         LaunchedEffect(activeIndex, axisPixels, viewportPixels, scrollState.maxValue) {
             if (activeIndex >= 0 && axisPixels > 0f && viewportPixels > 0f) {
                 val start = activeIndex * axisPixels
@@ -109,20 +108,16 @@ fun NoteTabBar(
         val highlightShape = MaterialTheme.shapes.large
         val base = Modifier
             .background((if (floatingSurface) palette.panel else palette.bg).toComposeColor())
-            .then(if (vertical) Modifier.verticalScroll(scrollState)
-                else Modifier.horizontalScroll(scrollState))
+            .horizontalScroll(scrollState)
             .drawBehind {
                 if (activeIndex >= 0 && highlightExtent > 0f) {
                     val inset = 2.dp.toPx()
-                    val highlightSize = if (vertical)
-                        Size((size.width - inset * 2).coerceAtLeast(0f), highlightExtent)
-                    else Size(highlightExtent, (size.height - inset * 2).coerceAtLeast(0f))
+                    val highlightSize = Size(highlightExtent, (size.height - inset * 2).coerceAtLeast(0f))
                     val radius = (highlightShape.createOutline(highlightSize, layoutDirection, this)
                         as? Outline.Rounded)?.roundRect?.topLeftCornerRadius ?: CornerRadius.Zero
                     drawRoundRect(
                         highlight,
-                        topLeft = if (vertical) Offset(inset, highlightOffset)
-                            else Offset(highlightOffset, inset),
+                        topLeft = Offset(highlightOffset, inset),
                         size = highlightSize,
                         cornerRadius = radius,
                     )
@@ -138,7 +133,7 @@ fun NoteTabBar(
                     var menuExpanded by remember(tab.uri) { mutableStateOf(false) }
                     var dragDistance by remember(tab.uri) { mutableFloatStateOf(0f) }
                     val reorderGesture = if (onReorder == null) Modifier else Modifier.pointerInput(
-                        tab.uri, tabs.tabs.size, vertical, axisPixels,
+                        tab.uri, tabs.tabs.size, axisPixels,
                     ) {
                         detectDragGesturesAfterLongPress(
                             onDragStart = { dragDistance = 0f },
@@ -151,16 +146,13 @@ fun NoteTabBar(
                             onDragCancel = { dragDistance = 0f },
                             onDrag = { change, delta ->
                                 change.consume()
-                                dragDistance += if (vertical) delta.y else delta.x
+                                dragDistance += delta.x
                             },
                         )
                     }
                     Row(
-                        Modifier.then(if (vertical) Modifier.fillMaxWidth().height(42.dp)
-                            else Modifier.width(animatedWidth).height(42.dp))
-                            .graphicsLayer {
-                                if (vertical) translationY = dragDistance else translationX = dragDistance
-                            }
+                        Modifier.width(animatedWidth).height(42.dp)
+                            .graphicsLayer { translationX = dragDistance }
                             .padding(horizontal = 2.dp).clip(MaterialTheme.shapes.small)
                             .then(reorderGesture),
                         verticalAlignment = Alignment.CenterVertically,
@@ -177,7 +169,7 @@ fun NoteTabBar(
                             val canvas = tab.uri.substringBefore('?').endsWith(".xcanvas", true) ||
                                 tab.title.endsWith(".xcanvas", true)
                             Icon(if (canvas) Icons.Outlined.Gesture else Icons.AutoMirrored.Outlined.Article,
-                                contentDescription = if (canvas) "Canvas" else "Note",
+                                contentDescription = if (canvas) stringResource(R.string.document_tabs_canvas) else stringResource(R.string.document_tabs_note),
                                 tint = tabTint, modifier = Modifier.size(16.dp))
                             Text(tab.title.replace(Regex("(?i)\\.(xnote|xcanvas)$"), ""),
                                 maxLines = 1, overflow = TextOverflow.Ellipsis,
@@ -190,16 +182,16 @@ fun NoteTabBar(
                                     Text("⋮", fontSize = 16.sp, color = tabTint)
                                 }
                                 DropdownMenu(expanded = menuExpanded, onDismissRequest = { menuExpanded = false }) {
-                                    DropdownMenuItem(text = { Text("Open in split view") }, onClick = {
+                                    DropdownMenuItem(text = { Text(stringResource(R.string.document_tabs_open_split)) }, onClick = {
                                         menuExpanded = false; onSplit(tab.uri)
                                     })
                                     if (onReorder != null && from > 0) {
-                                        DropdownMenuItem(text = { Text("Move left") }, onClick = {
+                                        DropdownMenuItem(text = { Text(stringResource(if (rotated) R.string.document_tabs_move_up else R.string.document_tabs_move_left)) }, onClick = {
                                             menuExpanded = false; onReorder(from, from - 1)
                                         })
                                     }
                                     if (onReorder != null && from < tabs.tabs.lastIndex) {
-                                        DropdownMenuItem(text = { Text("Move right") }, onClick = {
+                                        DropdownMenuItem(text = { Text(stringResource(if (rotated) R.string.document_tabs_move_down else R.string.document_tabs_move_right)) }, onClick = {
                                             menuExpanded = false; onReorder(from, from + 1)
                                         })
                                     }
@@ -213,8 +205,7 @@ fun NoteTabBar(
                 }
             }
         }
-        if (vertical) Column(base.fillMaxWidth()) { tabCells() }
-        else Row(base.height(42.dp), verticalAlignment = Alignment.CenterVertically) { tabCells() }
+        Row(base.height(42.dp), verticalAlignment = Alignment.CenterVertically) { tabCells() }
     }
 }
 
