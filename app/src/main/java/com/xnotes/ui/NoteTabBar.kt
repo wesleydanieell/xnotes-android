@@ -106,9 +106,7 @@ fun NoteTabBar(
         val highlightOffset by animateFloatAsState(target, highlightMotion, label = "tabHighlightOffset")
         val highlightExtent by animateFloatAsState((axisPixels - with(density) { 4.dp.toPx() }).coerceAtLeast(0f),
             highlightMotion, label = "tabHighlightExtent")
-        // Selected-tab highlight uses the active Corners setting too, rather
-        // than the previous fixed 20-dp radius.
-        val highlightShape = MaterialTheme.shapes.small
+        val highlightShape = MaterialTheme.shapes.large
         val base = Modifier
             .background((if (floatingSurface) palette.panel else palette.bg).toComposeColor())
             .then(if (vertical) Modifier.verticalScroll(scrollState)

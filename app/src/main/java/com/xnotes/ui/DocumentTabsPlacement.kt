@@ -4,6 +4,7 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.geometry.Size
 import com.xnotes.core.tools.ToolbarAnchor
+import com.xnotes.core.tools.ToolbarDockAlignment
 import com.xnotes.settings.DocumentTabsBarConfig
 import com.xnotes.settings.ToolbarPosition
 
@@ -78,10 +79,10 @@ internal fun documentTabsFreeStrip(host: Size, anchor: ToolbarAnchor, vertical: 
         var cursor = start
         for ((a, b) in blockers) { if (a > cursor) intervals.add(cursor to a); cursor = maxOf(cursor, b) }
         if (cursor < end) intervals.add(cursor to end)
-        val mainAnchor = if (vertical) main / 2 else when (anchor) {
-            ToolbarAnchor.TOP_LEFT, ToolbarAnchor.BOTTOM_LEFT -> start
-            ToolbarAnchor.TOP_RIGHT, ToolbarAnchor.BOTTOM_RIGHT -> end
-            else -> main / 2
+        val mainAnchor = when (DocumentTabsBarConfig(position = edge, anchor = anchor).alignment()) {
+            ToolbarDockAlignment.START -> start
+            ToolbarDockAlignment.CENTER -> main / 2
+            ToolbarDockAlignment.END -> end
         }
         val free = intervals.minWithOrNull(compareBy<Pair<Float, Float>> {
             kotlin.math.abs(mainAnchor - mainAnchor.coerceIn(it.first, it.second))
@@ -93,27 +94,4 @@ internal fun documentTabsFreeStrip(host: Size, anchor: ToolbarAnchor, vertical: 
         if (extent >= minimumExtent.coerceAtMost(end - start)) return result
     }
     return fallback ?: rect(start, end, desired)
-}
-
-/** A corner's anchor is shared by adjacent edges. Use the actual pointer to
- * distinguish TOP/START from LEFT/START and TOP/END from RIGHT/START; otherwise
- * a valid cross-edge gesture can silently become a no-op. */
-internal fun documentTabsEdgeAtDrop(anchor: ToolbarAnchor, pointer: Offset, bounds: Rect): ToolbarPosition {
-    if (!pointer.x.isFinite() || !pointer.y.isFinite() || bounds.width <= 0f || bounds.height <= 0f)
-        return DocumentTabsBarConfig.edgeOf(anchor)
-    val left = kotlin.math.abs(pointer.x - bounds.left)
-    val right = kotlin.math.abs(bounds.right - pointer.x)
-    val top = kotlin.math.abs(pointer.y - bounds.top)
-    val bottom = kotlin.math.abs(bounds.bottom - pointer.y)
-    return when (anchor) {
-        ToolbarAnchor.TOP_LEFT -> if (left < top) ToolbarPosition.LEFT else ToolbarPosition.TOP
-        ToolbarAnchor.TOP_RIGHT -> if (right < top) ToolbarPosition.RIGHT else ToolbarPosition.TOP
-        ToolbarAnchor.BOTTOM_LEFT -> if (left < bottom) ToolbarPosition.LEFT else ToolbarPosition.BOTTOM
-        ToolbarAnchor.BOTTOM_RIGHT -> if (right < bottom) ToolbarPosition.RIGHT else ToolbarPosition.BOTTOM
-        ToolbarAnchor.CENTER_LEFT -> ToolbarPosition.LEFT
-        ToolbarAnchor.CENTER_RIGHT -> ToolbarPosition.RIGHT
-        ToolbarAnchor.TOP_CENTER -> ToolbarPosition.TOP
-        ToolbarAnchor.BOTTOM_CENTER -> ToolbarPosition.BOTTOM
-        ToolbarAnchor.CENTER -> ToolbarPosition.TOP
-    }
 }

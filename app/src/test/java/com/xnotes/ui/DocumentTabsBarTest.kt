@@ -12,22 +12,6 @@ import org.junit.Assert.*
 import org.junit.Test
 
 class DocumentTabsBarTest {
-    @Test fun cornerGestureChoosesRightOrTopAndLeftOrTopByActualDropEdge() {
-        val bounds = Rect(100f, 100f, 1100f, 700f)
-        assertEquals(ToolbarPosition.RIGHT, documentTabsEdgeAtDrop(
-            ToolbarAnchor.TOP_RIGHT, androidx.compose.ui.geometry.Offset(1092f, 149f), bounds))
-        assertEquals(ToolbarPosition.TOP, documentTabsEdgeAtDrop(
-            ToolbarAnchor.TOP_RIGHT, androidx.compose.ui.geometry.Offset(1020f, 104f), bounds))
-        assertEquals(ToolbarPosition.LEFT, documentTabsEdgeAtDrop(
-            ToolbarAnchor.TOP_LEFT, androidx.compose.ui.geometry.Offset(105f, 198f), bounds))
-        assertEquals(ToolbarPosition.TOP, documentTabsEdgeAtDrop(
-            ToolbarAnchor.TOP_LEFT, androidx.compose.ui.geometry.Offset(194f, 103f), bounds))
-        assertEquals(ToolbarPosition.BOTTOM, documentTabsEdgeAtDrop(
-            ToolbarAnchor.BOTTOM_RIGHT, androidx.compose.ui.geometry.Offset(1000f, 696f), bounds))
-        assertEquals(ToolbarPosition.RIGHT, documentTabsEdgeAtDrop(
-            ToolbarAnchor.BOTTOM_RIGHT, androidx.compose.ui.geometry.Offset(1097f, 638f), bounds))
-    }
-
     @Test fun exactlyTwoModesRetainIndependentPositionAndRoundTripPreferences() {
         for (floating in listOf(false, true)) for (position in ToolbarPosition.entries) {
             val bar = DocumentTabsBarConfig(floating, position, DocumentTabsBarConfig.anchorOf(position))
@@ -64,6 +48,8 @@ class DocumentTabsBarTest {
                 assertEquals(edge, next.position)
                 assertEquals(alignment, next.alignment())
                 assertEquals(next, DocumentTabsBarConfig.fromJson(next.toJson()))
+                assertEquals(next.copy(floating = false), next.withFloating(false))
+                assertEquals(next, next.withFloating(false).withFloating(true))
             }
     }
 

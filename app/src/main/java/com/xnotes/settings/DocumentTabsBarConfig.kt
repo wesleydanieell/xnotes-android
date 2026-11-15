@@ -61,10 +61,7 @@ data class DocumentTabsBarConfig(
         return copy(position = position, anchor = anchor)
     }
 
-    fun withFloating(value: Boolean): DocumentTabsBarConfig = if (value == floating) this else {
-        if (value) copy(floating = true, anchor = anchorOf(position))
-        else copy(floating = false, position = edgeOf(anchor))
-    }
+    fun withFloating(value: Boolean): DocumentTabsBarConfig = copy(floating = value)
 
     fun expandedExtent(availableDp: Float): Float {
         val available = availableDp.coerceAtLeast(0f)

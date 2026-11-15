@@ -28,10 +28,12 @@ import androidx.compose.ui.test.up
 import androidx.compose.ui.unit.dp
 import com.xnotes.core.tools.ToolbarAnchor
 import com.xnotes.core.tools.ToolbarBar
+import com.xnotes.core.tools.ToolbarDockAlignment
 import com.xnotes.core.tools.ToolbarLayout
 import com.xnotes.core.tools.ToolbarWorkspace
 import com.xnotes.core.workspace.NoteTabs
 import com.xnotes.settings.DocumentTabsBarConfig
+import com.xnotes.settings.DocumentTabsSizing
 import com.xnotes.settings.ToolbarLook
 import com.xnotes.settings.ToolbarPosition
 import org.junit.Assert.assertEquals
@@ -86,6 +88,48 @@ class DocumentTabsAdvancedToolbarComposeTest {
         }
     }
 
+    @Test fun placementHonorsAllEdgesAndAlignmentsInBothModes() {
+        var config by mutableStateOf(DocumentTabsBarConfig(
+            sizing = DocumentTabsSizing.MANUAL, manualExtentDp = 192,
+        ))
+        rule.setContent {
+            MaterialTheme {
+                Box(Modifier.size(640.dp, 420.dp).testTag("placement-host")) {
+                    DocumentTabsHost(tabs = tabs, activeUri = "n1.xnote", expanded = true,
+                        onExpandedChange = {}, onSelect = {}, onClose = {},
+                        onReorder = { _, _ -> }, onSplit = {}, config = config,
+                        onConfigChange = { config = it }, workspace = ToolbarWorkspace(emptyList()),
+                        look = ToolbarLook(), colorCount = 5) {}
+                }
+            }
+        }
+
+        val host = rule.onNodeWithTag("placement-host").fetchSemanticsNode().boundsInRoot
+        for (floating in listOf(false, true)) for (edge in ToolbarPosition.entries) {
+            val centers = ToolbarDockAlignment.entries.associateWith { alignment ->
+                rule.runOnIdle { config = config.withFloating(floating).movedTo(edge, alignment) }
+                val bar = rule.onNodeWithTag("document-tabs-bar", useUnmergedTree = true)
+                    .fetchSemanticsNode().boundsInRoot
+                val label = "floating=$floating edge=$edge alignment=$alignment"
+                assertTrue("$label: $bar outside $host",
+                    bar.left >= host.left && bar.top >= host.top &&
+                        bar.right <= host.right && bar.bottom <= host.bottom)
+                val edgeGap = when (edge) {
+                    ToolbarPosition.TOP -> bar.top - host.top
+                    ToolbarPosition.BOTTOM -> host.bottom - bar.bottom
+                    ToolbarPosition.LEFT -> bar.left - host.left
+                    ToolbarPosition.RIGHT -> host.right - bar.right
+                }
+                val crossSpan = if (edge.vertical) host.width else host.height
+                assertTrue("$label: $bar is on the wrong edge of $host", edgeGap < crossSpan / 4)
+                if (edge.vertical) bar.center.y else bar.center.x
+            }
+            assertTrue("floating=$floating edge=$edge: $centers",
+                centers.getValue(ToolbarDockAlignment.START) < centers.getValue(ToolbarDockAlignment.CENTER) &&
+                    centers.getValue(ToolbarDockAlignment.CENTER) < centers.getValue(ToolbarDockAlignment.END))
+        }
+    }
+
     @Test fun longPressDragChangesNavigationEdgeWithoutChangingToolbars() {
         var config by mutableStateOf(DocumentTabsBarConfig())
         rule.setContent {
@@ -104,21 +148,34 @@ class DocumentTabsAdvancedToolbarComposeTest {
         rule.waitForIdle()
         val stage = rule.onNodeWithTag("navigation-stage", useUnmergedTree = true)
             .fetchSemanticsNode().boundsInRoot
-        val navigation = rule.onNodeWithTag("toolbar-drag-surface-document-tabs-navigation",
-            useUnmergedTree = true).fetchSemanticsNode().boundsInRoot
-        val destination = Offset(stage.right - 8f, stage.center.y)
-        rule.onNodeWithTag("navigation-stage", useUnmergedTree = true).performTouchInput {
-            down(navigation.center - stage.topLeft)
-            advanceEventTime(850)
-            moveBy(destination - navigation.center)
-            advanceEventTime(48)
-            up()
+        fun moveTo(destination: Offset) {
+            val navigation = rule.onNodeWithTag("toolbar-drag-surface-document-tabs-navigation",
+                useUnmergedTree = true).fetchSemanticsNode().boundsInRoot
+            rule.onNodeWithTag("navigation-stage", useUnmergedTree = true).performTouchInput {
+                down(navigation.center - stage.topLeft)
+                advanceEventTime(850)
+                moveBy(destination - navigation.center)
+                advanceEventTime(48)
+                up()
+            }
+            rule.waitForIdle()
         }
-        rule.waitForIdle()
-        rule.runOnIdle {
-            assertEquals(ToolbarPosition.RIGHT, config.position)
-            assertEquals(ToolbarAnchor.CENTER_RIGHT, config.anchor)
-            assertEquals("primary", workspace.bars.single().id)
+
+        for (floating in listOf(true, false)) {
+            rule.runOnIdle { config = DocumentTabsBarConfig(floating = floating) }
+            moveTo(Offset(stage.right - 8f, stage.top + stage.height / 5))
+            rule.runOnIdle {
+                assertEquals(ToolbarPosition.RIGHT, config.position)
+                assertEquals(ToolbarAnchor.TOP_RIGHT, config.anchor)
+                assertEquals(ToolbarDockAlignment.START, config.alignment())
+            }
+            moveTo(Offset(stage.right - 8f, stage.bottom - stage.height / 5))
+            rule.runOnIdle {
+                assertEquals(ToolbarPosition.RIGHT, config.position)
+                assertEquals(ToolbarAnchor.BOTTOM_RIGHT, config.anchor)
+                assertEquals(ToolbarDockAlignment.END, config.alignment())
+                assertEquals("primary", workspace.bars.single().id)
+            }
         }
     }
 
