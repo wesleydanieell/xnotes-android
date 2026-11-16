@@ -145,4 +145,28 @@
     <string name="toolbar_config_preferred_lane">Faixa preferida</string>
     <string name="toolbar_config_roundness">Arredondamento</string>
     <string name="toolbar_config_roundness_auto_help">Automático segue Configurações &gt; Cantos. Barras de 2 e 3 linhas usam cantos menos arredondados.</string>
+
+    <string name="document_tabs_tab">Abas de documentos</string>
+    <string name="document_tabs_expanded_size">Tamanho expandido</string>
+    <string name="document_tabs_automatic_size">Automático</string>
+    <string name="document_tabs_manual_size">Personalizado</string>
+    <string name="document_tabs_extent_dp">%1$d dp</string>
+    <string name="document_tabs_startup">Ao iniciar</string>
+    <string name="document_tabs_compact">Recolhida</string>
+    <string name="document_tabs_expanded">Expandida</string>
+    <string name="document_tabs_gesture_hint">Pressione e segure a barra para movê-la ou uma aba para reordená-la. O menu da aba também permite abrir em tela dividida.</string>
+    <string name="document_tabs_documents">Documentos</string>
+    <string name="document_tabs_expand">Expandir abas de documentos</string>
+    <string name="document_tabs_collapse">Recolher abas de documentos</string>
+    <string name="document_tabs_note">Nota</string>
+    <string name="document_tabs_canvas">Tela</string>
+    <string name="document_tabs_open_split">Abrir em tela dividida</string>
+    <string name="document_tabs_move_left">Mover para a esquerda</string>
+    <string name="document_tabs_move_right">Mover para a direita</string>
+    <string name="document_tabs_move_up">Mover para cima</string>
+    <string name="document_tabs_move_down">Mover para baixo</string>
+    <string name="toolbar_docked">Encaixada</string>
+    <string name="toolbar_floating">Flutuante</string>
+    <string name="pref_document_tabs_mode">Abas de documentos ao abrir</string>
+    <string name="document_tabs_auto">Automático</string>
 </resources>

@@ -181,6 +181,6 @@ internal fun toolbarAnchorForAlignment(
 }
 
 @Composable
-private fun ToolbarSettingsLabel(text: String) {
+internal fun ToolbarSettingsLabel(text: String) {
     Text(text, color = LocalPalette.current.accent.toComposeColor(), fontSize = 13.sp)
 }

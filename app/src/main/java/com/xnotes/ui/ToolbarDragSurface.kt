@@ -66,6 +66,9 @@ fun ToolbarDragSurface(
     onDragPosition: ((Offset) -> Unit)? = null,
     onDrop: ((Offset) -> Boolean)? = null,
     onDragCancel: (() -> Unit)? = null,
+    /** Optional for surfaces whose placement has an independent dock edge.
+     * A corner anchor alone cannot distinguish TOP/START from LEFT/START. */
+    hasPlacementChanged: ((ToolbarDropPosition) -> Boolean)? = null,
     /** Keep the editor preview's gesture hit area at the interpolated lane size;
      * the default still wraps real toolbar content. */
     fillParentSlot: Boolean = false,
@@ -88,6 +91,7 @@ fun ToolbarDragSurface(
     val moveCallback by rememberUpdatedState(onDragPosition)
     val dropCallback by rememberUpdatedState(onDrop)
     val cancelCallback by rememberUpdatedState(onDragCancel)
+    val changedCallback by rememberUpdatedState(hasPlacementChanged)
     val snapTargetNow by rememberUpdatedState(snapTargetInRoot)
     val previewPlacementNow by rememberUpdatedState(onPlacementPreview)
     val settleTargetNow by rememberUpdatedState(onSettleTarget)
@@ -197,7 +201,10 @@ fun ToolbarDragSurface(
                         canceled = true
                         break
                     }
-                    if (!change.pressed) break
+                    if (!change.pressed) {
+                        canceled = change.isConsumed
+                        break
+                    }
                     val delta = change.position - change.previousPosition
                     if (delta != Offset.Zero) {
                         change.consume()
@@ -221,7 +228,8 @@ fun ToolbarDragSurface(
                         barBounds != Rect.Zero && paneBoundsNow != Rect.Zero) {
                         val target = stableHover ?: resolvedPlacement(moved)
                         if (target != null) {
-                            val changed = target.anchor != anchorNow || target.alignment != alignmentNow
+                            val changed = changedCallback?.invoke(target)
+                                ?: (target.anchor != anchorNow || target.alignment != alignmentNow)
                             val projectedRoot = snapTargetNow?.invoke(target)
                             if (projectedRoot != null) {
                                 // Slide while the parent still owns the OLD slot. Only after

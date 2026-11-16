@@ -111,11 +111,13 @@ internal fun ToolbarWorkspacePreview(
     onMoveBar: (String, ToolbarAnchor, ToolbarDockAlignment) -> Unit,
     /** Optional only in the editor, never in read-only workspace thumbnails. */
     onReorderBar: ((String, String) -> Unit)? = null,
+    documentTabsConfig: com.xnotes.settings.DocumentTabsBarConfig? = null,
+    onMoveDocumentTabs: (com.xnotes.settings.DocumentTabsBarConfig) -> Unit = {},
 ) {
     val palette = LocalPalette.current
     val configuration = LocalConfiguration.current
-    val screenWidth = configuration.screenWidthDp.dp
-    val screenHeight = configuration.screenHeightDp.dp
+    val windowWidth = configuration.screenWidthDp.dp
+    val windowHeight = configuration.screenHeightDp.dp
     val screenDensity = LocalDensity.current
     var stageBounds by remember { mutableStateOf(Rect.Zero) }
     val reorder = remember { ToolbarWorkspaceReorderController() }
@@ -136,45 +138,51 @@ internal fun ToolbarWorkspacePreview(
         }
     }
     val commitReorder by rememberUpdatedState(onReorderBar)
-    // Pure layout resolver remains independent from Compose state and gesture lifecycle.
-    val basePlan = remember(workspace, look, screenWidth, screenHeight, colors.size) {
-        toolbarPreviewLayoutPlan(workspace, look, screenWidth, screenHeight, colors.size)
-    }
-    val peersByBar = remember(workspace, basePlan, onReorderBar != null) {
-        if (onReorderBar == null) emptyMap() else toolbarPreviewPeers(workspace, basePlan)
-    }
-    val hoveredId = reorder.sourceId
-    val hoveredTarget = reorder.hoverPlacement
-    val previewMove = if (hoveredId != null && hoveredTarget != null &&
-        reorder.targetId == null) toolbarProjectedMove(workspace, look, hoveredId,
-            hoveredTarget) else null
-    val displayedWorkspace = previewMove?.first ?: reorder.displayedWorkspace(workspace)
-    val previewLook = previewMove?.second ?: look
-    val previewPlan = if (displayedWorkspace == workspace && previewLook == look) basePlan
-        else remember(displayedWorkspace, previewLook, screenWidth, screenHeight, colors.size) {
-            toolbarPreviewLayoutPlan(displayedWorkspace, previewLook,
-                screenWidth, screenHeight, colors.size)
-        }
-    // Keep the preview paper steady until the dock move is committed.
-    val dockPlan = basePlan.docked
     BoxWithConstraints(
         Modifier
             .fillMaxWidth()
-            .aspectRatio(toolbarPreviewAspectRatio(screenWidth, screenHeight))
+            .aspectRatio(toolbarPreviewAspectRatio(windowWidth, windowHeight))
             .testTag("toolbar-preview-stage")
             .clip(RoundedCornerShape(14.dp))
             .background(Color(0xFFE7EAF0))
-            .border(1.dp, palette.border.toComposeColor(), RoundedCornerShape(14.dp))
-            .onGloballyPositioned { stageBounds = it.boundsInRoot() },
+            .border(1.dp, palette.border.toComposeColor(), RoundedCornerShape(14.dp)),
     ) {
         // Layout against the actual window width, then scale all dp/sp measurements together.
         // This preserves the bar-to-screen ratio even in a narrower settings pane.
-        val scale = toolbarPreviewScale(maxWidth, screenWidth)
+        val scale = toolbarPreviewScale(maxWidth, windowWidth)
         val previewDensity = Density(screenDensity.density * scale, screenDensity.fontScale)
-        CompositionLocalProvider(
-            LocalDensity provides previewDensity,
+        DocumentTabsPreviewLayout(
+            previewDensity, documentTabsConfig, onMoveDocumentTabs, workspace, look, colors.size,
         ) {
-            Canvas(Modifier.fillMaxSize()) {
+            val documentDock = documentTabsConfig?.takeUnless { it.floating }?.position
+            val screenWidth = if (documentDock?.vertical == true) {
+                (windowWidth - DocumentTabsDockExtent).coerceAtLeast(0.dp)
+            } else windowWidth
+            val screenHeight = if (documentDock?.vertical == false) {
+                (windowHeight - DocumentTabsDockExtent).coerceAtLeast(0.dp)
+            } else windowHeight
+            // Pure layout resolver remains independent from Compose state and gesture lifecycle.
+            val basePlan = remember(workspace, look, screenWidth, screenHeight, colors.size) {
+                toolbarPreviewLayoutPlan(workspace, look, screenWidth, screenHeight, colors.size)
+            }
+            val peersByBar = remember(workspace, basePlan, onReorderBar != null) {
+                if (onReorderBar == null) emptyMap() else toolbarPreviewPeers(workspace, basePlan)
+            }
+            val hoveredId = reorder.sourceId
+            val hoveredTarget = reorder.hoverPlacement
+            val previewMove = if (hoveredId != null && hoveredTarget != null &&
+                reorder.targetId == null) toolbarProjectedMove(workspace, look, hoveredId,
+                    hoveredTarget) else null
+            val displayedWorkspace = previewMove?.first ?: reorder.displayedWorkspace(workspace)
+            val previewLook = previewMove?.second ?: look
+            val previewPlan = if (displayedWorkspace == workspace && previewLook == look) basePlan
+                else remember(displayedWorkspace, previewLook, screenWidth, screenHeight, colors.size) {
+                    toolbarPreviewLayoutPlan(displayedWorkspace, previewLook,
+                        screenWidth, screenHeight, colors.size)
+                }
+            // Keep the preview paper steady until the dock move is committed.
+            val dockPlan = basePlan.docked
+            Canvas(Modifier.fillMaxSize().onGloballyPositioned { stageBounds = it.boundsInRoot() }) {
                 drawRect(palette.panel.toComposeColor())
                 val left = dockPlan.leftInset.dp.toPx()
                 val top = dockPlan.topInset.dp.toPx()
@@ -406,7 +414,52 @@ internal fun ToolbarWorkspacePreview(
                 }
                 }
             }
+        }
+    }
+}
 
+@Composable
+private fun DocumentTabsPreviewLayout(
+    density: Density,
+    documentTabsConfig: com.xnotes.settings.DocumentTabsBarConfig?,
+    onMoveDocumentTabs: (com.xnotes.settings.DocumentTabsBarConfig) -> Unit,
+    workspace: ToolbarWorkspace,
+    look: ToolbarLook,
+    colorCount: Int,
+    workspaceContent: @Composable () -> Unit,
+) {
+    CompositionLocalProvider(LocalDensity provides density) {
+        if (documentTabsConfig != null) {
+            var demoTabs by remember { mutableStateOf(
+                com.xnotes.core.workspace.NoteTabs()
+                    .open("preview-note", "XNote")
+                    .open("preview-canvas", "XCanvas.xcanvas")
+            ) }
+            var demoSelected by remember { mutableStateOf("preview-note") }
+            var demoExpanded by remember { mutableStateOf(false) }
+            DocumentTabsHost(
+                tabs = demoTabs,
+                activeUri = demoSelected,
+                expanded = demoExpanded,
+                onExpandedChange = { demoExpanded = it },
+                onSelect = { demoSelected = it },
+                onClose = { id ->
+                    if (demoTabs.tabs.size > 1) {
+                        demoTabs = demoTabs.close(id)
+                        if (demoSelected == id) demoSelected = demoTabs.tabs.first().uri
+                    }
+                },
+                onReorder = { from, to -> demoTabs = demoTabs.move(from, to) },
+                onSplit = { /* navigation sample; no note is opened here */ },
+                config = documentTabsConfig,
+                onConfigChange = onMoveDocumentTabs,
+                workspace = workspace,
+                look = look,
+                colorCount = colorCount,
+                content = workspaceContent,
+            )
+        } else {
+            workspaceContent()
         }
     }
 }

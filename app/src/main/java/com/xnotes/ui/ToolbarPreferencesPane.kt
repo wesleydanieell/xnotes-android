@@ -61,7 +61,7 @@ import com.xnotes.ui.theme.LocalPalette
 import com.xnotes.ui.theme.toComposeColor
 import kotlinx.coroutines.delay
 
-private enum class ToolbarPropertyTab { SETTINGS, ELEMENTS }
+private enum class ToolbarPropertyTab { SETTINGS, ELEMENTS, NAVIGATION }
 
 /** Dedicated toolbar editor, independent of the fork's general preferences. */
 @OptIn(ExperimentalLayoutApi::class)
@@ -381,6 +381,10 @@ internal fun ToolbarPreferencesPane(editor: Editor, onBack: () -> Unit) {
                             id, anchor, alignment,
                         )
                     },
+                    documentTabsConfig = prefs.documentTabsBar,
+                    onMoveDocumentTabs = { next ->
+                        updateHome(prefs.copy(documentTabsBar = next))
+                    },
                     onReorderBar = { id, target ->
                         val old = editedWorkspace()
                         val updated = old.reorderVisualBar(id, target)
@@ -403,6 +407,10 @@ internal fun ToolbarPreferencesPane(editor: Editor, onBack: () -> Unit) {
                     }
                     ToolbarEditorChip(toolbarStrings.getString(R.string.toolbar_config_elements), toolbarPropertyTab == ToolbarPropertyTab.ELEMENTS) {
                         toolbarPropertyTab = ToolbarPropertyTab.ELEMENTS
+                    }
+                    ToolbarEditorChip(stringResource(R.string.document_tabs_tab), toolbarPropertyTab == ToolbarPropertyTab.NAVIGATION) {
+                        toolbarPropertyTab = ToolbarPropertyTab.NAVIGATION
+                        selectedEntry = null
                     }
 
                  }
@@ -429,6 +437,12 @@ internal fun ToolbarPreferencesPane(editor: Editor, onBack: () -> Unit) {
                             onColorCountChange = { editor.applyToolbarColorCount(it) },
                             onApplyLayout = { applyEdited(it) },
                         )
+                    }
+                    if (toolbarPropertyTab == ToolbarPropertyTab.NAVIGATION) {
+                        DocumentTabsEditor(config = prefs.documentTabsBar,
+                            startupMode = prefs.documentTabsMode,
+                            onConfigChange = { updateHome(prefs.copy(documentTabsBar = it)) },
+                            onModeChange = { updateHome(prefs.copy(documentTabsMode = it)) })
                     }
                     if (toolbarPropertyTab == ToolbarPropertyTab.SETTINGS) {
                         ToolbarBarsInspector(
