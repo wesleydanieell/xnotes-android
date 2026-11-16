@@ -1213,6 +1213,7 @@ private fun EditorScreen(
             // Document navigation is independent of the tool workspaces. This optional
             // integration builds on PR #359, not inside the toolbar-items schema.
             val documentTabsConfig = remember(preferencesRevision) { editor.preferences.documentTabsBar }
+            val splitOpen = editor.noteOpen && editor.secondary?.noteOpen == true
             com.xnotes.ui.DocumentTabsHost(
                 tabs = noteTabs,
                 activeUri = noteTabs.selectedUri(editor.active.pane == com.xnotes.ui.Pane.SECONDARY),
@@ -1238,7 +1239,8 @@ private fun EditorScreen(
                 modifier = if (editor.openPanes.isNotEmpty()) {
                     Modifier.background(LocalPalette.current.bg.toComposeColor())
                 } else Modifier,
-                shareDockLanes = !(editor.noteOpen && editor.secondary?.noteOpen == true),
+                shareDockLanes = !splitOpen,
+                reserveExpandedFloatingSpace = splitOpen,
                 enabled = noteTabs.tabs.isNotEmpty() && editor.openPanes.isNotEmpty(),
             ) {
                 SplitHost(editor, actions)

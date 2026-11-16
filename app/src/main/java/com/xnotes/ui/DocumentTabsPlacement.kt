@@ -48,7 +48,8 @@ internal fun documentTabsOffset(host: Size, card: Size, anchor: ToolbarAnchor,
 /** Longest usable strip near the requested edge. Swapping axes also handles side rails. */
 internal fun documentTabsFreeStrip(host: Size, anchor: ToolbarAnchor, vertical: Boolean,
     crossExtent: Float, obstacles: List<Rect>, gap: Float, minimumExtent: Float,
-    explicitEdge: ToolbarPosition = DocumentTabsBarConfig.edgeOf(anchor)): Rect {
+    explicitEdge: ToolbarPosition = DocumentTabsBarConfig.edgeOf(anchor),
+    stayOnEdge: Boolean = false): Rect {
     val main = if (vertical) host.height else host.width
     val cross = if (vertical) host.width else host.height
     val margin = gap.coerceAtMost(minOf(main, cross).coerceAtLeast(0f) / 2)
@@ -67,7 +68,7 @@ internal fun documentTabsFreeStrip(host: Size, anchor: ToolbarAnchor, vertical: 
     fun mainEnd(r: Rect) = if (vertical) r.bottom else r.right
     fun rect(a: Float, b: Float, c: Float) = if (vertical) Rect(c, a, c + thickness, b)
         else Rect(a, c, b, c + thickness)
-    val candidates = (listOf(desired, margin, crossLimit) + obstacles.flatMap {
+    val candidates = if (stayOnEdge) listOf(desired) else (listOf(desired, margin, crossLimit) + obstacles.flatMap {
         listOf(crossEnd(it) + gap, crossStart(it) - gap - thickness)
     }).filter { it in margin..crossLimit }.distinct().sortedBy { kotlin.math.abs(it - desired) }
     var fallback: Rect? = null
@@ -108,16 +109,10 @@ internal fun documentTabsFloatingStrip(
     val minimumLength = 132f * px
     fun strip(blockers: List<Rect>) =
         documentTabsFreeStrip(host, anchor, edge.vertical, 60f * px, blockers, 8f * px,
-            minimumLength, explicitEdge = edge)
+            minimumLength, explicitEdge = edge, stayOnEdge = true)
     val available = strip(obstacles)
     val edgeStrip = strip(emptyList())
     val length = if (edge.vertical) available.height else available.width
     val maxLength = if (edge.vertical) edgeStrip.height else edgeStrip.width
-    val nearEdge = when (edge) {
-        ToolbarPosition.TOP -> available.top < host.height / 2
-        ToolbarPosition.BOTTOM -> host.height - available.bottom < host.height / 2
-        ToolbarPosition.LEFT -> available.left < host.width / 2
-        ToolbarPosition.RIGHT -> host.width - available.right < host.width / 2
-    }
-    return if (nearEdge && length >= minOf(minimumLength, maxLength)) available else edgeStrip
+    return if (length >= minOf(minimumLength, maxLength)) available else edgeStrip
 }

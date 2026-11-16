@@ -12,6 +12,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Rect
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onNodeWithTag
@@ -29,6 +30,7 @@ import com.xnotes.settings.DocumentTabsBarConfig
 import com.xnotes.settings.DocumentTabsSizing
 import com.xnotes.settings.ToolbarLook
 import com.xnotes.settings.ToolbarPosition
+import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
@@ -106,6 +108,62 @@ class DocumentTabsPlacementRegressionTest {
             failures.groupBy { it.substringBefore(" small=") }.entries.joinToString("\n") { (reason, cases) ->
                 "$reason: ${cases.size}\n" + cases.take(4).joinToString("\n")
             }, failures.isEmpty())
+    }
+
+    @Test fun floatingNavigationKeepsTheEdgeMarginBesideFullLengthDocks() {
+        var edge by mutableStateOf(ToolbarPosition.TOP)
+        var marginPx = 0f
+        rule.setContent {
+            marginPx = with(LocalDensity.current) { 8.dp.toPx() }
+            MaterialTheme {
+                val config = DocumentTabsBarConfig(floating = true)
+                    .movedTo(edge, ToolbarDockAlignment.CENTER)
+                Box(Modifier.size(580.dp, 380.dp).testTag("edge-host")) {
+                    DocumentTabsHost(
+                        tabs = documents, activeUri = "one.xnote", expanded = true,
+                        onExpandedChange = {}, onSelect = {}, onClose = {},
+                        onReorder = { _, _ -> }, onSplit = {}, config = config,
+                        onConfigChange = {}, workspace = workspace(config.withFloating(false), 2, 1200),
+                        look = ToolbarLook(), colorCount = 5, shareDockLanes = true,
+                    ) {}
+                }
+            }
+        }
+        for (position in ToolbarPosition.entries) {
+            rule.runOnIdle { edge = position }
+            val host = bounds("edge-host")
+            val bar = bounds("document-tabs-bar")
+            val gap = when (position) {
+                ToolbarPosition.TOP -> bar.top - host.top
+                ToolbarPosition.BOTTOM -> host.bottom - bar.bottom
+                ToolbarPosition.LEFT -> bar.left - host.left
+                ToolbarPosition.RIGHT -> host.right - bar.right
+            }
+            assertEquals("floating margin at $position", marginPx, gap, 1.5f)
+        }
+    }
+
+    @Test fun splitEditorReservesTheExpandedFloatingStripForPaneControls() {
+        var expanded by mutableStateOf(true)
+        rule.setContent {
+            MaterialTheme {
+                val config = DocumentTabsBarConfig(floating = true)
+                    .movedTo(ToolbarPosition.BOTTOM, ToolbarDockAlignment.CENTER)
+                DocumentTabsHost(
+                    tabs = documents, activeUri = "one.xnote", expanded = expanded,
+                    onExpandedChange = { expanded = it }, onSelect = {}, onClose = {},
+                    onReorder = { _, _ -> }, onSplit = {}, config = config,
+                    onConfigChange = {}, workspace = workspace(config.withFloating(false), 1, 1200),
+                    look = ToolbarLook(), colorCount = 5, reserveExpandedFloatingSpace = true,
+                ) {
+                    Box(Modifier.fillMaxSize().testTag("split-pane-content"))
+                }
+            }
+        }
+        val expandedPane = bounds("split-pane-content")
+        assertTrue(expandedPane.bottom <= bounds("document-tabs-bar").top + 1f)
+        rule.runOnIdle { expanded = false }
+        assertTrue(bounds("split-pane-content").bottom > expandedPane.bottom)
     }
 
     @Test fun workspacePreviewReordersNavigationWithOneOrThreeToolbars() = exerciseReordering(preview = true)
