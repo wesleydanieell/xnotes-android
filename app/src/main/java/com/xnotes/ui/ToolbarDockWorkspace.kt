@@ -1,6 +1,8 @@
 package com.xnotes.ui
 
 import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.AbsoluteAlignment
 import com.xnotes.core.tools.ToolbarAnchor
 import com.xnotes.core.tools.ToolbarBar
 import com.xnotes.core.tools.ToolbarDockAlignment
@@ -27,6 +29,15 @@ internal fun ToolbarDockEdge.toolbarPosition(): ToolbarPosition = when (this) {
     ToolbarDockEdge.BOTTOM -> ToolbarPosition.BOTTOM
     ToolbarDockEdge.LEFT -> ToolbarPosition.LEFT
     ToolbarDockEdge.RIGHT -> ToolbarPosition.RIGHT
+}
+
+/** The packer reserves the tallest bar's depth for its whole lane. A shorter
+ * sibling must still touch the physical edge, not the top-left of that lane. */
+internal fun ToolbarDockEdge.toolbarContentAlignment(): Alignment = when (this) {
+    ToolbarDockEdge.TOP -> Alignment.TopCenter
+    ToolbarDockEdge.BOTTOM -> Alignment.BottomCenter
+    ToolbarDockEdge.LEFT -> AbsoluteAlignment.CenterLeft
+    ToolbarDockEdge.RIGHT -> AbsoluteAlignment.CenterRight
 }
 
 internal fun toolbarBarSize(bar: ToolbarBar, index: Int, look: ToolbarLook): ToolbarSize =
@@ -87,6 +98,19 @@ internal fun toolbarDockedGeometry(bar: ToolbarBar, index: Int, look: ToolbarLoo
 internal fun toolbarSafeDockDepth(acrossDp: Float): Float =
     (acrossDp.coerceAtLeast(0f) * 0.4f).coerceAtMost(256f)
 
+/** Resolve primary/list identity and user-selected visual order exactly once.
+ * The old comparator searched the bars list for every pair of requests. */
+private fun toolbarRequestsInVisualOrder(
+    workspace: ToolbarWorkspace,
+    requests: List<ToolbarDockRequest>,
+): List<ToolbarDockRequest> {
+    val indices = workspace.bars.withIndex().associate { it.value.id to it.index }
+    val priorities = workspace.bars.withIndex().associate {
+        it.value.id to (it.value.geometry.visualOrder ?: it.index)
+    }
+    return requests.sortedWith(compareBy({ priorities.getValue(it.id) }, { indices.getValue(it.id) }))
+}
+
 /** A null length is deliberately treated as a full-edge bar, not an optimistic guess. */
 internal fun toolbarDockPlan(
     workspace: ToolbarWorkspace,
@@ -116,7 +140,8 @@ internal fun toolbarDockPlan(
     // the original length. The real renderer is constrained by the same placement box.
     // Cap both axes before the reservation pass: an oversized top bar must not be
     // rejected here and then incorrectly leave its space available to a side bar.
-    val safeDepthRequests = requests.map { request ->
+    val orderedRequests = toolbarRequestsInVisualOrder(workspace, requests)
+    val safeDepthRequests = orderedRequests.map { request ->
         val vertical = request.edge == ToolbarDockEdge.LEFT || request.edge == ToolbarDockEdge.RIGHT
         request.copy(depth = request.depth.coerceAtMost(toolbarSafeDockDepth(
             if (vertical) windowWidth.value else windowHeight.value)))
@@ -161,6 +186,15 @@ internal fun ToolbarWorkspace.hasMultiDock(look: ToolbarLook): Boolean =
                 bar.geometry.dockLane != 0 ||
                 bar.geometry.dockAlignment != ToolbarDockAlignment.CENTER)
     }
+
+/** A legacy primary uses ToolbarLook.floating rather than geometry.floating. When
+ * another visible bar is present, both must be rendered in the SAME floating
+ * workspace so alignment and long-press reorder share one layout transaction. */
+internal fun ToolbarWorkspace.usesSharedFloatingPrimary(look: ToolbarLook): Boolean {
+    if (!look.floating || bars.count { it.visible } < 2) return false
+    val primary = bars.firstOrNull() ?: return false
+    return primary.visible && !primary.geometry.floating && toolbarDockEdge(primary, 0, look) == null
+}
 
 internal fun ToolbarAnchor.floatingEdge(): ToolbarDockEdge = when (this) {
     ToolbarAnchor.TOP_LEFT, ToolbarAnchor.TOP_CENTER, ToolbarAnchor.TOP_RIGHT, ToolbarAnchor.CENTER ->
@@ -242,10 +276,12 @@ internal fun toolbarFloatingPlan(
             alignment = toolbarFloatingAlignment(bar), length = length, depth = depth,
         ))
     }
+    // Primary-bar identity is list-based; layout order is separate and configurable.
+    val orderedRequests = toolbarRequestsInVisualOrder(workspace, requests)
     // Floating regions must also adapt BOTH dimensions when the viewport shrinks.
     // Their saved preferred sizes remain intact, but the allocated rectangles must fit
     // the current screen and other floating bars, just like docked placement does.
-    val safeRequests = requests.map { request ->
+    val safeRequests = orderedRequests.map { request ->
         val vertical = request.edge == ToolbarDockEdge.LEFT || request.edge == ToolbarDockEdge.RIGHT
         request.copy(
             length = request.length.coerceAtMost(if (vertical) height else width),

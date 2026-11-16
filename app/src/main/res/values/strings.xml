@@ -1222,6 +1222,8 @@
     <string name="toolbar_config_collapse">Collapse</string>
     <string name="toolbar_config_expand">Expand</string>
     <string name="toolbar_config_size_and_spacing">Size and spacing</string>
+    <string name="toolbar_config_dimensions_group">Dimensions</string>
+    <string name="toolbar_config_inner_spacing_group">Inner spacing</string>
     <string name="toolbar_config_length">Length</string>
     <string name="toolbar_config_thickness">Thickness</string>
     <string name="toolbar_config_current_screen_limit">Limited to %1$d dp on this screen</string>
@@ -1338,4 +1340,13 @@
     <string name="toolbar_pin_start">Pin Start</string>
     <string name="toolbar_pin_end">Pin End</string>
     <string name="toolbar_pin_regions_hint">Pinned regions stay visible at the edges while the remaining tools scroll in the middle. Make sure the pinned tools fit.</string>
+    <string name="toolbar_config_bar_and_appearance">Bar &amp; appearance</string>
+    <string name="toolbar_config_bar_details">Bar details</string>
+    <string name="toolbar_config_bar_order">Bar order</string>
+    <string name="toolbar_config_reorder_drag_hint">Hold and drag a bar in the preview to move it or reorder it within the same lane.</string>
+    <string name="toolbar_config_reorder_handle">Drag to reorder toolbar in this lane</string>
+    <string name="toolbar_config_behavior">Behavior</string>
+    <string name="toolbar_config_lane_and_alignment">Lane &amp; alignment</string>
+    <string name="toolbar_config_position_and_alignment">Position and alignment</string>
+    <string name="toolbar_config_preferred_lane">Preferred lane</string>
 </resources>

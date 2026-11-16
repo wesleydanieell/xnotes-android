@@ -16,6 +16,8 @@
     <string name="toolbar_config_collapse">Reduzir</string>
     <string name="toolbar_config_expand">Ampliar</string>
     <string name="toolbar_config_size_and_spacing">Tamanho e espaçamento</string>
+    <string name="toolbar_config_dimensions_group">Dimensões</string>
+    <string name="toolbar_config_inner_spacing_group">Espaços internos</string>
     <string name="toolbar_config_length">Comprimento</string>
     <string name="toolbar_config_thickness">Espessura</string>
     <string name="toolbar_config_current_screen_limit">Limitado a %1$d dp nesta tela</string>
@@ -132,4 +134,13 @@
     <string name="toolbar_pin_start">Fixar início</string>
     <string name="toolbar_pin_end">Fixar fim</string>
     <string name="toolbar_pin_regions_hint">As regiões fixas permanecem visíveis nas extremidades enquanto as outras ferramentas rolam no centro. Evite colocar ferramentas demais nas regiões fixas.</string>
+    <string name="toolbar_config_bar_and_appearance">Barra e aparência</string>
+    <string name="toolbar_config_bar_details">Dados da barra</string>
+    <string name="toolbar_config_bar_order">Ordem das barras</string>
+    <string name="toolbar_config_reorder_drag_hint">Segure e arraste a barra na prévia para movê-la ou reordená-la na mesma faixa.</string>
+    <string name="toolbar_config_reorder_handle">Arrastar para reordenar a barra nesta faixa</string>
+    <string name="toolbar_config_behavior">Comportamento</string>
+    <string name="toolbar_config_lane_and_alignment">Faixa e alinhamento</string>
+    <string name="toolbar_config_position_and_alignment">Posição e alinhamento</string>
+    <string name="toolbar_config_preferred_lane">Faixa preferida</string>
 </resources>

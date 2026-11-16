@@ -1,5 +1,8 @@
 package com.xnotes.ui
 
+import androidx.compose.animation.core.animateDpAsState
+import androidx.compose.animation.animateContentSize
+import androidx.compose.animation.core.snap
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -22,30 +25,41 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.rememberUpdatedState
+import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.boundsInRoot
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.zIndex
 import androidx.compose.ui.unit.Density
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import com.xnotes.R
 import com.xnotes.ui.icons.XnotesIcons
 import com.xnotes.core.model.Rgba
 import com.xnotes.core.tools.ToolbarAnchor
+import com.xnotes.core.tools.ToolbarDockAlignment
 import com.xnotes.core.tools.ToolbarBar
 import com.xnotes.core.tools.ToolbarDistribution
 import com.xnotes.core.tools.ToolbarItem
@@ -94,7 +108,9 @@ internal fun ToolbarWorkspacePreview(
     onSelectBar: (String) -> Unit,
     onSelectEntry: (String, Int, Int) -> Unit,
     selectedEntry: Pair<Int, Int>?,
-    onMoveBar: (String, ToolbarAnchor) -> Unit,
+    onMoveBar: (String, ToolbarAnchor, ToolbarDockAlignment) -> Unit,
+    /** Optional only in the editor, never in read-only workspace thumbnails. */
+    onReorderBar: ((String, String) -> Unit)? = null,
 ) {
     val palette = LocalPalette.current
     val configuration = LocalConfiguration.current
@@ -102,18 +118,47 @@ internal fun ToolbarWorkspacePreview(
     val screenHeight = configuration.screenHeightDp.dp
     val screenDensity = LocalDensity.current
     var stageBounds by remember { mutableStateOf(Rect.Zero) }
-    // Exactly the same screen-space dock plan as the real note and canvas.
-    val dockPlan = toolbarDockPlan(workspace, look, screenWidth, screenHeight)
-    val floatingPlan = toolbarFloatingPlan(
-        workspace, look,
-        screenWidth - dockPlan.leftInset.dp - dockPlan.rightInset.dp,
-        screenHeight - dockPlan.topInset.dp - dockPlan.bottomInset.dp,
-        colors.size,
-    )
+    val reorder = remember { ToolbarWorkspaceReorderController() }
+    ToolbarReorderRecoveryEffect(reorder)
+    val settlingOrientation = remember { mutableStateMapOf<String, com.xnotes.core.tools.ToolbarDropPosition>() }
+    val morphProgress = remember { mutableStateMapOf<String, Float>() }
+    LaunchedEffect(workspace) {
+        reorder.acknowledge(workspace)
+        settlingOrientation.entries.toList().forEach { (id, target) ->
+            val bar = workspace.bars.firstOrNull { it.id == id }
+            if (bar == null || (bar.geometry.anchor == target.anchor &&
+                bar.geometry.dockAlignment == target.alignment)) {
+                settlingOrientation.remove(id)
+                morphProgress.remove(id)
+            }
+        }
+    }
+    val commitReorder by rememberUpdatedState(onReorderBar)
+    // Pure layout resolver remains independent from Compose state and gesture lifecycle.
+    val basePlan = remember(workspace, look, screenWidth, screenHeight, colors.size) {
+        toolbarPreviewLayoutPlan(workspace, look, screenWidth, screenHeight, colors.size)
+    }
+    val peersByBar = remember(workspace, basePlan, onReorderBar != null) {
+        if (onReorderBar == null) emptyMap() else toolbarPreviewPeers(workspace, basePlan)
+    }
+    val hoveredId = reorder.sourceId
+    val hoveredTarget = reorder.hoverPlacement
+    val previewMove = if (hoveredId != null && hoveredTarget != null &&
+        reorder.targetId == null) toolbarProjectedMove(workspace, look, hoveredId,
+            hoveredTarget) else null
+    val displayedWorkspace = previewMove?.first ?: reorder.displayedWorkspace(workspace)
+    val previewLook = previewMove?.second ?: look
+    val previewPlan = if (displayedWorkspace == workspace && previewLook == look) basePlan
+        else remember(displayedWorkspace, previewLook, screenWidth, screenHeight, colors.size) {
+            toolbarPreviewLayoutPlan(displayedWorkspace, previewLook,
+                screenWidth, screenHeight, colors.size)
+        }
+    val dockPlan = previewPlan.docked
     BoxWithConstraints(
         Modifier
             .fillMaxWidth()
             .aspectRatio(toolbarPreviewAspectRatio(screenWidth, screenHeight))
+            .testTag("toolbar-preview-stage")
             .clip(RoundedCornerShape(14.dp))
             .background(Color(0xFFE7EAF0))
             .border(1.dp, palette.border.toComposeColor(), RoundedCornerShape(14.dp))
@@ -122,10 +167,9 @@ internal fun ToolbarWorkspacePreview(
         // Layout against the actual window width, then scale all dp/sp measurements together.
         // This preserves the bar-to-screen ratio even in a narrower settings pane.
         val scale = toolbarPreviewScale(maxWidth, screenWidth)
-        val stageWidth = maxWidth / scale
-        val stageHeight = maxHeight / scale
+        val previewDensity = Density(screenDensity.density * scale, screenDensity.fontScale)
         CompositionLocalProvider(
-            LocalDensity provides Density(screenDensity.density * scale, screenDensity.fontScale),
+            LocalDensity provides previewDensity,
         ) {
             Canvas(Modifier.fillMaxSize()) {
                 drawRect(palette.panel.toComposeColor())
@@ -153,38 +197,162 @@ internal fun ToolbarWorkspacePreview(
                     y += rule
                 }
             }
+            if (hoveredId != null) {
+                val slot = when {
+                    reorder.targetId != null ->
+                        toolbarReorderPreviewSlot(workspace, look, hoveredId, previewPlan)
+                    hoveredTarget != null ->
+                        toolbarPreviewDropSlot(workspace, look, hoveredId, hoveredTarget,
+                            screenWidth, screenHeight, colors.size)
+                    else -> null
+                }
+                slot?.let { ToolbarDropIndicator(it, hoveredId) }
+            }
             workspace.bars.forEachIndexed { index, bar ->
                 if (!bar.visible) return@forEachIndexed
-                val dockPlacement = dockPlan.placement(bar.id)
-                val floating = dockPlacement == null
-                val placement = dockPlacement ?: floatingPlan.placement(bar.id) ?: return@forEachIndexed
-                val anchor = bar.geometry.anchor
+                // The dragged bar must remain at its original slot throughout the gesture.
+                // Its ToolbarDragSurface applies the pointer delta; only peers move in the
+                // preview reorder plan. Using the animated destination here moves the source
+                // a second time and makes it jump away from the pen/finger.
+                val isDraggedBar = reorder.sourceId == bar.id
+                val barPlan = if (isDraggedBar) basePlan else previewPlan
+                val barPosition = barPlan.position(bar.id) ?: return@forEachIndexed
+                val placement = barPosition.placement
+                val floating = barPosition.floating
+                val anchor = if (index == 0 && !bar.geometry.floating && look.floating)
+                    when (look.position) {
+                        com.xnotes.settings.ToolbarPosition.TOP -> com.xnotes.core.tools.ToolbarAnchor.TOP_CENTER
+                        com.xnotes.settings.ToolbarPosition.BOTTOM -> com.xnotes.core.tools.ToolbarAnchor.BOTTOM_CENTER
+                        com.xnotes.settings.ToolbarPosition.LEFT -> com.xnotes.core.tools.ToolbarAnchor.CENTER_LEFT
+                        com.xnotes.settings.ToolbarPosition.RIGHT -> com.xnotes.core.tools.ToolbarAnchor.CENTER_RIGHT
+                    } else bar.geometry.anchor
                 val vertical = placement.edge == com.xnotes.core.tools.ToolbarDockEdge.LEFT ||
                     placement.edge == com.xnotes.core.tools.ToolbarDockEdge.RIGHT
-                val x = placement.x + if (floating) dockPlan.leftInset else 0f
-                val y = placement.y + if (floating) dockPlan.topInset else 0f
-                val positionModifier = Modifier.offset(x = x.dp, y = y.dp)
-                    .width(placement.width.dp).height(placement.height.dp)
-                Box(positionModifier, contentAlignment = Alignment.Center) {
+                val x = barPosition.x
+                val y = barPosition.y
+                // Only peers animate. Source follows the stylus while dragging and
+                // lands directly on the committed slot after release. Returning the
+                // source through an animated coordinate causes a visible snapback.
+                val sourceIsControlled = isDraggedBar || reorder.lastReleasedId == bar.id
+                // Keep animations attached to the stable bar ID across workspace updates.
+                key(bar.id) {
+                val animatedX by animateDpAsState(x.dp,
+                    animationSpec = if (sourceIsControlled) snap() else androidx.compose.animation.core.spring(),
+                    label = "barReorderX-${bar.id}")
+                val animatedY by animateDpAsState(y.dp,
+                    animationSpec = if (sourceIsControlled) snap() else androidx.compose.animation.core.spring(),
+                    label = "barReorderY-${bar.id}")
+                val visibleX = if (sourceIsControlled) x.dp else animatedX
+                val visibleY = if (sourceIsControlled) y.dp else animatedY
+                // The lane uses its tallest/widest peer as its depth. Align each actual
+                // bar against the occupied screen edge, rather than centering a short
+                // one-row floating bar in a two-row peer's taller allocation.
+                val edgeAlignment = placement.edge.toolbarContentAlignment()
+                val previewOrientation = settlingOrientation[bar.id]
+                // Project the exact same workspace once per destination, not
+                // once PER animation frame (or independently for content/size).
+                val projectedMorph = remember(workspace, look, bar.id, previewOrientation,
+                    screenWidth, screenHeight, colors.size) {
+                    previewOrientation?.let { target ->
+                        toolbarProjectedMove(workspace, look, bar.id, target)?.let { (next, nextLook) ->
+                            next.bars.firstOrNull { it.id == bar.id } to
+                                toolbarPreviewLayoutPlan(next, nextLook, screenWidth,
+                                    screenHeight, colors.size).position(bar.id)?.placement
+                        }
+                    }
+                }
+                val visualBar = projectedMorph?.first ?: bar
+                val visualVertical = previewOrientation?.let {
+                    it.anchor == com.xnotes.core.tools.ToolbarAnchor.CENTER_LEFT ||
+                        it.anchor == com.xnotes.core.tools.ToolbarAnchor.CENTER_RIGHT
+                } ?: vertical
+                val containerMorph = if (previewOrientation != null && vertical != visualVertical)
+                    ToolbarContainerMorph(vertical, visualVertical, morphProgress[bar.id] ?: 0f)
+                    else null
+                // The previous morph changed the inner Row/Column while keeping a
+                // horizontal-sized parent slot. On a TOP -> RIGHT drop that clipped
+                // the vertical bar to the old 50dp height, then made it jump when
+                // the final workspace arrived. Interpolate the measured allocation
+                // from the same projected planner as the live toolbar and drop ghost.
+                val projectedPlacement = projectedMorph?.second
+                val fraction = containerMorph?.progress ?: 0f
+                val slotWidth = if (containerMorph != null && projectedPlacement != null)
+                    (placement.width + (projectedPlacement.width - placement.width) * fraction).dp
+                    else placement.width.dp
+                val slotHeight = if (containerMorph != null && projectedPlacement != null)
+                    (placement.height + (projectedPlacement.height - placement.height) * fraction).dp
+                    else placement.height.dp
+                val positionModifier = Modifier.offset(x = visibleX, y = visibleY)
+                    .width(slotWidth).height(slotHeight)
+                    .testTag("preview-bar-${bar.id}")
+                    .zIndex(if (reorder.sourceId == bar.id) 2f else if (reorder.targetId == bar.id) 1f else 0f)
+                    .onGloballyPositioned { coordinates ->
+                        val bounds = coordinates.boundsInRoot()
+                        reorder.updateBounds(bar.id, bounds)
+                    }
+                val peers = peersByBar[bar.id].orEmpty()
+                Box(positionModifier, contentAlignment = edgeAlignment) {
                     ToolbarDragSurface(
                         id = bar.id,
                         anchor = anchor,
                         movable = bar.geometry.movable,
                         paneBounds = stageBounds,
-                        onMoveBar = onMoveBar,
+                        currentAlignment = toolbarFloatingAlignment(bar),
+                        onMoveBar = { movedId, destination, alignment ->
+                            // Parent placement and drag offset must change atomically;
+                            // do not spring the moved source back through its old edge.
+                            reorder.markAnchorMoveReleased(movedId)
+                            onMoveBar(movedId, destination, alignment)
+                        },
+                        onDragStart = if (onReorderBar == null) null else { _ ->
+                            settlingOrientation.remove(bar.id)
+                            reorder.start(bar.id, peers, vertical, workspace, anchor,
+                                toolbarFloatingAlignment(bar))
+                        },
+                        onDragPosition = if (onReorderBar == null) null else { finger ->
+                            reorder.hover(bar.id, finger)
+                        },
+                        onDrop = if (onReorderBar == null) null else { finger ->
+                            reorder.drop(bar.id, finger) { source, destination ->
+                                commitReorder?.invoke(source, destination)
+                            }
+                        },
+                        onDragCancel = if (onReorderBar == null) null else ({
+                            reorder.cancel(bar.id)
+                        }),
+                        snapTargetInRoot = { target ->
+                            toolbarPreviewDropSlot(workspace, look, bar.id, target,
+                                screenWidth, screenHeight, colors.size)
+                                ?.topLeftInRoot(stageBounds, previewDensity)
+                        },
+                        onPlacementPreview = { target ->
+                            reorder.previewPlacement(bar.id, target)
+                        },
+                        onSettleTarget = { target ->
+                            if (target != null) reorder.markAnchorMoveReleased(bar.id)
+                            if (target == null) {
+                                settlingOrientation.remove(bar.id)
+                                morphProgress.remove(bar.id)
+                            } else {
+                                settlingOrientation[bar.id] = target
+                                morphProgress[bar.id] = 0f
+                            }
+                        },
+                        onSettleProgress = { progress -> morphProgress[bar.id] = progress },
                     ) {
+                        CompositionLocalProvider(LocalToolbarContainerMorph provides containerMorph) {
                         PreviewBar(
-                            bar = bar,
+                            bar = visualBar,
                             selected = bar.id == selectedId,
                             effectiveSize = if (index == 0) look.size else when (bar.geometry.scale) {
                                 ToolbarScale.COMPACT -> ToolbarSize.COMPACT
                                 ToolbarScale.REGULAR -> ToolbarSize.REGULAR
                                 ToolbarScale.COMFORTABLE -> ToolbarSize.COMFORTABLE
                             },
-                            vertical = vertical,
+                            vertical = visualVertical,
                             floating = floating,
-                            availableWidth = placement?.width?.dp ?: (stageWidth - 20.dp),
-                            availableHeight = placement?.height?.dp ?: (stageHeight - 20.dp),
+                            availableWidth = slotWidth,
+                            availableHeight = slotHeight,
                             colors = colors,
                             activeColorIndex = activeColorIndex,
                             pageNumber = pageNumber,
@@ -195,9 +363,18 @@ internal fun ToolbarWorkspacePreview(
                             onSelectEntry = { section, entry -> onSelectEntry(bar.id, section, entry) },
                             selectedEntry = if (bar.id == selectedId) selectedEntry else null,
                         )
+                        }
+                    }
+                    if (reorder.targetId == bar.id) {
+                        // The destination placeholder moves with the live rearranged toolbar.
+                        Box(Modifier.matchParentSize().border(2.dp,
+                            palette.accent.toComposeColor(), RoundedCornerShape(8.dp))
+                            .testTag("preview-reorder-target-${bar.id}"))
                     }
                 }
+                }
             }
+
         }
     }
 }
@@ -227,10 +404,17 @@ private fun PreviewBar(
         if (vertical) bar.geometry.heightDp else bar.geometry.widthDp)
     val autoLengthPinned = floating && bar.layout.hasPinnedRegions &&
         (if (vertical) bar.geometry.heightDp == null else bar.geometry.widthDp == null)
+    val morph = LocalToolbarContainerMorph.current
     // Match the live ToolbarFrame shape, including the user's corner-style setting.
     val shape = if (floating) androidx.compose.material3.MaterialTheme.shapes.extraLarge
         else RoundedCornerShape(0.dp)
+    // Animate only the toolbar body's dimensions; the surrounding drag slot
+    // remains at its target coordinates so cross-edge releases cannot flicker.
     val surface = Modifier
+        // The morph already controls size on every gesture frame. A second
+        // animateContentSize tween lags behind it, then overshoots at commit.
+        .then(if (morph == null) Modifier.animateContentSize(
+            animationSpec = androidx.compose.animation.core.tween(220)) else Modifier)
         .then(if (floating) Modifier.shadow(6.dp, shape) else Modifier)
         .clip(shape)
         .background(palette.panel.toComposeColor())
@@ -240,8 +424,23 @@ private fun PreviewBar(
             shape,
         )
         .clickable(onClick = onSelect)
+        .testTag("preview-content-${bar.id}")
 
-    if (vertical) {
+    if (morph != null) {
+        // Both orientations share one animated container and stable item instances.
+        // Morph progress comes from the same 220-ms tween moving the dragged bar.
+        CompositionLocalProvider(LocalBar provides metrics.copy(vertical = morph.toVertical)) {
+            Box(
+                surface.width(availableWidth).height(availableHeight)
+                    .padding(metrics.padding),
+                contentAlignment = Alignment.Center,
+            ) {
+                PreviewSections(bar.layout, metrics, colors, activeColorIndex, pageNumber,
+                    pageCount, zoomLabel, titleLabel, onSelectEntry, selectedEntry,
+                    vertical = morph.toVertical, compactRegions = compactRegions)
+            }
+        }
+    } else if (vertical) {
         Column(
             surface
                 .then(if (bar.geometry.heightDp != null) Modifier.height(bar.geometry.heightDp.dp)
@@ -308,18 +507,26 @@ private fun PreviewSections(
                 // Reference identity distinguishes repeated Colors occurrences with equal values.
                 val entryIndex = section.entries.indexOfFirst { it === entry }
                 val selected = selectedEntry == (sectionIndex to entryIndex)
-                Box(
-                    Modifier
-                        .then(if (selected) Modifier.border(
-                            1.dp, palette.accent.toComposeColor(), RoundedCornerShape(5.dp),
-                        ) else Modifier)
-                        .clickable { onSelectEntry(sectionIndex, entryIndex) },
-                ) {
-                    PreviewTool(
-                        entry, colors, activeColorIndex, pageNumber, pageCount,
+                if (LocalToolbarContainerMorph.current != null) {
+                    // During a container transform the shared reflow engine must
+                    // receive each color/page/zoom control as a separate measurable.
+                    // Wrapping PreviewTool in a Box would turn the entire group into
+                    // one child and cause its inner Row/Column to snap on release.
+                    PreviewTool(entry, colors, activeColorIndex, pageNumber, pageCount,
                         zoomLabel, titleLabel,
-                        { onSelectEntry(sectionIndex, entryIndex) }, vertical,
-                    )
+                        { onSelectEntry(sectionIndex, entryIndex) }, vertical)
+                } else {
+                    Box(
+                        Modifier
+                            .then(if (selected) Modifier.border(
+                                1.dp, palette.accent.toComposeColor(), RoundedCornerShape(5.dp),
+                            ) else Modifier)
+                            .clickable { onSelectEntry(sectionIndex, entryIndex) },
+                    ) {
+                        PreviewTool(entry, colors, activeColorIndex, pageNumber, pageCount,
+                            zoomLabel, titleLabel,
+                            { onSelectEntry(sectionIndex, entryIndex) }, vertical)
+                    }
                 }
             }
         }
@@ -356,7 +563,8 @@ private fun PreviewTool(
                 ToolbarIcon(XnotesIcons.zoomIn, stringResource(R.string.zoom_in), onClick = onSelect)
             }
             ToolbarItem.TITLE -> {
-                if (!vertical) Label(titleLabel, Modifier.widthIn(max = 160.dp))
+                if (vertical) VerticalToolbarTitle(titleLabel, onClick = onSelect)
+                else HorizontalToolbarTitle(titleLabel, onClick = onSelect)
             }
             else -> {
                 // The real document/canvas toolbar uses the back arrow, not the Home house icon.
@@ -366,7 +574,10 @@ private fun PreviewTool(
         }
     }
     if (item == ToolbarItem.COLORS || item == ToolbarItem.PAGE_NAV || item == ToolbarItem.ZOOM) {
-        if (vertical) Column(horizontalAlignment = Alignment.CenterHorizontally) { controls() }
+        if (LocalToolbarContainerMorph.current != null) {
+            // ToolbarMorphEntry arranges the emitted controls continuously.
+            controls()
+        } else if (vertical) Column(horizontalAlignment = Alignment.CenterHorizontally) { controls() }
         else Row(verticalAlignment = Alignment.CenterVertically) { controls() }
     } else {
         controls()
