@@ -1222,6 +1222,9 @@
     <string name="toolbar_config_collapse">Collapse</string>
     <string name="toolbar_config_expand">Expand</string>
     <string name="toolbar_config_size_and_spacing">Size and spacing</string>
+    <string name="toolbar_config_length">Length</string>
+    <string name="toolbar_config_thickness">Thickness</string>
+    <string name="toolbar_config_current_screen_limit">Limited to %1$d dp on this screen</string>
     <string name="toolbar_config_width">Width</string>
     <string name="toolbar_config_height">Height</string>
     <string name="toolbar_config_padding">Padding</string>
@@ -1331,4 +1334,8 @@
     <string name="toolbar_template_name_16">Tools</string>
     <string name="toolbar_template_name_17">Original</string>
     <string name="toolbar_template_name_18">Main toolbar</string>
+
+    <string name="toolbar_pin_start">Pin Start</string>
+    <string name="toolbar_pin_end">Pin End</string>
+    <string name="toolbar_pin_regions_hint">Pinned regions stay visible at the edges while the remaining tools scroll in the middle. Make sure the pinned tools fit.</string>
 </resources>

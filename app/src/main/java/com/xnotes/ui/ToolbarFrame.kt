@@ -33,6 +33,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.DpOffset
 import androidx.compose.ui.unit.TextUnit
@@ -254,6 +255,8 @@ internal fun ToolbarFrame(
     val depth = toolbarDepth(bar, layout)
     val compactRegions = toolbarCompactRegions(layout, look.floating,
         if (bar.vertical) geometry?.heightDp else geometry?.widthDp)
+    val autoLengthPinned = look.floating && layout.hasPinnedRegions &&
+        (if (bar.vertical) geometry?.heightDp == null else geometry?.widthDp == null)
     val glide = remember { ToolGlide() }
     val palette = LocalPalette.current
     val shape = MaterialTheme.shapes.extraLarge
@@ -270,12 +273,16 @@ internal fun ToolbarFrame(
     val stretch = when {
         bar.vertical -> when {
             geometry?.heightDp != null -> Modifier.height(geometry.heightDp.dp)
-            look.floating && layout.distribution == ToolbarDistribution.REGIONS && geometry?.floating == true -> Modifier.fillMaxHeight()
+            autoLengthPinned -> Modifier
+            look.floating && layout.distribution == ToolbarDistribution.REGIONS &&
+                geometry?.floating == true -> Modifier.fillMaxHeight()
             look.floating -> Modifier
             else -> Modifier.fillMaxHeight()
         }
         geometry?.widthDp != null -> Modifier.width(geometry.widthDp.dp)
-        look.floating && layout.distribution == ToolbarDistribution.REGIONS && geometry?.floating == true -> Modifier.fillMaxWidth()
+        autoLengthPinned -> Modifier
+        look.floating && layout.distribution == ToolbarDistribution.REGIONS &&
+            geometry?.floating == true -> Modifier.fillMaxWidth()
         look.floating -> Modifier
         else -> Modifier.fillMaxWidth()
     }
@@ -293,12 +300,13 @@ internal fun ToolbarFrame(
         LocalTipSide provides tipSide) {
         if (bar.vertical) {
             Column(
-                stretch.width(toolbarWidth(bar, layout, geometry)).then(surface),
+                stretch.width(toolbarWidth(bar, layout, geometry)).then(surface).testTag("toolbar-frame"),
                 horizontalAlignment = Alignment.CenterHorizontally,
             ) {
                 Column(
                     Modifier
-                        .weight(1f, fill = !look.floating || (layout.distribution == ToolbarDistribution.REGIONS && !compactRegions))
+                        .then(if (autoLengthPinned) Modifier else Modifier.weight(1f,
+                            fill = !look.floating || (layout.distribution == ToolbarDistribution.REGIONS && !compactRegions)))
                         .then(if (layout.distribution == ToolbarDistribution.CONTINUOUS || compactRegions)
                             Modifier.verticalScroll(rememberScrollState()) else Modifier)
                         .padding(vertical = bar.padding)
@@ -309,12 +317,13 @@ internal fun ToolbarFrame(
             }
         } else {
             Row(
-                stretch.height(toolbarHeight(bar, layout, geometry)).then(surface),
+                stretch.height(toolbarHeight(bar, layout, geometry)).then(surface).testTag("toolbar-frame"),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 Row(
                     Modifier
-                        .weight(1f, fill = !look.floating || (layout.distribution == ToolbarDistribution.REGIONS && !compactRegions))
+                        .then(if (autoLengthPinned) Modifier else Modifier.weight(1f,
+                            fill = !look.floating || (layout.distribution == ToolbarDistribution.REGIONS && !compactRegions)))
                         .then(if (layout.distribution == ToolbarDistribution.CONTINUOUS || compactRegions)
                             Modifier.horizontalScroll(rememberScrollState()) else Modifier)
                         .padding(horizontal = bar.padding)
