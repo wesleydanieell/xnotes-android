@@ -247,7 +247,7 @@ class DocumentTabsPlacementRegressionTest {
         val stageTag = if (preview) "toolbar-preview-stage" else "live-document-workspace"
         val stage = rule.onNodeWithTag(stageTag)
         val outline = rule.onNodeWithTag("document-tabs-drop-outline")
-        val follower = rule.onNodeWithTag("document-tabs-drag-outline")
+        val dragSurface = "toolbar-drag-surface-document-tabs-navigation"
         fun startDrag() {
             val viewport = bounds(stageTag)
             val origin = bounds("document-tabs-bar").center - viewport.topLeft
@@ -262,8 +262,10 @@ class DocumentTabsPlacementRegressionTest {
         val before = stage.captureToImage().toPixelMap()
         startDrag()
         outline.assertExists()
-        follower.assertExists()
-        assertTrue(bounds("document-tabs-drag-outline").top > original.bottom)
+        val dragged = bounds(dragSurface)
+        assertTrue(dragged.top > original.bottom)
+        assertTrue(dragged.bottom <= bounds(stageTag).bottom)
+        assertEquals(ToolbarPosition.TOP, rule.runOnIdle { config.position })
         val target = bounds("document-tabs-drop-outline")
         val pixel = target.center - bounds(stageTag).topLeft
         val during = stage.captureToImage().toPixelMap()
@@ -271,25 +273,24 @@ class DocumentTabsPlacementRegressionTest {
         assertEquals(original, bounds("document-tabs-bar"))
         stage.performTouchInput { cancel() }
         outline.assertDoesNotExist()
-        follower.assertDoesNotExist()
         assertEquals(original, bounds("document-tabs-bar"))
 
         startDrag()
         outline.assertExists()
-        val beforeSettle = bounds("document-tabs-drag-outline")
+        val beforeSettle = bounds(dragSurface)
         rule.mainClock.autoAdvance = false
         try {
             stage.performTouchInput { up() }
             rule.mainClock.advanceTimeBy(100)
             outline.assertDoesNotExist()
-            val settling = bounds("document-tabs-drag-outline")
+            val settling = bounds(dragSurface)
             assertTrue(settling.top > beforeSettle.top && settling.top < target.top)
         } finally {
             rule.mainClock.autoAdvance = true
         }
-        follower.assertDoesNotExist()
         assertEquals(ToolbarPosition.BOTTOM, rule.runOnIdle { config.position })
         assertEquals(target, bounds("document-tabs-bar"))
+        assertEquals(target, bounds(dragSurface))
 
         rule.runOnIdle {
             config = DocumentTabsBarConfig(floating = true)

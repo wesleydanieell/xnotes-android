@@ -72,7 +72,6 @@ fun ToolbarDragSurface(
     /** Keep the editor preview's gesture hit area at the interpolated lane size;
      * the default still wraps real toolbar content. */
     fillParentSlot: Boolean = false,
-    moveContentDuringDrag: Boolean = true,
     contentAlignment: Alignment = Alignment.TopStart,
     /** Optional projected destination in root pixels, shared with the drop indicator. */
     snapTargetInRoot: ((ToolbarDropPosition) -> Offset?)? = null,
@@ -326,7 +325,6 @@ fun ToolbarDragSurface(
     // target is acknowledged, use the same outer-slot origin used by runtime
     // settlement (never a narrower drop-indicator box).
     val visualDrag = when {
-        !moveContentDuringDrag -> Offset.Zero
         acknowledged && pendingRootTarget != null && parentSlotInRoot != null -> rawVisualDrag
         dragging || pendingPlacement != null -> toolbarVisibleDrag(rawVisualDrag, barBounds, paneBoundsNow)
         else -> rawVisualDrag

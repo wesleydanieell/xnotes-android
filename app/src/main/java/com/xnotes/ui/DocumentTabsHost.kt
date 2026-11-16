@@ -20,7 +20,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.geometry.Size
-import androidx.compose.ui.geometry.lerp
+import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.layout.boundsInRoot
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.platform.LocalDensity
@@ -88,12 +88,8 @@ internal fun DocumentTabsHost(
     val showExpanded = expanded || !config.floating
     var root by remember { mutableStateOf(Rect.Zero) }
     var child by remember(vertical) { mutableStateOf(Size.Zero) }
-    var dragStart by remember { mutableStateOf<Offset?>(null) }
-    var dragPreview by remember { mutableStateOf<Rect?>(null) }
-    var settleTarget by remember { mutableStateOf<Rect?>(null) }
-    var settleProgress by remember { mutableStateOf(0f) }
     var hoverTarget by remember { mutableStateOf<ToolbarDropPosition?>(null) }
-    BoxWithConstraints(modifier.fillMaxSize().onGloballyPositioned { coords ->
+    BoxWithConstraints(modifier.fillMaxSize().clipToBounds().onGloballyPositioned { coords ->
         val next = coords.boundsInRoot(); if (root != next) root = next
     }) {
         val widthDp = maxWidth.value
@@ -172,30 +168,9 @@ internal fun DocumentTabsHost(
                 parentSlotInRoot = root.topLeft + current.topLeft,
                 fillParentSlot = !config.floating,
                 currentAlignment = config.alignment(),
-                moveContentDuringDrag = false,
                 snapTargetInRoot = { target -> destination(target)?.let { root.topLeft + it.topLeft } },
-                onDragStart = { dragStart = it },
-                onDragPosition = { pointer ->
-                    dragStart?.let { start ->
-                        val delta = pointer - start
-                        val origin = current.topLeft + delta
-                        dragPreview = Rect(Offset(
-                            origin.x.coerceIn(0f, (host.width - current.width).coerceAtLeast(0f)),
-                            origin.y.coerceIn(0f, (host.height - current.height).coerceAtLeast(0f)),
-                        ), current.size)
-                    }
-                },
                 onPlacementPreview = { hoverTarget = it },
-                onSettleTarget = { target ->
-                    hoverTarget = null
-                    settleTarget = target?.let(::destination)
-                    settleProgress = 0f
-                    if (target == null) {
-                        dragStart = null
-                        dragPreview = null
-                    }
-                },
-                onSettleProgress = { settleProgress = it },
+                onSettleTarget = { hoverTarget = null },
             ) {
                 FloatingDocumentTabs(
                     tabs = tabs, activeUri = activeUri, expanded = showExpanded,
@@ -209,19 +184,15 @@ internal fun DocumentTabsHost(
         }
         val outlineColor = MaterialTheme.colorScheme.primary
         @Composable
-        fun Outline(rect: Rect, tag: String, alpha: Float) {
+        fun Outline(rect: Rect) {
             Box(Modifier.offset { IntOffset(rect.left.roundToInt(), rect.top.roundToInt()) }
                 .width((rect.width / px).dp).height((rect.height / px).dp).zIndex(21f)
-                .border(1.5.dp, outlineColor.copy(alpha = alpha), MaterialTheme.shapes.medium)
-                .testTag(tag))
+                .border(1.5.dp, outlineColor, MaterialTheme.shapes.medium)
+                .testTag("document-tabs-drop-outline"))
         }
         val hover = hoverTarget
         if (hover != null && hover != ToolbarDropPosition(dragAnchor, config.alignment())) {
-            destination(hover)?.let { Outline(it, "document-tabs-drop-outline", 1f) }
-        }
-        dragPreview?.let { rect ->
-            val settled = settleTarget?.let { lerp(rect, it, settleProgress) } ?: rect
-            Outline(settled, "document-tabs-drag-outline", 0.65f)
+            destination(hover)?.let { Outline(it) }
         }
     }
 }
