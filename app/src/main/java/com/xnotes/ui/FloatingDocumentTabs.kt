@@ -57,6 +57,7 @@ fun FloatingDocumentTabs(
     onReorder: ((Int, Int) -> Unit)? = null,
     onSplit: ((String) -> Unit)? = null,
     morphing: Boolean = false,
+    splitDrag: DocumentTabSplitDrag? = null,
 ) {
     val palette = LocalPalette.current
     val active = tabs.tabs.firstOrNull { it.uri == activeUri } ?: tabs.tabs.firstOrNull()
@@ -79,9 +80,12 @@ fun FloatingDocumentTabs(
             if (expanded || !floatingSurface) {
                 Box(Modifier.width(width).height(44.dp)) {
                     NoteTabBar(tabs, activeUri, onSelect, onClose,
-                        modifier = Modifier.padding(end = if (floatingSurface) 36.dp else 0.dp),
+                        modifier = Modifier.padding(
+                        start = if (splitDrag != null) DocumentTabMoveArea else 0.dp,
+                        end = if (floatingSurface) 36.dp else 0.dp,
+                    ),
                         floatingSurface = floatingSurface, rotated = vertical,
-                        onReorder = onReorder, onSplit = onSplit)
+                        onReorder = onReorder, onSplit = onSplit, splitDrag = splitDrag)
                     if (floatingSurface) Box(Modifier.align(Alignment.CenterEnd)
                         .size(36.dp).clickable { onExpandedChange(false) }, contentAlignment = Alignment.Center) {
                         Icon(Icons.Filled.KeyboardArrowUp, stringResource(R.string.document_tabs_collapse), Modifier.size(20.dp),

@@ -47,6 +47,10 @@ import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.graphics.Outline
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.layout.LayoutCoordinates
+import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.platform.testTag
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.stringResource
@@ -74,10 +78,12 @@ fun NoteTabBar(
     rotated: Boolean = false,
     onReorder: ((Int, Int) -> Unit)? = null,
     onSplit: ((String) -> Unit)? = null,
+    splitDrag: DocumentTabSplitDrag? = null,
 ) {
     val palette = LocalPalette.current
     val highlight = palette.selectionBackground.toComposeColor()
     val density = LocalDensity.current
+    val splitDragNow by rememberUpdatedState(splitDrag)
     BoxWithConstraints(modifier.fillMaxWidth()) {
         val visibleSlots = visibleTabSlots(maxWidth.value, tabs.tabs.size)
         val slotWidth = maxWidth / visibleSlots
@@ -132,21 +138,40 @@ fun NoteTabBar(
                     )
                     var menuExpanded by remember(tab.uri) { mutableStateOf(false) }
                     var dragDistance by remember(tab.uri) { mutableFloatStateOf(0f) }
-                    val reorderGesture = if (onReorder == null) Modifier else Modifier.pointerInput(
-                        tab.uri, tabs.tabs.size, axisPixels,
+                    val coordinates = remember(tab.uri) { arrayOfNulls<LayoutCoordinates>(1) }
+                    val reorderGesture = if (onReorder == null && splitDrag == null) Modifier else Modifier.pointerInput(
+                        tab.uri, tabs.tabs.size, axisPixels, rotated,
                     ) {
+                        var pointer = Offset.Unspecified
+                        fun reset() {
+                            dragDistance = 0f
+                            splitDragNow?.onPreview?.invoke(null)
+                        }
                         detectDragGesturesAfterLongPress(
-                            onDragStart = { dragDistance = 0f },
-                            onDragEnd = {
-                                val shift = (dragDistance / axisPixels.coerceAtLeast(1f)).roundToInt()
-                                val to = (from + shift).coerceIn(0, tabs.tabs.lastIndex)
-                                if (to != from) onReorder(from, to)
+                            onDragStart = { local ->
                                 dragDistance = 0f
+                                pointer = coordinates[0]?.takeIf { it.isAttached }
+                                    ?.localToRoot(local) ?: Offset.Unspecified
                             },
-                            onDragCancel = { dragDistance = 0f },
+                            onDragEnd = {
+                                val split = splitDragNow
+                                val target = split?.target(pointer)
+                                if (target != null) split.onDrop(tab.uri, target)
+                                else if (split == null || split.canReorder(pointer)) {
+                                    val shift = (dragDistance / axisPixels.coerceAtLeast(1f)).roundToInt()
+                                    val to = (from + shift).coerceIn(0, tabs.tabs.lastIndex)
+                                    if (to != from) onReorder?.invoke(from, to)
+                                }
+                                reset()
+                            },
+                            onDragCancel = ::reset,
                             onDrag = { change, delta ->
                                 change.consume()
-                                dragDistance += delta.x
+                                pointer += if (rotated) Offset(-delta.y, delta.x) else delta
+                                val split = splitDragNow
+                                val target = split?.target(pointer)
+                                split?.onPreview?.invoke(target)
+                                if (target == null) dragDistance += delta.x
                             },
                         )
                     }
@@ -154,6 +179,8 @@ fun NoteTabBar(
                         Modifier.width(animatedWidth).height(42.dp)
                             .graphicsLayer { translationX = dragDistance }
                             .padding(horizontal = 2.dp).clip(MaterialTheme.shapes.small)
+                            .testTag("document-tab-${tab.uri}")
+                            .then(if (splitDrag == null) Modifier else Modifier.onGloballyPositioned { coordinates[0] = it })
                             .then(reorderGesture),
                         verticalAlignment = Alignment.CenterVertically,
                     ) {

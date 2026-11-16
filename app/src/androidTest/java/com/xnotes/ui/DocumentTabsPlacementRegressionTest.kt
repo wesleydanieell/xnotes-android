@@ -312,6 +312,96 @@ class DocumentTabsPlacementRegressionTest {
         assertEquals(tabs, bounds("document-tabs-bar"))
     }
 
+    @Test fun tabDragOpensSplitFromAllFourBarEdgesWithoutMovingTheBar() {
+        var config by mutableStateOf(DocumentTabsBarConfig(floating = false))
+        var dropped: Pair<String, DocumentTabSplitSide>? = null
+        var reordered: Pair<Int, Int>? = null
+        rule.setContent {
+            MaterialTheme {
+                Box(Modifier.fillMaxSize().testTag("tab-split-stage")) {
+                    DocumentTabsHost(
+                        tabs = documents, activeUri = "one.xnote", expanded = true,
+                        onExpandedChange = {}, onSelect = {}, onClose = {},
+                        onReorder = { from, to -> reordered = from to to },
+                        onSplit = {}, config = config, onConfigChange = { config = it },
+                        workspace = ToolbarWorkspace(emptyList()), look = ToolbarLook(), colorCount = 5,
+                        onSplitDrop = { uri, side -> dropped = uri to side },
+                    ) {}
+                }
+            }
+        }
+
+        val stage = rule.onNodeWithTag("tab-split-stage")
+        val cases = listOf(
+            Triple(ToolbarPosition.TOP, Offset(0.5f, 0.85f), DocumentTabSplitSide.BOTTOM),
+            Triple(ToolbarPosition.BOTTOM, Offset(0.5f, 0.15f), DocumentTabSplitSide.TOP),
+            Triple(ToolbarPosition.LEFT, Offset(0.85f, 0.5f), DocumentTabSplitSide.RIGHT),
+            Triple(ToolbarPosition.RIGHT, Offset(0.15f, 0.5f), DocumentTabSplitSide.LEFT),
+        )
+        for ((edge, fraction, side) in cases) {
+            rule.runOnIdle {
+                config = config.movedTo(edge, ToolbarDockAlignment.CENTER)
+                dropped = null
+            }
+            val viewport = bounds("tab-split-stage")
+            fun dragTab() {
+                val start = bounds("document-tab-one.xnote").center - viewport.topLeft
+                val target = Offset(viewport.width * fraction.x, viewport.height * fraction.y)
+                stage.performTouchInput {
+                    down(start)
+                    advanceEventTime(850)
+                    moveBy(target - start)
+                }
+            }
+            val indicator = rule.onNodeWithTag("document-tab-split-target-${side.name}")
+            dragTab()
+            indicator.assertExists()
+            stage.performTouchInput { cancel() }
+            indicator.assertDoesNotExist()
+            rule.runOnIdle { assertEquals(null, dropped) }
+
+            dragTab()
+            stage.performTouchInput { up() }
+            indicator.assertDoesNotExist()
+            rule.runOnIdle {
+                assertEquals(edge, config.position)
+                assertEquals("one.xnote" to side, dropped)
+                assertEquals(null, reordered)
+            }
+        }
+
+        rule.runOnIdle {
+            config = config.movedTo(ToolbarPosition.TOP, ToolbarDockAlignment.CENTER)
+            dropped = null
+        }
+        val viewport = bounds("tab-split-stage")
+        val first = bounds("document-tab-one.xnote").center
+        val second = bounds("document-tab-two.xcanvas").center
+        stage.performTouchInput {
+            down(first - viewport.topLeft)
+            advanceEventTime(850)
+            moveBy(second - first)
+            up()
+        }
+        rule.runOnIdle {
+            assertEquals(0 to 1, reordered)
+            assertEquals(null, dropped)
+        }
+
+        val bar = bounds("document-tabs-bar")
+        val grip = Offset(bar.left + 5f, bar.center.y)
+        stage.performTouchInput {
+            down(grip - viewport.topLeft)
+            advanceEventTime(850)
+            moveBy(Offset(viewport.center.x, viewport.bottom - 4f) - grip)
+            up()
+        }
+        rule.runOnIdle {
+            assertEquals(ToolbarPosition.BOTTOM, config.position)
+            assertEquals(null, dropped)
+        }
+    }
+
     @Test fun workspacePreviewShowsOutlineOnlyDuringDrag() = exerciseDrag(preview = true)
 
     @Test fun liveEditorShowsOutlineOnlyDuringDrag() = exerciseDrag(preview = false)
