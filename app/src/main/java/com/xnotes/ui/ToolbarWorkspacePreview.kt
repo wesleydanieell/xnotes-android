@@ -180,7 +180,8 @@ internal fun ToolbarWorkspacePreview(
                     toolbarPreviewLayoutPlan(displayedWorkspace, previewLook,
                         screenWidth, screenHeight, colors.size)
                 }
-            val dockPlan = previewPlan.docked
+            // Keep the preview paper steady until the dock move is committed.
+            val dockPlan = basePlan.docked
             Canvas(Modifier.fillMaxSize().onGloballyPositioned { stageBounds = it.boundsInRoot() }) {
                 drawRect(palette.panel.toComposeColor())
                 val left = dockPlan.leftInset.dp.toPx()
