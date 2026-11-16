@@ -1239,7 +1239,7 @@ private fun EditorScreen(
                 modifier = if (editor.openPanes.isNotEmpty()) {
                     Modifier.background(LocalPalette.current.bg.toComposeColor())
                 } else Modifier,
-                reserveExpandedFloatingSpace = splitOpen,
+                splitOpen = splitOpen,
                 enabled = noteTabs.tabs.isNotEmpty() && editor.openPanes.isNotEmpty(),
             ) {
                 SplitHost(editor, actions)

@@ -6,7 +6,7 @@ This is the optional **stage 8** after [toolbar stabilization (#11)](https://git
 
 - `NoteTabs` and `NoteTabsStore`: independent tab state and Android persistence. Navigation actions are routed to the editor, including select, close, reorder and split opening.
 - `DocumentTabsHost` positions navigation independently. Docked tabs reserve a full edge strip and stay expanded. Floating tabs use the selected edge and alignment. Legacy lane preferences are ignored when loading the saved edge and size.
-- `documentTabsToolObstacles` resolves existing toolbars as obstacles for a floating drop. The indicator is an outline of the final slot. The tabs remain at their original position until a valid drop commits.
+- `documentTabsToolObstacles` resolves existing toolbars as obstacles for a floating drop. An outline follows the pointer and settles into the outlined destination on a valid drop. Floating tabs overlay both split panes without resizing them, and Center uses the full editor bounds.
 - `DocumentTabsBarConfig` and `Preferences`: startup state, anchor, edge, dynamic/manual extent and floating/docked mode persist separately from tool workspace JSON. Old XNotes preferences use safe defaults.
 - `DocumentTabsEditor` and `ToolbarWorkspacePreview`: navigation is configured in the same editor as toolbars, with an interactive two-document preview, but does not enter the toolbar element palette.
 - `ToolbarDragSurface`: the same long-press gesture engine is shared. Corner drops are disambiguated by actual pointer position, since an anchor like TOP_RIGHT represents both TOP/END and RIGHT/START.

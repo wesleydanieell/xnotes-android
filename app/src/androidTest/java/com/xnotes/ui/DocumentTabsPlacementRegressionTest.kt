@@ -2,6 +2,8 @@ package com.xnotes.ui
 
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.size
 import androidx.compose.material3.MaterialTheme
@@ -148,27 +150,39 @@ class DocumentTabsPlacementRegressionTest {
         }
     }
 
-    @Test fun splitEditorReservesTheExpandedFloatingStripForPaneControls() {
-        var expanded by mutableStateOf(true)
+    @Test fun floatingTabsKeepBothSplitPanesStationaryAndUseTheFullWidthForCenter() {
+        var expanded by mutableStateOf(false)
+        var edge by mutableStateOf(ToolbarPosition.TOP)
         rule.setContent {
             MaterialTheme {
                 val config = DocumentTabsBarConfig(floating = true)
-                    .movedTo(ToolbarPosition.BOTTOM, ToolbarDockAlignment.CENTER)
-                DocumentTabsHost(
-                    tabs = documents, activeUri = "one.xnote", expanded = expanded,
-                    onExpandedChange = { expanded = it }, onSelect = {}, onClose = {},
-                    onReorder = { _, _ -> }, onSplit = {}, config = config,
-                    onConfigChange = {}, workspace = workspace(config.withFloating(false), 1, 1200),
-                    look = ToolbarLook(), colorCount = 5, reserveExpandedFloatingSpace = true,
-                ) {
-                    Box(Modifier.fillMaxSize().testTag("split-pane-content"))
+                    .movedTo(edge, ToolbarDockAlignment.CENTER)
+                Box(Modifier.fillMaxSize().testTag("split-host")) {
+                    DocumentTabsHost(
+                        tabs = documents, activeUri = "one.xnote", expanded = expanded,
+                        onExpandedChange = { expanded = it }, onSelect = {}, onClose = {},
+                        onReorder = { _, _ -> }, onSplit = {}, config = config,
+                        onConfigChange = {}, workspace = workspace(config.withFloating(false), 1, 1200),
+                        look = ToolbarLook(), colorCount = 5, splitOpen = true,
+                    ) {
+                        Row(Modifier.fillMaxSize()) {
+                            Box(Modifier.weight(0.35f).fillMaxHeight().testTag("split-left"))
+                            Box(Modifier.weight(0.65f).fillMaxHeight().testTag("split-right"))
+                        }
+                    }
                 }
             }
         }
-        val expandedPane = bounds("split-pane-content")
-        assertTrue(expandedPane.bottom <= bounds("document-tabs-bar").top + 1f)
-        rule.runOnIdle { expanded = false }
-        assertTrue(bounds("split-pane-content").bottom > expandedPane.bottom)
+        val left = bounds("split-left")
+        val right = bounds("split-right")
+        for (position in listOf(ToolbarPosition.TOP, ToolbarPosition.BOTTOM)) {
+            for (isExpanded in listOf(false, true)) {
+                rule.runOnIdle { edge = position; expanded = isExpanded }
+                assertEquals(left, bounds("split-left"))
+                assertEquals(right, bounds("split-right"))
+                assertEquals(bounds("split-host").center.x, bounds("document-tabs-bar").center.x, 1.5f)
+            }
+        }
     }
 
     @Test fun workspacePreviewShowsOutlineOnlyDuringDrag() = exerciseDrag(preview = true)
@@ -233,13 +247,14 @@ class DocumentTabsPlacementRegressionTest {
         val stageTag = if (preview) "toolbar-preview-stage" else "live-document-workspace"
         val stage = rule.onNodeWithTag(stageTag)
         val outline = rule.onNodeWithTag("document-tabs-drop-outline")
+        val follower = rule.onNodeWithTag("document-tabs-drag-outline")
         fun startDrag() {
             val viewport = bounds(stageTag)
             val origin = bounds("document-tabs-bar").center - viewport.topLeft
             stage.performTouchInput {
                 down(origin)
                 advanceEventTime(850)
-                moveBy(Offset(viewport.width / 2, viewport.height - 4f) - origin)
+                moveBy(Offset(viewport.width / 2, viewport.height * 0.75f) - origin)
             }
         }
         outline.assertDoesNotExist()
@@ -247,6 +262,8 @@ class DocumentTabsPlacementRegressionTest {
         val before = stage.captureToImage().toPixelMap()
         startDrag()
         outline.assertExists()
+        follower.assertExists()
+        assertTrue(bounds("document-tabs-drag-outline").top > original.bottom)
         val target = bounds("document-tabs-drop-outline")
         val pixel = target.center - bounds(stageTag).topLeft
         val during = stage.captureToImage().toPixelMap()
@@ -254,12 +271,23 @@ class DocumentTabsPlacementRegressionTest {
         assertEquals(original, bounds("document-tabs-bar"))
         stage.performTouchInput { cancel() }
         outline.assertDoesNotExist()
+        follower.assertDoesNotExist()
         assertEquals(original, bounds("document-tabs-bar"))
 
         startDrag()
         outline.assertExists()
-        stage.performTouchInput { up() }
-        outline.assertDoesNotExist()
+        val beforeSettle = bounds("document-tabs-drag-outline")
+        rule.mainClock.autoAdvance = false
+        try {
+            stage.performTouchInput { up() }
+            rule.mainClock.advanceTimeBy(100)
+            outline.assertDoesNotExist()
+            val settling = bounds("document-tabs-drag-outline")
+            assertTrue(settling.top > beforeSettle.top && settling.top < target.top)
+        } finally {
+            rule.mainClock.autoAdvance = true
+        }
+        follower.assertDoesNotExist()
         assertEquals(ToolbarPosition.BOTTOM, rule.runOnIdle { config.position })
         assertEquals(target, bounds("document-tabs-bar"))
 
