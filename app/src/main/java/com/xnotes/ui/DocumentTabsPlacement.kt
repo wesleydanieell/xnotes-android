@@ -105,13 +105,23 @@ internal fun documentTabsFloatingStrip(
     edge: ToolbarPosition,
     obstacles: List<Rect>,
     px: Float,
+    keepCentered: Boolean = false,
 ): Rect {
     val minimumLength = 132f * px
     fun strip(blockers: List<Rect>) =
         documentTabsFreeStrip(host, anchor, edge.vertical, 60f * px, blockers, 8f * px,
             minimumLength, explicitEdge = edge, stayOnEdge = true)
-    val available = strip(obstacles)
+    var available = strip(obstacles)
     val edgeStrip = strip(emptyList())
+    if (keepCentered && DocumentTabsBarConfig(position = edge, anchor = anchor).alignment() ==
+        ToolbarDockAlignment.CENTER) {
+        val center = if (edge.vertical) host.height / 2 else host.width / 2
+        val room = if (edge.vertical) minOf(center - available.top, available.bottom - center)
+            else minOf(center - available.left, available.right - center)
+        if (room <= 0) return edgeStrip
+        available = if (edge.vertical) Rect(available.left, center - room, available.right, center + room)
+            else Rect(center - room, available.top, center + room, available.bottom)
+    }
     val length = if (edge.vertical) available.height else available.width
     val maxLength = if (edge.vertical) edgeStrip.height else edgeStrip.width
     return if (length >= minOf(minimumLength, maxLength)) available else edgeStrip

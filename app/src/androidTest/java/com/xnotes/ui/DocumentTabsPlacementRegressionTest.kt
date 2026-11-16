@@ -163,7 +163,11 @@ class DocumentTabsPlacementRegressionTest {
                         onExpandedChange = { expanded = it }, onSelect = {}, onClose = {},
                         onReorder = { _, _ -> }, onSplit = {}, config = config,
                         onConfigChange = {}, workspace = workspace(config.withFloating(false), 1, 1200),
-                        look = ToolbarLook(), colorCount = 5, splitOpen = true,
+                        look = ToolbarLook(), colorCount = 5,
+                        splitToolbars = DocumentTabsSplitToolbars(
+                            first = workspace(config.withFloating(false), 1, 1200),
+                            second = ToolbarWorkspace(emptyList()), sideBySide = true, ratio = 0.35f,
+                        ),
                     ) {
                         Row(Modifier.fillMaxSize()) {
                             Box(Modifier.weight(0.35f).fillMaxHeight().testTag("split-left"))
@@ -183,6 +187,37 @@ class DocumentTabsPlacementRegressionTest {
                 assertEquals(bounds("split-host").center.x, bounds("document-tabs-bar").center.x, 1.5f)
             }
         }
+    }
+
+    @Test fun floatingDropRecognizesTheSecondPaneToolbar() {
+        var config by mutableStateOf(DocumentTabsBarConfig(floating = true))
+        val empty = ToolbarWorkspace(emptyList())
+        val bottomDock = workspace(DocumentTabsBarConfig(floating = false)
+            .movedTo(ToolbarPosition.BOTTOM, ToolbarDockAlignment.CENTER), 1, 1200)
+        rule.setContent {
+            MaterialTheme {
+                Box(Modifier.fillMaxSize().testTag("split-stage")) {
+                    DocumentTabsHost(
+                        tabs = documents, activeUri = "one.xnote", expanded = true,
+                        onExpandedChange = {}, onSelect = {}, onClose = {}, onReorder = { _, _ -> },
+                        onSplit = {}, config = config, onConfigChange = { config = it },
+                        workspace = empty, look = ToolbarLook(), colorCount = 5,
+                        splitToolbars = DocumentTabsSplitToolbars(empty, bottomDock, false, 0.35f),
+                    ) {}
+                }
+            }
+        }
+        val viewport = bounds("split-stage")
+        val origin = bounds("document-tabs-bar").center - viewport.topLeft
+        val stage = rule.onNodeWithTag("split-stage")
+        stage.performTouchInput {
+            down(origin)
+            advanceEventTime(850)
+            moveBy(Offset(viewport.width / 2, viewport.height * 0.85f) - origin)
+        }
+        rule.onNodeWithTag("document-tabs-drop-outline").assertDoesNotExist()
+        stage.performTouchInput { up() }
+        assertEquals(ToolbarPosition.TOP, rule.runOnIdle { config.position })
     }
 
     @Test fun workspacePreviewShowsOutlineOnlyDuringDrag() = exerciseDrag(preview = true)

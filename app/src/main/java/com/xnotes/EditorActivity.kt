@@ -1213,7 +1213,14 @@ private fun EditorScreen(
             // Document navigation is independent of the tool workspaces. This optional
             // integration builds on PR #359, not inside the toolbar-items schema.
             val documentTabsConfig = remember(preferencesRevision) { editor.preferences.documentTabsBar }
-            val splitOpen = editor.noteOpen && editor.secondary?.noteOpen == true
+            fun tabsWorkspace(pane: Editor) = if (pane.canvasOpen) editor.toolbarWorkspaces.canvas
+                else editor.toolbarWorkspaces.note
+            val sideBySideTabs = LocalConfiguration.current.orientation ==
+                android.content.res.Configuration.ORIENTATION_LANDSCAPE
+            val splitToolbars = editor.secondary?.takeIf { editor.noteOpen && it.noteOpen }?.let { second ->
+                com.xnotes.ui.DocumentTabsSplitToolbars(tabsWorkspace(editor), tabsWorkspace(second),
+                    sideBySideTabs, editor.splitRatio.coerceIn(MIN_PANE_RATIO, 1f - MIN_PANE_RATIO))
+            }
             com.xnotes.ui.DocumentTabsHost(
                 tabs = noteTabs,
                 activeUri = noteTabs.selectedUri(editor.active.pane == com.xnotes.ui.Pane.SECONDARY),
@@ -1232,14 +1239,13 @@ private fun EditorScreen(
                 onConfigChange = { next ->
                     editor.applyHomePreferences(editor.preferences.copy(documentTabsBar = next))
                 },
-                workspace = if (editor.active.canvasOpen) editor.toolbarWorkspaces.canvas
-                    else editor.toolbarWorkspaces.note,
+                workspace = tabsWorkspace(editor.active),
                 look = editor.toolbarLook,
                 colorCount = editor.toolbarColorCount,
                 modifier = if (editor.openPanes.isNotEmpty()) {
                     Modifier.background(LocalPalette.current.bg.toComposeColor())
                 } else Modifier,
-                splitOpen = splitOpen,
+                splitToolbars = splitToolbars,
                 enabled = noteTabs.tabs.isNotEmpty() && editor.openPanes.isNotEmpty(),
             ) {
                 SplitHost(editor, actions)

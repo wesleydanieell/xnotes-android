@@ -60,6 +60,24 @@ internal fun documentTabsToolObstacles(
     return dock.rects(0f, 0f) + floating.rects(dock.leftInset, dock.topInset)
 }
 
+internal data class DocumentTabsSplitToolbars(
+    val first: ToolbarWorkspace,
+    val second: ToolbarWorkspace,
+    val sideBySide: Boolean,
+    val ratio: Float,
+) {
+    fun obstacles(look: ToolbarLook, width: Float, height: Float, colorCount: Int, px: Float): List<Rect> {
+        val firstWidth = if (sideBySide) width * ratio else width
+        val firstHeight = if (sideBySide) height else height * ratio
+        val secondWidth = if (sideBySide) width - firstWidth else width
+        val secondHeight = if (sideBySide) height else height - firstHeight
+        val secondOffset = if (sideBySide) Offset(firstWidth * px, 0f) else Offset(0f, firstHeight * px)
+        return documentTabsToolObstacles(first, look, firstWidth, firstHeight, colorCount, px) +
+            documentTabsToolObstacles(second, look, secondWidth, secondHeight, colorCount, px)
+                .map { it.translate(secondOffset) }
+    }
+}
+
 /** Independent document navigation, sharing geometry conventions with advanced toolbars.
  * Floating keeps the canvas extent unchanged; docked reserves real layout space. */
 @Composable
@@ -79,7 +97,7 @@ internal fun DocumentTabsHost(
     colorCount: Int,
     modifier: Modifier = Modifier,
     enabled: Boolean = true,
-    splitOpen: Boolean = false,
+    splitToolbars: DocumentTabsSplitToolbars? = null,
     content: @Composable () -> Unit,
 ) {
     val showNavigation = enabled && tabs.tabs.isNotEmpty()
@@ -108,13 +126,14 @@ internal fun DocumentTabsHost(
         ))) { content() }
         if (!showNavigation) return@BoxWithConstraints
 
-        val obstacles = remember(workspace, look, widthDp, heightDp, colorCount, px, splitOpen) {
-            // A single workspace plan does not describe the two pane-local toolbars.
-            if (splitOpen || !config.floating) emptyList()
-            else documentTabsToolObstacles(workspace, look, widthDp, heightDp, colorCount, px)
+        val obstacles = remember(workspace, look, widthDp, heightDp, colorCount, px, splitToolbars, config.floating) {
+            if (!config.floating) emptyList()
+            else splitToolbars?.obstacles(look, widthDp, heightDp, colorCount, px)
+                ?: documentTabsToolObstacles(workspace, look, widthDp, heightDp, colorCount, px)
         }
         fun strip(target: DocumentTabsBarConfig) =
-            documentTabsFloatingStrip(host, target.anchor, target.position, obstacles, px)
+            documentTabsFloatingStrip(host, target.anchor, target.position, obstacles, px,
+                keepCentered = splitToolbars != null)
 
         fun placement(target: DocumentTabsBarConfig, measuredLength: Float, thickness: Float): Rect {
             val edge = target.position
