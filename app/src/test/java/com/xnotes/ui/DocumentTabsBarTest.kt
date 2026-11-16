@@ -108,20 +108,8 @@ class DocumentTabsBarTest {
         assertEquals(ToolbarLayout.CANVAS_DEFAULT, loaded.canvas.bars.single().layout)
     }
 
-    @Test fun allFloatingAnchorsStayVisibleAndAvoidToolbarsAtEveryEdgeAndCorner() {
-        val host = Size(1200f, 800f); val card = Size(300f, 100f)
-        val tools = listOf(Rect(0f, 0f, 1200f, 50f), Rect(0f, 750f, 1200f, 800f),
-            Rect(0f, 50f, 50f, 750f), Rect(1150f, 50f, 1200f, 750f))
-        for (anchor in ToolbarAnchor.entries.filterNot { it == ToolbarAnchor.CENTER }) {
-            val offset = documentTabsOffset(host, card, anchor, tools, 8f)
-            val placed = Rect(offset, card)
-            assertTrue("Outside host at $anchor: $placed", placed.left >= 0 && placed.top >= 0 && placed.right <= host.width && placed.bottom <= host.height)
-            assertFalse("Overlaps a tool bar at $anchor: $placed", tools.any { it.overlaps(placed) })
-        }
-    }
-
     @Test fun smallWindowsClampInsteadOfPlacingNavigationOffScreen() {
-        val placed = documentTabsOffset(Size(100f, 50f), Size(360f, 120f), ToolbarAnchor.BOTTOM_RIGHT, emptyList(), 8f)
+        val placed = documentTabsOffset(Size(100f, 50f), Size(360f, 120f), ToolbarAnchor.BOTTOM_RIGHT)
         assertEquals(0f, placed.x, 0f); assertEquals(0f, placed.y, 0f)
     }
     @Test fun expandedSizingFillsAvailableSpaceOrClampsManualSizeAndLimits() {
@@ -139,27 +127,22 @@ class DocumentTabsBarTest {
     @Test fun expandedStripStopsBeforeNeighborOnTheSameRowAndHandlesSideRails() {
         val host = Size(1200f, 800f)
         val neighbors = listOf(Rect(800f, 0f, 1200f, 70f))
-        val strip = documentTabsFreeStrip(host, ToolbarAnchor.TOP_LEFT, false, 50f, neighbors, 8f, 80f)
+        val strip = documentTabsFloatingStrip(host, ToolbarAnchor.TOP_LEFT, ToolbarPosition.TOP, neighbors, 1f)
         assertEquals(8f, strip.left, 0f)
         assertEquals(792f, strip.right, 0f)
         assertEquals(8f, strip.top, 0f)
         assertFalse(neighbors.any { it.overlaps(strip) })
-        val rail = documentTabsFreeStrip(host, ToolbarAnchor.CENTER_RIGHT, true, 168f,
-            listOf(Rect(1000f, 600f, 1200f, 800f)), 8f, 80f)
+        val rail = documentTabsFloatingStrip(host, ToolbarAnchor.CENTER_RIGHT, ToolbarPosition.RIGHT,
+            listOf(Rect(1000f, 600f, 1200f, 800f)), 1f)
         assertEquals(592f, rail.bottom, 0f)
         assertEquals(1192f, rail.right, 0f)
     }
 
-    @Test fun expandedStripUsesWholeWindowAndMovesPastFullEdgeObstructions() {
+    @Test fun fullyOccupiedEdgeKeepsItsOriginalMargin() {
         val host = Size(1200f, 800f)
-        val open = documentTabsFreeStrip(host, ToolbarAnchor.TOP_CENTER, false, 50f, emptyList(), 8f, 80f)
-        assertEquals(1184f, open.width, 0f)
-        val obstacles = listOf(Rect(0f, 0f, 1200f, 60f), Rect(0f, 60f, 80f, 800f), Rect(1100f, 60f, 1200f, 800f))
-        val strip = documentTabsFreeStrip(host, ToolbarAnchor.TOP_CENTER, false, 50f, obstacles, 8f, 80f)
-        assertEquals(68f, strip.top, 0f)
-        assertEquals(88f, strip.left, 0f)
-        assertEquals(1092f, strip.right, 0f)
-        assertFalse(obstacles.any { it.overlaps(strip) })
+        val obstacles = listOf(Rect(0f, 0f, 1200f, 60f))
+        val strip = documentTabsFloatingStrip(host, ToolbarAnchor.TOP_CENTER, ToolbarPosition.TOP, obstacles, 1f)
+        assertEquals(Rect(8f, 8f, 1192f, 68f), strip)
     }
 
 }

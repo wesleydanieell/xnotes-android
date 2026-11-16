@@ -162,7 +162,7 @@ internal fun DocumentTabsHost(
                 else measuredLength
             val size = if (verticalTarget) Size(minOf(space.width, thickness), minOf(space.height, length))
                 else Size(minOf(space.width, length), minOf(space.height, thickness))
-            val origin = space.topLeft + documentTabsOffset(space.size, size, target.anchor, emptyList(), 0f)
+            val origin = space.topLeft + documentTabsOffset(space.size, size, target.anchor)
             return Rect(origin, size)
         }
         val length = child.width.takeIf { it > 0f } ?: 210f * px
