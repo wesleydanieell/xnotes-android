@@ -95,3 +95,29 @@ internal fun documentTabsFreeStrip(host: Size, anchor: ToolbarAnchor, vertical: 
     }
     return fallback ?: rect(start, end, desired)
 }
+
+/** If no nearby lane can show tabs and their collapse button, overlay the selected
+ * edge. A narrow leftover segment or a strip across the canvas is unusable. */
+internal fun documentTabsFloatingStrip(
+    host: Size,
+    anchor: ToolbarAnchor,
+    edge: ToolbarPosition,
+    obstacles: List<Rect>,
+    px: Float,
+): Rect {
+    val minimumLength = 132f * px
+    fun strip(blockers: List<Rect>) =
+        documentTabsFreeStrip(host, anchor, edge.vertical, 60f * px, blockers, 8f * px,
+            minimumLength, explicitEdge = edge)
+    val available = strip(obstacles)
+    val edgeStrip = strip(emptyList())
+    val length = if (edge.vertical) available.height else available.width
+    val maxLength = if (edge.vertical) edgeStrip.height else edgeStrip.width
+    val nearEdge = when (edge) {
+        ToolbarPosition.TOP -> available.top < host.height / 2
+        ToolbarPosition.BOTTOM -> host.height - available.bottom < host.height / 2
+        ToolbarPosition.LEFT -> available.left < host.width / 2
+        ToolbarPosition.RIGHT -> host.width - available.right < host.width / 2
+    }
+    return if (nearEdge && length >= minOf(minimumLength, maxLength)) available else edgeStrip
+}

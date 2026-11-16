@@ -163,17 +163,20 @@ internal fun toolbarDockPlan(
         request.copy(depth = request.depth.coerceAtMost(toolbarSafeDockDepth(
             if (vertical) windowWidth.value else windowHeight.value)))
     }
+    val overflowEdge = documentTabs?.geometry?.dockEdge
     val topBottom = packToolbarLanes(windowWidth.value, windowHeight.value,
         safeDepthRequests.filter { it.edge == ToolbarDockEdge.TOP || it.edge == ToolbarDockEdge.BOTTOM }
             .map { request -> if (request.autoLength) request
-                else request.copy(length = request.length.coerceAtMost(windowWidth.value)) })
+                else request.copy(length = request.length.coerceAtMost(windowWidth.value)) },
+        navigationOverflowEdge = overflowEdge)
     val sideSpace = (windowHeight.value - topBottom.topInset - topBottom.bottomInset).coerceAtLeast(0f)
     val capped = safeDepthRequests.map { request ->
         val vertical = request.edge == ToolbarDockEdge.LEFT || request.edge == ToolbarDockEdge.RIGHT
         request.copy(length = if (request.autoLength) request.length else request.length.coerceAtMost(
             if (vertical) sideSpace else windowWidth.value))
     }
-    return packToolbarLanes(windowWidth.value, windowHeight.value, capped)
+    return packToolbarLanes(windowWidth.value, windowHeight.value, capped,
+        navigationOverflowEdge = overflowEdge)
 }
 
 /** Preferred lanes are tried first, then other lanes on the same edge, for both dock modes. */
@@ -182,17 +185,21 @@ private fun packToolbarLanes(
     height: Float,
     requests: List<ToolbarDockRequest>,
     gap: Float = 4f,
+    navigationOverflowEdge: ToolbarDockEdge? = null,
 ): ToolbarDockPlan {
     val accepted = mutableListOf<ToolbarDockRequest>()
     val unplaced = mutableSetOf<String>()
     for (request in requests) {
-        val candidates = (request.lane until ToolbarDockLayout.MAX_LANES) + (0 until request.lane)
+        val preferredLanes = (request.lane until ToolbarDockLayout.MAX_LANES) + (0 until request.lane)
+        val candidates = if (request.edge == navigationOverflowEdge) {
+            preferredLanes + ToolbarDockLayout.MAX_LANES
+        } else preferredLanes
         val placed = candidates.asSequence().map { request.copy(lane = it) }.firstOrNull { shifted ->
-            ToolbarDockLayout.arrange(width, height, accepted + shifted, gap).rejected.isEmpty()
+            ToolbarDockLayout.arrange(width, height, accepted + shifted, gap, navigationOverflowEdge).rejected.isEmpty()
         }
         if (placed == null) unplaced.add(request.id) else accepted.add(placed)
     }
-    val packed = ToolbarDockLayout.arrange(width, height, accepted, gap)
+    val packed = ToolbarDockLayout.arrange(width, height, accepted, gap, navigationOverflowEdge)
     return packed.copy(rejected = packed.rejected + unplaced)
 }
 
@@ -285,8 +292,42 @@ internal fun toolbarFloatingPlan(
             request.copy(length = request.length.coerceAtMost(availableSideLength))
         else request
     }
-    val packed = packToolbarLanes(width, height, capped, gap = 8f)
+    val packed = packFloatingDocumentTabs(width, height, availableSideLength, capped, documentTabs)
     return packed.copy(
         placements = packed.placements.map { it.copy(x = it.x + 8f, y = it.y + 8f) },
     )
+}
+
+/** Keep the normal plan when it fits. In a saturated floating stack, one peer can
+ * scroll inside a shorter slot and still share the requested lane with navigation. */
+private fun packFloatingDocumentTabs(
+    width: Float,
+    height: Float,
+    sideLength: Float,
+    requests: List<ToolbarDockRequest>,
+    documentTabs: ToolbarBar?,
+): ToolbarDockPlan {
+    val gap = 8f
+    val normal = packToolbarLanes(width, height, requests, gap)
+    if (normal.rejected.isEmpty() || documentTabs == null) return normal
+    val tabs = requests.firstOrNull { it.id == documentTabs.id } ?: return normal
+    val axis = if (tabs.edge.toolbarPosition().vertical) sideLength else width
+    val minimumToolLength = 48f
+    val minimumTabLength = 96f
+    val tabLength = tabs.length.coerceAtMost(axis - minimumToolLength - gap)
+    if (tabLength < minimumTabLength) return normal
+    val peers = requests.filter { it.edge == tabs.edge && it.id != tabs.id }
+        .sortedBy { it.lane != tabs.lane }
+    for (peer in peers) {
+        val adjusted = requests.map { request ->
+            when (request.id) {
+                tabs.id -> tabs.copy(length = tabLength)
+                peer.id -> peer.copy(length = peer.length.coerceAtMost(axis - tabLength - gap))
+                else -> request
+            }
+        }
+        val plan = packToolbarLanes(width, height, adjusted, gap)
+        if (plan.rejected.isEmpty()) return plan
+    }
+    return normal
 }

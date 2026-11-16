@@ -160,18 +160,30 @@ internal fun DocumentTabsHost(
             val space = (if (target.position.vertical) floatingHeight else floatingWidth).value
             val currentLength = if (vertical) child.height / px else child.width / px
             val length = if (showExpanded) target.expandedExtent((space - 48f).coerceAtLeast(0f))
-                else currentLength.takeIf { it > 0f } ?: 210f
+                else currentLength.takeIf { it > 0f }?.coerceAtLeast(96f) ?: 210f
             return documentTabsToolbar(target, length)
         }
         fun floatingPlan(request: ToolbarBar) =
             toolbarFloatingPlan(workspace, look, floatingWidth, floatingHeight, colorCount, request)
         val candidate = if (showNavigation && config.floating && shareDockLanes &&
             floatingBase.placements.isNotEmpty()) floatingRequest(config) else null
-        val sharedFloating = candidate?.takeIf { request ->
-            val plan = floatingPlan(request)
-            plan.placement(request.id) != null &&
+        fun fitsFloatingPlan(request: ToolbarBar, plan: ToolbarDockPlan): Boolean {
+            val slot = plan.placement(request.id) ?: return false
+            val edge = slot.edge.toolbarPosition()
+            val mainLength = if (edge.vertical) slot.height else slot.width
+            val viewportLength = if (edge.vertical) heightDp else widthDp
+            val gap = when (edge) {
+                ToolbarPosition.TOP -> floatingStage.topInset + slot.y
+                ToolbarPosition.BOTTOM -> heightDp - floatingStage.topInset - slot.y - slot.height
+                ToolbarPosition.LEFT -> floatingStage.leftInset + slot.x
+                ToolbarPosition.RIGHT -> widthDp - floatingStage.leftInset - slot.x - slot.width
+            }
+            val viewportDepth = if (edge.vertical) widthDp else heightDp
+            return mainLength >= minOf(96f, (viewportLength - 48f).coerceAtLeast(0f)) &&
+                gap < viewportDepth / 2f &&
                 floatingBase.placements.all { plan.placement(it.id) != null }
         }
+        val sharedFloating = candidate?.takeIf { fitsFloatingPlan(it, floatingPlan(it)) }
         val floatingSlot = sharedFloating?.let { floatingPlan(it).placement(it.id) }
         fun floatingOrigin(x: Float, y: Float) =
             Offset((x + floatingStage.leftInset) * px, (y + floatingStage.topInset) * px)
@@ -187,9 +199,8 @@ internal fun DocumentTabsHost(
         fun persistOrder(next: DocumentTabsBarConfig): Boolean {
             if (next == config) return false
             val fits = if (config.floating) {
-                val plan = floatingPlan(floatingRequest(next))
-                floatingBase.placements.all { plan.placement(it.id) != null } &&
-                    plan.placement(DocumentTabsDockId) != null
+                val request = floatingRequest(next)
+                fitsFloatingPlan(request, floatingPlan(request))
             } else sharedDocumentTabsDock(next, workspace, look, maxWidth, maxHeight) != null
             if (fits) {
                 hoverTarget = null
@@ -223,8 +234,7 @@ internal fun DocumentTabsHost(
             documentTabsToolObstacles(workspace, look, widthDp, heightDp, colorCount, px)
         }
         fun freeStrip(anchor: ToolbarAnchor, edge: ToolbarPosition): Rect =
-            documentTabsFreeStrip(host, anchor, edge.vertical, 60f * px,
-                obstacles, 8f * px, 84f * px, explicitEdge = edge)
+            documentTabsFloatingStrip(host, anchor, edge, obstacles, px)
         fun destination(strip: Rect, anchor: ToolbarAnchor, measured: Size): Offset =
             strip.topLeft + documentTabsOffset(strip.size, measured, anchor, emptyList(), 0f)
 
@@ -286,7 +296,8 @@ internal fun DocumentTabsHost(
                         val targetConfig = configAt(target)
                         val slot = sharedFloating?.let {
                             val request = floatingRequest(targetConfig)
-                            floatingPlan(request).placement(request.id)
+                            val plan = floatingPlan(request)
+                            plan.placement(request.id)?.takeIf { fitsFloatingPlan(request, plan) }
                         }
                         val strip = freeStrip(targetConfig.anchor, targetConfig.position)
                         root.topLeft + if (slot != null) floatingOrigin(slot.x, slot.y)
