@@ -24,7 +24,7 @@ This is the optional **stage 8** after [toolbar stabilization (#11)](https://git
 
 For layout or gesture changes, run the Compose suite on Small Tablet before marking a PR ready. Include both the Workspace Preview and the live editor in regression coverage. In XNote and XCanvas, check placement, drag and release with both docked and floating bars. Recheck a saturated edge, the compact/expanded states and split view where applicable.
 
-Run `ANDROID_SERIAL=<emulator-serial> ./gradlew :app:connectedDebugAndroidTest`. The integration regression includes the 144-placement matrix and the outline, drop, cancel and collision checks in the preview and the live editor containers. Record the tested revision, device and results in the PR.
+Run `ANDROID_SERIAL=<emulator-serial> ./gradlew :app:connectedDebugAndroidTest`. The integration regression includes the 432-placement matrix and the outline, drop, cancel and collision checks. It also covers moving and reordering toolbars in split panes and reordering one-, two- and three-row toolbars in the Workspace Preview with docked tabs visible. Record the tested revision, device and results in the PR.
 
 
 - Run `./gradlew :app:testDebugUnitTest :app:assembleDebugAndroidTest :app:assembleRelease -PtoolbarTabsReviewBuild=true`.

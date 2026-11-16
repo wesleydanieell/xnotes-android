@@ -790,16 +790,22 @@ class ToolbarTitleAndPreviewReorderComposeTest {
     }
 
     @Test fun sameLaneFloatingBarsCanBeReorderedByPreviewGesture() {
-        val layout = ToolbarLayout(listOf(ToolbarSection(listOf(ToolbarEntry(ToolbarItem.PEN)))))
-        fun bar(id: String) = ToolbarBar(id, id, layout,
-            geometry = ToolbarGeometry(floating = true, anchor = ToolbarAnchor.TOP_CENTER,
-                dockAlignment = ToolbarDockAlignment.CENTER, widthDp = 140, heightDp = 56))
-        var current by mutableStateOf(ToolbarWorkspace(listOf(bar("primary"), bar("second"), bar("third"))))
+        fun bar(id: String, rows: Int): ToolbarBar {
+            val layout = ToolbarLayout(listOf(ToolbarSection(
+                List(rows) { lane -> ToolbarEntry(ToolbarItem.PEN, lane = lane) }, lanes = rows,
+            )))
+            return ToolbarBar(id, id, layout,
+                geometry = ToolbarGeometry(floating = true, anchor = ToolbarAnchor.TOP_CENTER,
+                    dockAlignment = ToolbarDockAlignment.CENTER, widthDp = 140, heightDp = 48 * rows + 8))
+        }
+        var current by mutableStateOf(ToolbarWorkspace(listOf(bar("primary", 1), bar("second", 2), bar("third", 3))))
         var completed: Pair<String, String>? = null
         rule.setContent {
             MaterialTheme {
                 Box(Modifier.fillMaxWidth()) {
                     ToolbarWorkspacePreview(workspace = current, look = ToolbarLook(floating = true),
+                        documentTabsConfig = com.xnotes.settings.DocumentTabsBarConfig(floating = false)
+                            .movedTo(ToolbarAnchor.BOTTOM_CENTER),
                         selectedId = "second", colors = emptyList(), activeColorIndex = 0,
                         pageNumber = 1, pageCount = 1, zoomLabel = "100%", titleLabel = "Example",
                         selectedEntry = null, onSelectBar = {}, onSelectEntry = { _, _, _ -> },
@@ -827,6 +833,8 @@ class ToolbarTitleAndPreviewReorderComposeTest {
         rule.waitForIdle()
         val candidate = rule.onNodeWithTag("preview-reorder-target-third", useUnmergedTree = true)
         candidate.assertExists()
+        val tabs = rule.onNodeWithTag("document-tabs-bar", useUnmergedTree = true)
+        val tabsDuringDrag = tabs.fetchSemanticsNode().boundsInRoot
         rule.onNodeWithTag("toolbar-drop-indicator-second", useUnmergedTree = true)
             .assertExists()
         // The previous implementation reset the temporary order in empty space.
@@ -845,6 +853,7 @@ class ToolbarTitleAndPreviewReorderComposeTest {
         }
         barSurface.performTouchInput { up() }
         rule.waitForIdle()
+        assertEquals(tabsDuringDrag, tabs.fetchSemanticsNode().boundsInRoot)
         rule.runOnIdle {
             assertEquals("second" to "third", completed)
             assertEquals("primary", current.bars.first().id)
