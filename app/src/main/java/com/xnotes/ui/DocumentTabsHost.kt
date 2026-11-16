@@ -1,6 +1,7 @@
 package com.xnotes.ui
 
 import androidx.compose.foundation.border
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.foundation.layout.BoxWithConstraints
@@ -25,6 +26,8 @@ import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.layout.boundsInRoot
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.LocalLayoutDirection
+import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
@@ -105,16 +108,19 @@ internal fun DocumentTabsHost(
     modifier: Modifier = Modifier,
     enabled: Boolean = true,
     splitToolbars: DocumentTabsSplitToolbars? = null,
+    onSplitDrop: ((String, DocumentTabSplitSide) -> Unit)? = null,
     content: @Composable () -> Unit,
 ) {
     val showNavigation = enabled && tabs.tabs.isNotEmpty()
     val density = LocalDensity.current
+    val rightToLeft = LocalLayoutDirection.current == LayoutDirection.Rtl
     val vertical = config.position.vertical
     val showExpanded = expanded || !config.floating
     var root by remember { mutableStateOf(Rect.Zero) }
     var child by remember { mutableStateOf(Size.Zero) }
     var morph by remember { mutableStateOf<DocumentTabsMorph?>(null) }
     var morphProgress by remember { mutableStateOf(0f) }
+    var splitTarget by remember { mutableStateOf<DocumentTabSplitSide?>(null) }
     var hoverTarget by remember { mutableStateOf<ToolbarDropPosition?>(null) }
     BoxWithConstraints(modifier.fillMaxSize().clipToBounds().onGloballyPositioned { coords ->
         val next = coords.boundsInRoot(); if (root != next) root = next
@@ -174,6 +180,10 @@ internal fun DocumentTabsHost(
         val thickness = child.height.takeIf { it > 0f }
             ?: (if (showExpanded) 44f else 42f) * px
         val current = placement(config, length, thickness)
+        val splitDrag = if (showExpanded && tabs.tabs.size >= 2 && onSplitDrop != null) {
+            DocumentTabSplitDrag(root, current.translate(root.topLeft), config.position, 48f * px,
+                onPreview = { splitTarget = it }, onDrop = onSplitDrop)
+        } else null
         fun destination(target: ToolbarDropPosition): Rect? {
             val next = config.movedTo(DocumentTabsBarConfig.edgeOf(target.anchor), target.alignment)
             val rect = placement(next, length, thickness, allowInset = false)
@@ -209,6 +219,12 @@ internal fun DocumentTabsHost(
                 parentSlotInRoot = root.topLeft + current.topLeft,
                 fillParentSlot = !config.floating || animatedSize != null,
                 currentAlignment = config.alignment(),
+                canStartDrag = if (splitDrag == null) null else { point ->
+                    val axis = if (vertical) point.y else point.x
+                    val extent = if (vertical) current.height else current.width
+                    val fromStart = if (rightToLeft) extent - axis else axis
+                    fromStart <= DocumentTabMoveArea.value * px
+                },
                 snapTargetInRoot = { target -> destination(target)?.let { root.topLeft + it.topLeft } },
                 onPlacementPreview = { hoverTarget = it },
                 onSettleTarget = { target ->
@@ -231,10 +247,18 @@ internal fun DocumentTabsHost(
                     modifier = if (config.floating && animatedSize == null) Modifier else Modifier.fillMaxSize(),
                     morphing = animatedSize != null,
                     floatingSurface = config.floating, onReorder = onReorder, onSplit = onSplit,
+                    splitDrag = splitDrag,
                 )
             }
         }
         val outlineColor = MaterialTheme.colorScheme.primary
+        if (splitDrag != null) splitTarget?.let { side ->
+            val area = side.preview(Rect(Offset.Zero, host))
+            Box(Modifier.offset { IntOffset(area.left.roundToInt(), area.top.roundToInt()) }
+                .width((area.width / px).dp).height((area.height / px).dp).zIndex(19f)
+                .background(outlineColor.copy(alpha = 0.12f)).border(2.dp, outlineColor)
+                .testTag("document-tab-split-target-${side.name}"))
+        }
         @Composable
         fun Outline(rect: Rect) {
             Box(Modifier.offset { IntOffset(rect.left.roundToInt(), rect.top.roundToInt()) }

@@ -815,8 +815,11 @@ private fun EditorScreen(
         scope.launch { openInto(editor, uriStr) }
     }
 
+    var splitAxisOverride by remember { mutableStateOf<Boolean?>(null) }
+
     /** Open two picked files together, one per pane, and start the split focused on the first. */
     fun openSplit(firstUri: String, secondUri: String) {
+        splitAxisOverride = null
         editor.splitRatio = 0.5f
         editor.focusPane(com.xnotes.ui.Pane.PRIMARY)
         val second = editor.secondaryPane()
@@ -1215,11 +1218,15 @@ private fun EditorScreen(
             val documentTabsConfig = remember(preferencesRevision) { editor.preferences.documentTabsBar }
             fun tabsWorkspace(pane: Editor) = if (pane.canvasOpen) editor.toolbarWorkspaces.canvas
                 else editor.toolbarWorkspaces.note
-            val sideBySideTabs = LocalConfiguration.current.orientation ==
-                android.content.res.Configuration.ORIENTATION_LANDSCAPE
+            val sideBySideTabs = splitAxisOverride ?: (LocalConfiguration.current.orientation ==
+                android.content.res.Configuration.ORIENTATION_LANDSCAPE)
             val splitToolbars = editor.secondary?.takeIf { editor.noteOpen && it.noteOpen }?.let { second ->
                 com.xnotes.ui.DocumentTabsSplitToolbars(tabsWorkspace(editor), tabsWorkspace(second),
                     sideBySideTabs, editor.splitRatio.coerceIn(MIN_PANE_RATIO, 1f - MIN_PANE_RATIO))
+            }
+            fun companionTab(uri: String): String? {
+                val current = noteTabs.selectedUri(editor.active.pane == com.xnotes.ui.Pane.SECONDARY)
+                return current?.takeIf { it != uri } ?: noteTabs.tabs.firstOrNull { it.uri != uri }?.uri
             }
             com.xnotes.ui.DocumentTabsHost(
                 tabs = noteTabs,
@@ -1230,10 +1237,15 @@ private fun EditorScreen(
                 onClose = ::closeTab,
                 onReorder = { from, to -> noteTabs = noteTabs.move(from, to) },
                 onSplit = { uri ->
-                    val current = noteTabs.selectedUri(editor.active.pane == com.xnotes.ui.Pane.SECONDARY)
-                    val other = if (current != uri) current
-                        else noteTabs.tabs.firstOrNull { it.uri != uri }?.uri
-                    if (other != null && other != uri) openSplit(other, uri)
+                    companionTab(uri)?.let { openSplit(it, uri) }
+                },
+                onSplitDrop = if (splitToolbars != null) null else { uri, side ->
+                    companionTab(uri)?.let { other ->
+                        guarded(editor.active) {
+                            if (side.first) openSplit(uri, other) else openSplit(other, uri)
+                            splitAxisOverride = side.sideBySide
+                        }
+                    }
                 },
                 config = documentTabsConfig,
                 onConfigChange = { next ->
@@ -1248,7 +1260,7 @@ private fun EditorScreen(
                 splitToolbars = splitToolbars,
                 enabled = noteTabs.tabs.isNotEmpty() && editor.openPanes.isNotEmpty(),
             ) {
-                SplitHost(editor, actions)
+                SplitHost(editor, actions, sideBySideTabs)
             }
             }
         }
@@ -1512,7 +1524,7 @@ private val SwallowTouches = Modifier.pointerInput(Unit) {
  * when the split opens, closes or the device turns.
  */
 @Composable
-private fun SplitHost(editor: Editor, actions: PaneActions) {
+private fun SplitHost(editor: Editor, actions: PaneActions, sideBySide: Boolean) {
     val second = editor.secondary
     val split = editor.noteOpen && second?.noteOpen == true
     // A pane that closed on its own leaves the other one full-screen; once neither is open the
@@ -1522,8 +1534,6 @@ private fun SplitHost(editor: Editor, actions: PaneActions) {
     }
     if (!editor.noteOpen && second?.noteOpen != true) return
 
-    val sideBySide = LocalConfiguration.current.orientation ==
-        android.content.res.Configuration.ORIENTATION_LANDSCAPE
     val ratio = editor.splitRatio.coerceIn(MIN_PANE_RATIO, 1f - MIN_PANE_RATIO)
     BoxWithConstraints(Modifier.fillMaxSize().then(SwallowTouches).windowInsetsPadding(visibleImeInsets())) {
         val fullW = maxWidth

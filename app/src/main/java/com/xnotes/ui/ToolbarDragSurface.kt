@@ -81,8 +81,10 @@ fun ToolbarDragSurface(
     onSettleTarget: ((ToolbarDropPosition?) -> Unit)? = null,
     /** One progress source for translation, contour and individual tool positions. */
     onSettleProgress: ((Float) -> Unit)? = null,
+    canStartDrag: ((Offset) -> Boolean)? = null,
     content: @Composable () -> Unit,
 ) {
+    val canStartDragNow by rememberUpdatedState(canStartDrag)
     val moveBarNow by rememberUpdatedState(onMoveBar)
     val paneBoundsNow by rememberUpdatedState(paneBounds)
     val parentSlotNow by rememberUpdatedState(parentSlotInRoot)
@@ -176,6 +178,7 @@ fun ToolbarDragSurface(
     val gesture = if (!movable) Modifier else Modifier.pointerInput(id) {
         awaitEachGesture {
             val down = awaitFirstDown(requireUnconsumed = false)
+            if (canStartDragNow?.invoke(down.position) == false) return@awaitEachGesture
             val held = awaitLongPressOrCancellation(down.id)
             if (held != null) {
                 settleJob?.cancel()
