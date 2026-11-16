@@ -110,13 +110,30 @@ class DocumentTabsAdvancedToolbarComposeTest {
             }
         }
         val resources = InstrumentationRegistry.getInstrumentation().targetContext.resources
+        val placementLabel = rule.onNodeWithText(resources.getString(R.string.toolbar_config_placement))
         val positionLabel = rule.onNodeWithText(resources.getString(R.string.toolbar_config_position_and_alignment))
+        val startupLabel = rule.onNodeWithText(resources.getString(R.string.document_tabs_startup))
         val sizeLabel = rule.onNodeWithText(resources.getString(R.string.document_tabs_expanded_size))
-        assertEquals(positionLabel.fetchSemanticsNode().boundsInRoot.top,
-            sizeLabel.fetchSemanticsNode().boundsInRoot.top, 1f)
-        rule.runOnIdle { paneWidth = 320.dp }
+        assertEquals(placementLabel.fetchSemanticsNode().boundsInRoot.top,
+            startupLabel.fetchSemanticsNode().boundsInRoot.top, 1f)
+        assertTrue(sizeLabel.fetchSemanticsNode().boundsInRoot.left >
+            positionLabel.fetchSemanticsNode().boundsInRoot.right)
         assertTrue(sizeLabel.fetchSemanticsNode().boundsInRoot.top >
-            positionLabel.fetchSemanticsNode().boundsInRoot.bottom)
+            startupLabel.fetchSemanticsNode().boundsInRoot.bottom)
+
+        rule.runOnIdle { paneWidth = 320.dp }
+        val lastMapControl = rule.onNodeWithTag("toolbar-position-BOTTOM-CENTER").fetchSemanticsNode().boundsInRoot
+        assertTrue(startupLabel.fetchSemanticsNode().boundsInRoot.top > lastMapControl.bottom)
+        assertEquals(positionLabel.fetchSemanticsNode().boundsInRoot.left,
+            startupLabel.fetchSemanticsNode().boundsInRoot.left, 1f)
+
+        rule.onNodeWithText(resources.getString(R.string.document_tabs_manual_size)).performClick()
+        val extent = rule.onNodeWithText(resources.getString(R.string.document_tabs_extent_dp, config.manualExtentDp))
+        extent.assertExists()
+        rule.runOnIdle { config = config.withFloating(false) }
+        sizeLabel.assertDoesNotExist()
+        startupLabel.assertDoesNotExist()
+        extent.assertDoesNotExist()
 
         for (floating in listOf(true, false)) {
             rule.runOnIdle { config = config.withFloating(floating) }
