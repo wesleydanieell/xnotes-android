@@ -39,15 +39,13 @@ internal fun toolbarPreviewLayoutPlan(
     screenWidth: Dp,
     screenHeight: Dp,
     colorsCount: Int,
-    documentTabs: com.xnotes.core.tools.ToolbarBar? = null,
-    floatingDocumentTabs: com.xnotes.core.tools.ToolbarBar? = null,
 ): ToolbarPreviewLayoutPlan {
-    val docked = toolbarDockPlan(workspace, look, screenWidth, screenHeight, documentTabs)
+    val docked = toolbarDockPlan(workspace, look, screenWidth, screenHeight)
     val floating = toolbarFloatingPlan(
         workspace, look,
         (screenWidth.value - docked.leftInset - docked.rightInset).coerceAtLeast(0f).dp,
         (screenHeight.value - docked.topInset - docked.bottomInset).coerceAtLeast(0f).dp,
-        colorsCount, floatingDocumentTabs,
+        colorsCount,
     )
     return ToolbarPreviewLayoutPlan(docked, floating)
 }

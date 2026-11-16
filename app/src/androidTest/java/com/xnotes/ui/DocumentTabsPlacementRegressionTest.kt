@@ -12,16 +12,20 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Rect
+import androidx.compose.ui.graphics.toPixelMap
+import androidx.compose.ui.test.captureToImage
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.performTouchInput
+import androidx.compose.ui.test.cancel
 import androidx.compose.ui.test.down
 import androidx.compose.ui.test.moveBy
 import androidx.compose.ui.test.up
 import androidx.compose.ui.unit.dp
 import com.xnotes.core.tools.ToolbarBar
+import com.xnotes.core.tools.ToolbarGeometry
 import com.xnotes.core.tools.ToolbarDockAlignment
 import com.xnotes.core.tools.ToolbarLayout
 import com.xnotes.core.tools.ToolbarWorkspace
@@ -43,7 +47,8 @@ class DocumentTabsPlacementRegressionTest {
 
     private fun workspace(config: DocumentTabsBarConfig, count: Int, lengthDp: Int = 280) = ToolbarWorkspace(
         List(count) { lane ->
-            val placement = documentTabsToolbar(config.copy(dockLane = lane)).geometry
+            val placement = ToolbarGeometry(anchor = DocumentTabsBarConfig.anchorOf(config.position),
+                floating = config.floating, dockEdge = config.position.dockEdge(), dockLane = lane)
             ToolbarBar("tools-$lane", "Tools $lane", ToolbarLayout.DEFAULT,
                 geometry = placement.withLengthDp(lengthDp, config.position.vertical))
         },
@@ -64,19 +69,19 @@ class DocumentTabsPlacementRegressionTest {
                         expanded = true, onExpandedChange = {}, onSelect = {}, onClose = {},
                         onReorder = { _, _ -> }, onSplit = {}, config = config,
                         onConfigChange = { config = it }, workspace = workspace(config, peerCount),
-                        look = ToolbarLook(), colorCount = 5, shareDockLanes = true) {}
+                        look = ToolbarLook(), colorCount = 5) {}
                 }
             }
         }
 
         val failures = mutableListOf<String>()
         for (small in listOf(false, true)) for (floating in listOf(false, true))
-            for (edge in ToolbarPosition.entries) for (lane in 0..2)
+            for (edge in ToolbarPosition.entries)
                 for (alignment in ToolbarDockAlignment.entries) for (peers in listOf(0, 1, 3)) {
                     rule.runOnIdle {
                         compact = small
                         peerCount = peers
-                        config = DocumentTabsBarConfig(floating = floating, dockLane = lane)
+                        config = DocumentTabsBarConfig(floating = floating)
                             .movedTo(edge, alignment)
                     }
                     val host = bounds("tabs-host")
@@ -100,11 +105,11 @@ class DocumentTabsPlacementRegressionTest {
                         else -> null
                     }
                     if (problem != null) failures.add(
-                        "$problem small=$small floating=$floating edge=$edge lane=${lane + 1} " +
+                        "$problem small=$small floating=$floating edge=$edge " +
                             "alignment=$alignment peers=$peers bar=$bar host=$host",
                     )
                 }
-        assertTrue("432 placements, ${failures.size} failures:\n" +
+        assertTrue("144 placements, ${failures.size} failures:\n" +
             failures.groupBy { it.substringBefore(" small=") }.entries.joinToString("\n") { (reason, cases) ->
                 "$reason: ${cases.size}\n" + cases.take(4).joinToString("\n")
             }, failures.isEmpty())
@@ -124,7 +129,7 @@ class DocumentTabsPlacementRegressionTest {
                         onExpandedChange = {}, onSelect = {}, onClose = {},
                         onReorder = { _, _ -> }, onSplit = {}, config = config,
                         onConfigChange = {}, workspace = workspace(config.withFloating(false), 2, 1200),
-                        look = ToolbarLook(), colorCount = 5, shareDockLanes = true,
+                        look = ToolbarLook(), colorCount = 5,
                     ) {}
                 }
             }
@@ -166,9 +171,9 @@ class DocumentTabsPlacementRegressionTest {
         assertTrue(bounds("split-pane-content").bottom > expandedPane.bottom)
     }
 
-    @Test fun workspacePreviewReordersNavigationWithOneOrThreeToolbars() = exerciseReordering(preview = true)
+    @Test fun workspacePreviewShowsOutlineOnlyDuringDrag() = exerciseDrag(preview = true)
 
-    @Test fun liveEditorReordersNavigationWithOneOrThreeToolbars() = exerciseReordering(preview = false)
+    @Test fun liveEditorShowsOutlineOnlyDuringDrag() = exerciseDrag(preview = false)
 
     @Composable
     private fun LiveWorkspace(
@@ -188,11 +193,11 @@ class DocumentTabsPlacementRegressionTest {
                 expanded = true, onExpandedChange = {}, onSelect = {}, onClose = {},
                 onReorder = { _, _ -> }, onSplit = {}, config = config,
                 onConfigChange = onConfigChange, workspace = workspace,
-                look = ToolbarLook(), colorCount = 5, shareDockLanes = true) {
+                look = ToolbarLook(), colorCount = 5) {
                 Column(Modifier.fillMaxSize()) {
                     ToolbarAround(
                         bar = { toolContent(workspace.bars.first()) },
-                        onCover = { _, _, _, _ -> }, suppressBar = config.floating,
+                        onCover = { _, _, _, _ -> }, suppressBar = workspace.bars.first().geometry.floating,
                         workspace = workspace, dockedContent = toolContent,
                         onMoveBar = { _, _, _ -> }, onReorderBar = { _, _ -> },
                     ) { floatingBar ->
@@ -208,58 +213,65 @@ class DocumentTabsPlacementRegressionTest {
         }
     }
 
-    private fun exerciseReordering(preview: Boolean) {
-        var config by mutableStateOf(DocumentTabsBarConfig(floating = true))
-        var peerCount by mutableStateOf(1)
+    private fun exerciseDrag(preview: Boolean) {
+        var config by mutableStateOf(DocumentTabsBarConfig(floating = false))
+        var workspaceConfig by mutableStateOf(DocumentTabsBarConfig(floating = false))
         rule.setContent {
             MaterialTheme {
-                val bars = workspace(config.copy(dockLane = 0), peerCount,
-                    lengthDp = if (peerCount == 3) 1200 else 280)
+                val bars = workspace(workspaceConfig, 1, lengthDp = 1200)
                 if (!preview) LiveWorkspace(config, bars) { config = it }
                 else ToolbarWorkspacePreview(
-                    workspace = bars, look = ToolbarLook(),
-                    selectedId = "tools-0", colors = emptyList(), activeColorIndex = 0,
-                    pageNumber = 1, pageCount = 1, zoomLabel = "100%", titleLabel = "Preview",
+                    workspace = bars, look = ToolbarLook(), selectedId = "tools-0",
+                    colors = emptyList(), activeColorIndex = 0, pageNumber = 1,
+                    pageCount = 1, zoomLabel = "100%", titleLabel = "Preview",
                     selectedEntry = null, onSelectBar = {}, onSelectEntry = { _, _, _ -> },
                     onMoveBar = { _, _, _ -> }, documentTabsConfig = config,
                     onMoveDocumentTabs = { config = it },
                 )
             }
         }
-        val failures = mutableListOf<String>()
         val stageTag = if (preview) "toolbar-preview-stage" else "live-document-workspace"
-        val toolTag = if (preview) "preview-bar-tools-0" else "live-toolbar-slot-tools-0"
         val stage = rule.onNodeWithTag(stageTag)
-        fun drag(from: Offset, to: Offset) {
-            val origin = bounds(stageTag).topLeft
+        val outline = rule.onNodeWithTag("document-tabs-drop-outline")
+        fun startDrag() {
+            val viewport = bounds(stageTag)
+            val origin = bounds("document-tabs-bar").center - viewport.topLeft
             stage.performTouchInput {
-                down(from - origin)
+                down(origin)
                 advanceEventTime(850)
-                moveBy(to - from)
-                advanceEventTime(48)
-                up()
+                moveBy(Offset(viewport.width / 2, viewport.height - 4f) - origin)
             }
-            rule.waitForIdle()
         }
-        for (floating in listOf(false, true)) for (peers in listOf(1, 3)) for (edge in ToolbarPosition.entries) {
-            rule.runOnIdle {
-                peerCount = peers
-                config = DocumentTabsBarConfig(floating = floating,
-                    sizing = DocumentTabsSizing.MANUAL, manualExtentDp = 280).movedTo(edge, ToolbarDockAlignment.CENTER)
-            }
-            val tabs = bounds("document-tabs-bar").center
-            val tools = bounds(toolTag).center
-            drag(tabs, tools)
-            val movedAfterTools = rule.runOnIdle { config.afterToolbarId == "tools-0" }
-            if (!movedAfterTools) rule.runOnIdle { config = config.copy(afterToolbarId = "tools-0") }
-            drag(bounds(toolTag).center, bounds("document-tabs-bar").center)
-            val restored = rule.runOnIdle { config.afterToolbarId == null }
-            if (!preview) rule.onNodeWithTag("live-document-content").assertExists()
-            if (!movedAfterTools || !restored) failures.add(
-                "floating=$floating peers=$peers edge=$edge: " +
-                    "tabs over tools=$movedAfterTools, tools over tabs=$restored",
-            )
+        outline.assertDoesNotExist()
+        val original = bounds("document-tabs-bar")
+        val before = stage.captureToImage().toPixelMap()
+        startDrag()
+        outline.assertExists()
+        val target = bounds("document-tabs-drop-outline")
+        val pixel = target.center - bounds(stageTag).topLeft
+        val during = stage.captureToImage().toPixelMap()
+        assertEquals(before[pixel.x.toInt(), pixel.y.toInt()], during[pixel.x.toInt(), pixel.y.toInt()])
+        assertEquals(original, bounds("document-tabs-bar"))
+        stage.performTouchInput { cancel() }
+        outline.assertDoesNotExist()
+        assertEquals(original, bounds("document-tabs-bar"))
+
+        startDrag()
+        outline.assertExists()
+        stage.performTouchInput { up() }
+        outline.assertDoesNotExist()
+        assertEquals(ToolbarPosition.BOTTOM, rule.runOnIdle { config.position })
+        assertEquals(target, bounds("document-tabs-bar"))
+
+        rule.runOnIdle {
+            config = DocumentTabsBarConfig(floating = true)
+            workspaceConfig = workspaceConfig.movedTo(ToolbarPosition.BOTTOM, ToolbarDockAlignment.CENTER)
         }
-        assertTrue(failures.joinToString("\n"), failures.isEmpty())
+        val floating = bounds("document-tabs-bar")
+        startDrag()
+        outline.assertDoesNotExist()
+        stage.performTouchInput { up() }
+        assertEquals(ToolbarPosition.TOP, rule.runOnIdle { config.position })
+        assertEquals(floating, bounds("document-tabs-bar"))
     }
 }

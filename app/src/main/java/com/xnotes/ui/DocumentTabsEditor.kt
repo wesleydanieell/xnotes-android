@@ -16,7 +16,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import com.xnotes.R
-import com.xnotes.core.tools.ToolbarDockLayout
 import com.xnotes.settings.DocumentTabsBarConfig
 import com.xnotes.settings.DocumentTabsSizing
 import com.xnotes.ui.theme.LocalPalette
@@ -101,15 +100,6 @@ internal fun DocumentTabsEditor(
                             Slider(config.manualExtentDp.coerceIn(160, 800).toFloat(),
                                 onValueChange = { onConfigChange(config.copy(manualExtentDp = it.toInt())) },
                                 valueRange = 160f..800f)
-                        }
-                    }
-                    ToolbarSettingsLabel(stringResource(R.string.toolbar_config_preferred_lane))
-                    FlowRow(horizontalArrangement = Arrangement.spacedBy(5.dp)) {
-                        for (lane in 0 until ToolbarDockLayout.MAX_LANES) {
-                            PreferenceChoiceChip(stringResource(R.string.toolbar_config_lane_number, lane + 1),
-                                config.dockLane == lane) {
-                                onConfigChange(config.copy(dockLane = lane))
-                            }
                         }
                     }
                 }

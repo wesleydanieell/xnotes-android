@@ -3,9 +3,6 @@ package com.xnotes.ui
 import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.unit.dp
-import com.xnotes.core.tools.ToolbarBar
-import com.xnotes.core.tools.ToolbarBarContent
-import com.xnotes.core.tools.ToolbarGeometry
 import com.xnotes.core.tools.ToolbarWorkspace
 import com.xnotes.core.tools.ToolbarAnchor
 import com.xnotes.core.tools.ToolbarItem
@@ -17,25 +14,11 @@ import org.junit.Assert.*
 import org.junit.Test
 
 class DocumentTabsBarTest {
-    @Test fun navigationToolbarAndToolsUseTheSameLanesAndCanExchangePriority() {
-        for (floating in listOf(false, true)) {
-            val workspace = ToolbarWorkspace(listOf(ToolbarBar("tools", "Tools",
-                ToolbarLayout.DEFAULT, geometry = ToolbarGeometry(widthDp = 400, floating = floating))))
-            val look = ToolbarLook(floating = floating)
-            val config = DocumentTabsBarConfig(floating = floating)
-            fun plan(configuration: DocumentTabsBarConfig) =
-                documentTabsToolbar(configuration, if (floating) 380f else null).let { navigation ->
-                    assertTrue(navigation.content is ToolbarBarContent.DocumentTabs)
-                    val layout = if (floating) toolbarFloatingPlan(workspace, look, 620.dp, 420.dp, 5, navigation)
-                        else toolbarDockPlan(workspace, look, 620.dp, 420.dp, navigation)
-                    checkNotNull(layout.placement(navigation.id)).lane to checkNotNull(layout.placement("tools")).lane
-                }
-            assertEquals(0 to 1, plan(config))
-            val toolFirst = config.copy(afterToolbarId = "tools")
-            assertEquals(1 to 0, plan(toolFirst))
-            assertEquals(toolFirst, DocumentTabsBarConfig.fromJson(toolFirst.toJson()))
-            assertEquals(1 to 0, plan(config.copy(dockLane = 1)))
-        }
+    @Test fun legacyLanePreferencesPreserveEdgeAndAlignment() {
+        val config = DocumentTabsBarConfig(floating = false)
+            .movedTo(ToolbarPosition.RIGHT, com.xnotes.core.tools.ToolbarDockAlignment.END)
+        val legacy = config.toJson().put("dock_lane", 2).put("after_toolbar_id", "tools")
+        assertEquals(config, DocumentTabsBarConfig.fromJson(legacy))
     }
 
     @Test fun exactlyTwoModesRetainIndependentPositionAndRoundTripPreferences() {

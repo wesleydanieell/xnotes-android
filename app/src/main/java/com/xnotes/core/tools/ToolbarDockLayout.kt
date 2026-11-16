@@ -50,7 +50,6 @@ object ToolbarDockLayout {
         height: Float,
         requests: List<ToolbarDockRequest>,
         gap: Float = 4f,
-        navigationOverflowEdge: ToolbarDockEdge? = null,
     ): ToolbarDockPlan {
         if (!width.isFinite() || !height.isFinite() || width <= 0f || height <= 0f) {
             return ToolbarDockPlan(emptyList(), requests.mapTo(mutableSetOf()) { it.id }, 0f, 0f, 0f, 0f)
@@ -61,10 +60,8 @@ object ToolbarDockLayout {
         val depths = mutableMapOf<Pair<ToolbarDockEdge, Int>, Float>()
         val seen = mutableSetOf<String>()
 
-        fun lanes(edge: ToolbarDockEdge) = 0 until (MAX_LANES + if (edge == navigationOverflowEdge) 1 else 0)
-
         fun fit(edge: ToolbarDockEdge, axisStart: Float, axisLength: Float) {
-            for (lane in lanes(edge)) {
+            for (lane in 0 until MAX_LANES) {
                 val laneRequests = requests.filter { it.edge == edge && it.lane == lane }
                 val kept = mutableListOf<ToolbarDockRequest>()
                 var used = 0f
@@ -76,7 +73,7 @@ object ToolbarDockLayout {
                     ToolbarDockEdge.RIGHT -> ToolbarDockEdge.LEFT
                 }
                 val previousDepth = (0 until lane).sumOf { (depths[edge to it] ?: 0f).toDouble() }.toFloat()
-                val opposingDepth = lanes(other).sumOf { (depths[other to it] ?: 0f).toDouble() }.toFloat()
+                val opposingDepth = (0 until MAX_LANES).sumOf { (depths[other to it] ?: 0f).toDouble() }.toFloat()
                 val acrossLimit = if (edge == ToolbarDockEdge.TOP || edge == ToolbarDockEdge.BOTTOM) height else width
                 for (r in laneRequests) {
                     val len = if (r.autoLength) axisLength else r.length
@@ -134,16 +131,16 @@ object ToolbarDockLayout {
         // Compute top/bottom depths first so lateral bars cannot occupy the same corners.
         fit(ToolbarDockEdge.TOP, 0f, width)
         fit(ToolbarDockEdge.BOTTOM, 0f, width)
-        val top = lanes(ToolbarDockEdge.TOP).sumOf { (depths[ToolbarDockEdge.TOP to it] ?: 0f).toDouble() }.toFloat()
-        val bottom = lanes(ToolbarDockEdge.BOTTOM).sumOf { (depths[ToolbarDockEdge.BOTTOM to it] ?: 0f).toDouble() }.toFloat()
+        val top = (0 until MAX_LANES).sumOf { (depths[ToolbarDockEdge.TOP to it] ?: 0f).toDouble() }.toFloat()
+        val bottom = (0 until MAX_LANES).sumOf { (depths[ToolbarDockEdge.BOTTOM to it] ?: 0f).toDouble() }.toFloat()
         val freeHeight = (height - top - bottom).coerceAtLeast(0f)
         fit(ToolbarDockEdge.LEFT, top, freeHeight)
         fit(ToolbarDockEdge.RIGHT, top, freeHeight)
-        val left = lanes(ToolbarDockEdge.LEFT).sumOf { (depths[ToolbarDockEdge.LEFT to it] ?: 0f).toDouble() }.toFloat()
-        val right = lanes(ToolbarDockEdge.RIGHT).sumOf { (depths[ToolbarDockEdge.RIGHT to it] ?: 0f).toDouble() }.toFloat()
+        val left = (0 until MAX_LANES).sumOf { (depths[ToolbarDockEdge.LEFT to it] ?: 0f).toDouble() }.toFloat()
+        val right = (0 until MAX_LANES).sumOf { (depths[ToolbarDockEdge.RIGHT to it] ?: 0f).toDouble() }.toFloat()
         // If opposing lane stacks exceed the viewport, later stacks cannot be admitted.
         // Callers should validate the candidate configuration before saving.
-        for (r in requests) if (r.lane !in lanes(r.edge) || r.id !in seen) rejected.add(r.id)
+        for (r in requests) if (r.lane !in 0 until MAX_LANES || r.id !in seen) rejected.add(r.id)
         return ToolbarDockPlan(accepted, rejected, top, bottom, left, right)
     }
 }

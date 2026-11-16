@@ -5,7 +5,6 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.AbsoluteAlignment
 import com.xnotes.core.tools.ToolbarAnchor
 import com.xnotes.core.tools.ToolbarBar
-import com.xnotes.core.tools.ToolbarBarContent
 import com.xnotes.core.tools.ToolbarDockAlignment
 import com.xnotes.core.tools.ToolbarDockEdge
 import com.xnotes.core.tools.ToolbarDockLayout
@@ -112,28 +111,12 @@ private fun toolbarRequestsInVisualOrder(
     return requests.sortedWith(compareBy({ priorities.getValue(it.id) }, { indices.getValue(it.id) }))
 }
 
-private fun withDocumentTabsOrder(
-    requests: List<ToolbarDockRequest>, tabs: ToolbarBar?,
-): List<ToolbarDockRequest> {
-    val content = tabs?.content as? ToolbarBarContent.DocumentTabs ?: return requests
-    val geometry = tabs.geometry
-    val edge = geometry.dockEdge ?: return requests
-    val vertical = edge.toolbarPosition().vertical
-    val length = geometry.lengthDp(vertical)
-    val request = ToolbarDockRequest(tabs.id, edge, geometry.dockLane, geometry.dockAlignment,
-        length?.toFloat() ?: 0f, geometry.thicknessDp(vertical)?.toFloat() ?: 48f,
-        autoLength = length == null)
-    val index = requests.indexOfFirst { it.id == content.afterToolbarId && it.edge == edge } + 1
-    return requests.toMutableList().apply { add(index, request) }
-}
-
 /** A null length is deliberately treated as a full-edge bar, not an optimistic guess. */
 internal fun toolbarDockPlan(
     workspace: ToolbarWorkspace,
     look: ToolbarLook,
     windowWidth: Dp,
     windowHeight: Dp,
-    documentTabs: ToolbarBar? = null,
 ): ToolbarDockPlan {
     val requests = workspace.bars.mapIndexedNotNull { index, bar ->
         val edge = toolbarDockEdge(bar, index, look)?.takeIf { bar.visible } ?: return@mapIndexedNotNull null
@@ -157,26 +140,23 @@ internal fun toolbarDockPlan(
     // the original length. The real renderer is constrained by the same placement box.
     // Cap both axes before the reservation pass: an oversized top bar must not be
     // rejected here and then incorrectly leave its space available to a side bar.
-    val orderedRequests = withDocumentTabsOrder(toolbarRequestsInVisualOrder(workspace, requests), documentTabs)
+    val orderedRequests = toolbarRequestsInVisualOrder(workspace, requests)
     val safeDepthRequests = orderedRequests.map { request ->
         val vertical = request.edge == ToolbarDockEdge.LEFT || request.edge == ToolbarDockEdge.RIGHT
         request.copy(depth = request.depth.coerceAtMost(toolbarSafeDockDepth(
             if (vertical) windowWidth.value else windowHeight.value)))
     }
-    val overflowEdge = documentTabs?.geometry?.dockEdge
     val topBottom = packToolbarLanes(windowWidth.value, windowHeight.value,
         safeDepthRequests.filter { it.edge == ToolbarDockEdge.TOP || it.edge == ToolbarDockEdge.BOTTOM }
             .map { request -> if (request.autoLength) request
-                else request.copy(length = request.length.coerceAtMost(windowWidth.value)) },
-        navigationOverflowEdge = overflowEdge)
+                else request.copy(length = request.length.coerceAtMost(windowWidth.value)) })
     val sideSpace = (windowHeight.value - topBottom.topInset - topBottom.bottomInset).coerceAtLeast(0f)
     val capped = safeDepthRequests.map { request ->
         val vertical = request.edge == ToolbarDockEdge.LEFT || request.edge == ToolbarDockEdge.RIGHT
         request.copy(length = if (request.autoLength) request.length else request.length.coerceAtMost(
             if (vertical) sideSpace else windowWidth.value))
     }
-    return packToolbarLanes(windowWidth.value, windowHeight.value, capped,
-        navigationOverflowEdge = overflowEdge)
+    return packToolbarLanes(windowWidth.value, windowHeight.value, capped)
 }
 
 /** Preferred lanes are tried first, then other lanes on the same edge, for both dock modes. */
@@ -185,21 +165,17 @@ private fun packToolbarLanes(
     height: Float,
     requests: List<ToolbarDockRequest>,
     gap: Float = 4f,
-    navigationOverflowEdge: ToolbarDockEdge? = null,
 ): ToolbarDockPlan {
     val accepted = mutableListOf<ToolbarDockRequest>()
     val unplaced = mutableSetOf<String>()
     for (request in requests) {
-        val preferredLanes = (request.lane until ToolbarDockLayout.MAX_LANES) + (0 until request.lane)
-        val candidates = if (request.edge == navigationOverflowEdge) {
-            preferredLanes + ToolbarDockLayout.MAX_LANES
-        } else preferredLanes
+        val candidates = (request.lane until ToolbarDockLayout.MAX_LANES) + (0 until request.lane)
         val placed = candidates.asSequence().map { request.copy(lane = it) }.firstOrNull { shifted ->
-            ToolbarDockLayout.arrange(width, height, accepted + shifted, gap, navigationOverflowEdge).rejected.isEmpty()
+            ToolbarDockLayout.arrange(width, height, accepted + shifted, gap).rejected.isEmpty()
         }
         if (placed == null) unplaced.add(request.id) else accepted.add(placed)
     }
-    val packed = ToolbarDockLayout.arrange(width, height, accepted, gap, navigationOverflowEdge)
+    val packed = ToolbarDockLayout.arrange(width, height, accepted, gap)
     return packed.copy(rejected = packed.rejected + unplaced)
 }
 
@@ -245,7 +221,6 @@ internal fun toolbarFloatingPlan(
     stageWidth: Dp,
     stageHeight: Dp,
     colorCount: Int,
-    documentTabs: ToolbarBar? = null,
 ): ToolbarDockPlan {
     val width = (stageWidth.value - 16f).coerceAtLeast(0f)
     val height = (stageHeight.value - 16f).coerceAtLeast(0f)
@@ -272,7 +247,7 @@ internal fun toolbarFloatingPlan(
         ))
     }
     // Primary-bar identity is list-based; layout order is separate and configurable.
-    val orderedRequests = withDocumentTabsOrder(toolbarRequestsInVisualOrder(workspace, requests), documentTabs)
+    val orderedRequests = toolbarRequestsInVisualOrder(workspace, requests)
     // Floating regions must also adapt BOTH dimensions when the viewport shrinks.
     // Their saved preferred sizes remain intact, but the allocated rectangles must fit
     // the current screen and other floating bars, just like docked placement does.
@@ -292,42 +267,8 @@ internal fun toolbarFloatingPlan(
             request.copy(length = request.length.coerceAtMost(availableSideLength))
         else request
     }
-    val packed = packFloatingDocumentTabs(width, height, availableSideLength, capped, documentTabs)
+    val packed = packToolbarLanes(width, height, capped, gap = 8f)
     return packed.copy(
         placements = packed.placements.map { it.copy(x = it.x + 8f, y = it.y + 8f) },
     )
-}
-
-/** Keep the normal plan when it fits. In a saturated floating stack, one peer can
- * scroll inside a shorter slot and still share the requested lane with navigation. */
-private fun packFloatingDocumentTabs(
-    width: Float,
-    height: Float,
-    sideLength: Float,
-    requests: List<ToolbarDockRequest>,
-    documentTabs: ToolbarBar?,
-): ToolbarDockPlan {
-    val gap = 8f
-    val normal = packToolbarLanes(width, height, requests, gap)
-    if (normal.rejected.isEmpty() || documentTabs == null) return normal
-    val tabs = requests.firstOrNull { it.id == documentTabs.id } ?: return normal
-    val axis = if (tabs.edge.toolbarPosition().vertical) sideLength else width
-    val minimumToolLength = 48f
-    val minimumTabLength = 96f
-    val tabLength = tabs.length.coerceAtMost(axis - minimumToolLength - gap)
-    if (tabLength < minimumTabLength) return normal
-    val peers = requests.filter { it.edge == tabs.edge && it.id != tabs.id }
-        .sortedBy { it.lane != tabs.lane }
-    for (peer in peers) {
-        val adjusted = requests.map { request ->
-            when (request.id) {
-                tabs.id -> tabs.copy(length = tabLength)
-                peer.id -> peer.copy(length = peer.length.coerceAtMost(axis - tabLength - gap))
-                else -> request
-            }
-        }
-        val plan = packToolbarLanes(width, height, adjusted, gap)
-        if (plan.rejected.isEmpty()) return plan
-    }
-    return normal
 }

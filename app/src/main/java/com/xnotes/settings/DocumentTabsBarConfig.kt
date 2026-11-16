@@ -2,7 +2,6 @@ package com.xnotes.settings
 
 import com.xnotes.core.tools.ToolbarAnchor
 import com.xnotes.core.tools.ToolbarDockAlignment
-import com.xnotes.core.tools.ToolbarDockLayout
 import org.json.JSONObject
 
 enum class DocumentTabsSizing { DYNAMIC, MANUAL }
@@ -16,9 +15,6 @@ data class DocumentTabsBarConfig(
     val manualExtentDp: Int = 360,
     val minExtentDp: Int = 160,
     val maxExtentDp: Int = 0, // Zero means the available window extent.
-    val dockLane: Int = 0,
-    val afterToolbarId: String? = null,
-
 ) {
     fun movedTo(target: ToolbarAnchor): DocumentTabsBarConfig {
         val safe = target.takeUnless { it == ToolbarAnchor.CENTER } ?: ToolbarAnchor.TOP_CENTER
@@ -78,8 +74,7 @@ data class DocumentTabsBarConfig(
     fun toJson(): JSONObject = JSONObject().put("floating", floating)
         .put("position", position.id).put("anchor", anchor.name)
         .put("sizing", sizing.name).put("manual_extent_dp", manualExtentDp)
-        .put("min_extent_dp", minExtentDp).put("max_extent_dp", maxExtentDp).put("dock_lane", dockLane)
-        .put("after_toolbar_id", afterToolbarId)
+        .put("min_extent_dp", minExtentDp).put("max_extent_dp", maxExtentDp)
 
     companion object {
         fun fromJson(raw: JSONObject?): DocumentTabsBarConfig {
@@ -91,9 +86,7 @@ data class DocumentTabsBarConfig(
                 DocumentTabsSizing.entries.firstOrNull { it.name == raw.optString("sizing") } ?: DocumentTabsSizing.DYNAMIC,
                 raw.optInt("manual_extent_dp", 360).coerceIn(80, 4000),
                 raw.optInt("min_extent_dp", 160).coerceIn(80, 2000),
-                raw.optInt("max_extent_dp", 0).coerceIn(0, 4000),
-                raw.optInt("dock_lane", 0).coerceIn(0, ToolbarDockLayout.MAX_LANES - 1),
-                raw.optString("after_toolbar_id").takeUnless { it.isBlank() || it == "null" })
+                raw.optInt("max_extent_dp", 0).coerceIn(0, 4000))
         }
         fun anchorOf(position: ToolbarPosition): ToolbarAnchor = when (position) {
             ToolbarPosition.TOP -> ToolbarAnchor.TOP_CENTER
