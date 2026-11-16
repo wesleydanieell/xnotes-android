@@ -26,8 +26,7 @@ internal fun documentTabsOffset(host: Size, card: Size, anchor: ToolbarAnchor): 
     )
 }
 
-/** Resolve free space along the requested edge. An occupied edge never shifts the
- * tab bar across the editor. The caller rejects overlapping interactive drops. */
+/** Prefer the requested edge and clear only as much toolbar depth as needed. */
 internal fun documentTabsFloatingStrip(
     host: Size,
     anchor: ToolbarAnchor,
@@ -35,6 +34,7 @@ internal fun documentTabsFloatingStrip(
     obstacles: List<Rect>,
     px: Float,
     keepCentered: Boolean = false,
+    allowInset: Boolean = true,
 ): Rect {
     val vertical = edge.vertical
     val main = if (vertical) host.height else host.width
@@ -43,13 +43,13 @@ internal fun documentTabsFloatingStrip(
     val start = gap.coerceAtMost(minOf(main, cross).coerceAtLeast(0f) / 2)
     val end = (main - start).coerceAtLeast(start)
     val depth = minOf(60f * px, (cross - 2 * start).coerceAtLeast(0f))
-    val crossStart = when (edge) {
-        ToolbarPosition.TOP, ToolbarPosition.LEFT -> start
-        ToolbarPosition.BOTTOM, ToolbarPosition.RIGHT -> (cross - start - depth).coerceAtLeast(start)
+    val reverse = edge == ToolbarPosition.BOTTOM || edge == ToolbarPosition.RIGHT
+    fun strip(a: Float, b: Float, inset: Float): Rect {
+        val c = if (reverse) cross - inset - depth else inset
+        return if (vertical) Rect(c, a, c + depth, b) else Rect(a, c, b, c + depth)
     }
-    fun strip(a: Float, b: Float) = if (vertical) Rect(crossStart, a, crossStart + depth, b)
-        else Rect(a, crossStart, b, crossStart + depth)
-    val edgeStrip = strip(start, end)
+
+    val edgeStrip = strip(start, end, start)
     if (obstacles.isEmpty()) return edgeStrip
 
     val alignment = DocumentTabsBarConfig(position = edge, anchor = anchor).alignment()
@@ -58,32 +58,44 @@ internal fun documentTabsFloatingStrip(
         ToolbarDockAlignment.CENTER -> main / 2
         ToolbarDockAlignment.END -> end
     }
-    val blockers = obstacles.mapNotNull { obstacle ->
-        val crossLow = if (vertical) obstacle.left else obstacle.top
-        val crossHigh = if (vertical) obstacle.right else obstacle.bottom
-        if (crossLow >= crossStart + depth + gap || crossHigh <= crossStart - gap) null
-        else {
-            val a = if (vertical) obstacle.top else obstacle.left
-            val b = if (vertical) obstacle.bottom else obstacle.right
-            (a - gap).coerceIn(start, end) to (b + gap).coerceIn(start, end)
+    val centered = keepCentered && alignment == ToolbarDockAlignment.CENTER
+    val minimum = minOf(132f * px, end - start)
+    val insets = if (allowInset) {
+        (listOf(start) + obstacles.map { obstacle ->
+            val near = if (vertical) obstacle.left else obstacle.top
+            val far = if (vertical) obstacle.right else obstacle.bottom
+            (if (reverse) cross - near else far) + gap
+        }.filter { it > start && it < cross / 2 && it + depth <= cross - start }).distinct().sorted()
+    } else listOf(start)
+
+    for (inset in insets) {
+        val edgeBand = strip(start, end, inset)
+        val blockers = obstacles.asSequence().filter { it.inflate(gap).overlaps(edgeBand) }
+            .map { obstacle ->
+                val a = if (vertical) obstacle.top else obstacle.left
+                val b = if (vertical) obstacle.bottom else obstacle.right
+                (a - gap).coerceIn(start, end) to (b + gap).coerceIn(start, end)
+            }.sortedBy { it.first }
+        val intervals = mutableListOf<Pair<Float, Float>>()
+        var cursor = start
+        for ((a, b) in blockers) {
+            if (a > cursor) intervals.add(cursor to a)
+            cursor = maxOf(cursor, b)
         }
-    }.sortedBy { it.first }
-
-    val intervals = mutableListOf<Pair<Float, Float>>()
-    var cursor = start
-    for ((a, b) in blockers) {
-        if (a > cursor) intervals.add(cursor to a)
-        cursor = maxOf(cursor, b)
+        if (cursor < end) intervals.add(cursor to end)
+        val free = intervals.asSequence().map { (a, b) ->
+            if (centered) {
+                val room = minOf(mainAnchor - a, b - mainAnchor)
+                mainAnchor - room to mainAnchor + room
+            } else a to b
+        }.filter { (a, b) -> b - a >= minimum }.minWithOrNull(
+            compareBy<Pair<Float, Float>> {
+                kotlin.math.abs(mainAnchor - mainAnchor.coerceIn(it.first, it.second))
+            }.thenByDescending { it.second - it.first },
+        )
+        if (free != null) return strip(free.first, free.second, inset)
     }
-    if (cursor < end) intervals.add(cursor to end)
-    val free = intervals.minWithOrNull(compareBy<Pair<Float, Float>> {
-        kotlin.math.abs(mainAnchor - mainAnchor.coerceIn(it.first, it.second))
-    }.thenByDescending { it.second - it.first }) ?: return edgeStrip
 
-    val (from, to) = if (keepCentered && alignment == ToolbarDockAlignment.CENTER) {
-        val room = minOf(mainAnchor - free.first, free.second - mainAnchor)
-        if (room <= 0) return edgeStrip
-        mainAnchor - room to mainAnchor + room
-    } else free
-    return if (to - from >= minOf(132f * px, end - start)) strip(from, to) else edgeStrip
+    // Keep navigation accessible when the viewport is too crowded to fit another surface.
+    return edgeStrip
 }

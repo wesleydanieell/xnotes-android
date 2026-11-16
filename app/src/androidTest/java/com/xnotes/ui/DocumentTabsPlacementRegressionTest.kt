@@ -16,7 +16,6 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.graphics.toPixelMap
 import androidx.compose.ui.test.captureToImage
-import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onNodeWithTag
@@ -126,11 +125,9 @@ class DocumentTabsPlacementRegressionTest {
             }, failures.isEmpty())
     }
 
-    @Test fun floatingNavigationKeepsTheEdgeMarginBesideFullLengthDocks() {
+    @Test fun floatingNavigationClearsFullLengthDocksOnEveryEdge() {
         var edge by mutableStateOf(ToolbarPosition.TOP)
-        var marginPx = 0f
         rule.setContent {
-            marginPx = with(LocalDensity.current) { 8.dp.toPx() }
             MaterialTheme {
                 val config = DocumentTabsBarConfig(floating = true)
                     .movedTo(edge, ToolbarDockAlignment.CENTER)
@@ -155,7 +152,8 @@ class DocumentTabsPlacementRegressionTest {
                 ToolbarPosition.LEFT -> bar.left - host.left
                 ToolbarPosition.RIGHT -> host.right - bar.right
             }
-            assertEquals("floating margin at $position", marginPx, gap, 1.5f)
+            val length = if (position.vertical) host.width else host.height
+            assertTrue("floating clearance at $position: $gap", gap in 85f..length / 2f)
         }
     }
 
@@ -400,6 +398,40 @@ class DocumentTabsPlacementRegressionTest {
             assertEquals(ToolbarPosition.BOTTOM, config.position)
             assertEquals(null, dropped)
         }
+    }
+
+    @Test fun workspacePreviewSeparatesTabsFromMovedAndResizedToolbar() =
+        exerciseToolbarCollision(preview = true)
+
+    @Test fun liveEditorSeparatesTabsFromMovedAndResizedToolbar() =
+        exerciseToolbarCollision(preview = false)
+
+    private fun exerciseToolbarCollision(preview: Boolean) {
+        val tabs = DocumentTabsBarConfig(floating = true)
+        var edge by mutableStateOf(ToolbarPosition.BOTTOM)
+        var length by mutableStateOf(132)
+        rule.setContent {
+            MaterialTheme {
+                val dock = tabs.withFloating(false).movedTo(edge, ToolbarDockAlignment.CENTER)
+                val bars = workspace(dock, 1, lengthDp = length, rows = 2)
+                if (!preview) LiveWorkspace(tabs, bars) {}
+                else ToolbarWorkspacePreview(
+                    workspace = bars, look = ToolbarLook(), selectedId = "tools-0",
+                    colors = emptyList(), activeColorIndex = 0, pageNumber = 1,
+                    pageCount = 1, zoomLabel = "100%", titleLabel = "Preview",
+                    selectedEntry = null, onSelectBar = {}, onSelectEntry = { _, _, _ -> },
+                    onMoveBar = { _, _, _ -> }, documentTabsConfig = tabs,
+                )
+            }
+        }
+        val toolbarTag = if (preview) "preview-bar-tools-0" else "live-toolbar-slot-tools-0"
+        val initial = bounds("document-tabs-bar")
+        rule.runOnIdle { edge = ToolbarPosition.TOP }
+        assertTrue(!bounds("document-tabs-bar").overlaps(bounds(toolbarTag)))
+        rule.runOnIdle { length = 1200 }
+        assertTrue(!bounds("document-tabs-bar").overlaps(bounds(toolbarTag)))
+        rule.runOnIdle { edge = ToolbarPosition.BOTTOM }
+        assertEquals(initial, bounds("document-tabs-bar"))
     }
 
     @Test fun workspacePreviewShowsOutlineOnlyDuringDrag() = exerciseDrag(preview = true)

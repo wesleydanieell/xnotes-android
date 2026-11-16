@@ -138,11 +138,20 @@ class DocumentTabsBarTest {
         assertEquals(1192f, rail.right, 0f)
     }
 
-    @Test fun fullyOccupiedEdgeKeepsItsOriginalMargin() {
+    @Test fun fullyOccupiedEdgeUsesTheFirstClearBand() {
         val host = Size(1200f, 800f)
         val obstacles = listOf(Rect(0f, 0f, 1200f, 60f))
         val strip = documentTabsFloatingStrip(host, ToolbarAnchor.TOP_CENTER, ToolbarPosition.TOP, obstacles, 1f)
-        assertEquals(Rect(8f, 8f, 1192f, 68f), strip)
+        assertEquals(Rect(8f, 68f, 1192f, 128f), strip)
+        assertFalse(obstacles.any { it.overlaps(strip) })
+    }
+
+    @Test fun floatingStripSkipsACloserGapThatIsTooSmall() {
+        val obstacles = listOf(Rect(60f, 8f, 420f, 70f))
+        val strip = documentTabsFloatingStrip(
+            Size(700f, 440f), ToolbarAnchor.TOP_LEFT, ToolbarPosition.TOP, obstacles, 1f,
+        )
+        assertEquals(Rect(428f, 8f, 692f, 68f), strip)
     }
 
 }

@@ -146,11 +146,16 @@ internal fun DocumentTabsHost(
             else splitToolbars?.obstacles(look, widthDp, heightDp, colorCount, px)
                 ?: documentTabsToolObstacles(workspace, look, widthDp, heightDp, colorCount, px)
         }
-        fun strip(target: DocumentTabsBarConfig) =
+        fun strip(target: DocumentTabsBarConfig, allowInset: Boolean = true) =
             documentTabsFloatingStrip(host, target.anchor, target.position, obstacles, px,
-                keepCentered = splitToolbars != null)
+                keepCentered = splitToolbars != null, allowInset = allowInset)
 
-        fun placement(target: DocumentTabsBarConfig, measuredLength: Float, thickness: Float): Rect {
+        fun placement(
+            target: DocumentTabsBarConfig,
+            measuredLength: Float,
+            thickness: Float,
+            allowInset: Boolean = true,
+        ): Rect {
             val edge = target.position
             val verticalTarget = edge.vertical
             if (!target.floating) {
@@ -162,7 +167,7 @@ internal fun DocumentTabsHost(
                     ToolbarPosition.RIGHT -> Rect((host.width - depth).coerceAtLeast(0f), 0f, host.width, host.height)
                 }
             }
-            val space = strip(target)
+            val space = strip(target, allowInset)
             val available = if (verticalTarget) space.height else space.width
             val length = if (showExpanded) target.expandedExtent((available / px - 32f).coerceAtLeast(0f)) * px
                 else measuredLength
@@ -181,7 +186,7 @@ internal fun DocumentTabsHost(
         } else null
         fun destination(target: ToolbarDropPosition): Rect? {
             val next = config.movedTo(DocumentTabsBarConfig.edgeOf(target.anchor), target.alignment)
-            val rect = placement(next, length, thickness)
+            val rect = placement(next, length, thickness, allowInset = false)
             return rect.takeIf { !rect.isEmpty && obstacles.none(rect::overlaps) }
         }
         val activeMorph = morph
