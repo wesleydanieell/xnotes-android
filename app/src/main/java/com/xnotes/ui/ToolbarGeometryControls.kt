@@ -32,6 +32,7 @@ internal fun ToolbarGeometryControls(
     geometry: ToolbarGeometry,
     vertical: Boolean,
     onChange: (ToolbarGeometry) -> Unit,
+    roundness: (@Composable () -> Unit)? = null,
 ) {
     val toolbarStrings = androidx.compose.ui.platform.LocalContext.current
     val screen = LocalConfiguration.current
@@ -79,6 +80,7 @@ internal fun ToolbarGeometryControls(
                     geometry.spacingDp, 2, 0, 32, Modifier.fillMaxWidth()) {
                     onChange(geometry.copy(spacingDp = it))
                 }
+                roundness?.invoke()
             }
         }
         if (sideBySide) {
@@ -98,13 +100,14 @@ internal fun ToolbarGeometryControls(
 }
 
 @Composable
-private fun ToolbarMeasure(
+internal fun ToolbarMeasure(
     title: String,
     value: Int?,
     defaultValue: Int,
     minimum: Int,
     maximum: Int,
     modifier: Modifier = Modifier.width(196.dp),
+    sliderTag: String = "toolbar-measure-slider",
     onChange: (Int?) -> Unit,
 ) {
     val toolbarStrings = androidx.compose.ui.platform.LocalContext.current
@@ -120,7 +123,10 @@ private fun ToolbarMeasure(
                     style = MaterialTheme.typography.labelSmall, maxLines = 1)
             } else {
                 Text("$value dp", style = MaterialTheme.typography.labelSmall, maxLines = 1)
-                TextButton(onClick = { onChange(null) }) {
+                TextButton(
+                    onClick = { onChange(null) },
+                    modifier = Modifier.testTag("toolbar-measure-auto"),
+                ) {
                     Text(toolbarStrings.getString(R.string.toolbar_config_auto),
                         style = MaterialTheme.typography.labelSmall)
                 }
@@ -130,7 +136,7 @@ private fun ToolbarMeasure(
             value = (value ?: defaultValue).coerceIn(minimum, maximum).toFloat(),
             onValueChange = { onChange(it.roundToInt()) },
             valueRange = minimum.toFloat()..maximum.toFloat(),
-            modifier = Modifier.fillMaxWidth().testTag("toolbar-measure-slider"),
+            modifier = Modifier.fillMaxWidth().testTag(sliderTag),
         )
         if (value != null && value > maximum) {
             Text(

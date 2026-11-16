@@ -92,8 +92,8 @@ class ToolbarWorkspaceJsonTest {
         val note = ToolbarLayout.DEFAULT.moveSection(0, 2)
         val canvas = ToolbarLayout.CANVAS_DEFAULT.moveSection(0, 2)
         val profiles = base.copy(
-            note = base.note.addBar(ToolbarBar("note-new", "Note", note)).moveBar("note-new", 0),
-            canvas = base.canvas.addBar(ToolbarBar("canvas-new", "Canvas", canvas)).moveBar("canvas-new", 0))
+            note = ToolbarWorkspace(listOf(ToolbarBar("note-new", "Note", note)) + base.note.bars),
+            canvas = ToolbarWorkspace(listOf(ToolbarBar("canvas-new", "Canvas", canvas)) + base.canvas.bars))
         val updated = Settings().withToolbarWorkspaces(profiles)
         val restored = Settings.fromJson(updated.toJson())
         assertEquals(profiles, restored.toolbarWorkspaces)
@@ -174,6 +174,7 @@ class ToolbarWorkspaceJsonTest {
                 paddingDp = 7,
                 spacingDp = 5,
                 elementSizeDp = 48,
+                cornerRadiusDp = 16,
                 columns = 3,
                 dockEdge = ToolbarDockEdge.RIGHT,
                 dockLane = 2,
@@ -187,6 +188,8 @@ class ToolbarWorkspaceJsonTest {
         assertEquals(2, restored.effectiveToolbarWorkspaces().note.bars.size)
         assertEquals(2, restored.effectiveToolbarWorkspaces().forContext(ToolbarContext.CANVAS).bars.size)
         assertEquals(245, restored.toolbarWorkspaces!!.note.bars[1].geometry.widthDp)
+        assertEquals(16, restored.toolbarWorkspaces!!.note.bars[1].geometry.cornerRadiusDp)
+        assertNull(restored.toolbarWorkspaces!!.note.bars.first().geometry.cornerRadiusDp)
     }
 
     @Test fun sectionsAndLanesRoundTripInCurrentSchema() {

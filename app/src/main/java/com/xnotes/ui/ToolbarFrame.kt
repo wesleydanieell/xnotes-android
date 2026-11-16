@@ -169,16 +169,18 @@ internal fun ColumnScope.ToolbarAround(
 ) {
     val look = LocalToolbarLook.current
     val rest = Modifier.weight(1f).fillMaxWidth()
-    // Multi-dock occupies genuine document space on all four edges. The same plan drives
-    // the miniature preview; floating bars remain in the content's overlay layer.
-    if (workspace != null && dockedContent != null && workspace.hasMultiDock(look)) {
+    // Keep one document subtree for every docked placement, including a legacy
+    // primary. Switching layouts on its first move would recreate the native canvas.
+    if (workspace != null && dockedContent != null && workspace.hasDockedToolbar(look)) {
         SideEffect { onCover(0.0, 0.0, 0.0, 0.0) }
         val reorder = remember { ToolbarWorkspaceReorderController() }
         ToolbarReorderRecoveryEffect(reorder)
         LaunchedEffect(workspace) { reorder.acknowledge(workspace) }
         var paneBounds by remember { mutableStateOf(Rect.Zero) }
         BoxWithConstraints(rest.onGloballyPositioned { paneBounds = it.boundsInRoot() }) {
-            val basePlan = toolbarDockPlan(workspace, look, maxWidth, maxHeight)
+            val basePlan = remember(workspace, look, maxWidth, maxHeight) {
+                toolbarDockPlan(workspace, look, maxWidth, maxHeight)
+            }
             val reordered = reorder.displayedWorkspace(workspace)
             val hoveredId = reorder.sourceId
             val hoveredTarget = reorder.hoverPlacement
@@ -190,7 +192,9 @@ internal fun ColumnScope.ToolbarAround(
             val proposedWorkspace = previewMove?.first ?: reordered
             val proposedLook = previewMove?.second ?: look
             val proposedPlan = if (proposedWorkspace == workspace && proposedLook == look) basePlan
-                else toolbarDockPlan(proposedWorkspace, proposedLook, maxWidth, maxHeight)
+                else remember(proposedWorkspace, proposedLook, maxWidth, maxHeight) {
+                    toolbarDockPlan(proposedWorkspace, proposedLook, maxWidth, maxHeight)
+                }
             val peers = remember(workspace, basePlan, onReorderBar != null) {
                 if (onReorderBar == null) emptyMap() else workspace.bars.associate { dockBar ->
                     dockBar.id to toolbarReorderPeersInPlan(workspace, dockBar.id, basePlan,
@@ -324,10 +328,10 @@ internal fun ToolbarFrame(
         (if (bar.vertical) geometry?.heightDp == null else geometry?.widthDp == null)
     val glide = remember { ToolGlide() }
     val palette = LocalPalette.current
-    val shape = MaterialTheme.shapes.extraLarge
-    // Docked, the strip fills its edge; floating, a pill only as long as its tools, up to that edge.
+    val shape = toolbarSurfaceShape(geometry, layout, look.size, bar.vertical, look.floating)
+    // Docked auto bars stay square; an individual corner override applies to both modes.
     val surface = if (!look.floating) {
-        Modifier.background(palette.panel.toComposeColor())
+        Modifier.clip(shape).background(palette.panel.toComposeColor())
     } else {
         Modifier
             .shadow(6.dp, shape)
@@ -362,7 +366,7 @@ internal fun ToolbarFrame(
     }
     CompositionLocalProvider(LocalToolGlide provides glide, LocalBar provides bar,
         LocalCompactToolbarRegions provides compactRegions, LocalMenuOffset provides menuOffset,
-        LocalTipSide provides tipSide) {
+        LocalTipSide provides tipSide, LocalToolbarSurfaceShape provides shape) {
         val morph = LocalToolbarContainerMorph.current
         if (morph != null) {
             // Container Transform: keep one surface while the child groups and

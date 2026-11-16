@@ -29,6 +29,8 @@ data class ToolbarGeometry(
     val paddingDp: Int? = null,
     val spacingDp: Int? = null,
     val elementSizeDp: Int? = null,
+    /** Per-bar corner radius in dp. Null follows global Settings > Corners. */
+    val cornerRadiusDp: Int? = null,
     val columns: Int = 1,
     /** Null keeps legacy floating/primary behavior. Non-null requests a docked edge. */
     val dockEdge: ToolbarDockEdge? = null,
@@ -85,6 +87,7 @@ data class ToolbarGeometry(
         paddingDp = paddingDp?.coerceIn(0, 32),
         spacingDp = spacingDp?.coerceIn(0, 32),
         elementSizeDp = elementSizeDp?.coerceIn(28, 72),
+        cornerRadiusDp = cornerRadiusDp?.coerceIn(0, 40),
         columns = columns.coerceIn(1, 6),
         visualOrder = visualOrder?.coerceIn(0, 127),
         dockLane = dockLane.coerceIn(0, ToolbarDockLayout.MAX_LANES - 1),
@@ -146,12 +149,6 @@ data class ToolbarWorkspace(val bars: List<ToolbarBar>) {
         })
     }
 
-    fun moveBar(id: String, toIndex: Int): ToolbarWorkspace {
-        val index = bars.indexOfFirst { it.id == id }
-        if (index < 0 || toIndex !in bars.indices || index == toIndex) return this
-        return copy(bars = bars.toMutableList().also { it.add(toIndex, it.removeAt(index)) })
-    }
-
     /**
      * Filter context-specific tools without appending every "missing" tool to every bar.
      * [ToolbarLayout.fromRaw] does append them for legacy *single* bars, but that behavior
@@ -197,13 +194,6 @@ data class ToolbarWorkspaces(
             note.onlyItems(ToolbarLayout.NOTE_ITEMS)
         ToolbarContext.CANVAS ->
             (if (shared) note else canvas).onlyItems(ToolbarLayout.CANVAS_ITEMS)
-    }
-
-    /** Import one preset profile without replacing the other. Unshare first so the
-     * canvas does not keep rendering the note profile after restoring either side. */
-    fun replaceContextFrom(preset: ToolbarWorkspaces, target: ToolbarContext): ToolbarWorkspaces = when (target) {
-        ToolbarContext.NOTE -> copy(note = preset.forContext(ToolbarContext.NOTE), shared = false)
-        ToolbarContext.CANVAS -> copy(canvas = preset.forContext(ToolbarContext.CANVAS), shared = false)
     }
 
     companion object {

@@ -12,6 +12,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.semantics.SemanticsProperties
 import androidx.compose.ui.test.assertIsSelected
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.getUnclippedBoundsInRoot
@@ -33,6 +34,139 @@ import org.junit.Test
 
 class ToolbarTitleAndPreviewReorderComposeTest {
     @get:Rule val rule = createComposeRule()
+
+    /** Regression: slider updates the parent plan immediately, but the preview
+     * background must never lag outside or ahead of its animated slot. Exercise
+     * growing AND shrinking length, thickness, buttons and padding on a drawing
+     * toolbar with colors, composite controls and three separate lanes. */
+    @Test fun canvasLivePreviewResizingKeepsBackgroundInsideAnimatedSlot() {
+        val layout = ToolbarLayout(listOf(ToolbarSection(listOf(
+            ToolbarEntry(ToolbarItem.PEN, lane = 0),
+            ToolbarEntry(ToolbarItem.COLORS, lane = 1),
+            ToolbarEntry(ToolbarItem.ZOOM, lane = 2),
+        ), lanes = 3)))
+        var workspace by mutableStateOf(ToolbarWorkspace(listOf(ToolbarBar(
+            "resizing", "Drawing Live", layout, geometry = ToolbarGeometry(
+                floating = true, anchor = ToolbarAnchor.TOP_CENTER,
+                widthDp = 240, heightDp = 132, elementSizeDp = 42, paddingDp = 4,
+            ),
+        ))))
+        val look = ToolbarLook(floating = true)
+        rule.setContent {
+            MaterialTheme {
+                Box(Modifier.fillMaxWidth()) {
+                    ToolbarWorkspacePreview(
+                        workspace = workspace, look = look, selectedId = "resizing",
+                        colors = List(10) { com.xnotes.core.model.Rgba(0, 0, 0, 255) },
+                        activeColorIndex = 0, pageNumber = 1, pageCount = 3,
+                        zoomLabel = "100%", titleLabel = "Drawing", selectedEntry = null,
+                        onSelectBar = {}, onSelectEntry = { _, _, _ -> },
+                        onMoveBar = { _, _, _ -> },
+                    )
+                }
+            }
+        }
+        rule.waitForIdle()
+        rule.mainClock.autoAdvance = false
+        fun assertFits(label: String) {
+            val slot = rule.onNodeWithTag("preview-bar-resizing", useUnmergedTree = true)
+                .getUnclippedBoundsInRoot()
+            val body = rule.onNodeWithTag("preview-content-resizing", useUnmergedTree = true)
+                .getUnclippedBoundsInRoot()
+            val dragSurface = rule.onNodeWithTag("toolbar-drag-surface-resizing", useUnmergedTree = true)
+                .getUnclippedBoundsInRoot()
+            assertTrue("$label: body left outside slot: $body / $slot; drag=$dragSurface",
+                body.left >= slot.left - 2.dp)
+            assertTrue("$label: body top outside slot: $body / $slot", body.top >= slot.top - 2.dp)
+            assertTrue("$label: body right outside slot: $body / $slot", body.right <= slot.right + 2.dp)
+            assertTrue("$label: body bottom outside slot: $body / $slot", body.bottom <= slot.bottom + 2.dp)
+        }
+        assertFits("initial")
+        val sizes = listOf(
+            ToolbarGeometry(floating = true, anchor = ToolbarAnchor.TOP_CENTER,
+                widthDp = 360, heightDp = 164, elementSizeDp = 58, paddingDp = 14),
+            ToolbarGeometry(floating = true, anchor = ToolbarAnchor.TOP_CENTER,
+                widthDp = 120, heightDp = 74, elementSizeDp = 36, paddingDp = 2),
+            ToolbarGeometry(floating = true, anchor = ToolbarAnchor.TOP_CENTER,
+                widthDp = 295, heightDp = 150, elementSizeDp = 64, paddingDp = 10),
+        )
+        sizes.forEachIndexed { step, geometry ->
+            rule.runOnIdle {
+                workspace = workspace.replaceBar(workspace.bars.single().copy(geometry = geometry))
+            }
+            repeat(21) { frame ->
+                rule.mainClock.advanceTimeByFrame()
+                assertFits("step=$step frame=$frame")
+            }
+        }
+        rule.mainClock.autoAdvance = true
+    }
+
+    /** Auto layout should not manufacture scrolling simply because the
+     * estimator forgot swatch padding, composite text or multi-lane spacing.
+     * Only genuinely viewport-oversized bars are allowed to scroll. */
+    @Test fun floatingAutoCanvasBarsWithVariousSizesRowsAndPaletteCountsFitWithoutScroll() {
+        var workspace by mutableStateOf(ToolbarWorkspace(listOf(ToolbarBar(
+            "auto", "Auto drawing", ToolbarLayout(listOf(ToolbarSection(
+                listOf(ToolbarEntry(ToolbarItem.PEN)), lanes = 1))),
+            geometry = ToolbarGeometry(floating = true, anchor = ToolbarAnchor.TOP_CENTER),
+        ))))
+        var look by mutableStateOf(ToolbarLook(floating = true))
+        var palette by mutableStateOf(List(3) { com.xnotes.core.model.Rgba(20, 30, 40) })
+        rule.setContent {
+            MaterialTheme {
+                Box(Modifier.fillMaxWidth()) {
+                    ToolbarWorkspacePreview(
+                        workspace = workspace, look = look, selectedId = "auto",
+                        colors = palette, activeColorIndex = 0, pageNumber = 1, pageCount = 4,
+                        zoomLabel = "100%", titleLabel = "Drawing Live",
+                        selectedEntry = null, onSelectBar = {}, onSelectEntry = { _, _, _ -> },
+                        onMoveBar = { _, _, _ -> },
+                    )
+                }
+            }
+        }
+        for (vertical in listOf(false, true)) {
+            for (rows in 1..3) {
+                for (colors in listOf(3, 8, 12)) {
+                    for (size in ToolbarSize.entries) {
+                        val entries = (0 until rows).flatMap { lane ->
+                            listOf(ToolbarEntry(ToolbarItem.COLORS, lane = lane),
+                                ToolbarEntry(ToolbarItem.PEN, lane = lane),
+                                ToolbarEntry(ToolbarItem.ZOOM, lane = lane))
+                        }
+                        rule.runOnIdle {
+                            look = ToolbarLook(floating = true, size = size)
+                            palette = List(colors) { com.xnotes.core.model.Rgba(40, 60, 80) }
+                            workspace = ToolbarWorkspace(listOf(ToolbarBar(
+                                "auto", "Auto drawing", ToolbarLayout(listOf(ToolbarSection(
+                                    entries, lanes = rows))),
+                                geometry = ToolbarGeometry(floating = true,
+                                    anchor = if (vertical) ToolbarAnchor.CENTER_RIGHT else ToolbarAnchor.TOP_CENTER),
+                            )))
+                        }
+                        rule.waitForIdle()
+                        val body = rule.onNodeWithTag("preview-content-auto", useUnmergedTree = true)
+                            .getUnclippedBoundsInRoot()
+                        val slot = rule.onNodeWithTag("preview-bar-auto", useUnmergedTree = true)
+                            .getUnclippedBoundsInRoot()
+                        assertTrue("auto bar extends beyond slot: vertical=$vertical rows=$rows colors=$colors size=$size body=$body slot=$slot",
+                            body.left >= slot.left - 2.dp && body.top >= slot.top - 2.dp &&
+                                body.right <= slot.right + 2.dp && body.bottom <= slot.bottom + 2.dp)
+                        // The preview body is a scrollable container even when
+                        // there is no overflow; its reported max range must be 0.
+                        val semantics = rule.onNodeWithTag("preview-content-auto", useUnmergedTree = true)
+                            .fetchSemanticsNode().config
+                        val axisKey = if (vertical) SemanticsProperties.VerticalScrollAxisRange
+                            else SemanticsProperties.HorizontalScrollAxisRange
+                        val range = runCatching { semantics[axisKey] }.getOrNull()
+                        assertTrue("Auto bar manufactured overflow: vertical=$vertical rows=$rows colors=$colors size=$size max=${range?.maxValue()}",
+                            range == null || range.maxValue() <= 2f)
+                    }
+                }
+            }
+        }
+    }
 
     @Test fun singleRowTopFloatingBarSharesTheTopEdgeWithTwoRowPeer() {
         val tall = ToolbarLayout(listOf(ToolbarSection(listOf(
@@ -774,4 +908,343 @@ class ToolbarTitleAndPreviewReorderComposeTest {
                 current.bars.sortedBy { it.geometry.visualOrder }.map { it.id })
         }
     }
+
+    /** Redmi recording: a vertical LEFT rail moved beside an occupied TOP peer
+     * previously protruded above the preview before snapping horizontal. */
+    @Test fun leftToOccupiedTopPreviewKeepsSourceVisibleThroughoutMorph() {
+        val tools = ToolbarLayout(listOf(ToolbarSection(listOf(
+            ToolbarEntry(ToolbarItem.PEN), ToolbarEntry(ToolbarItem.ERASER),
+        ))))
+        val peer = ToolbarBar("peer", "Top", tools, geometry = ToolbarGeometry(
+            anchor = ToolbarAnchor.TOP_CENTER, dockEdge = ToolbarDockEdge.TOP,
+            dockAlignment = ToolbarDockAlignment.CENTER, heightDp = 52))
+        val moving = ToolbarBar("moving", "Colors", tools, geometry = ToolbarGeometry(
+            anchor = ToolbarAnchor.CENTER_LEFT, dockEdge = ToolbarDockEdge.LEFT,
+            dockAlignment = ToolbarDockAlignment.CENTER, widthDp = 65, heightDp = 240))
+        val look = ToolbarLook()
+        var workspace by mutableStateOf(ToolbarWorkspace(listOf(peer, moving)))
+        var commits = 0
+        rule.setContent {
+            MaterialTheme {
+                Box(Modifier.fillMaxWidth()) {
+                    ToolbarWorkspacePreview(
+                        workspace = workspace, look = look, selectedId = "moving",
+                        colors = emptyList(), activeColorIndex = 0, pageNumber = 1,
+                        pageCount = 1, zoomLabel = "100%", titleLabel = "Document",
+                        selectedEntry = null, onSelectBar = {}, onSelectEntry = { _, _, _ -> },
+                        onMoveBar = { id, anchor, alignment ->
+                            val change = toolbarProjectedMove(workspace, look, id,
+                                ToolbarDropPosition(anchor, alignment))!!
+                            workspace = change.first
+                            commits++
+                        },
+                        onReorderBar = { source, target ->
+                            workspace = workspace.reorderVisualBar(source, target)
+                        },
+                    )
+                }
+            }
+        }
+        rule.waitForIdle()
+        val stage = rule.onNodeWithTag("toolbar-preview-stage", useUnmergedTree = true)
+        val pane = stage.fetchSemanticsNode().boundsInRoot
+        val movingNode = rule.onNodeWithTag("toolbar-drag-surface-moving", useUnmergedTree = true)
+        val content = rule.onNodeWithTag("preview-content-moving", useUnmergedTree = true)
+        val start = movingNode.fetchSemanticsNode().boundsInRoot.center
+        val pointerAtTop = Offset(pane.center.x, pane.top + 5f)
+        rule.mainClock.autoAdvance = false
+        stage.performTouchInput {
+            down(start - pane.topLeft)
+            advanceEventTime(790)
+            moveBy(pointerAtTop - start)
+            advanceEventTime(48)
+        }
+        rule.mainClock.advanceTimeByFrame()
+        val dragging = movingNode.fetchSemanticsNode().boundsInRoot
+        assertTrue("LEFT bar protruded above TOP during hover: $dragging / $pane",
+            dragging.top >= pane.top - 3f)
+        val visibleDuringDrag = content.fetchSemanticsNode().boundsInRoot
+        assertTrue("Visual toolbar body escaped during hover: $visibleDuringDrag / $pane",
+            visibleDuringDrag.top >= pane.top - 3f)
+        stage.performTouchInput { up() }
+        repeat(12) { frame ->
+            rule.mainClock.advanceTimeByFrame()
+            val rect = movingNode.fetchSemanticsNode().boundsInRoot
+            assertTrue("Morph frame $frame protruded above TOP: $rect / $pane",
+                rect.top >= pane.top - 3f)
+            val body = content.fetchSemanticsNode().boundsInRoot
+            assertTrue("Morph frame $frame rendered content above TOP: $body / $pane",
+                body.top >= pane.top - 3f)
+        }
+        rule.mainClock.advanceTimeBy(280)
+        rule.waitForIdle()
+        rule.runOnIdle {
+            assertEquals("Cross-edge must commit exactly once", 1, commits)
+            assertEquals(ToolbarDockEdge.TOP, workspace.bars[1].geometry.dockEdge)
+            assertEquals(ToolbarDockEdge.TOP, workspace.bars[0].geometry.dockEdge)
+        }
+        rule.onNodeWithTag("preview-bar-peer", useUnmergedTree = true).assertExists()
+        rule.onNodeWithTag("preview-bar-moving", useUnmergedTree = true).assertExists()
+        rule.mainClock.autoAdvance = true
+    }
+
+    /** Regression: one-line Colors rail from RIGHT/CENTER to TOP/END near a peer. */
+    @Test fun rightCenterOneRowColorsToUpperRightHasContinuousSettle() {
+        val primaryLayout = ToolbarLayout(listOf(ToolbarSection(listOf(
+            ToolbarEntry(ToolbarItem.PEN), ToolbarEntry(ToolbarItem.ERASER),
+        ))))
+        val colorsLayout = ToolbarLayout(listOf(ToolbarSection(listOf(
+            ToolbarEntry(ToolbarItem.COLORS),
+        ))))
+        val peer = ToolbarBar("peer", "Top tools", primaryLayout, geometry = ToolbarGeometry(
+            anchor = ToolbarAnchor.TOP_LEFT, dockEdge = ToolbarDockEdge.TOP,
+            dockAlignment = ToolbarDockAlignment.START, heightDp = 52))
+        val colors = ToolbarBar("moving", "Colors", colorsLayout, geometry = ToolbarGeometry(
+            anchor = ToolbarAnchor.CENTER_RIGHT, dockEdge = ToolbarDockEdge.RIGHT,
+            dockAlignment = ToolbarDockAlignment.CENTER, widthDp = 56, heightDp = 190))
+        val look = ToolbarLook()
+        var workspace by mutableStateOf(ToolbarWorkspace(listOf(peer, colors)))
+        var commits = 0
+        rule.setContent {
+            MaterialTheme {
+                Box(Modifier.fillMaxWidth()) {
+                    ToolbarWorkspacePreview(
+                        workspace = workspace, look = look, selectedId = "moving",
+                        colors = emptyList(), activeColorIndex = 0, pageNumber = 1,
+                        pageCount = 1, zoomLabel = "100%", titleLabel = "Document",
+                        selectedEntry = null, onSelectBar = {}, onSelectEntry = { _, _, _ -> },
+                        onMoveBar = { id, anchor, alignment ->
+                            val projected = toolbarProjectedMove(workspace, look, id,
+                                ToolbarDropPosition(anchor, alignment))!!
+                            workspace = projected.first
+                            commits++
+                        }, onReorderBar = { source, target ->
+                            workspace = workspace.reorderVisualBar(source, target)
+                        },
+                    )
+                }
+            }
+        }
+        rule.waitForIdle()
+        val stage = rule.onNodeWithTag("toolbar-preview-stage", useUnmergedTree = true)
+        val pane = stage.fetchSemanticsNode().boundsInRoot
+        val moving = rule.onNodeWithTag("toolbar-drag-surface-moving", useUnmergedTree = true)
+        val start = moving.fetchSemanticsNode().boundsInRoot.center
+        val destination = Offset(pane.right - 96f, pane.top + 10f)
+        rule.mainClock.autoAdvance = false
+        stage.performTouchInput {
+            down(start - pane.topLeft)
+            advanceEventTime(800)
+            moveBy(destination - start)
+            advanceEventTime(48)
+            up()
+        }
+        var stableX = Float.NaN
+        repeat(26) { frame ->
+            rule.mainClock.advanceTimeByFrame()
+            val rect = moving.fetchSemanticsNode().boundsInRoot
+            val body = rule.onNodeWithTag("preview-content-moving", useUnmergedTree = true)
+                .fetchSemanticsNode().boundsInRoot
+            val slot = rule.onNodeWithTag("preview-bar-moving", useUnmergedTree = true)
+                .fetchSemanticsNode().boundsInRoot
+            assertTrue("Final corner source must remain visible, frame $frame: $rect",
+                rect.right <= pane.right + 3f && rect.top >= pane.top - 3f)
+            assertTrue("The Colors body must not escape the preview, frame $frame: $body",
+                body.left >= pane.left - 3f && body.right <= pane.right + 3f)
+            if (commits > 0 && slot.top < pane.top + 150f) {
+                assertTrue("Source and new TOP_RIGHT parent must share one root x at frame $frame: $rect vs $slot",
+                    kotlin.math.abs(rect.left - slot.left) < 10f)
+            }
+            if (commits > 0) {
+                if (stableX.isNaN()) stableX = rect.left
+                assertTrue("After drop, TOP_RIGHT jumped left: frame=$frame finalX=$stableX rect=$rect",
+                    rect.left >= stableX - 20f)
+            }
+        }
+        rule.runOnIdle {
+            assertEquals("Must reach upper right", ToolbarAnchor.TOP_RIGHT,
+                workspace.bars[1].geometry.anchor)
+            assertEquals(1, commits)
+        }
+        rule.mainClock.autoAdvance = true
+    }
+
+    /** Reproduces TOP/CENTER drop while another bar remains in TOP/END.
+     * Position is sampled through the acknowledgement and peer relayout, not
+     * only at the final resting state (which can hide a one-frame jump). */
+    private fun verifyOccupiedTopCenterInsertion(
+        lines: Int, floating: Boolean, sourceAnchor: ToolbarAnchor,
+        preferredWidth: Int, preferredHeight: Int,
+        peerOnRightStart: Boolean = false,
+    ) {
+        val peerLayout = ToolbarLayout(listOf(ToolbarSection(listOf(
+            ToolbarEntry(ToolbarItem.PEN), ToolbarEntry(ToolbarItem.ERASER),
+        ))))
+        val movingLayout = ToolbarLayout(listOf(ToolbarSection(
+            (0 until lines).flatMap { lane -> listOf(
+                ToolbarEntry(ToolbarItem.COLORS, lane = lane),
+                ToolbarEntry(ToolbarItem.SPACER, lane = lane),
+            ) }, lanes = lines,
+        )))
+        val peer = ToolbarBar("peer", "Top right", peerLayout,
+            geometry = ToolbarGeometry(
+                floating = floating,
+                anchor = if (peerOnRightStart) ToolbarAnchor.CENTER_RIGHT else ToolbarAnchor.TOP_RIGHT,
+                dockEdge = if (floating) null else if (peerOnRightStart) ToolbarDockEdge.RIGHT else ToolbarDockEdge.TOP,
+                dockAlignment = if (peerOnRightStart) ToolbarDockAlignment.START else ToolbarDockAlignment.END,
+                widthDp = if (peerOnRightStart) 72 else 168,
+                heightDp = if (peerOnRightStart) 210 else 52,
+            ))
+        val moving = ToolbarBar("moving", "Moving colors", movingLayout,
+            geometry = ToolbarGeometry(
+                floating = floating, anchor = sourceAnchor,
+                dockEdge = if (floating) null else sourceAnchor.floatingEdge(),
+                dockAlignment = when (sourceAnchor) {
+                    ToolbarAnchor.TOP_LEFT, ToolbarAnchor.BOTTOM_LEFT -> ToolbarDockAlignment.START
+                    ToolbarAnchor.TOP_RIGHT, ToolbarAnchor.BOTTOM_RIGHT -> ToolbarDockAlignment.END
+                    else -> ToolbarDockAlignment.CENTER
+                },
+                widthDp = preferredWidth, heightDp = preferredHeight,
+            ))
+        var workspace by mutableStateOf(ToolbarWorkspace(listOf(peer, moving)))
+        var look by mutableStateOf(ToolbarLook(floating = floating))
+        var commits = 0
+        rule.setContent {
+            MaterialTheme {
+                Box(Modifier.fillMaxWidth()) {
+                    ToolbarWorkspacePreview(
+                        workspace = workspace, look = look, selectedId = "moving",
+                        colors = emptyList(), activeColorIndex = 0, pageNumber = 1,
+                        pageCount = 1, zoomLabel = "100%", titleLabel = "Document",
+                        selectedEntry = null, onSelectBar = {}, onSelectEntry = { _, _, _ -> },
+                        onMoveBar = { id, anchor, alignment ->
+                            val result = toolbarProjectedMove(workspace, look, id,
+                                ToolbarDropPosition(anchor, alignment))!!
+                            workspace = result.first
+                            look = result.second
+                            commits++
+                        }, onReorderBar = { from, to ->
+                            workspace = workspace.reorderVisualBar(from, to)
+                        },
+                    )
+                }
+            }
+        }
+        rule.waitForIdle()
+        val pane = rule.onNodeWithTag("toolbar-preview-stage", useUnmergedTree = true)
+            .fetchSemanticsNode().boundsInRoot
+        val movingNode = rule.onNodeWithTag("toolbar-drag-surface-moving", useUnmergedTree = true)
+        val initial = movingNode.fetchSemanticsNode().boundsInRoot
+        val finger = Offset(pane.center.x, pane.top + 12f)
+        rule.mainClock.autoAdvance = false
+        rule.onNodeWithTag("toolbar-preview-stage", useUnmergedTree = true).performTouchInput {
+            down(initial.center - pane.topLeft)
+            advanceEventTime(800)
+            moveBy(finger - initial.center)
+            advanceEventTime(48)
+            up()
+        }
+        val peerNode = rule.onNodeWithTag("preview-bar-peer", useUnmergedTree = true)
+        val initialPeer = peerNode.fetchSemanticsNode().boundsInRoot
+        var committedX: Float? = null
+        var committedY: Float? = null
+        var settledPeerRight: Float? = null
+        var settledPeerTop: Float? = null
+        repeat(26) { frame ->
+            rule.mainClock.advanceTimeByFrame()
+            val rect = movingNode.fetchSemanticsNode().boundsInRoot
+            val peerRect = peerNode.fetchSemanticsNode().boundsInRoot
+            if (lines == 1 || sourceAnchor == ToolbarAnchor.TOP_RIGHT) {
+                println("TOP_CENTER_TRACE lines=$lines floating=$floating start=$sourceAnchor frame=$frame commits=$commits moving=$rect peer=$peerRect peer0=$initialPeer")
+            }
+            assertTrue("Top-right peer disappeared at frame=$frame, rows=$lines floating=$floating: $peerRect",
+                peerRect.width > 1f && peerRect.height > 1f)
+            assertTrue("Source lost bounds at frame=$frame, rows=$lines floating=$floating anchor=$sourceAnchor: $rect",
+                rect.width > 1f && rect.height > 1f)
+            if (commits > 0) {
+                val previousX = committedX
+                val previousY = committedY
+                if (previousX != null && previousY != null) {
+                    assertTrue("Top-center ack jumped x at frame=$frame, rows=$lines floating=$floating from=$sourceAnchor: $previousX -> ${rect.left}",
+                        kotlin.math.abs(rect.left - previousX) < 18f)
+                    assertTrue("Top-center ack jumped y at frame=$frame, rows=$lines floating=$floating from=$sourceAnchor: $previousY -> ${rect.top}",
+                        kotlin.math.abs(rect.top - previousY) < 18f)
+                }
+                val priorPeerRight = settledPeerRight
+                val priorPeerTop = settledPeerTop
+                if (priorPeerRight != null && priorPeerTop != null) {
+                    assertTrue("Peer TOP_RIGHT flickered sideways after ack frame=$frame rows=$lines floating=$floating: $priorPeerRight -> ${peerRect.right}",
+                        kotlin.math.abs(peerRect.right - priorPeerRight) < 18f)
+                    assertTrue("Peer TOP_RIGHT flickered vertically after ack frame=$frame rows=$lines floating=$floating: $priorPeerTop -> ${peerRect.top}",
+                        kotlin.math.abs(peerRect.top - priorPeerTop) < 18f)
+                }
+                settledPeerRight = peerRect.right
+                settledPeerTop = peerRect.top
+                committedX = rect.left
+                committedY = rect.top
+            }
+        }
+        rule.runOnIdle {
+            assertEquals("Exactly one completed placement", 1, commits)
+            val result = workspace.bars.first { it.id == "moving" }
+            assertEquals(ToolbarAnchor.TOP_CENTER, result.geometry.anchor)
+            assertEquals(ToolbarDockAlignment.CENTER, result.geometry.dockAlignment)
+            val unchanged = workspace.bars.first { it.id == "peer" }
+            assertEquals(if (peerOnRightStart) ToolbarAnchor.CENTER_RIGHT else ToolbarAnchor.TOP_RIGHT,
+                unchanged.geometry.anchor)
+            assertEquals(if (peerOnRightStart) ToolbarDockAlignment.START else ToolbarDockAlignment.END,
+                unchanged.geometry.dockAlignment)
+        }
+        rule.onNodeWithTag("preview-bar-peer", useUnmergedTree = true).assertExists()
+        rule.onNodeWithTag("toolbar-drop-indicator-moving", useUnmergedTree = true).assertDoesNotExist()
+        rule.mainClock.autoAdvance = true
+    }
+
+    @Test fun occupiedTopCenterOneLineDockedFromSameTopRightLane() =
+        verifyOccupiedTopCenterInsertion(1, false, ToolbarAnchor.TOP_RIGHT, 148, 52)
+
+    @Test fun occupiedTopCenterOneLineFloatingFromSameTopRightLane() =
+        verifyOccupiedTopCenterInsertion(1, true, ToolbarAnchor.TOP_RIGHT, 148, 52)
+
+    @Test fun occupiedTopCenterTwoLinesDockedFromSameTopRightLane() =
+        verifyOccupiedTopCenterInsertion(2, false, ToolbarAnchor.TOP_RIGHT, 168, 100)
+
+    @Test fun occupiedTopCenterThreeLinesFloatingFromSameTopRightLane() =
+        verifyOccupiedTopCenterInsertion(3, true, ToolbarAnchor.TOP_RIGHT, 185, 152)
+
+    @Test fun rightStartPeerOneLineFloatingIntoTopCenter() =
+        verifyOccupiedTopCenterInsertion(1, true, ToolbarAnchor.TOP_LEFT, 148, 52, peerOnRightStart = true)
+
+    @Test fun rightStartPeerOneLineDockedIntoTopCenter() =
+        verifyOccupiedTopCenterInsertion(1, false, ToolbarAnchor.CENTER_LEFT, 56, 148, peerOnRightStart = true)
+
+    @Test fun rightStartPeerTwoLinesFloatingIntoTopCenter() =
+        verifyOccupiedTopCenterInsertion(2, true, ToolbarAnchor.BOTTOM_CENTER, 166, 112, peerOnRightStart = true)
+
+    @Test fun rightStartPeerTwoLinesDockedIntoTopCenter() =
+        verifyOccupiedTopCenterInsertion(2, false, ToolbarAnchor.TOP_LEFT, 166, 112, peerOnRightStart = true)
+
+    @Test fun rightStartPeerThreeLinesFloatingIntoTopCenter() =
+        verifyOccupiedTopCenterInsertion(3, true, ToolbarAnchor.CENTER_LEFT, 172, 255, peerOnRightStart = true)
+
+    @Test fun rightStartPeerThreeLinesDockedIntoTopCenter() =
+        verifyOccupiedTopCenterInsertion(3, false, ToolbarAnchor.BOTTOM_LEFT, 172, 255, peerOnRightStart = true)
+
+    @Test fun occupiedTopCenterCompactOneLineDockedFromRightCenter() =
+        verifyOccupiedTopCenterInsertion(1, false, ToolbarAnchor.CENTER_RIGHT, 56, 145)
+
+    @Test fun occupiedTopCenterOneLineFloatingFromRightCenter() =
+        verifyOccupiedTopCenterInsertion(1, true, ToolbarAnchor.CENTER_RIGHT, 56, 145)
+
+    @Test fun occupiedTopCenterTwoLinesDockedFromTopLeft() =
+        verifyOccupiedTopCenterInsertion(2, false, ToolbarAnchor.TOP_LEFT, 160, 102)
+
+    @Test fun occupiedTopCenterTwoLinesFloatingFromBottomLeft() =
+        verifyOccupiedTopCenterInsertion(2, true, ToolbarAnchor.BOTTOM_LEFT, 166, 112)
+
+    @Test fun occupiedTopCenterThreeLinesDockedFromRightCenter() =
+        verifyOccupiedTopCenterInsertion(3, false, ToolbarAnchor.CENTER_RIGHT, 172, 255)
+
+    @Test fun occupiedTopCenterThreeLinesFloatingFromTopLeft() =
+        verifyOccupiedTopCenterInsertion(3, true, ToolbarAnchor.TOP_LEFT, 196, 152)
 }
