@@ -56,6 +56,7 @@ fun FloatingDocumentTabs(
     floatingSurface: Boolean = true,
     onReorder: ((Int, Int) -> Unit)? = null,
     onSplit: ((String) -> Unit)? = null,
+    morphing: Boolean = false,
 ) {
     val palette = LocalPalette.current
     val active = tabs.tabs.firstOrNull { it.uri == activeUri } ?: tabs.tabs.firstOrNull()
@@ -66,36 +67,40 @@ fun FloatingDocumentTabs(
     // The thin strip needs a radius below half its thickness to keep
     // Rounded and Soft visually distinct.
     val shape = MaterialTheme.shapes.large
-    val oriented = if (vertical) modifier.rotateTabStrip() else modifier
-    val surface = if (floatingSurface) oriented.shadow(5.dp, shape)
+    val oriented = if (vertical) Modifier.rotateTabStrip() else Modifier
+    val surface = if (floatingSurface) modifier.shadow(5.dp, shape)
         .clip(shape).background(palette.panel.toComposeColor())
         .border(1.dp, palette.border.toComposeColor(), shape)
-        else oriented.background(palette.panel.toComposeColor())
-    Column(surface.animateContentSize(spring(stiffness = Spring.StiffnessMediumLow))) {
-        if (expanded || !floatingSurface) {
-            Box(Modifier.width(width).height(44.dp)) {
-                NoteTabBar(tabs, activeUri, onSelect, onClose,
-                    modifier = Modifier.padding(end = if (floatingSurface) 36.dp else 0.dp),
-                    floatingSurface = floatingSurface, rotated = vertical,
-                    onReorder = onReorder, onSplit = onSplit)
-                if (floatingSurface) Box(Modifier.align(Alignment.CenterEnd)
-                    .size(36.dp).clickable { onExpandedChange(false) }, contentAlignment = Alignment.Center) {
-                    Icon(Icons.Filled.KeyboardArrowUp, stringResource(R.string.document_tabs_collapse), Modifier.size(20.dp),
+        else modifier.background(palette.panel.toComposeColor())
+    val expansion = if (morphing) Modifier
+        else Modifier.animateContentSize(spring(stiffness = Spring.StiffnessMediumLow))
+    Box(surface, contentAlignment = Alignment.Center) {
+        Column(oriented.then(expansion)) {
+            if (expanded || !floatingSurface) {
+                Box(Modifier.width(width).height(44.dp)) {
+                    NoteTabBar(tabs, activeUri, onSelect, onClose,
+                        modifier = Modifier.padding(end = if (floatingSurface) 36.dp else 0.dp),
+                        floatingSurface = floatingSurface, rotated = vertical,
+                        onReorder = onReorder, onSplit = onSplit)
+                    if (floatingSurface) Box(Modifier.align(Alignment.CenterEnd)
+                        .size(36.dp).clickable { onExpandedChange(false) }, contentAlignment = Alignment.Center) {
+                        Icon(Icons.Filled.KeyboardArrowUp, stringResource(R.string.document_tabs_collapse), Modifier.size(20.dp),
+                            tint = palette.textDim.toComposeColor())
+                    }
+                }
+            } else {
+                Row(Modifier.clickable { onExpandedChange(true) }.height(42.dp).padding(horizontal = 12.dp),
+                    verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Icon(if (canvas) Icons.Outlined.Gesture else Icons.AutoMirrored.Outlined.Article,
+                        contentDescription = null, modifier = Modifier.size(16.dp), tint = palette.text.toComposeColor())
+                    Text(title, maxLines = 1, overflow = TextOverflow.Ellipsis,
+                        modifier = Modifier.widthIn(max = 180.dp), fontSize = 12.sp,
+                        color = palette.text.toComposeColor())
+                    if (tabs.tabs.size > 1) Text("${tabs.tabs.size}", fontSize = 11.sp,
+                        color = palette.textDim.toComposeColor())
+                    Icon(Icons.Filled.KeyboardArrowDown, stringResource(R.string.document_tabs_expand), Modifier.size(18.dp),
                         tint = palette.textDim.toComposeColor())
                 }
-            }
-        } else {
-            Row(Modifier.clickable { onExpandedChange(true) }.height(42.dp).padding(horizontal = 12.dp),
-                verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                Icon(if (canvas) Icons.Outlined.Gesture else Icons.AutoMirrored.Outlined.Article,
-                    contentDescription = null, modifier = Modifier.size(16.dp), tint = palette.text.toComposeColor())
-                Text(title, maxLines = 1, overflow = TextOverflow.Ellipsis,
-                    modifier = Modifier.widthIn(max = 180.dp), fontSize = 12.sp,
-                    color = palette.text.toComposeColor())
-                if (tabs.tabs.size > 1) Text("${tabs.tabs.size}", fontSize = 11.sp,
-                    color = palette.textDim.toComposeColor())
-                Icon(Icons.Filled.KeyboardArrowDown, stringResource(R.string.document_tabs_expand), Modifier.size(18.dp),
-                    tint = palette.textDim.toComposeColor())
             }
         }
     }

@@ -419,6 +419,29 @@ class DocumentTabsPlacementRegressionTest {
         assertEquals(target, bounds("document-tabs-bar"))
         assertEquals(target, bounds(dragSurface))
 
+        val editorBounds = bounds(stageTag)
+        stage.performTouchInput {
+            down(target.center - editorBounds.topLeft)
+            advanceEventTime(850)
+            moveBy(Offset(editorBounds.left + 4f, editorBounds.center.y) - target.center)
+        }
+        val verticalTarget = bounds("document-tabs-drop-outline")
+        val beforeMorph = bounds(dragSurface)
+        rule.mainClock.autoAdvance = false
+        try {
+            stage.performTouchInput { up() }
+            rule.mainClock.advanceTimeBy(100)
+            val intermediate = bounds(dragSurface)
+            assertTrue(intermediate.width < beforeMorph.width && intermediate.width > verticalTarget.width)
+            assertTrue(intermediate.height > beforeMorph.height && intermediate.height < verticalTarget.height)
+            assertEquals(ToolbarPosition.BOTTOM, rule.runOnIdle { config.position })
+            outline.assertDoesNotExist()
+        } finally {
+            rule.mainClock.autoAdvance = true
+        }
+        assertEquals(ToolbarPosition.LEFT, rule.runOnIdle { config.position })
+        assertEquals(verticalTarget, bounds(dragSurface))
+
         rule.runOnIdle {
             config = DocumentTabsBarConfig(floating = true)
             workspaceConfig = workspaceConfig.movedTo(ToolbarPosition.BOTTOM, ToolbarDockAlignment.CENTER)

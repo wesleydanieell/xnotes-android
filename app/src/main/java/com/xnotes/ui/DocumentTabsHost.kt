@@ -20,6 +20,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.geometry.lerp
 import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.layout.boundsInRoot
 import androidx.compose.ui.layout.onGloballyPositioned
@@ -40,6 +41,12 @@ import kotlin.math.roundToInt
 
 private const val DocumentTabsDockId = "document-tabs-navigation"
 internal val DocumentTabsDockExtent = 48.dp
+
+private data class DocumentTabsMorph(
+    val from: Size,
+    val to: Size,
+    val targetVertical: Boolean,
+)
 
 /** Navigation is not a tool or a ToolbarEntry. It occupies an independent overlay/dock,
  * and the existing tool layout planner is its source of collision obstacles. */
@@ -105,7 +112,9 @@ internal fun DocumentTabsHost(
     val vertical = config.position.vertical
     val showExpanded = expanded || !config.floating
     var root by remember { mutableStateOf(Rect.Zero) }
-    var child by remember(vertical) { mutableStateOf(Size.Zero) }
+    var child by remember { mutableStateOf(Size.Zero) }
+    var morph by remember { mutableStateOf<DocumentTabsMorph?>(null) }
+    var morphProgress by remember { mutableStateOf(0f) }
     var hoverTarget by remember { mutableStateOf<ToolbarDropPosition?>(null) }
     BoxWithConstraints(modifier.fillMaxSize().clipToBounds().onGloballyPositioned { coords ->
         val next = coords.boundsInRoot(); if (root != next) root = next
@@ -156,8 +165,8 @@ internal fun DocumentTabsHost(
             val origin = space.topLeft + documentTabsOffset(space.size, size, target.anchor, emptyList(), 0f)
             return Rect(origin, size)
         }
-        val length = (if (vertical) child.height else child.width).takeIf { it > 0f } ?: 210f * px
-        val thickness = (if (vertical) child.width else child.height).takeIf { it > 0f }
+        val length = child.width.takeIf { it > 0f } ?: 210f * px
+        val thickness = child.height.takeIf { it > 0f }
             ?: (if (showExpanded) 44f else 42f) * px
         val current = placement(config, length, thickness)
         fun destination(target: ToolbarDropPosition): Rect? {
@@ -165,19 +174,27 @@ internal fun DocumentTabsHost(
             val rect = placement(next, length, thickness)
             return rect.takeIf { !rect.isEmpty && obstacles.none(rect::overlaps) }
         }
+        val activeMorph = morph
+        val animatedSize = activeMorph?.let { lerp(it.from, it.to, morphProgress) }
+        val visualVertical = if (activeMorph != null && morphProgress >= 0.5f) activeMorph.targetVertical else vertical
+        val renderedSize = animatedSize ?: current.size
         val dragAnchor = if (vertical) DocumentTabsBarConfig.anchorOf(config.position) else config.anchor
         val floatingStrip = if (config.floating) strip(config) else current
         val slotModifier = Modifier.offset {
             IntOffset(current.left.roundToInt(), current.top.roundToInt())
         }.zIndex(20f).then(
-            if (config.floating) Modifier.sizeIn(
+            if (config.floating && animatedSize == null) Modifier.sizeIn(
                 maxWidth = (floatingStrip.width / px).dp,
                 maxHeight = (floatingStrip.height / px).dp,
-            ) else Modifier.width((current.width / px).dp).height((current.height / px).dp),
+            ) else Modifier.width((renderedSize.width / px).dp).height((renderedSize.height / px).dp),
         )
         Box(slotModifier.testTag("document-tabs-bar").onGloballyPositioned { coordinates ->
-            val size = Size(coordinates.size.width.toFloat(), coordinates.size.height.toFloat())
-            if (child != size) child = size
+            if (morph == null) {
+                val w = coordinates.size.width.toFloat()
+                val h = coordinates.size.height.toFloat()
+                val size = if (vertical) Size(h, w) else Size(w, h)
+                if (child != size) child = size
+            }
         }) {
             ToolbarDragSurface(
                 id = DocumentTabsDockId, anchor = dragAnchor, movable = true, paneBounds = root,
@@ -185,18 +202,29 @@ internal fun DocumentTabsHost(
                     onConfigChange(config.movedTo(DocumentTabsBarConfig.edgeOf(anchor), alignment))
                 },
                 parentSlotInRoot = root.topLeft + current.topLeft,
-                fillParentSlot = !config.floating,
+                fillParentSlot = !config.floating || animatedSize != null,
                 currentAlignment = config.alignment(),
                 snapTargetInRoot = { target -> destination(target)?.let { root.topLeft + it.topLeft } },
                 onPlacementPreview = { hoverTarget = it },
-                onSettleTarget = { hoverTarget = null },
+                onSettleTarget = { target ->
+                    hoverTarget = null
+                    morph = target?.let { placement ->
+                        val targetVertical = DocumentTabsBarConfig.edgeOf(placement.anchor).vertical
+                        destination(placement)?.size
+                            ?.takeIf { it != current.size || targetVertical != vertical }
+                            ?.let { DocumentTabsMorph(current.size, it, targetVertical) }
+                    }
+                    morphProgress = 0f
+                },
+                onSettleProgress = { morphProgress = it },
             ) {
                 FloatingDocumentTabs(
                     tabs = tabs, activeUri = activeUri, expanded = showExpanded,
                     onExpandedChange = onExpandedChange, onSelect = onSelect, onClose = onClose,
-                    vertical = vertical,
-                    expandedWidth = ((if (vertical) current.height else current.width) / px).dp,
-                    modifier = if (config.floating) Modifier else Modifier.fillMaxSize(),
+                    vertical = visualVertical,
+                    expandedWidth = ((if (visualVertical) renderedSize.height else renderedSize.width) / px).dp,
+                    modifier = if (config.floating && animatedSize == null) Modifier else Modifier.fillMaxSize(),
+                    morphing = animatedSize != null,
                     floatingSurface = config.floating, onReorder = onReorder, onSplit = onSplit,
                 )
             }
